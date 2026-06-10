@@ -19,7 +19,8 @@
     "quality_rules": {
       "max_file_lines": 400,
       "max_function_lines": 80,
-      "max_parameters": 5
+      "max_parameters": 5,
+      "max_cyclomatic_complexity": 10
     },
     "security_rules": {
       "govulncheck_mode": "auto",

@@ -21,5 +21,5 @@ This keeps the CLI thin and makes the service reusable from other Go projects.
 
 ## Current check behavior
 
-- `quality` enforces parseability, `gofmt` cleanliness, file-size thresholds, function-size thresholds, and parameter-count thresholds
-- `security` runs local heuristic scanning first and can optionally run `govulncheck` in `off`, `auto`, or `required` mode
+- `quality` enforces parseability, `gofmt` cleanliness, AST-derived maintainability thresholds, cyclomatic complexity, and dependency-direction checks
+- `security` runs local heuristic scanning first and can optionally run `govulncheck` in `off`, `auto`, or `required` mode with per-vulnerability findings when output is available
