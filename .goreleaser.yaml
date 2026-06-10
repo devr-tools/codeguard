@@ -1,0 +1,66 @@
+version: 2
+
+project_name: codeguard
+
+builds:
+  - id: codeguard
+    main: ./cmd/codeguard
+    binary: codeguard
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/devr-tools/codeguard/internal/version.Number=v{{ .Version }}
+
+archives:
+  - id: codeguard
+    ids:
+      - codeguard
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - none*
+
+checksum:
+  name_template: SHA256SUMS
+
+dockers:
+  - id: codeguard-amd64
+    ids:
+      - codeguard
+    dockerfile: Dockerfile.release
+    goos: linux
+    goarch: amd64
+    use: buildx
+    image_templates:
+      - "ghcr.io/devr-tools/codeguard:{{ .Tag }}-amd64"
+    build_flag_templates:
+      - "--pull"
+      - "--platform=linux/amd64"
+  - id: codeguard-arm64
+    ids:
+      - codeguard
+    dockerfile: Dockerfile.release
+    goos: linux
+    goarch: arm64
+    use: buildx
+    image_templates:
+      - "ghcr.io/devr-tools/codeguard:{{ .Tag }}-arm64"
+    build_flag_templates:
+      - "--pull"
+      - "--platform=linux/arm64"
+
+docker_manifests:
+  - name_template: "ghcr.io/devr-tools/codeguard:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/devr-tools/codeguard:{{ .Tag }}-amd64"
+      - "ghcr.io/devr-tools/codeguard:{{ .Tag }}-arm64"
+
+release:
+  prerelease: auto

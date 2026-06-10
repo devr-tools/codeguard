@@ -75,7 +75,7 @@ func runInit(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	configPath := fs.String("config", service.DefaultConfigPath(), "config path")
+	configPath := fs.String("config", service.DefaultConfigPath(), "config file or directory path")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -98,7 +98,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	inputs := scanInputs{
-		configPath: fs.String("config", service.DefaultConfigPath(), "config path"),
+		configPath: fs.String("config", service.DefaultConfigPath(), "config file or directory path"),
 		mode:       fs.String("mode", string(service.ScanModeFull), "scan mode: full or diff"),
 		baseRef:    fs.String("base-ref", "main", "base branch/ref for diff mode"),
 	}
@@ -112,15 +112,15 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		return 1
 	}
 
-	cfg, err := service.LoadConfigFile(*inputs.configPath)
-	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
-		return 1
-	}
-
 	scanMode, err := parseScanMode(*inputs.mode)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
+		return 1
+	}
+
+	cfg, err := service.LoadConfigFile(*inputs.configPath)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return 1
 	}
 

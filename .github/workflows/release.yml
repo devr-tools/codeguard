@@ -1,0 +1,340 @@
+name: release.yml
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to build from.
+        required: true
+        type: string
+      prerelease:
+        description: Whether this release should stay in the prerelease channel.
+        required: true
+        type: boolean
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to create or publish.
+        required: true
+        type: string
+      prerelease:
+        description: Mark the release as a prerelease.
+        required: true
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    outputs:
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Resolve release context
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
+          DISPATCH_PRERELEASE: ${{ github.event.inputs.prerelease }}
+          CALL_TAG: ${{ inputs.tag }}
+          CALL_PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${CALL_TAG:-}" ]; then
+            raw_tag="$CALL_TAG"
+            prerelease="$CALL_PRERELEASE"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            tag="${GITHUB_REF_NAME}"
+            if [[ "$tag" =~ ^([A-Za-z0-9._-]+-)?v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.-]+$ ]]; then
+              prerelease="true"
+            else
+              prerelease="false"
+            fi
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            raw_tag="$DISPATCH_TAG"
+            prerelease="$DISPATCH_PRERELEASE"
+          else
+            echo "unable to resolve release tag from inputs or event context"
+            exit 1
+          fi
+
+          if [ -n "${raw_tag:-}" ]; then
+            tag="$(printf '%s' "$raw_tag" | tr -d '[:space:]')"
+            tag="${tag#refs/tags/}"
+            tag="${tag#tag=}"
+            tag="${tag##*:}"
+
+            if [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              tag="v$tag"
+            fi
+          fi
+
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >>"$GITHUB_OUTPUT"
+
+      - name: Validate inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${{ steps.release.outputs.tag }}"
+          prerelease="${{ steps.release.outputs.prerelease }}"
+          tag_pattern='^([A-Za-z0-9._-]+-)?v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+          prerelease_pattern='^([A-Za-z0-9._-]+-)?v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.-]+$'
+
+          if ! [[ "$tag" =~ $tag_pattern ]]; then
+            echo "tag must look like v1.2.3, v1.2.3-rc.4, or codeguard-v1.2.3"
+            echo "received: '$tag'"
+            exit 1
+          fi
+
+          if [ "$prerelease" = "true" ] && [[ ! "$tag" =~ $prerelease_pattern ]]; then
+            echo "prerelease tags must include a prerelease suffix, for example -rc.4"
+            exit 1
+          fi
+
+          if [ "$prerelease" != "true" ] && [[ "$tag" =~ $prerelease_pattern ]]; then
+            echo "stable releases must use a stable semantic version tag"
+            exit 1
+          fi
+
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Ensure requested tag exists
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${{ steps.release.outputs.tag }}"
+
+          git fetch --tags --force
+
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            :
+          elif git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            git fetch origin "refs/tags/$tag:refs/tags/$tag"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$tag" -m "Release $tag" "$GITHUB_SHA"
+            git push origin "refs/tags/$tag"
+          fi
+
+          git checkout "$tag"
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean --config .goreleaser.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ steps.release.outputs.tag }}
+          path: dist/*
+
+  sync-homebrew-formula:
+    needs: build-release
+    if: needs.build-release.outputs.prerelease != 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAP_REPOSITORY: devr-tools/homebrew-tap
+    steps:
+      - name: Detect release bot token
+        id: release_token
+        shell: bash
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_PLEASE_TOKEN" ]; then
+            echo "available=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "available=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve tap default branch
+        id: tap_repo
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          default_branch="$(git ls-remote --symref "https://github.com/${TAP_REPOSITORY}.git" HEAD | awk '/^ref:/ {sub("refs/heads/", "", $2); print $2}')"
+          if [ -z "$default_branch" ]; then
+            echo "Could not resolve default branch for ${TAP_REPOSITORY}."
+            exit 1
+          fi
+
+          echo "default_branch=$default_branch" >>"$GITHUB_OUTPUT"
+
+      - name: Clone tap repository
+        shell: bash
+        env:
+          TAP_DEFAULT_BRANCH: ${{ steps.tap_repo.outputs.default_branch }}
+        run: |
+          set -euo pipefail
+
+          git clone --branch "$TAP_DEFAULT_BRANCH" "https://github.com/${TAP_REPOSITORY}.git" "$RUNNER_TEMP/homebrew-tap"
+
+      - name: Update Homebrew formula
+        id: formula
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.build-release.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$RELEASE_TAG" == *-v* ]]; then
+            version="${RELEASE_TAG##*-v}"
+          else
+            version="${RELEASE_TAG#v}"
+          fi
+          tarball_url="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${RELEASE_TAG}.tar.gz"
+          tarball_path="$RUNNER_TEMP/${RELEASE_TAG}.tar.gz"
+          branch="automation/homebrew-formula-${RELEASE_TAG}"
+          tap_dir="$RUNNER_TEMP/homebrew-tap"
+          formula_path="$tap_dir/Formula/codeguard.rb"
+
+          curl -fsSL "$tarball_url" -o "$tarball_path"
+          sha256="$(sha256sum "$tarball_path" | awk '{print $1}')"
+
+          perl -0pi -e 's/version "[^"]+"/version "'"$version"'"/' "$formula_path"
+          perl -0pi -e 's#url "https://github\.com/devr-tools/codeguard/archive/refs/tags/[^"]+\.tar\.gz"#url "'"$tarball_url"'"#' "$formula_path"
+          perl -0pi -e 's/sha256 "[0-9a-f]+"/sha256 "'"$sha256"'"/' "$formula_path"
+
+          echo "branch=$branch" >>"$GITHUB_OUTPUT"
+          echo "tap_dir=$tap_dir" >>"$GITHUB_OUTPUT"
+          echo "formula_path=Formula/codeguard.rb" >>"$GITHUB_OUTPUT"
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "tarball_url=$tarball_url" >>"$GITHUB_OUTPUT"
+          echo "sha256=$sha256" >>"$GITHUB_OUTPUT"
+
+          if git -C "$tap_dir" diff --quiet -- Formula/codeguard.rb; then
+            echo "changed=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed=true" >>"$GITHUB_OUTPUT"
+
+          git -C "$tap_dir" checkout -b "$branch"
+          git -C "$tap_dir" config user.name "please-release"
+          git -C "$tap_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$tap_dir" add Formula/codeguard.rb
+          git -C "$tap_dir" commit -m "chore(homebrew): update formula for ${RELEASE_TAG}"
+
+      - name: Push formula update branch
+        id: push_formula_branch
+        if: steps.formula.outputs.changed == 'true' && steps.release_token.outputs.available == 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          tap_dir="${{ steps.formula.outputs.tap_dir }}"
+
+          git -C "$tap_dir" remote set-url origin "https://x-access-token:${RELEASE_PLEASE_TOKEN}@github.com/${TAP_REPOSITORY}.git"
+          git -C "$tap_dir" push --force-with-lease origin "${{ steps.formula.outputs.branch }}"
+
+      - name: Open formula update pull request
+        id: open_formula_pr
+        if: steps.formula.outputs.changed == 'true' && steps.release_token.outputs.available == 'true' && steps.push_formula_branch.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          RELEASE_TAG: ${{ needs.build-release.outputs.tag }}
+          FORMULA_BRANCH: ${{ steps.formula.outputs.branch }}
+          TAP_DEFAULT_BRANCH: ${{ steps.tap_repo.outputs.default_branch }}
+        run: |
+          set -euo pipefail
+
+          title="chore(homebrew): update formula for ${RELEASE_TAG}"
+          body=$(cat <<EOF
+          ## Summary
+
+          - update `Formula/codeguard.rb` in `${TAP_REPOSITORY}` to ${RELEASE_TAG}
+          - pin the published source tarball checksum
+
+          ## Verification
+
+          - generated by `.github/workflows/release.yml` after the ${RELEASE_TAG} release completed
+          EOF
+          )
+
+          existing="$(gh pr list --repo "$TAP_REPOSITORY" --head "$FORMULA_BRANCH" --base "$TAP_DEFAULT_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --repo "$TAP_REPOSITORY" --title "$title" --body "$body"
+          else
+            gh pr create \
+              --repo "$TAP_REPOSITORY" \
+              --base "$TAP_DEFAULT_BRANCH" \
+              --head "$FORMULA_BRANCH" \
+              --title "$title" \
+              --body "$body"
+          fi
+
+      - name: Record manual Homebrew follow-up
+        if: steps.formula.outputs.changed == 'true' && (steps.release_token.outputs.available != 'true' || steps.push_formula_branch.outcome == 'failure' || steps.open_formula_pr.outcome == 'failure')
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.build-release.outputs.tag }}
+          FORMULA_VERSION: ${{ steps.formula.outputs.version }}
+          TARBALL_URL: ${{ steps.formula.outputs.tarball_url }}
+          FORMULA_SHA256: ${{ steps.formula.outputs.sha256 }}
+          FORMULA_BRANCH: ${{ steps.formula.outputs.branch }}
+        run: |
+          set -euo pipefail
+
+          {
+            echo "## Homebrew Formula Follow-up Required"
+            echo
+            if [ "${{ steps.release_token.outputs.available }}" != "true" ]; then
+              echo "- Automated PR for `${TAP_REPOSITORY}` was skipped because `RELEASE_PLEASE_TOKEN` is not configured."
+            elif [ "${{ steps.push_formula_branch.outcome }}" = "failure" ]; then
+              echo "- Automated PR for `${TAP_REPOSITORY}` was skipped because pushing branch `$FORMULA_BRANCH` failed."
+            elif [ "${{ steps.open_formula_pr.outcome }}" = "failure" ]; then
+              echo "- Automated PR for `${TAP_REPOSITORY}` was skipped because PR creation or update failed."
+            fi
+            echo
+            echo "Apply this update manually:"
+            echo
+            echo "- Repository: `${TAP_REPOSITORY}`"
+            echo "- Base branch: `${{ steps.tap_repo.outputs.default_branch }}`"
+            echo "- File: `${{ steps.formula.outputs.formula_path }}`"
+            echo "- Version: `$FORMULA_VERSION`"
+            echo "- Tag: `$RELEASE_TAG`"
+            echo "- Tarball: `$TARBALL_URL`"
+            echo "- SHA256: `$FORMULA_SHA256`"
+            echo "- Suggested branch: `$FORMULA_BRANCH`"
+          } >>"$GITHUB_STEP_SUMMARY"

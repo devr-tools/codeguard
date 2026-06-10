@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -44,7 +45,14 @@ func TestRunInteractiveScanUsesPromptedBaseRef(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("scan exit code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Base Ref: origin/main") {
-		t.Fatalf("expected prompted base ref in output, got:\n%s", stdout.String())
+	rendered := stripANSI(stdout.String())
+	if !strings.Contains(rendered, "Base Ref: origin/main") {
+		t.Fatalf("expected prompted base ref in output, got:\n%s", rendered)
 	}
+}
+
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(value string) string {
+	return ansiPattern.ReplaceAllString(value, "")
 }
