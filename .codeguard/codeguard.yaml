@@ -7,7 +7,7 @@ targets:
       - cmd/codeguard
 checks:
   quality: true
-  design: false
+  design: true
   security: false
   prompts: false
   ci: true
