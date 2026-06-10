@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -11,7 +12,7 @@ import (
 	"github.com/devr-tools/codeguard/internal/version"
 )
 
-func Run(args []string, stdout io.Writer, stderr io.Writer) int {
+func Run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
 	if len(args) == 0 {
 		writeUsage(stdout)
 		return 0
@@ -25,11 +26,11 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stdout, version.Number)
 		return 0
 	case "init":
-		return runInit(args[1:], stdout, stderr)
+		return runInit(args[1:], stdin, stdout, stderr)
 	case "validate":
 		return runValidate(args[1:], stdout, stderr)
 	case "scan":
-		return runScan(args[1:], stdout, stderr)
+		return runScan(args[1:], stdin, stdout, stderr)
 	default:
 		_, _ = fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		writeUsage(stderr)
@@ -37,15 +38,32 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 }
 
-func runInit(args []string, stdout io.Writer, stderr io.Writer) int {
+func runInit(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	output := fs.String("output", "codeguard.json", "output config path")
+	output := fs.String("output", service.DefaultConfigPath(), "output config path")
+	interactive := fs.Bool("interactive", false, "prompt for config values in the terminal")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 
-	if err := service.WriteConfigFile(*output, service.ExampleConfig()); err != nil {
+	cfg := service.ExampleConfig()
+	if *interactive {
+		reader := bufio.NewReader(stdin)
+		var err error
+		*output, err = promptString(reader, stdout, "config output path", *output)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "interactive init: %v\n", err)
+			return 1
+		}
+		cfg.Name, err = promptString(reader, stdout, "config name", cfg.Name)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "interactive init: %v\n", err)
+			return 1
+		}
+	}
+
+	if err := service.WriteConfigFile(*output, cfg); err != nil {
 		_, _ = fmt.Fprintf(stderr, "write config: %v\n", err)
 		return 1
 	}
@@ -57,7 +75,7 @@ func runInit(args []string, stdout io.Writer, stderr io.Writer) int {
 func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	configPath := fs.String("config", "codeguard.json", "config path")
+	configPath := fs.String("config", service.DefaultConfigPath(), "config path")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -76,25 +94,55 @@ func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 	return 0
 }
 
-func runScan(args []string, stdout io.Writer, stderr io.Writer) int {
+func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	configPath := fs.String("config", "", "config path")
+	configPath := fs.String("config", service.DefaultConfigPath(), "config path")
+	mode := fs.String("mode", string(service.ScanModeFull), "scan mode: full or diff")
+	baseRef := fs.String("base-ref", "main", "base branch/ref for diff mode")
+	interactive := fs.Bool("interactive", false, "prompt for scan inputs in the terminal")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 
-	cfg := service.ExampleConfig()
-	if strings.TrimSpace(*configPath) != "" {
-		loaded, err := service.LoadConfigFile(*configPath)
+	if *interactive {
+		reader := bufio.NewReader(stdin)
+		var err error
+		*configPath, err = promptString(reader, stdout, "config path", *configPath)
 		if err != nil {
-			_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
+			_, _ = fmt.Fprintf(stderr, "interactive scan: %v\n", err)
 			return 1
 		}
-		cfg = loaded
+		*mode, err = promptString(reader, stdout, "scan mode (full|diff)", *mode)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "interactive scan: %v\n", err)
+			return 1
+		}
+		if strings.TrimSpace(*mode) == string(service.ScanModeDiff) {
+			*baseRef, err = promptString(reader, stdout, "base ref", *baseRef)
+			if err != nil {
+				_, _ = fmt.Fprintf(stderr, "interactive scan: %v\n", err)
+				return 1
+			}
+		}
 	}
 
-	report, err := service.NewRunner(cfg).Run(context.Background())
+	cfg, err := service.LoadConfigFile(*configPath)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
+		return 1
+	}
+
+	scanMode := service.ScanMode(strings.TrimSpace(*mode))
+	if scanMode != service.ScanModeFull && scanMode != service.ScanModeDiff {
+		_, _ = fmt.Fprintf(stderr, "invalid scan mode %q\n", *mode)
+		return 1
+	}
+
+	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
+		Mode:    scanMode,
+		BaseRef: strings.TrimSpace(*baseRef),
+	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
 		return 1
@@ -110,13 +158,28 @@ func runScan(args []string, stdout io.Writer, stderr io.Writer) int {
 	return 0
 }
 
+func promptString(reader *bufio.Reader, stdout io.Writer, label string, fallback string) (string, error) {
+	if _, err := fmt.Fprintf(stdout, "%s [%s]: ", label, fallback); err != nil {
+		return "", err
+	}
+	line, err := reader.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return fallback, nil
+	}
+	return line, nil
+}
+
 func writeUsage(w io.Writer) {
 	_, _ = io.WriteString(w, `codeguard
 
 Usage:
-  codeguard init [-output codeguard.json]
-  codeguard validate [-config codeguard.json]
-  codeguard scan [-config codeguard.json]
+  codeguard init [-output codeguard.yaml] [-interactive]
+  codeguard validate [-config codeguard.yaml]
+  codeguard scan [-config codeguard.yaml] [-mode full|diff] [-base-ref main] [-interactive]
   codeguard version
 `)
 }

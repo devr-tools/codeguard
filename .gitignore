@@ -18,6 +18,8 @@ coverage.*
 profile.cov
 dist/
 codeguard
+.gocache/
+.gomodcache/
 
 # Dependency directories (remove the comment below to include it)
 # vendor/

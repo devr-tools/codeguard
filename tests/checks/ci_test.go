@@ -30,7 +30,7 @@ func TestCICheckFailsWhenRequiredAssetsAreMissing(t *testing.T) {
 
 func TestCICheckPassesWhenRequiredAssetsExist(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, ".github", "workflows", "ci.yml"), "name: ci\n")
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "ci.yml"), "name: ci\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n      - run: go test ./...\n")
 	writeFile(t, filepath.Join(dir, ".goreleaser.yaml"), "version: 2\n")
 	writeFile(t, filepath.Join(dir, "Makefile"), "test:\n\tgo test ./...\n")
 
@@ -51,6 +51,29 @@ func TestCICheckPassesWhenRequiredAssetsExist(t *testing.T) {
 	assertSectionStatus(t, report, "CI/CD", "pass")
 }
 
+func TestCICheckFailsWhenWorkflowContentIsMissing(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "ci.yml"), "name: ci\njobs:\n  test:\n    steps:\n      - run: echo hi\n")
+	writeFile(t, filepath.Join(dir, ".goreleaser.yaml"), "version: 2\n")
+	writeFile(t, filepath.Join(dir, "Makefile"), "test:\n\tgo test ./...\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "ci-content-missing"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.CI = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Design = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "CI/CD", "fail")
+}
+
 func TestCICheckAllowsRuleOverride(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "buildkite.yml"), "steps: []\n")
@@ -66,8 +89,39 @@ func TestCICheckAllowsRuleOverride(t *testing.T) {
 	disabled := false
 	cfg.Checks.CIRules.RequireWorkflowDir = &disabled
 	cfg.Checks.CIRules.RequiredWorkflowFiles = []string{"buildkite.yml"}
+	cfg.Checks.CIRules.WorkflowContentRules = []codeguard.WorkflowRuleConfig{{
+		Path:             "buildkite.yml",
+		RequiredContains: []string{"steps:"},
+	}}
 	cfg.Checks.CIRules.RequiredReleaseFiles = []string{"buildkite.yml"}
 	cfg.Checks.CIRules.RequiredAutomationPaths = []string{"buildkite.yml"}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "CI/CD", "pass")
+}
+
+func TestCICheckAllowsEmptyReleaseFileOverride(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "ci.yml"), "name: ci\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n      - run: make codeguard-ci\n")
+	writeFile(t, filepath.Join(dir, "Makefile"), "codeguard-ci:\n\tgo test ./...\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "ci-empty-release-override"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.CI = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Design = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CIRules.RequiredReleaseFiles = []string{}
+	cfg.Checks.CIRules.WorkflowContentRules = []codeguard.WorkflowRuleConfig{{
+		Path:             ".github/workflows/ci.yml",
+		RequiredContains: []string{"actions/checkout", "make codeguard-ci"},
+	}}
 
 	report, err := codeguard.Run(context.Background(), cfg)
 	if err != nil {

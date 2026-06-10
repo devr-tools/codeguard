@@ -1,0 +1,50 @@
+{
+  "name": "codeguard-repo-ci",
+  "targets": [
+    {
+      "name": "repository",
+      "path": ".",
+      "language": "go",
+      "entrypoints": [
+        "cmd/codeguard"
+      ]
+    }
+  ],
+  "checks": {
+    "quality": true,
+    "design": false,
+    "security": false,
+    "prompts": false,
+    "ci": true,
+    "quality_rules": {
+      "max_file_lines": 400,
+      "max_function_lines": 80,
+      "max_parameters": 5,
+      "max_cyclomatic_complexity": 10
+    },
+    "ci_rules": {
+      "require_workflow_dir": true,
+      "required_workflow_files": [
+        ".github/workflows/ci.yml"
+      ],
+      "workflow_content_rules": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "required_contains": [
+            "make fmt-check",
+            "make lint",
+            "make test",
+            "make codeguard-ci"
+          ]
+        }
+      ],
+      "required_release_files": [],
+      "required_automation_paths": [
+        "Makefile"
+      ]
+    }
+  },
+  "output": {
+    "format": "text"
+  }
+}

@@ -26,7 +26,11 @@
       "require_cmd_through_internal_cli": true,
       "forbid_internal_import_cmd": true,
       "forbid_service_import_internal": true,
-      "forbid_service_import_cmd": true
+      "forbid_service_import_cmd": true,
+      "max_decls_per_file": 12,
+      "max_methods_per_type": 8,
+      "max_interface_methods": 5,
+      "forbidden_package_names": ["util", "utils", "common", "helpers", "misc"]
     },
     "prompt_rules": {
       "file_extensions": [".prompt", ".md", ".txt", ".tmpl", ".yaml", ".yml", ".json"],
@@ -37,6 +41,12 @@
     "ci_rules": {
       "require_workflow_dir": true,
       "required_workflow_files": [".github/workflows/ci.yml"],
+      "workflow_content_rules": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "required_contains": ["actions/checkout", "go test ./..."]
+        }
+      ],
       "required_release_files": [".goreleaser.yaml"],
       "required_automation_paths": ["Makefile"]
     },

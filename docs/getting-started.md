@@ -2,13 +2,29 @@
 
 `codeguard` is a standalone Go service and CLI for repository checks around code quality, design boundaries, security, CI/CD hygiene, and AI prompt governance.
 
-## Commands
+## Install
+
+```bash
+go install github.com/devr-tools/codeguard/cmd/codeguard@latest
+```
+
+Or from this repository:
+
+```bash
+make build
+```
+
+## Quick Start
 
 ```bash
 codeguard init
-codeguard validate -config codeguard.json
-codeguard scan -config codeguard.json
+codeguard validate -config codeguard.yaml
+codeguard scan -config codeguard.yaml
 ```
+
+`codeguard init` writes `codeguard.yaml` by default.
+
+If you prefer a JSON example, start from [examples/codeguard.json](/Users/alex/Documents/GitHub/codeguard/examples/codeguard.json:1).
 
 ## Current scope
 

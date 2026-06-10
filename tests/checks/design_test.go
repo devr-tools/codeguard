@@ -95,3 +95,68 @@ func TestDesignCheckAllowsDisabledRuleOverride(t *testing.T) {
 
 	assertSectionStatus(t, report, "Design Patterns", "pass")
 }
+
+func TestDesignCheckWarnsForGenericPackageName(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "codeguard", "util.go"), "package util\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "design-package-name"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Design = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Design Patterns", "warn")
+}
+
+func TestDesignCheckWarnsForTooManyMethodsOnType(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "codeguard", "service.go"), "package codeguard\n\ntype Service struct{}\n\nfunc (Service) A(){}\nfunc (Service) B(){}\nfunc (Service) C(){}\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "design-srp"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Design = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.Checks.DesignRules.MaxMethodsPerType = 2
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Design Patterns", "warn")
+}
+
+func TestDesignCheckWarnsForLargeInterface(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "codeguard", "ports.go"), "package codeguard\n\ntype Client interface {\n\tA()\n\tB()\n\tC()\n}\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "design-isp"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Design = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.Checks.DesignRules.MaxInterfaceMethods = 2
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Design Patterns", "warn")
+}

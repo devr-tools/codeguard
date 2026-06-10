@@ -22,7 +22,7 @@ This keeps the CLI thin and makes the service reusable from other Go projects.
 ## Current check behavior
 
 - `quality` enforces parseability, `gofmt` cleanliness, AST-derived maintainability thresholds, cyclomatic complexity, and dependency-direction checks
-- `design` enforces configurable layer boundaries between `cmd/`, `internal/`, and reusable `codeguard/` packages
+- `design` enforces configurable layer boundaries between `cmd/`, `internal/`, and reusable `codeguard/` packages, plus principle checks for separation of concerns, clean-code naming, and SOLID-oriented heuristics
 - `prompts` discovers prompt-oriented files and enforces configurable checks for secret interpolation and unsafe instruction patterns
-- `ci` enforces configurable repository policy for workflow directories, workflow files, release files, and automation entrypoints
+- `ci` enforces configurable repository policy for workflow directories, workflow files, workflow contents, release files, and automation entrypoints
 - `security` runs local heuristic scanning first and can optionally run `govulncheck` in `off`, `auto`, or `required` mode with per-vulnerability findings when output is available
