@@ -14,7 +14,8 @@ GOMODCACHE ?= $(CURDIR)/.gomodcache
 CONFIG ?= examples/codeguard.json
 CI_CONFIG ?= .codeguard/codeguard.yaml
 BASE_REF ?= main
-GOFILES := $(shell find . cmd internal tests -type f -name '*.go' 2>/dev/null)
+CODEGUARD_BIN ?= ./dist/codeguard
+GOFILES := $(shell find cmd internal pkg tests -type f -name '*.go' 2>/dev/null)
 
 export GOCACHE
 export GOMODCACHE
@@ -61,17 +62,17 @@ lint:
 test:
 	$(GO) test ./...
 
-codeguard-ci:
-	$(GO) run ./cmd/codeguard validate -config $(CI_CONFIG)
-	$(GO) run ./cmd/codeguard scan -config $(CI_CONFIG)
+codeguard-ci: build
+	$(CODEGUARD_BIN) validate -config $(CI_CONFIG)
+	$(CODEGUARD_BIN) scan -config $(CI_CONFIG)
 
 check: fmt-check lint test codeguard-ci
 
-ci: check build
+ci: check
 
 build:
 	@mkdir -p dist
-	$(GO) build -trimpath -o ./dist/codeguard ./cmd/codeguard
+	$(GO) build -trimpath -o $(CODEGUARD_BIN) ./cmd/codeguard
 
 release: release-snapshot
 

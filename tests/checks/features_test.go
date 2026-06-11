@@ -199,6 +199,20 @@ func TestWriteReportSupportsSARIFAndGitHub(t *testing.T) {
 		}},
 	}
 
+	var text bytes.Buffer
+	t.Setenv("NO_COLOR", "")
+	if err := codeguard.WriteReport(&text, report, "text"); err != nil {
+		t.Fatalf("write text: %v", err)
+	}
+	assertTextReportFormatting(t, &text)
+
+	t.Setenv("NO_COLOR", "1")
+	var plain bytes.Buffer
+	if err := codeguard.WriteReport(&plain, report, "text"); err != nil {
+		t.Fatalf("write plain text: %v", err)
+	}
+	assertPlainTextReportFormatting(t, &plain)
+
 	var sarif bytes.Buffer
 	if err := codeguard.WriteReport(&sarif, report, "sarif"); err != nil {
 		t.Fatalf("write sarif: %v", err)

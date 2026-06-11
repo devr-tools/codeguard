@@ -21,9 +21,49 @@
         }
       ]
     },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestRunBaselineWritesFile1897419360/001|prompts/system.prompt": {
+      "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
+      "config_hash": "f03a59717f74203ce2e7b4877ad7d07eb579627b",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        }
+      ]
+    },
     "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestRunBaselineWritesFile2237614797/001|prompts/system.prompt": {
       "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
       "config_hash": "706701d6292d6561aafc0f8c53e85f0b00a72c90",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        }
+      ]
+    },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestRunBaselineWritesFile3011807692/001|prompts/system.prompt": {
+      "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
+      "config_hash": "250a1ccec467ef764bdabd588ba66cb2f376f7a6",
       "findings": [
         {
           "rule_id": "prompts.secret-interpolation",
@@ -64,6 +104,46 @@
     "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestRunBaselineWritesFile520654328/001|prompts/system.prompt": {
       "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
       "config_hash": "b7acbc0720f2c21d59508bb1a60b731f34167888",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        }
+      ]
+    },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestRunBaselineWritesFile758688541/001|prompts/system.prompt": {
+      "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
+      "config_hash": "17c3bf4fa6eff6950c0a3945326990ec6f80efc5",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        }
+      ]
+    },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestRunBaselineWritesFile902731280/001|prompts/system.prompt": {
+      "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
+      "config_hash": "47d98bb85c41ac0981e5f20c5dc0ece05346de3c",
       "findings": [
         {
           "rule_id": "prompts.secret-interpolation",
