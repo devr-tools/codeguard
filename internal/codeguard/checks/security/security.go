@@ -9,8 +9,8 @@ import (
 )
 
 func Run(ctx context.Context, env support.Context) core.SectionResult {
-	findings := make([]core.Finding, 0)
-	for _, target := range env.Config.Targets {
+	findings := support.CollectTargetFindings(ctx, env, func(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+		findings := make([]core.Finding, 0)
 		if isTypeScriptTarget(target) {
 			findings = append(findings, typeScriptTargetFindings(ctx, env, target)...)
 		} else {
@@ -23,18 +23,16 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 		if isGoTarget(target) {
 			findings = append(findings, govulncheckFindings(ctx, env, target)...)
 		}
-	}
+		return findings
+	})
 	return env.FinalizeSection("security", "Security", findings)
 }
 
 func commandFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	checks := env.Config.Checks.SecurityRules.LanguageCommands[support.NormalizedLanguage(target.Language)]
-	return support.RunCommandChecks(ctx, env, target, checks, func(check core.CommandCheckConfig, output string, err error) core.Finding {
-		return env.NewFinding(support.FindingInput{
-			RuleID:  "security.command-check",
-			Level:   "fail",
-			Message: support.CommandFailureMessage("security", target, check, output, err),
-		})
+	return support.SectionCommandFindings(ctx, env, target, support.SectionCommandSpec{
+		Checks:  env.Config.Checks.SecurityRules.LanguageCommands[support.NormalizedLanguage(target.Language)],
+		RuleID:  "security.command-check",
+		Section: "security",
 	})
 }
 

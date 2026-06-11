@@ -9,8 +9,8 @@ import (
 )
 
 func Run(ctx context.Context, env support.Context) core.SectionResult {
-	findings := make([]core.Finding, 0)
-	for _, target := range env.Config.Targets {
+	findings := support.CollectTargetFindings(ctx, env, func(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+		findings := make([]core.Finding, 0)
 		switch support.NormalizedLanguage(target.Language) {
 		case "", "go":
 			findings = append(findings, env.ScanTargetFiles(target, "quality", func(rel string) bool {
@@ -45,17 +45,15 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 		}
 		findings = append(findings, cloneFindingsForTarget(env, target)...)
 		findings = append(findings, commandFindings(ctx, env, target)...)
-	}
+		return findings
+	})
 	return env.FinalizeSection("quality", "Code Quality", findings)
 }
 
 func commandFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	checks := env.Config.Checks.QualityRules.LanguageCommands[support.NormalizedLanguage(target.Language)]
-	return support.RunCommandChecks(ctx, env, target, checks, func(check core.CommandCheckConfig, output string, err error) core.Finding {
-		return env.NewFinding(support.FindingInput{
-			RuleID:  "quality.command-check",
-			Level:   "fail",
-			Message: support.CommandFailureMessage("quality", target, check, output, err),
-		})
+	return support.SectionCommandFindings(ctx, env, target, support.SectionCommandSpec{
+		Checks:  env.Config.Checks.QualityRules.LanguageCommands[support.NormalizedLanguage(target.Language)],
+		RuleID:  "quality.command-check",
+		Section: "quality",
 	})
 }

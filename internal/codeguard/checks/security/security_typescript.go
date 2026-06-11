@@ -62,31 +62,6 @@ func typeScriptFindingsForFile(env support.Context, file string, source string) 
 	return findings
 }
 
-func regexTypeScriptSecurityFindings(ctx typeScriptScanContext, spec typeScriptFindingSpec) []core.Finding {
-	matches := spec.pattern.FindAllStringIndex(ctx.code, -1)
-	if len(matches) == 0 {
-		return nil
-	}
-	findings := make([]core.Finding, 0, len(matches))
-	seenLines := make(map[int]struct{}, len(matches))
-	for _, match := range matches {
-		line := support.LineNumberForOffset(ctx.source, match[0])
-		if _, exists := seenLines[line]; exists {
-			continue
-		}
-		seenLines[line] = struct{}{}
-		findings = append(findings, ctx.env.NewFinding(support.FindingInput{
-			RuleID:  spec.ruleID,
-			Level:   spec.level,
-			Path:    ctx.file,
-			Line:    line,
-			Column:  1,
-			Message: spec.message,
-		}))
-	}
-	return findings
-}
-
 func typeScriptAliasedShellFindings(ctx typeScriptScanContext) []core.Finding {
 	findings := make([]core.Finding, 0)
 	execAliases := collectTypeScriptNamedModuleBindings(ctx.source, "child_process", []string{"exec", "execSync"})
@@ -169,4 +144,13 @@ func typeScriptPostMessageFindings(ctx typeScriptScanContext) []core.Finding {
 		findings = append(findings, newTypeScriptSecurityFinding(ctx, ruleID, call.Line, support.ScriptLabelForPath(ctx.file)+" postMessage wildcard origin should be reviewed"))
 	}
 	return dedupeTypeScriptFindings(findings)
+}
+
+func regexTypeScriptSecurityFindings(ctx typeScriptScanContext, spec typeScriptFindingSpec) []core.Finding {
+	return support.ScriptRegexFindings(ctx.env, ctx.file, support.ScriptScanContext{Source: ctx.source, Code: ctx.code}, support.ScriptRegexSpec{
+		Pattern: spec.pattern,
+		RuleID:  spec.ruleID,
+		Level:   spec.level,
+		Message: spec.message,
+	})
 }

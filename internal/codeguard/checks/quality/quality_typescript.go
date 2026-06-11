@@ -90,31 +90,6 @@ func typeScriptPatternFindings(ctx typeScriptScanContext) []core.Finding {
 	return findings
 }
 
-func regexTypeScriptFinding(ctx typeScriptScanContext, spec typeScriptPatternFinding) []core.Finding {
-	matches := spec.pattern.FindAllStringIndex(ctx.code, -1)
-	if len(matches) == 0 {
-		return nil
-	}
-	findings := make([]core.Finding, 0, len(matches))
-	seenLines := make(map[int]struct{}, len(matches))
-	for _, match := range matches {
-		line := support.LineNumberForOffset(ctx.source, match[0])
-		if _, exists := seenLines[line]; exists {
-			continue
-		}
-		seenLines[line] = struct{}{}
-		findings = append(findings, ctx.env.NewFinding(support.FindingInput{
-			RuleID:  spec.ruleID,
-			Level:   spec.level,
-			Path:    ctx.file,
-			Line:    line,
-			Column:  1,
-			Message: spec.message,
-		}))
-	}
-	return findings
-}
-
 func typeScriptNonNullAssertionLines(code string) []int {
 	lines := make([]int, 0)
 	seen := make(map[int]struct{})
@@ -137,8 +112,13 @@ func typeScriptNonNullAssertionLines(code string) []int {
 	return lines
 }
 
-func isTypeScriptLikeFile(rel string) bool {
-	return support.IsTypeScriptLikeFile(rel)
+func regexTypeScriptFinding(ctx typeScriptScanContext, spec typeScriptPatternFinding) []core.Finding {
+	return support.ScriptRegexFindings(ctx.env, ctx.file, support.ScriptScanContext{Source: ctx.source, Code: ctx.code}, support.ScriptRegexSpec{
+		Pattern: spec.pattern,
+		RuleID:  spec.ruleID,
+		Level:   spec.level,
+		Message: spec.message,
+	})
 }
 
 func qualityRuleID(path string, suffix string) string {
@@ -154,4 +134,8 @@ func newTypeScriptQualityFinding(ctx typeScriptScanContext, ruleID string, line 
 		Column:  1,
 		Message: support.ScriptLabelForPath(ctx.file) + " " + message,
 	})
+}
+
+func isTypeScriptLikeFile(rel string) bool {
+	return support.IsTypeScriptLikeFile(rel)
 }
