@@ -76,6 +76,18 @@ func assertTextReportFormatting(t *testing.T, buf *bytes.Buffer) {
 	if !strings.Contains(buf.String(), "❌ FAIL") {
 		t.Fatalf("expected fail icon, got: %q", buf.String())
 	}
+	if !strings.Contains(ansiStripped, "- [FAIL] security.hardcoded-secret") {
+		t.Fatalf("expected stacked finding title with badge, got: %s", ansiStripped)
+	}
+	if !strings.Contains(ansiStripped, "at: config.go:3") {
+		t.Fatalf("expected finding location line, got: %s", ansiStripped)
+	}
+	if !strings.Contains(ansiStripped, "rule: security.hardcoded-secret") {
+		t.Fatalf("expected finding rule line, got: %s", ansiStripped)
+	}
+	if strings.Contains(ansiStripped, "severity: fail") {
+		t.Fatalf("expected severity line to be removed, got: %s", ansiStripped)
+	}
 }
 
 func assertPlainTextReportFormatting(t *testing.T, buf *bytes.Buffer) {
@@ -85,5 +97,8 @@ func assertPlainTextReportFormatting(t *testing.T, buf *bytes.Buffer) {
 	}
 	if !strings.Contains(buf.String(), "⢀⣠⠤⠶⠲⠦⢤⣀") {
 		t.Fatalf("expected plain output to use img/codeguard.txt logo, got: %s", buf.String())
+	}
+	if !strings.Contains(buf.String(), "- [FAIL] security.hardcoded-secret") {
+		t.Fatalf("expected plain output to include finding badge, got: %s", buf.String())
 	}
 }

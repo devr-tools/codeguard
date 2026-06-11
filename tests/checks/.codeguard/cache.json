@@ -571,6 +571,44 @@
         }
       ]
     },
+    "custom|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCustomRulePackFindingsAndGuidance3823839736/001|.env": {
+      "file_hash": "9843220c01322f99775c096c4efcf3d156e4c655",
+      "config_hash": "3ecee2032127d7c7a820bd68b36dbfa9335f7894",
+      "findings": [
+        {
+          "rule_id": "custom.env-file",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Environment file committed",
+          "section": "Custom Rules",
+          "message": "environment files must not be committed",
+          "why": "environment files must not be committed",
+          "how_to_fix": "Remove the file from the repository and load secrets at runtime.",
+          "path": ".env",
+          "fingerprint": "1550365f1aa0d4f0b4d3c18bc3203eff2721487a"
+        }
+      ]
+    },
+    "custom|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCustomRulePackFindingsAndGuidance3823839736/001|prompts/system.md": {
+      "file_hash": "f222d24b66e0aea7a3541b939f2267f92fd5ee44",
+      "config_hash": "3ecee2032127d7c7a820bd68b36dbfa9335f7894",
+      "findings": [
+        {
+          "rule_id": "custom.prompt-override",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Prompt override phrase",
+          "section": "Custom Rules",
+          "message": "prompt contains an override phrase",
+          "why": "prompt contains an override phrase",
+          "how_to_fix": "Rewrite the prompt to remove override instructions.",
+          "path": "prompts/system.md",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "2ee4d46cd48046d2214b17059735a863d5898387"
+        }
+      ]
+    },
     "custom|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCustomRulePackFindingsAndGuidance3869501272/001|.env": {
       "file_hash": "9843220c01322f99775c096c4efcf3d156e4c655",
       "config_hash": "c5d4a652999c331c35c0f689eb1f6c14a1554534",
@@ -975,6 +1013,11 @@
       "config_hash": "4745b6bb7c0f909289d3851591545a2ecaee501c",
       "findings": []
     },
+    "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckAllowsDisabledRuleOverride3545208367/001|cmd/tool/main.go": {
+      "file_hash": "c48b298ce9321d39372324076b97289e75bb4270",
+      "config_hash": "be432973b609d03b133ffae3c8ec342f79594669",
+      "findings": []
+    },
     "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckAllowsDisabledRuleOverride3922338632/001|cmd/tool/main.go": {
       "file_hash": "c48b298ce9321d39372324076b97289e75bb4270",
       "config_hash": "e6385c8a06f03a8fcf3c2b8576f47f51e2e88a30",
@@ -1133,6 +1176,26 @@
     "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckFailsWhenCmdImportsServiceDirectly1930954075/001|cmd/tool/main.go": {
       "file_hash": "c48b298ce9321d39372324076b97289e75bb4270",
       "config_hash": "9260723f9b3bbb5331b174b4ae571dbbf23509ea",
+      "findings": [
+        {
+          "rule_id": "design.cmd-through-internal-cli",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Command layer routing",
+          "section": "Design Patterns",
+          "message": "cmd package imports reusable service package directly",
+          "why": "cmd package imports reusable service package directly",
+          "how_to_fix": "Route command execution through internal/cli and keep cmd thin.",
+          "path": "cmd/tool/main.go",
+          "line": 3,
+          "column": 8,
+          "fingerprint": "76fe0fd3328eb4ce551291d4e2cfcfcd3c56b704"
+        }
+      ]
+    },
+    "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckFailsWhenCmdImportsServiceDirectly203111046/001|cmd/tool/main.go": {
+      "file_hash": "c48b298ce9321d39372324076b97289e75bb4270",
+      "config_hash": "7098f41e6fd9d0940451bc5217d01ffd44ffff28",
       "findings": [
         {
           "rule_id": "design.cmd-through-internal-cli",
@@ -1447,6 +1510,26 @@
           "line": 3,
           "column": 8,
           "fingerprint": "76fe0fd3328eb4ce551291d4e2cfcfcd3c56b704"
+        }
+      ]
+    },
+    "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckFailsWhenServiceImportsInternal1065638094/001|codeguard/service.go": {
+      "file_hash": "c8a38019dba4c9bc11464828fa3e3691a785f963",
+      "config_hash": "6aa846d9750c5e617c87b35c2fdcbd024338dc6e",
+      "findings": [
+        {
+          "rule_id": "design.service-import-internal",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Service to internal import",
+          "section": "Design Patterns",
+          "message": "service package imports internal package",
+          "why": "service package imports internal package",
+          "how_to_fix": "Move the dependency behind a public boundary or relocate the service code.",
+          "path": "codeguard/service.go",
+          "line": 3,
+          "column": 8,
+          "fingerprint": "7b94628be5d9f1948323ec468ea6cd3477bd50cc"
         }
       ]
     },
@@ -1968,6 +2051,21 @@
     "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckPassesForLayeredLayout1514027323/001|internal/cli/run.go": {
       "file_hash": "ee345f8b347438ab9d4cb113d7ac2ac96fd4b2a3",
       "config_hash": "68a0511f135cf638202db7a9bfc0b4d41bb71f67",
+      "findings": []
+    },
+    "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckPassesForLayeredLayout1867843580/001|cmd/tool/main.go": {
+      "file_hash": "dbdf7c7b1b5db0b8755d9908ae2ae3aa021d83f7",
+      "config_hash": "7364e3bbab71f6ee758ed8a17d3998f8c56f72bc",
+      "findings": []
+    },
+    "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckPassesForLayeredLayout1867843580/001|codeguard/runner/runner.go": {
+      "file_hash": "21310efb92018f245e50b8c5500032e46ee5c9db",
+      "config_hash": "7364e3bbab71f6ee758ed8a17d3998f8c56f72bc",
+      "findings": []
+    },
+    "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckPassesForLayeredLayout1867843580/001|internal/cli/run.go": {
+      "file_hash": "ee345f8b347438ab9d4cb113d7ac2ac96fd4b2a3",
+      "config_hash": "7364e3bbab71f6ee758ed8a17d3998f8c56f72bc",
       "findings": []
     },
     "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckPassesForLayeredLayout2032768516/001|cmd/tool/main.go": {
@@ -2535,6 +2633,26 @@
         }
       ]
     },
+    "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckWarnsForGenericPackageName3771039115/001|codeguard/util.go": {
+      "file_hash": "081e91de850151c193a0ad85bd835d5c7d3d42ce",
+      "config_hash": "b5110ceb80c7531809777ad743a04ef762d84529",
+      "findings": [
+        {
+          "rule_id": "design.generic-package-name",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Generic package name",
+          "section": "Design Patterns",
+          "message": "package name \"util\" is too generic",
+          "why": "package name \"util\" is too generic",
+          "how_to_fix": "Rename the package to something specific to its responsibility.",
+          "path": "codeguard/util.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "ff3bf3613fe275eef0eaf460622d4f5e44559efd"
+        }
+      ]
+    },
     "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckWarnsForGenericPackageName397067845/001|codeguard/util.go": {
       "file_hash": "081e91de850151c193a0ad85bd835d5c7d3d42ce",
       "config_hash": "a6940fa2e9105c1fb663b0ba5698ab53633921f9",
@@ -2878,6 +2996,26 @@
     "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckWarnsForLargeInterface2831546771/001|codeguard/ports.go": {
       "file_hash": "1990fa09e9b1d9aa7b1c61b611a19c088d43b831",
       "config_hash": "b1a7bdcee0d6b511275f5e3c596e66afba7baecb",
+      "findings": [
+        {
+          "rule_id": "design.max-interface-methods",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Interface size",
+          "section": "Design Patterns",
+          "message": "interface Client has 3 methods; max is 2",
+          "why": "interface Client has 3 methods; max is 2",
+          "how_to_fix": "Break the interface into smaller focused contracts.",
+          "path": "codeguard/ports.go",
+          "line": 3,
+          "column": 6,
+          "fingerprint": "112e5ec5b3453783a65fb16c4c5b1306f203a21d"
+        }
+      ]
+    },
+    "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckWarnsForLargeInterface2854075081/001|codeguard/ports.go": {
+      "file_hash": "1990fa09e9b1d9aa7b1c61b611a19c088d43b831",
+      "config_hash": "ebeaec63d35afb40315d7e81004ebee7461d53dd",
       "findings": [
         {
           "rule_id": "design.max-interface-methods",
@@ -3555,6 +3693,26 @@
         }
       ]
     },
+    "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckWarnsForTooManyMethodsOnType474268662/001|codeguard/service.go": {
+      "file_hash": "0017f7f77c39bb116fa8ae292e5b4f1f7304ff69",
+      "config_hash": "53f84aa86931112495337380585bbe231b7bed2a",
+      "findings": [
+        {
+          "rule_id": "design.max-methods-per-type",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Methods per type",
+          "section": "Design Patterns",
+          "message": "type Service has 3 methods; max is 2",
+          "why": "type Service has 3 methods; max is 2",
+          "how_to_fix": "Split responsibilities across smaller types or interfaces.",
+          "path": "codeguard/service.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "5b471a6aaca236974a3f6642b67a2e344c36603d"
+        }
+      ]
+    },
     "design|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDesignCheckWarnsForTooManyMethodsOnType651258204/001|codeguard/service.go": {
       "file_hash": "0017f7f77c39bb116fa8ae292e5b4f1f7304ff69",
       "config_hash": "08770bcfc57129c6fe50f8da2dc009ea20f3bf80",
@@ -3938,6 +4096,26 @@
     "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestBaselineSuppressesExistingFinding4021127856/001|prompts/system.prompt": {
       "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
       "config_hash": "c30d12ab90feed80a331b02570b1016ed4943942",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        }
+      ]
+    },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestBaselineSuppressesExistingFinding4287150782/001|prompts/system.prompt": {
+      "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
+      "config_hash": "ce07fe0b7e96f45ab4452df4f0da661b8a8d2497",
       "findings": [
         {
           "rule_id": "prompts.secret-interpolation",
@@ -4506,6 +4684,40 @@
     "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDiffModeReportsOnlyChangedLines3086327683/001|prompts/system.prompt": {
       "file_hash": "e56b03346107443b0df39476794b313b389a2bea",
       "config_hash": "607dc4ab9f39dbbe2c77c10143dc4b40e1dd82a9",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        },
+        {
+          "rule_id": "prompts.unsafe-instructions",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Unsafe prompt instructions",
+          "section": "AI Prompts",
+          "message": "prompt contains unsafe instruction pattern",
+          "why": "prompt contains unsafe instruction pattern",
+          "how_to_fix": "Rewrite the prompt to remove instruction override or prompt exfiltration language.",
+          "path": "prompts/system.prompt",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "f837fe81a865167a06e4e442fd17ddae4d9126c4"
+        }
+      ]
+    },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestDiffModeReportsOnlyChangedLines3237729526/001|prompts/system.prompt": {
+      "file_hash": "e56b03346107443b0df39476794b313b389a2bea",
+      "config_hash": "bf5615f02e5267779d3576500b4ea48c3cf258dd",
       "findings": [
         {
           "rule_id": "prompts.secret-interpolation",
@@ -5117,6 +5329,26 @@
         }
       ]
     },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestInlineSuppressionExpiredDoesNotSuppress2631011281/001|prompts/assistant.md": {
+      "file_hash": "8278c8881383c06a2935de628c8f54140d049bae",
+      "config_hash": "d0b948b8bf129380a495bc505000b3fcc727d901",
+      "findings": [
+        {
+          "rule_id": "prompts.unsafe-instructions",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Unsafe prompt instructions",
+          "section": "AI Prompts",
+          "message": "prompt contains unsafe instruction pattern",
+          "why": "prompt contains unsafe instruction pattern",
+          "how_to_fix": "Rewrite the prompt to remove instruction override or prompt exfiltration language.",
+          "path": "prompts/assistant.md",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "f7798bd25f255b4e7ab8b6c8dc126872460ffb57"
+        }
+      ]
+    },
     "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestInlineSuppressionExpiredDoesNotSuppress2846870827/001|prompts/assistant.md": {
       "file_hash": "8278c8881383c06a2935de628c8f54140d049bae",
       "config_hash": "654d61e85ba6dac3df6f41ae9cc2373e3ee47d41",
@@ -5637,6 +5869,26 @@
         }
       ]
     },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestInlineSuppressionHonorsExpiry3844776631/001|prompts/assistant.md": {
+      "file_hash": "73e6c7fb06b974d941709db01286cde56ed90993",
+      "config_hash": "93d22ff2e590aa4d398f3e3cc6cf4dc60d658be0",
+      "findings": [
+        {
+          "rule_id": "prompts.unsafe-instructions",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Unsafe prompt instructions",
+          "section": "AI Prompts",
+          "message": "prompt contains unsafe instruction pattern",
+          "why": "prompt contains unsafe instruction pattern",
+          "how_to_fix": "Rewrite the prompt to remove instruction override or prompt exfiltration language.",
+          "path": "prompts/assistant.md",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "f7798bd25f255b4e7ab8b6c8dc126872460ffb57"
+        }
+      ]
+    },
     "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestInlineSuppressionHonorsExpiry3855396932/001|prompts/assistant.md": {
       "file_hash": "73e6c7fb06b974d941709db01286cde56ed90993",
       "config_hash": "5de94401fa2ddb43f81cfced778bac794e92934d",
@@ -5810,6 +6062,11 @@
     "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestPromptCheckAllowsDisabledUnsafeInstructionRule1505887255/001|prompts/assistant.md": {
       "file_hash": "492b2ff6a8bd2a07ca367d5922d8c35261673da3",
       "config_hash": "fce818a9154e5359124f6246984f0e8fa587ccbe",
+      "findings": []
+    },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestPromptCheckAllowsDisabledUnsafeInstructionRule1806324459/001|prompts/assistant.md": {
+      "file_hash": "492b2ff6a8bd2a07ca367d5922d8c35261673da3",
+      "config_hash": "15b5eedd59f560f54a60d0ea0062bdb3dfccec01",
       "findings": []
     },
     "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestPromptCheckAllowsDisabledUnsafeInstructionRule1905815582/001|prompts/assistant.md": {
@@ -6232,6 +6489,26 @@
         }
       ]
     },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestPromptCheckFailsForSecretInterpolation3207129859/001|prompts/system.prompt": {
+      "file_hash": "e98977b5ab97deb43c552363e3dea78d8cbfcb99",
+      "config_hash": "3b50d394fd48c147f8b36c3a37b12d26e923e5fc",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        }
+      ]
+    },
     "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestPromptCheckFailsForSecretInterpolation3368430351/001|prompts/system.prompt": {
       "file_hash": "e98977b5ab97deb43c552363e3dea78d8cbfcb99",
       "config_hash": "f313bc35a64621f46110c071b59dd9d58dfaae8a",
@@ -6475,6 +6752,26 @@
     "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestPromptCheckWarnsForUnsafeInstructions1889652672/001|prompts/assistant.md": {
       "file_hash": "492b2ff6a8bd2a07ca367d5922d8c35261673da3",
       "config_hash": "20b70514041bb193d4ce0e9a47a19a0501826019",
+      "findings": [
+        {
+          "rule_id": "prompts.unsafe-instructions",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Unsafe prompt instructions",
+          "section": "AI Prompts",
+          "message": "prompt contains unsafe instruction pattern",
+          "why": "prompt contains unsafe instruction pattern",
+          "how_to_fix": "Rewrite the prompt to remove instruction override or prompt exfiltration language.",
+          "path": "prompts/assistant.md",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "3cb30df588f77af390d23982466933c3f1767eb9"
+        }
+      ]
+    },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestPromptCheckWarnsForUnsafeInstructions1963901267/001|prompts/assistant.md": {
+      "file_hash": "492b2ff6a8bd2a07ca367d5922d8c35261673da3",
+      "config_hash": "784a26d54d7241e291028b3c5d7807d12b2ae2c9",
       "findings": [
         {
           "rule_id": "prompts.unsafe-instructions",
@@ -7132,6 +7429,26 @@
         }
       ]
     },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestWaiverSuppressesFindingUntilExpiry38505701/001|prompts/system.prompt": {
+      "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
+      "config_hash": "523ae770c3929e7d2bf0ef81ff163c3e75e59e8f",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        }
+      ]
+    },
     "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestWaiverSuppressesFindingUntilExpiry4082049943/001|prompts/system.prompt": {
       "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
       "config_hash": "fb21deb1bf4bca7b674f17c2baa0f9b734b3de17",
@@ -7350,6 +7667,11 @@
     "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestExcludeSkipsFiles3050645278/001|main.go": {
       "file_hash": "70e17b8c817089a25faab3194aebd02b639221a7",
       "config_hash": "8bf08244575343fe98391324451eb2385dc88608",
+      "findings": []
+    },
+    "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestExcludeSkipsFiles3088910192/001|main.go": {
+      "file_hash": "70e17b8c817089a25faab3194aebd02b639221a7",
+      "config_hash": "3bb9ff01377b6ee3b9d3ba44495de5aa9300e0ca",
       "findings": []
     },
     "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestExcludeSkipsFiles3221610981/001|main.go": {
@@ -7707,6 +8029,26 @@
         }
       ]
     },
+    "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckFailsForUnformattedGoFile3905726691/001|main.go": {
+      "file_hash": "14643fbc412dee87e662d6adb3c9ee51ada4ed95",
+      "config_hash": "c9751c67a03634317773abb255a7f52b6b8955e5",
+      "findings": [
+        {
+          "rule_id": "quality.gofmt",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Go formatting",
+          "section": "Code Quality",
+          "message": "file is not gofmt-formatted",
+          "why": "file is not gofmt-formatted",
+          "how_to_fix": "Run gofmt on the file and commit the formatted result.",
+          "path": "main.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "c7205b1d58695a66cf8cd2cffdbe482bd0232058"
+        }
+      ]
+    },
     "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckFailsForUnformattedGoFile400661016/001|main.go": {
       "file_hash": "14643fbc412dee87e662d6adb3c9ee51ada4ed95",
       "config_hash": "31c8cdcf17040296b2f8b039b802985c29f4b936",
@@ -7970,6 +8312,26 @@
     "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckWarnsForCyclomaticComplexity2191298489/001|main.go": {
       "file_hash": "ea196ada33689c232f9aaa2ada6a8deb6687462b",
       "config_hash": "37a98c8b808f9df342837ff51247d9316e3a4d5b",
+      "findings": [
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function sample has cyclomatic complexity 4; max is 2",
+          "why": "function sample has cyclomatic complexity 4; max is 2",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "main.go",
+          "line": 3,
+          "column": 1,
+          "fingerprint": "26a87033a4d675ea5cd4ef8ba2d4f94efa6840f4"
+        }
+      ]
+    },
+    "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckWarnsForCyclomaticComplexity2510250359/001|main.go": {
+      "file_hash": "ea196ada33689c232f9aaa2ada6a8deb6687462b",
+      "config_hash": "16afcdb3df0f24ec7b932207394b11ba3e8b3028",
       "findings": [
         {
           "rule_id": "quality.cyclomatic-complexity",
@@ -8627,6 +8989,26 @@
         }
       ]
     },
+    "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckWarnsForDependencyDirection3367040913/001|lib.go": {
+      "file_hash": "fd89546db0b32c51eeea26873a6f89148e257256",
+      "config_hash": "79f1b15123070a43df57c19768d37bf820f41b50",
+      "findings": [
+        {
+          "rule_id": "quality.dependency-direction",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Dependency direction",
+          "section": "Code Quality",
+          "message": "non-CLI package imports internal implementation detail",
+          "why": "non-CLI package imports internal implementation detail",
+          "how_to_fix": "Move shared logic into reusable packages and keep internal or CLI details out of library code.",
+          "path": "lib.go",
+          "line": 3,
+          "column": 8,
+          "fingerprint": "4eb33ac80fdc8ef3158a13dabf3c85bd60f8216b"
+        }
+      ]
+    },
     "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckWarnsForDependencyDirection3397808477/001|lib.go": {
       "file_hash": "fd89546db0b32c51eeea26873a6f89148e257256",
       "config_hash": "5e36d77f1258d92c0bd4b8887a3e461ec438b19e",
@@ -8960,6 +9342,40 @@
     "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckWarnsForMaintainabilityThresholds1824053904/001|main.go": {
       "file_hash": "adbbe25fbccb4ef689a8020dde1d4da2e3351596",
       "config_hash": "213ae1d25af496df2ca92954d207b1a7c2dbf071",
+      "findings": [
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function sample has 3 lines; max is 1",
+          "why": "function sample has 3 lines; max is 1",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "main.go",
+          "line": 3,
+          "column": 1,
+          "fingerprint": "2501c57e14bf927821c06637bfa05ff4dee95116"
+        },
+        {
+          "rule_id": "quality.max-parameters",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function parameters",
+          "section": "Code Quality",
+          "message": "function sample has 2 parameters; max is 1",
+          "why": "function sample has 2 parameters; max is 1",
+          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
+          "path": "main.go",
+          "line": 3,
+          "column": 1,
+          "fingerprint": "ac046006b75c371c5ed2617ea80b758488d4d908"
+        }
+      ]
+    },
+    "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckWarnsForMaintainabilityThresholds2018700152/001|main.go": {
+      "file_hash": "adbbe25fbccb4ef689a8020dde1d4da2e3351596",
+      "config_hash": "c7a94ba83102fbd2720798efaf5b52d856c06227",
       "findings": [
         {
           "rule_id": "quality.max-function-lines",
@@ -9929,6 +10345,26 @@
         }
       ]
     },
+    "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckFailsForHardcodedSecret4063449855/001|config.go": {
+      "file_hash": "c986a6d56ad121b6e31508ee0f1b26a7a8576228",
+      "config_hash": "18b83d3091e2fa935eb3933553c0767de6a3c250",
+      "findings": [
+        {
+          "rule_id": "security.hardcoded-secret",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Hardcoded secret",
+          "section": "Security",
+          "message": "possible hardcoded secret detected",
+          "why": "possible hardcoded secret detected",
+          "how_to_fix": "Remove the secret from the repository and load it from a secret manager or environment at runtime.",
+          "path": "config.go",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "77f8a9a9e39eb9311c6ddfe8e84e0096dc68bc00"
+        }
+      ]
+    },
     "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckFailsForHardcodedSecret4065156311/001|config.go": {
       "file_hash": "c986a6d56ad121b6e31508ee0f1b26a7a8576228",
       "config_hash": "9507a3ebfe5b850050dc79ab047eb9d21e4940a0",
@@ -10028,6 +10464,11 @@
           "fingerprint": "77f8a9a9e39eb9311c6ddfe8e84e0096dc68bc00"
         }
       ]
+    },
+    "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckFailsWhenGovulncheckIsRequiredButMissing1328424488/001|main.go": {
+      "file_hash": "cfdd8fe8e95bbb8e1e30fe87f0aa9d18daaa77dd",
+      "config_hash": "4d4bee8903ca9c265a2724f74381a258b3758687",
+      "findings": []
     },
     "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckFailsWhenGovulncheckIsRequiredButMissing1423601889/001|main.go": {
       "file_hash": "cfdd8fe8e95bbb8e1e30fe87f0aa9d18daaa77dd",
@@ -10374,6 +10815,16 @@
       "config_hash": "98d099bf3a1c9a5a3c34e4ee63873b3734fa0bd1",
       "findings": []
     },
+    "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckSurfacesStructuredGovulncheckFindings856197025/001|fake-govulncheck.sh": {
+      "file_hash": "4faaa8a90dc89d848a06515ad1dbb6a47ced9662",
+      "config_hash": "0ede9b577cd1c631dba66828636ff84dc7f91b02",
+      "findings": []
+    },
+    "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckSurfacesStructuredGovulncheckFindings856197025/001|main.go": {
+      "file_hash": "cfdd8fe8e95bbb8e1e30fe87f0aa9d18daaa77dd",
+      "config_hash": "0ede9b577cd1c631dba66828636ff84dc7f91b02",
+      "findings": []
+    },
     "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckWarnsForShellExecution1129501565/001|exec.go": {
       "file_hash": "6e9d0ebc41446f73a330c99e32a39654e4c23538",
       "config_hash": "41989001c7bae1a4e6907e3ee77f0fa184820d2c",
@@ -10615,6 +11066,40 @@
     "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckWarnsForShellExecution2336511570/001|exec.go": {
       "file_hash": "6e9d0ebc41446f73a330c99e32a39654e4c23538",
       "config_hash": "ec0ac72bd03f7c95be34e6e91694a94f7fe67dac",
+      "findings": [
+        {
+          "rule_id": "security.shell-execution",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Shell execution review",
+          "section": "Security",
+          "message": "shell execution primitive should be reviewed",
+          "why": "shell execution primitive should be reviewed",
+          "how_to_fix": "Prefer direct library calls, or tightly validate and constrain command execution.",
+          "path": "exec.go",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "32d3dbbf8d40c539ed7e698597c50a4e3b029501"
+        },
+        {
+          "rule_id": "security.shell-execution",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Shell execution review",
+          "section": "Security",
+          "message": "shell execution primitive should be reviewed",
+          "why": "shell execution primitive should be reviewed",
+          "how_to_fix": "Prefer direct library calls, or tightly validate and constrain command execution.",
+          "path": "exec.go",
+          "line": 3,
+          "column": 1,
+          "fingerprint": "2dee38a1a4784886b2b96d1295edba1a29ab8ab7"
+        }
+      ]
+    },
+    "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckWarnsForShellExecution317384607/001|exec.go": {
+      "file_hash": "6e9d0ebc41446f73a330c99e32a39654e4c23538",
+      "config_hash": "3489e3a1c4186bf636cfdf036debbfd88a86b510",
       "findings": [
         {
           "rule_id": "security.shell-execution",
@@ -11155,6 +11640,11 @@
           "fingerprint": "2dee38a1a4784886b2b96d1295edba1a29ab8ab7"
         }
       ]
+    },
+    "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckWarnsWhenGovulncheckIsAutoButMissing1389642090/001|main.go": {
+      "file_hash": "cfdd8fe8e95bbb8e1e30fe87f0aa9d18daaa77dd",
+      "config_hash": "fd81f698270e124b18741c64f27136df0e2b4b5b",
+      "findings": []
     },
     "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckWarnsWhenGovulncheckIsAutoButMissing1420867655/001|main.go": {
       "file_hash": "cfdd8fe8e95bbb8e1e30fe87f0aa9d18daaa77dd",

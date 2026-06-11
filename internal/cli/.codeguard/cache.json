@@ -300,6 +300,26 @@
           "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
         }
       ]
+    },
+    "prompts|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestRunBaselineWritesFile904143702/001|prompts/system.prompt": {
+      "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
+      "config_hash": "b5742798df1431e83d994e604d950612be3e47d4",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        }
+      ]
     }
   }
 }
