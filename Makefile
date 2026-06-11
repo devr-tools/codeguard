@@ -1,7 +1,9 @@
 GO ?= go
 GOFMT ?= gofmt
-ifeq ($(strip $(GOROOT)),)
-else ifeq ($(wildcard $(GOROOT)),)
+ifeq ($(origin GOROOT),environment)
+GO := env -u GOROOT $(GO)
+GOFMT := env -u GOROOT $(GOFMT)
+else ifeq ($(origin GOROOT),environment override)
 GO := env -u GOROOT $(GO)
 GOFMT := env -u GOROOT $(GOFMT)
 endif
@@ -12,7 +14,7 @@ GOMODCACHE ?= $(CURDIR)/.gomodcache
 CONFIG ?= examples/codeguard.json
 CI_CONFIG ?= .codeguard/codeguard.yaml
 BASE_REF ?= main
-GOFILES := $(shell find cmd codeguard internal tests -type f -name '*.go' 2>/dev/null)
+GOFILES := $(shell find . cmd internal tests -type f -name '*.go' 2>/dev/null)
 
 export GOCACHE
 export GOMODCACHE

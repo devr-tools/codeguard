@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/devr-tools/codeguard"
+	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
 func TestPromptCheckFailsForSecretInterpolation(t *testing.T) {

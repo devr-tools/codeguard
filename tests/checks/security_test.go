@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/devr-tools/codeguard"
+	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
 func TestSecurityCheckFailsForHardcodedSecret(t *testing.T) {

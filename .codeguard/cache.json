@@ -1,0 +1,547 @@
+{
+  "version": 1,
+  "entries": {
+    "quality|.|cmd/codeguard-dev/main.go": {
+      "file_hash": "96204f547f24a812f295d9ca50a6653b71084b26",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": []
+    },
+    "quality|.|cmd/codeguard/main.go": {
+      "file_hash": "96204f547f24a812f295d9ca50a6653b71084b26",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": []
+    },
+    "quality|.|internal/cli/run.go": {
+      "file_hash": "671b472c155097676a275ffe1e26cc3ddbaf20d2",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": [
+        {
+          "rule_id": "quality.max-file-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "File length",
+          "section": "Code Quality",
+          "message": "file has 448 lines; max is 400",
+          "why": "file has 448 lines; max is 400",
+          "how_to_fix": "Split the file into smaller units or raise the configured threshold intentionally.",
+          "path": "internal/cli/run.go",
+          "line": 448,
+          "column": 1,
+          "fingerprint": "57456c27a00fa3eca96fbdc6161ce8841e2d0fef"
+        },
+        {
+          "rule_id": "design.max-decls-per-file",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Declarations per file",
+          "section": "Design Patterns",
+          "message": "file has 17 declarations; max is 12",
+          "why": "file has 17 declarations; max is 12",
+          "how_to_fix": "Move related declarations into smaller files with clearer ownership.",
+          "path": "internal/cli/run.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "453f625fd3d0d46d6b564373f6f96aa9d2ffe1af"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function Run has cyclomatic complexity 13; max is 10",
+          "why": "function Run has cyclomatic complexity 13; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/cli/run.go",
+          "line": 18,
+          "column": 1,
+          "fingerprint": "273b09d85a61466e377edb8d4cccb55c26d86ea6"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function runScan has cyclomatic complexity 14; max is 10",
+          "why": "function runScan has cyclomatic complexity 14; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/cli/run.go",
+          "line": 115,
+          "column": 1,
+          "fingerprint": "4dc6a56ebea1b976753d7bd3f15e7b75b872639c"
+        },
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function runDoctor has 91 lines; max is 80",
+          "why": "function runDoctor has 91 lines; max is 80",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "internal/cli/run.go",
+          "line": 277,
+          "column": 1,
+          "fingerprint": "ace6dcaab031b9d29b01b48feadac29491e02f05"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function runDoctor has cyclomatic complexity 22; max is 10",
+          "why": "function runDoctor has cyclomatic complexity 22; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/cli/run.go",
+          "line": 277,
+          "column": 1,
+          "fingerprint": "3933ea26ef509d4a849ed7f2faf89a4fe8aa9177"
+        }
+      ]
+    },
+    "quality|.|internal/codeguard/config/config.go": {
+      "file_hash": "934392fef72e97869a96c35941395d907f804bc0",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": [
+        {
+          "rule_id": "quality.max-file-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "File length",
+          "section": "Code Quality",
+          "message": "file has 478 lines; max is 400",
+          "why": "file has 478 lines; max is 400",
+          "how_to_fix": "Split the file into smaller units or raise the configured threshold intentionally.",
+          "path": "internal/codeguard/config/config.go",
+          "line": 478,
+          "column": 1,
+          "fingerprint": "53f9758c2c8edde2657cb79985e208286c1bad4a"
+        },
+        {
+          "rule_id": "design.max-decls-per-file",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Declarations per file",
+          "section": "Design Patterns",
+          "message": "file has 23 declarations; max is 12",
+          "why": "file has 23 declarations; max is 12",
+          "how_to_fix": "Move related declarations into smaller files with clearer ownership.",
+          "path": "internal/codeguard/config/config.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "a23f79749c422d1590000f1652c2d216e2d3ee54"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function Validate has cyclomatic complexity 31; max is 10",
+          "why": "function Validate has cyclomatic complexity 31; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/codeguard/config/config.go",
+          "line": 135,
+          "column": 1,
+          "fingerprint": "b332065cdcaf3227534392db439caa4ed2625f6c"
+        },
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function ApplyDefaults has 107 lines; max is 80",
+          "why": "function ApplyDefaults has 107 lines; max is 80",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "internal/codeguard/config/config.go",
+          "line": 276,
+          "column": 1,
+          "fingerprint": "32b977c2778013f7437e0f3eacb3e7eda78944af"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function ApplyDefaults has cyclomatic complexity 37; max is 10",
+          "why": "function ApplyDefaults has cyclomatic complexity 37; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/codeguard/config/config.go",
+          "line": 276,
+          "column": 1,
+          "fingerprint": "11d6b903155af7c123747a2d377cdce96f89f03b"
+        }
+      ]
+    },
+    "quality|.|internal/codeguard/core/types.go": {
+      "file_hash": "4d889ff71c978441b89d574cc95e9ec39605e9a5",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": [
+        {
+          "rule_id": "design.max-decls-per-file",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Declarations per file",
+          "section": "Design Patterns",
+          "message": "file has 28 declarations; max is 12",
+          "why": "file has 28 declarations; max is 12",
+          "how_to_fix": "Move related declarations into smaller files with clearer ownership.",
+          "path": "internal/codeguard/core/types.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "b13e489e93f0166d5ce6b941496d7fa082d1b4eb"
+        }
+      ]
+    },
+    "quality|.|internal/codeguard/report/write.go": {
+      "file_hash": "04608d4c91ff922ff1d67ef281cff0bb0e4aef51",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": [
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function writeText has cyclomatic complexity 18; max is 10",
+          "why": "function writeText has cyclomatic complexity 18; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/codeguard/report/write.go",
+          "line": 31,
+          "column": 1,
+          "fingerprint": "0d11d18e349e6935484812d4adda7cecea7f31df"
+        },
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function writeSARIF has 97 lines; max is 80",
+          "why": "function writeSARIF has 97 lines; max is 80",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "internal/codeguard/report/write.go",
+          "line": 111,
+          "column": 1,
+          "fingerprint": "aa474921f19ced8536c4de0313ebc321d9ae2f19"
+        }
+      ]
+    },
+    "quality|.|internal/codeguard/rules/catalog.go": {
+      "file_hash": "7ae1f32da971ac7a3ed1d368414ddc0d046531c3",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": []
+    },
+    "quality|.|internal/codeguard/runner/runner.go": {
+      "file_hash": "761c7e282d15f5834efd01ad0416f6c2afbafcd5",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": [
+        {
+          "rule_id": "quality.max-file-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "File length",
+          "section": "Code Quality",
+          "message": "file has 1118 lines; max is 400",
+          "why": "file has 1118 lines; max is 400",
+          "how_to_fix": "Split the file into smaller units or raise the configured threshold intentionally.",
+          "path": "internal/codeguard/runner/runner.go",
+          "line": 1118,
+          "column": 1,
+          "fingerprint": "bc986ef04457fbb1477f9af44addd87cc4b6aa69"
+        },
+        {
+          "rule_id": "design.max-decls-per-file",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Declarations per file",
+          "section": "Design Patterns",
+          "message": "file has 55 declarations; max is 12",
+          "why": "file has 55 declarations; max is 12",
+          "how_to_fix": "Move related declarations into smaller files with clearer ownership.",
+          "path": "internal/codeguard/runner/runner.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "e3b93eb5584f0ff84c482516d730f8420e46932e"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function RunWithOptions has cyclomatic complexity 18; max is 10",
+          "why": "function RunWithOptions has cyclomatic complexity 18; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/codeguard/runner/runner.go",
+          "line": 104,
+          "column": 1,
+          "fingerprint": "d08a93d579a01327432c009ed285a66f044610b6"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function runQuality has cyclomatic complexity 19; max is 10",
+          "why": "function runQuality has cyclomatic complexity 19; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/codeguard/runner/runner.go",
+          "line": 229,
+          "column": 1,
+          "fingerprint": "b8fb422b56b4933166c16cbf6ee30015706412ea"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function runDesign has cyclomatic complexity 29; max is 10",
+          "why": "function runDesign has cyclomatic complexity 29; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/codeguard/runner/runner.go",
+          "line": 307,
+          "column": 1,
+          "fingerprint": "6d80f5b43c455a39f3651d2cacda7fa233f2f461"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function runSecurity has cyclomatic complexity 13; max is 10",
+          "why": "function runSecurity has cyclomatic complexity 13; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/codeguard/runner/runner.go",
+          "line": 379,
+          "column": 1,
+          "fingerprint": "b699d622824dd3821011df2706eb212dd27d8255"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function runCI has cyclomatic complexity 14; max is 10",
+          "why": "function runCI has cyclomatic complexity 14; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/codeguard/runner/runner.go",
+          "line": 447,
+          "column": 1,
+          "fingerprint": "77656543c8627dde129836835b121f2248759525"
+        },
+        {
+          "rule_id": "quality.max-parameters",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function parameters",
+          "section": "Code Quality",
+          "message": "function newFinding has 6 parameters; max is 5",
+          "why": "function newFinding has 6 parameters; max is 5",
+          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
+          "path": "internal/codeguard/runner/runner.go",
+          "line": 534,
+          "column": 1,
+          "fingerprint": "e3ddbff547c5dcde6108b10f6eb6c3b48c5dc745"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function isSuppressed has cyclomatic complexity 24; max is 10",
+          "why": "function isSuppressed has cyclomatic complexity 24; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/codeguard/runner/runner.go",
+          "line": 583,
+          "column": 1,
+          "fingerprint": "e95343c093735b0de81660a2f6d8f2067ad58cf5"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function matchesPath has cyclomatic complexity 13; max is 10",
+          "why": "function matchesPath has cyclomatic complexity 13; max is 10",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "internal/codeguard/runner/runner.go",
+          "line": 983,
+          "column": 1,
+          "fingerprint": "6abb17fc90e58cc6218441739e0aff4cfa680ae0"
+        }
+      ]
+    },
+    "quality|.|internal/version/version.go": {
+      "file_hash": "ca7284672b8c9acfb6257b2ff0a1ae4ddcdf0e20",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": []
+    },
+    "quality|.|pkg/codeguard/sdk.go": {
+      "file_hash": "269959818ecec04727948a20a195cb55ae86d08a",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": [
+        {
+          "rule_id": "design.max-decls-per-file",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Declarations per file",
+          "section": "Design Patterns",
+          "message": "file has 47 declarations; max is 12",
+          "why": "file has 47 declarations; max is 12",
+          "how_to_fix": "Move related declarations into smaller files with clearer ownership.",
+          "path": "pkg/codeguard/sdk.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "2b1c5965c225b2e48f06d9fa1e7a671d0e5b26b2"
+        },
+        {
+          "rule_id": "quality.dependency-direction",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Dependency direction",
+          "section": "Code Quality",
+          "message": "non-CLI package imports internal implementation detail",
+          "why": "non-CLI package imports internal implementation detail",
+          "how_to_fix": "Move shared logic into reusable packages and keep internal or CLI details out of library code.",
+          "path": "pkg/codeguard/sdk.go",
+          "line": 7,
+          "column": 2,
+          "fingerprint": "2e3b0eba2f4b0933b36ad3fc186a38fb574a95b3"
+        },
+        {
+          "rule_id": "quality.dependency-direction",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Dependency direction",
+          "section": "Code Quality",
+          "message": "non-CLI package imports internal implementation detail",
+          "why": "non-CLI package imports internal implementation detail",
+          "how_to_fix": "Move shared logic into reusable packages and keep internal or CLI details out of library code.",
+          "path": "pkg/codeguard/sdk.go",
+          "line": 8,
+          "column": 2,
+          "fingerprint": "cd9d959317510af780f11e8cdccb3c1f61734ba7"
+        },
+        {
+          "rule_id": "quality.dependency-direction",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Dependency direction",
+          "section": "Code Quality",
+          "message": "non-CLI package imports internal implementation detail",
+          "why": "non-CLI package imports internal implementation detail",
+          "how_to_fix": "Move shared logic into reusable packages and keep internal or CLI details out of library code.",
+          "path": "pkg/codeguard/sdk.go",
+          "line": 9,
+          "column": 2,
+          "fingerprint": "483d3d701cb4db17ba2670add0a474025d4ae54b"
+        },
+        {
+          "rule_id": "quality.dependency-direction",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Dependency direction",
+          "section": "Code Quality",
+          "message": "non-CLI package imports internal implementation detail",
+          "why": "non-CLI package imports internal implementation detail",
+          "how_to_fix": "Move shared logic into reusable packages and keep internal or CLI details out of library code.",
+          "path": "pkg/codeguard/sdk.go",
+          "line": 10,
+          "column": 2,
+          "fingerprint": "c6402abc1725d331e8f849824a95dd50ae585aa3"
+        }
+      ]
+    },
+    "quality|.|tests/checks/ci_test.go": {
+      "file_hash": "f8e454479197eefeb2e3565325e7cda33af0f74e",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": []
+    },
+    "quality|.|tests/checks/design_test.go": {
+      "file_hash": "747247bed9d76e6fe41ab6930d1fd2b94d51b306",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": []
+    },
+    "quality|.|tests/checks/features_test.go": {
+      "file_hash": "a3bb7a74fd822a0d7170d2adfea183b7c5040f31",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": []
+    },
+    "quality|.|tests/checks/prompts_test.go": {
+      "file_hash": "2298bc7165cb227e6fa63d219484330ecc2c11d2",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": []
+    },
+    "quality|.|tests/checks/quality_security_test.go": {
+      "file_hash": "a25e757d7bc913ab2d860ee719ec65853753b9a5",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": [
+        {
+          "rule_id": "design.max-decls-per-file",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Declarations per file",
+          "section": "Design Patterns",
+          "message": "file has 13 declarations; max is 12",
+          "why": "file has 13 declarations; max is 12",
+          "how_to_fix": "Move related declarations into smaller files with clearer ownership.",
+          "path": "tests/checks/quality_security_test.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "4df3a35f0e198d128644445251fd6aa9476cef0c"
+        }
+      ]
+    },
+    "quality|.|tests/cli/cli_test.go": {
+      "file_hash": "b65eb9e86561549eb42499509fbc94e5a010da40",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": [
+        {
+          "rule_id": "quality.dependency-direction",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Dependency direction",
+          "section": "Code Quality",
+          "message": "non-CLI package imports internal implementation detail",
+          "why": "non-CLI package imports internal implementation detail",
+          "how_to_fix": "Move shared logic into reusable packages and keep internal or CLI details out of library code.",
+          "path": "tests/cli/cli_test.go",
+          "line": 10,
+          "column": 2,
+          "fingerprint": "606fc79db191ae5422f26c6addec62cfae5d477b"
+        }
+      ]
+    },
+    "quality|.|tests/cli/features_test.go": {
+      "file_hash": "d639e75fce7e7a604633251f6e80974a0ced2e34",
+      "config_hash": "b0f516abfa12c459ab5740a5b369f219624aaed6",
+      "findings": [
+        {
+          "rule_id": "quality.dependency-direction",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Dependency direction",
+          "section": "Code Quality",
+          "message": "non-CLI package imports internal implementation detail",
+          "why": "non-CLI package imports internal implementation detail",
+          "how_to_fix": "Move shared logic into reusable packages and keep internal or CLI details out of library code.",
+          "path": "tests/cli/features_test.go",
+          "line": 10,
+          "column": 2,
+          "fingerprint": "762ec4021b5a445ab8edcd10ac63e173f19ef9cc"
+        }
+      ]
+    }
+  }
+}

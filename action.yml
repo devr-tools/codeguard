@@ -1,0 +1,58 @@
+name: codeguard
+description: Run CodeGuard repository policy checks
+
+inputs:
+  config:
+    description: Path to the CodeGuard config file
+    required: false
+    default: codeguard.yaml
+  profile:
+    description: Optional policy profile override
+    required: false
+    default: ""
+  mode:
+    description: Scan mode
+    required: false
+    default: full
+  base-ref:
+    description: Base ref to diff against when mode is diff
+    required: false
+    default: main
+  format:
+    description: Output format
+    required: false
+    default: github
+  version:
+    description: CodeGuard version to install
+    required: false
+    default: latest
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: "1.23"
+
+    - name: Install CodeGuard
+      shell: bash
+      run: go install github.com/devr-tools/codeguard/cmd/codeguard@${{ inputs.version }}
+
+    - name: Run CodeGuard
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.profile }}" ]; then
+          codeguard scan \
+            -config "${{ inputs.config }}" \
+            -mode "${{ inputs.mode }}" \
+            -base-ref "${{ inputs.base-ref }}" \
+            -format "${{ inputs.format }}" \
+            -profile "${{ inputs.profile }}"
+        else
+          codeguard scan \
+            -config "${{ inputs.config }}" \
+            -mode "${{ inputs.mode }}" \
+            -base-ref "${{ inputs.base-ref }}" \
+            -format "${{ inputs.format }}"
+        fi

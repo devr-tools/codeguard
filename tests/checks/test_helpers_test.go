@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/devr-tools/codeguard"
+	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
 func writeFile(t *testing.T, path string, content string) {

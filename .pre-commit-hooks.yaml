@@ -1,0 +1,6 @@
+- id: codeguard
+  name: codeguard
+  description: Run CodeGuard policy checks against the current repository
+  entry: codeguard scan -config codeguard.yaml -mode diff -base-ref HEAD
+  language: golang
+  pass_filenames: false

@@ -1,5 +1,6 @@
 {
   "name": "codeguard-default",
+  "profile": "startup",
   "targets": [
     {
       "name": "repository",
@@ -63,6 +64,48 @@
       "govulncheck_command": "govulncheck"
     }
   },
+  "exclude": ["vendor/**", "**/testdata/**"],
+  "baseline": {
+    "path": "codeguard-baseline.json"
+  },
+  "cache": {
+    "enabled": true,
+    "path": ".codeguard/cache.json"
+  },
+  "rule_packs": [
+    {
+      "name": "repo-policy",
+      "description": "Example file and content policies without changing Go code.",
+      "rules": [
+        {
+          "id": "custom.no-env-files",
+          "title": "Do not commit env files",
+          "severity": "fail",
+          "message": "environment files must not be committed",
+          "how_to_fix": "Remove the file from the repository and load secrets at runtime instead.",
+          "paths": [".env", "**/.env"],
+          "file_extensions": [".env"]
+        },
+        {
+          "id": "custom.no-todo-prompts",
+          "title": "Prompt placeholder review",
+          "severity": "warn",
+          "message": "prompt contains unresolved TODO placeholder text",
+          "how_to_fix": "Replace placeholder prompt text before merging.",
+          "paths": ["prompts/**"],
+          "content_regex": "(?i)todo"
+        }
+      ]
+    }
+  ],
+  "waivers": [
+    {
+      "rule": "prompts.secret-interpolation",
+      "path": "prompts/legacy/**",
+      "reason": "migration in progress",
+      "expires_on": "2026-12-31"
+    }
+  ],
   "output": {
     "format": "text"
   }

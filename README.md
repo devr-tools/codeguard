@@ -3,7 +3,11 @@
   <img src="./img/cg.png" alt="codeguard placeholder banner" width="420">
 </p>
 
-`codeguard` is a standalone Go service and CLI for repository checks across code quality, design boundaries, security, CI/CD hygiene, and AI prompt governance.
+`codeguard` is a standalone Go service and CLI for repository checks across code quality, design boundaries, security, CI/CD hygiene, AI prompt governance, and repo-specific policy rules.
+
+It now supports repository exclusions, baselines, waivers, changed-lines diff scans, SARIF output, GitHub annotations, custom rule packs, policy profiles, scan caching, doctor checks, and rule discovery from the CLI.
+
+The public Go SDK lives at `github.com/devr-tools/codeguard/pkg/codeguard`.
 
 ## Installation
 
@@ -35,12 +39,22 @@ make deploy
 
 The GitHub release flow follows the same branch and release-please model as `cleanr`, using `.github/workflows/cd.yml`, `.github/workflows/release.yml`, `.github/release-please-config.json`, and `.release-please-manifest.json`.
 
+For SDK consumers:
+
+```bash
+go get github.com/devr-tools/codeguard/pkg/codeguard
+```
 ## Quick Start
 
 ```bash
 codeguard init
 codeguard validate -config codeguard.yaml
+codeguard doctor -config codeguard.yaml
 codeguard scan -config codeguard.yaml
+codeguard rules
+codeguard profiles
+codeguard explain security.hardcoded-secret
+codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 ```
 
 By default, `codeguard` looks for `codeguard.yaml`, `codeguard.yml`, or `codeguard.json` in the repository root. If those are missing, it also checks `.codeguard/codeguard.yaml`, `.codeguard/codeguard.yml`, and `.codeguard/codeguard.json`.
@@ -51,8 +65,34 @@ Text output includes ANSI color and emoji markers by default. Set `NO_COLOR=1` i
 
 If you want a JSON starting point instead, use [examples/codeguard.json](/Users/alex/Documents/GitHub/codeguard/examples/codeguard.json:1).
 
+## SDK
+
+Import the SDK from `github.com/devr-tools/codeguard/pkg/codeguard`.
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	"github.com/devr-tools/codeguard/pkg/codeguard"
+)
+
+func main() {
+	cfg := codeguard.ExampleConfig()
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_ = report
+}
+```
+
 ## Docs
 
 - [Getting started](/Users/alex/Documents/GitHub/codeguard/docs/getting-started.md:1)
+- [Integrations](/Users/alex/Documents/GitHub/codeguard/docs/integrations.md:1)
+- [SDK guide](/Users/alex/Documents/GitHub/codeguard/docs/sdk.md:1)
 - [Checks reference](/Users/alex/Documents/GitHub/codeguard/docs/checks.md:1)
 - [Architecture](/Users/alex/Documents/GitHub/codeguard/docs/architecture.md:1)
