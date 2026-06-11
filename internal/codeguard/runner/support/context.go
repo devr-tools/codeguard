@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/config"
@@ -22,6 +23,8 @@ type Context struct {
 	CustomRules []CompiledCustomRule
 	Cache       *ScanCache
 	ConfigHash  string
+	DiffCommand map[string]diffCommandEnv
+	cleanup     func()
 }
 
 func NormalizeScanOptions(opts core.ScanOptions) core.ScanOptions {
@@ -51,6 +54,19 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 		RuleCatalog: ruleCatalog,
 		CustomRules: customRules,
 		ConfigHash:  ConfigFingerprint(cfg),
+		DiffCommand: map[string]diffCommandEnv{},
+		cleanup:     func() {},
+	}
+	if strings.TrimSpace(opts.DiffText) != "" {
+		patchedCfg, diffCommand, cleanup, err := MaterializePatchedTargets(cfg, opts.DiffText)
+		if err != nil {
+			return Context{}, err
+		}
+		cfg = patchedCfg
+		sc.Cfg = patchedCfg
+		sc.DiffCommand = diffCommand
+		sc.cleanup = cleanup
+		sc.ConfigHash = ConfigFingerprint(patchedCfg)
 	}
 	if cfg.Baseline.Path != "" {
 		baseline, err := loadBaselineFile(cfg.Baseline.Path)
@@ -59,17 +75,30 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 		}
 		sc.Baseline = baseline
 	}
-	if CacheEnabled(cfg.Cache) {
+	if strings.TrimSpace(opts.DiffText) == "" && CacheEnabled(cfg.Cache) {
 		sc.Cache = LoadScanCache(cfg.Cache.Path)
 	}
 	if opts.Mode == core.ScanModeDiff {
-		diff, err := LoadDiffScope(cfg.Targets, opts.BaseRef)
+		var (
+			diff map[string]LineRanges
+			err  error
+		)
+		if strings.TrimSpace(opts.DiffText) != "" {
+			diff = LoadDiffScopeFromUnifiedDiff(cfg.Targets, opts.DiffText)
+		} else {
+			diff, err = LoadDiffScope(cfg.Targets, opts.BaseRef)
+		}
 		if err != nil {
+			sc.cleanup()
 			return Context{}, err
 		}
 		sc.Diff = diff
 	}
 	return sc, nil
+}
+
+func (sc Context) Close() {
+	sc.cleanup()
 }
 
 func ensureRuntimeRuleMetadata(catalog map[string]core.RuleMetadata) {

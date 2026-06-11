@@ -30,10 +30,12 @@ func writeUsage(w io.Writer) {
 Usage:
   codeguard init [-output codeguard.yaml] [-interactive] [-profile startup|strict|enterprise|ai-safe]
   codeguard validate [-config codeguard.yaml] [-profile startup|strict|enterprise|ai-safe]
+  codeguard validate-patch [-config codeguard.yaml] [-format text|json|sarif|github] [-profile startup|strict|enterprise|ai-safe] < patch.diff
   codeguard scan [-config codeguard.yaml] [-mode full|diff] [-base-ref main] [-format text|json|sarif|github] [-interactive] [-profile startup|strict|enterprise|ai-safe]
   codeguard baseline [-config codeguard.yaml] [-output codeguard-baseline.json] [-mode full|diff] [-base-ref main] [-profile startup|strict|enterprise|ai-safe]
   codeguard rules [-config codeguard.yaml]
-  codeguard explain [-config codeguard.yaml] <rule-id>
+  codeguard explain [-config codeguard.yaml] [-format text|agent] <rule-id>
+  codeguard serve --mcp [-config codeguard.yaml] [-profile startup|strict|enterprise|ai-safe]
   codeguard doctor [-config codeguard.yaml] [-profile startup|strict|enterprise|ai-safe]
   codeguard profiles
   codeguard version

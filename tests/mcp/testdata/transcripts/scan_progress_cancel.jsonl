@@ -1,0 +1,4 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{"experimental":{"host":"scan-agent"}},"clientInfo":{"name":"Scan Agent","version":"1.0.0"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"_meta":{"progressToken":"scan-token"},"name":"scan","arguments":{"config_path":"__CONFIG_PATH__","mode":"full"}}}
+{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":2,"reason":"smoke cancellation"}}

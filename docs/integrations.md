@@ -31,3 +31,31 @@ This repository also ships a composite action at `action.yml`:
 ```
 
 The action installs `github.com/devr-tools/codeguard/cmd/codeguard` and runs `codeguard scan`.
+
+## MCP Smoke Harness
+
+`codeguard serve --mcp` is covered by a host-shaped smoke harness in `tests/mcp/testdata/transcripts/` and `tests/mcp/smoke_test.go`.
+
+The harness launches the local MCP server, replays NDJSON transcripts that model real host request flows, and validates the returned JSON-RPC/MCP responses. The current profiles target:
+
+- `editor-current`
+- `editor-compat`
+- `review-agent`
+- `scan-agent`
+
+Run it with:
+
+```bash
+GOROOT=/opt/homebrew/opt/go/libexec GOCACHE=/private/tmp/codeguard-go-cache go test ./tests/mcp -run TestMCPHostSmokeProfiles
+```
+
+Current scope:
+
+- validates host-like `initialize`, `tools/list`, `tools/call`, `ping`, and config/patch/explain flows
+- validates the server's current newline-delimited stdio JSON-RPC transport
+
+Out of scope:
+
+- automating the actual desktop/editor hosts themselves
+- `Content-Length` framed stdio compatibility
+- prompts/resources/task APIs

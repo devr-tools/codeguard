@@ -106,6 +106,50 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	return 0
 }
 
+func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
+	fs := flag.NewFlagSet("validate-patch", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	configPath := fs.String("config", service.DefaultConfigPath(), "config file or directory path")
+	format := fs.String("format", "", "optional output format override: text, json, sarif, github")
+	profile := fs.String("profile", "", "optional policy profile override")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+
+	diffText, err := io.ReadAll(stdin)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "read patch stdin: %v\n", err)
+		return 1
+	}
+	if strings.TrimSpace(string(diffText)) == "" {
+		_, _ = fmt.Fprintln(stderr, "validate-patch requires a unified diff on stdin")
+		return 1
+	}
+
+	cfg, err := loadConfigWithProfile(*configPath, *profile)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
+		return 1
+	}
+	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
+		cfg.Output.Format = trimmedFormat
+	}
+
+	report, err := service.RunPatch(context.Background(), cfg, string(diffText))
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "patch validation failed: %v\n", err)
+		return 1
+	}
+	if err := service.WriteReport(stdout, report, cfg.Output.Format); err != nil {
+		_, _ = fmt.Fprintf(stderr, "write report: %v\n", err)
+		return 1
+	}
+	if report.Summary.FailedSections > 0 {
+		return 1
+	}
+	return 0
+}
+
 func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("baseline", flag.ContinueOnError)
 	fs.SetOutput(stderr)

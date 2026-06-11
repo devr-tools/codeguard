@@ -22,6 +22,17 @@ func RunDiffCommandCheck(ctx context.Context, dir string, baseRef string, check 
 	}
 	defer cleanup()
 
+	return runDiffCommandCheck(ctx, diffEnv, baseRef, check)
+}
+
+func RunDiffCommandCheckWithContext(ctx context.Context, sc Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error) {
+	if diffEnv, ok := sc.DiffCommand[dir]; ok {
+		return runDiffCommandCheck(ctx, diffEnv, baseRef, check)
+	}
+	return RunDiffCommandCheck(ctx, dir, baseRef, check)
+}
+
+func runDiffCommandCheck(ctx context.Context, diffEnv diffCommandEnv, baseRef string, check core.CommandCheckConfig) (string, error) {
 	env := os.Environ()
 	env = append(env,
 		"CODEGUARD_DIFF_BASE_DIR="+diffEnv.baseDir,

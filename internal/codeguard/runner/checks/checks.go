@@ -83,7 +83,7 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 			return runnersupport.RunCommandCheck(ctx, dir, check)
 		},
 		RunDiffCommandCheck: func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error) {
-			return runnersupport.RunDiffCommandCheck(ctx, dir, baseRef, check)
+			return runnersupport.RunDiffCommandCheckWithContext(ctx, sc, dir, baseRef, check)
 		},
 		NormalizedSeverity: runnersupport.NormalizedSeverity,
 	}

@@ -8,8 +8,9 @@ const (
 )
 
 type ScanOptions struct {
-	Mode    ScanMode
-	BaseRef string
+	Mode     ScanMode
+	BaseRef  string
+	DiffText string
 }
 
 type RulePackConfig struct {
