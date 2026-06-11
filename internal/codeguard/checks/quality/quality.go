@@ -29,6 +29,22 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 			findings = append(findings, env.ScanTargetFiles(target, "quality", isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
 				return typeScriptFindingsForFile(env, file, data)
 			})...)
+		case "rust", "rs":
+			findings = append(findings, env.ScanTargetFiles(target, "quality", isRustFile, func(file string, data []byte) []core.Finding {
+				return rustFindingsForFile(env, file, data)
+			})...)
+		case "java":
+			findings = append(findings, env.ScanTargetFiles(target, "quality", isJavaFile, func(file string, data []byte) []core.Finding {
+				return javaFindingsForFile(env, file, data)
+			})...)
+		case "csharp", "c#", "cs", "dotnet":
+			findings = append(findings, env.ScanTargetFiles(target, "quality", isCSharpFile, func(file string, data []byte) []core.Finding {
+				return csharpFindingsForFile(env, file, data)
+			})...)
+		case "ruby", "rb":
+			findings = append(findings, env.ScanTargetFiles(target, "quality", isRubyFile, func(file string, data []byte) []core.Finding {
+				return rubyFindingsForFile(env, file, data)
+			})...)
 		}
 		findings = append(findings, commandFindings(ctx, env, target)...)
 	}

@@ -84,6 +84,9 @@ func validateCommandChecks(cfg core.Config) error {
 	if err := validateLanguageCommandMap("quality_rules.language_commands", cfg.Checks.QualityRules.LanguageCommands); err != nil {
 		return err
 	}
+	if err := validateLanguageCommandMap("design_rules.language_commands", cfg.Checks.DesignRules.LanguageCommands); err != nil {
+		return err
+	}
 	return validateLanguageCommandMap("security_rules.language_commands", cfg.Checks.SecurityRules.LanguageCommands)
 }
 

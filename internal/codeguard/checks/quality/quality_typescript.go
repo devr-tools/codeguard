@@ -1,7 +1,6 @@
 package quality
 
 import (
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -10,10 +9,12 @@ import (
 )
 
 var (
-	tsExplicitAnyPattern    = regexp.MustCompile(`(?:[:<,(]\s*any\b|\bas\s+any\b)`)
-	tsDoubleAssertPattern   = regexp.MustCompile(`\bas\s+(?:unknown|any)\s+as\s+`)
-	tsIgnoreCommentPattern  = regexp.MustCompile(`^\s*(?://|/\*+|\*)\s*@ts-ignore\b`)
-	tsNoCheckCommentPattern = regexp.MustCompile(`^\s*(?://|/\*+|\*)\s*@ts-nocheck\b`)
+	tsExplicitAnyPattern     = regexp.MustCompile(`(?:[:<,(]\s*any\b|\bas\s+any\b)`)
+	tsDoubleAssertPattern    = regexp.MustCompile(`\bas\s+(?:unknown|any)\s+as\s+`)
+	tsDebuggerPattern        = regexp.MustCompile(`\bdebugger\s*;?`)
+	tsIgnoreCommentPattern   = regexp.MustCompile(`^\s*(?://|/\*+|\*)\s*@ts-ignore\b`)
+	tsNoCheckCommentPattern  = regexp.MustCompile(`^\s*(?://|/\*+|\*)\s*@ts-nocheck\b`)
+	tsExpectErrorCommentRule = regexp.MustCompile(`^\s*(?://|/\*+|\*)\s*@ts-expect-error\b`)
 )
 
 type typeScriptScanContext struct {
@@ -53,51 +54,38 @@ func appendTypeScriptDirectiveFindings(ctx typeScriptScanContext) []core.Finding
 	for idx, line := range strings.Split(ctx.source, "\n") {
 		switch {
 		case tsIgnoreCommentPattern.MatchString(line):
-			findings = append(findings, ctx.env.NewFinding(support.FindingInput{
-				RuleID:  "quality.typescript.ts-ignore",
-				Level:   "warn",
-				Path:    ctx.file,
-				Line:    idx + 1,
-				Column:  1,
-				Message: "TypeScript suppression comment should be reviewed",
-			}))
+			findings = append(findings, newTypeScriptQualityFinding(ctx, qualityRuleID(ctx.file, "ts-ignore"), idx+1, "suppression comment should be reviewed"))
 		case tsNoCheckCommentPattern.MatchString(line):
-			findings = append(findings, ctx.env.NewFinding(support.FindingInput{
-				RuleID:  "quality.typescript.ts-nocheck",
-				Level:   "warn",
-				Path:    ctx.file,
-				Line:    idx + 1,
-				Column:  1,
-				Message: "TypeScript file-level type checking is disabled",
-			}))
+			findings = append(findings, newTypeScriptQualityFinding(ctx, qualityRuleID(ctx.file, "ts-nocheck"), idx+1, "file-level type checking is disabled"))
+		case tsExpectErrorCommentRule.MatchString(line):
+			findings = append(findings, newTypeScriptQualityFinding(ctx, qualityRuleID(ctx.file, "ts-expect-error"), idx+1, "suppression comment should be reviewed"))
 		}
 	}
 	return findings
 }
 
 func typeScriptPatternFindings(ctx typeScriptScanContext) []core.Finding {
-	findings := make([]core.Finding, 0, 3)
+	findings := make([]core.Finding, 0, 4)
 	findings = append(findings, regexTypeScriptFinding(ctx, typeScriptPatternFinding{
 		pattern: tsExplicitAnyPattern,
-		ruleID:  "quality.typescript.explicit-any",
+		ruleID:  qualityRuleID(ctx.file, "explicit-any"),
 		level:   "warn",
 		message: "explicit any should be reviewed",
 	})...)
 	findings = append(findings, regexTypeScriptFinding(ctx, typeScriptPatternFinding{
 		pattern: tsDoubleAssertPattern,
-		ruleID:  "quality.typescript.double-assertion",
+		ruleID:  qualityRuleID(ctx.file, "double-assertion"),
 		level:   "warn",
 		message: "double type assertions should be reviewed",
 	})...)
+	findings = append(findings, regexTypeScriptFinding(ctx, typeScriptPatternFinding{
+		pattern: tsDebuggerPattern,
+		ruleID:  qualityRuleID(ctx.file, "debugger-statement"),
+		level:   "warn",
+		message: "debugger statements should not reach committed source",
+	})...)
 	for _, line := range typeScriptNonNullAssertionLines(ctx.code) {
-		findings = append(findings, ctx.env.NewFinding(support.FindingInput{
-			RuleID:  "quality.typescript.non-null-assertion",
-			Level:   "warn",
-			Path:    ctx.file,
-			Line:    line,
-			Column:  1,
-			Message: "non-null assertions should be reviewed",
-		}))
+		findings = append(findings, newTypeScriptQualityFinding(ctx, qualityRuleID(ctx.file, "non-null-assertion"), line, "non-null assertions should be reviewed"))
 	}
 	return findings
 }
@@ -150,10 +138,20 @@ func typeScriptNonNullAssertionLines(code string) []int {
 }
 
 func isTypeScriptLikeFile(rel string) bool {
-	switch strings.ToLower(filepath.Ext(rel)) {
-	case ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts":
-		return true
-	default:
-		return false
-	}
+	return support.IsTypeScriptLikeFile(rel)
+}
+
+func qualityRuleID(path string, suffix string) string {
+	return support.RuleIDForScript(path, "quality.typescript."+suffix, "quality.javascript."+suffix)
+}
+
+func newTypeScriptQualityFinding(ctx typeScriptScanContext, ruleID string, line int, message string) core.Finding {
+	return ctx.env.NewFinding(support.FindingInput{
+		RuleID:  ruleID,
+		Level:   "warn",
+		Path:    ctx.file,
+		Line:    line,
+		Column:  1,
+		Message: support.ScriptLabelForPath(ctx.file) + " " + message,
+	})
 }

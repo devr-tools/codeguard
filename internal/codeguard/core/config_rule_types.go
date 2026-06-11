@@ -9,14 +9,15 @@ type QualityRulesConfig struct {
 }
 
 type DesignRulesConfig struct {
-	RequireCmdThroughInternalCLI *bool    `json:"require_cmd_through_internal_cli,omitempty"`
-	ForbidInternalImportCmd      *bool    `json:"forbid_internal_import_cmd,omitempty"`
-	ForbidServiceImportInternal  *bool    `json:"forbid_service_import_internal,omitempty"`
-	ForbidServiceImportCmd       *bool    `json:"forbid_service_import_cmd,omitempty"`
-	MaxDeclsPerFile              int      `json:"max_decls_per_file"`
-	MaxMethodsPerType            int      `json:"max_methods_per_type"`
-	MaxInterfaceMethods          int      `json:"max_interface_methods"`
-	ForbiddenPackageNames        []string `json:"forbidden_package_names,omitempty"`
+	RequireCmdThroughInternalCLI *bool                           `json:"require_cmd_through_internal_cli,omitempty"`
+	ForbidInternalImportCmd      *bool                           `json:"forbid_internal_import_cmd,omitempty"`
+	ForbidServiceImportInternal  *bool                           `json:"forbid_service_import_internal,omitempty"`
+	ForbidServiceImportCmd       *bool                           `json:"forbid_service_import_cmd,omitempty"`
+	MaxDeclsPerFile              int                             `json:"max_decls_per_file"`
+	MaxMethodsPerType            int                             `json:"max_methods_per_type"`
+	MaxInterfaceMethods          int                             `json:"max_interface_methods"`
+	ForbiddenPackageNames        []string                        `json:"forbidden_package_names,omitempty"`
+	LanguageCommands             map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
 }
 
 type PromptRulesConfig struct {

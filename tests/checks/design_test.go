@@ -3,6 +3,7 @@ package checks_test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/pkg/codeguard"
@@ -159,4 +160,45 @@ func TestDesignCheckWarnsForLargeInterface(t *testing.T) {
 	}
 
 	assertSectionStatus(t, report, "Design Patterns", "warn")
+}
+
+func TestDesignCheckFailsForConfiguredTypeScriptCommand(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "index.ts"), "export const answer = 42;\n")
+	script := filepath.Join(dir, "fake-design-check.sh")
+	writeExecutableFile(t, script, "#!/bin/sh\necho 'src/index.ts imports forbidden layer'\nexit 1\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "design-typescript-command"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "web", Path: dir, Language: "typescript"}}
+	cfg.Checks.Design = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.Checks.DesignRules.LanguageCommands = map[string][]codeguard.CommandCheckConfig{
+		"typescript": {{
+			Name:    "depcruise",
+			Command: script,
+		}},
+	}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Design Patterns", "fail")
+	assertFindingRulePresent(t, report, "Design Patterns", "design.command-check")
+
+	findings := report.Sections[0].Findings
+	if len(findings) == 0 {
+		t.Fatal("expected command finding")
+	}
+	if !strings.Contains(findings[0].Message, "depcruise") {
+		t.Fatalf("expected command name in message, got %q", findings[0].Message)
+	}
+	if findings[0].Title == "" {
+		t.Fatal("expected runtime metadata title for design.command-check")
+	}
 }

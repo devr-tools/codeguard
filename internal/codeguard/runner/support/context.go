@@ -39,11 +39,14 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 		return Context{}, err
 	}
 
+	ruleCatalog := config.RuleCatalogForConfig(cfg)
+	ensureRuntimeRuleMetadata(ruleCatalog)
+
 	sc := Context{
 		Cfg:         cfg,
 		Opts:        opts,
 		Today:       time.Now(),
-		RuleCatalog: config.RuleCatalogForConfig(cfg),
+		RuleCatalog: ruleCatalog,
 		CustomRules: customRules,
 		ConfigHash:  ConfigFingerprint(cfg),
 	}
@@ -65,6 +68,22 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 		sc.Diff = diff
 	}
 	return sc, nil
+}
+
+func ensureRuntimeRuleMetadata(catalog map[string]core.RuleMetadata) {
+	if _, ok := catalog["design.command-check"]; ok {
+		return
+	}
+	catalog["design.command-check"] = core.NormalizeRuleMetadata(core.RuleMetadata{
+		ID:               "design.command-check",
+		Section:          "Design Patterns",
+		DefaultLevel:     "fail",
+		ExecutionModel:   core.RuleExecutionModelCommandDriven,
+		LanguageCoverage: core.ConfigurableRuleLanguageCoverage(),
+		Title:            "Language design command",
+		Description:      "Fails when a configured language-specific design command exits non-zero.",
+		HowToFix:         "Fix the reported issue from the command output or adjust the configured command if it does not fit the target.",
+	})
 }
 
 func WriteBaselineFile(path string, entries []core.BaselineEntry) error {

@@ -136,8 +136,18 @@ func canonicalRuleLanguage(language RuleLanguage) RuleLanguage {
 		return RuleLanguageGo
 	case "python", "py":
 		return RuleLanguagePython
-	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
+	case "typescript", "ts", "tsx":
 		return RuleLanguageTypeScript
+	case "javascript", "js", "jsx", "mjs", "cjs":
+		return RuleLanguageJavaScript
+	case "rust", "rs":
+		return RuleLanguageRust
+	case "java":
+		return RuleLanguageJava
+	case "csharp", "cs", "dotnet":
+		return RuleLanguageCSharp
+	case "ruby", "rb":
+		return RuleLanguageRuby
 	default:
 		return ""
 	}

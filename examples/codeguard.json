@@ -47,7 +47,23 @@
       "max_decls_per_file": 12,
       "max_methods_per_type": 8,
       "max_interface_methods": 5,
-      "forbidden_package_names": ["util", "utils", "common", "helpers", "misc"]
+      "forbidden_package_names": ["util", "utils", "common", "helpers", "misc"],
+      "language_commands": {
+        "typescript": [
+          {
+            "name": "depcruise",
+            "command": "npx",
+            "args": ["dependency-cruiser", "--config", ".dependency-cruiser.js", "src"]
+          }
+        ],
+        "python": [
+          {
+            "name": "import-linter",
+            "command": "lint-imports",
+            "args": ["--config", "importlinter.ini"]
+          }
+        ]
+      }
     },
     "prompt_rules": {
       "file_extensions": [".prompt", ".md", ".txt", ".tmpl", ".yaml", ".yml", ".json"],

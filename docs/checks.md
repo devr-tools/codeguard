@@ -123,7 +123,7 @@ SDK and catalog discovery surfaces return both `execution_model` and `language_c
 ```json
 {
   "mode": "fixed",
-  "languages": ["go", "python", "typescript"]
+  "languages": ["go", "python", "typescript", "rust", "java", "csharp", "ruby"]
 }
 ```
 
@@ -139,17 +139,17 @@ CLI rendering:
 - `configurable`
 
 Current inference behavior:
-- rules with language prefixes such as `quality.typescript.*`, `security.python.*`, `design.typescript.*`, or `design.python.*` automatically resolve to fixed coverage for that language
+- rules with language prefixes such as `quality.typescript.*`, `quality.javascript.*`, `security.python.*`, `security.javascript.*`, `design.typescript.*`, or `design.python.*` automatically resolve to fixed coverage for that language
 - custom rule-pack metadata defaults to `execution_model: language-agnostic` and `language_coverage: configurable`
 
 ## Built-in language coverage snapshot
 
-| Family | Go | Python | TypeScript |
-| --- | --- | --- | --- |
-| Quality | `gofmt`, parseability, maintainability thresholds | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `explicit any`, double assertions, non-null assertions |
-| Design | boundary rules, generic package names, type/interface/file-size heuristics | public-imports-private, public-imports-cli, generic module names | generic module names, max methods per class, max members per interface/object type |
-| Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, Node `vm` execution, unsafe HTML sinks |
-| Commands | language command mappings via config | language command mappings via config | language command mappings via config |
+| Family | Go | Python | TypeScript | Rust | Java | C# | Ruby |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Quality | `gofmt`, parseability, maintainability thresholds | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, `explicit any`, double assertions, non-null assertions, `debugger` statements | maintainability thresholds | maintainability thresholds | maintainability thresholds | maintainability thresholds |
+| Design | boundary rules, generic package names, type/interface/file-size heuristics | public-imports-private, public-imports-cli, generic module names | generic module names, max methods per class, max members per interface/object type | - | - | - | - |
+| Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
+| Commands | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config |
 
 ## Quality
 
@@ -178,8 +178,8 @@ Current behavior:
 - fails on parse errors
 - fails on non-`gofmt` files
 - warns when maintainability thresholds are exceeded
-- includes native maintainability heuristics for Python and TypeScript targets
-- TypeScript targets also warn on `@ts-ignore`, `@ts-nocheck`, explicit `any`, double assertions, and non-null assertions
+- includes native maintainability heuristics for Python, TypeScript, JavaScript, Rust, Java, C#, and Ruby targets
+- TypeScript and JavaScript targets also warn on `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, explicit `any`, double assertions, non-null assertions, and committed `debugger` statements
 - can run language-specific quality commands based on `targets[].language`
 
 Language command example:
@@ -229,7 +229,15 @@ Config keys:
       "max_decls_per_file": 12,
       "max_methods_per_type": 8,
       "max_interface_methods": 5,
-      "forbidden_package_names": ["util", "utils", "common", "helpers", "misc"]
+      "forbidden_package_names": ["util", "utils", "common", "helpers", "misc"],
+      "language_commands": {
+        "typescript": [
+          {"name": "depcruise", "command": "npx", "args": ["dependency-cruiser", "--config", ".dependency-cruiser.js", "src"]}
+        ],
+        "python": [
+          {"name": "import-linter", "command": "lint-imports", "args": ["--config", "importlinter.ini"]}
+        ]
+      }
     }
   }
 }
@@ -238,8 +246,34 @@ Config keys:
 Current behavior:
 - fails on architecture boundary violations
 - Go targets keep the existing package, import-boundary, declaration-count, type-size, and interface-size heuristics
-- Python targets fail when public modules import private modules or CLI entrypoints, and warn on overly generic module names
+- Python targets fail on public-to-private imports, direct or transitive entrypoint coupling, and internal import cycles, and warn on overly generic module names
 - TypeScript targets warn on overly generic module names, oversized classes, and oversized interfaces or object types
+- can run language-specific design commands based on `targets[].language`
+- language command failures surface as `design.command-check`
+
+Language command example:
+
+```json
+{
+  "targets": [
+    {"name": "frontend", "path": "frontend", "language": "typescript"},
+    {"name": "backend", "path": "backend", "language": "python"}
+  ],
+  "checks": {
+    "design": true,
+    "design_rules": {
+      "language_commands": {
+        "typescript": [
+          {"name": "depcruise", "command": "npx", "args": ["dependency-cruiser", "--config", ".dependency-cruiser.js", "src"]}
+        ],
+        "python": [
+          {"name": "import-linter", "command": "lint-imports", "args": ["--config", "importlinter.ini"]}
+        ]
+      }
+    }
+  }
+}
+```
 
 ## Security
 
@@ -254,7 +288,9 @@ Current behavior:
 - repository-wide secret and private-key scans apply regardless of target language
 - Go targets include insecure TLS review, shell execution review, and optional `govulncheck`
 - Python targets include insecure TLS review, shell execution review, and dynamic code review markers
-- TypeScript targets include insecure TLS review, shell execution review, dynamic code review markers, Node `vm` execution review, and unsafe HTML sink review
+- TypeScript and JavaScript targets include insecure TLS review, shell execution review, dynamic code review markers, string timer execution review, wildcard `postMessage` review, Node `vm` execution review, and unsafe HTML sink review
+- Rust, Java, and C# targets include insecure TLS review and shell execution review markers
+- Ruby targets include insecure TLS review, shell execution review, and dynamic code review markers
 
 Config keys:
 
@@ -279,7 +315,8 @@ Current behavior:
 - fails on blocking security findings
 - warns on reviewable findings
 - can surface per-vulnerability findings from `govulncheck`
-- includes native Python and TypeScript security heuristics for shell execution, insecure TLS settings, and dynamic code execution
+- includes native Python, TypeScript, Rust, Java, C#, and Ruby security heuristics for shell execution and insecure TLS settings
+- includes dynamic code review heuristics for Python, TypeScript, and Ruby
 - can run language-specific security commands based on `targets[].language`
 - only runs `govulncheck` for Go targets
 
@@ -379,7 +416,7 @@ Config keys:
 Current behavior:
 - fails when required workflow, release, or automation files are missing
 - fails when required workflow content markers are missing
-- fails when `*_test.go` files live outside the configured test directories
+- fails when detected Go, Python, TypeScript, Rust, Java, C#, or Ruby test files live outside the configured test directories
 
 ## Output
 
@@ -483,7 +520,7 @@ Current behavior:
 - validates config loading
 - checks Git availability and worktree detection
 - checks `govulncheck` availability when security integration is enabled
-- checks configured language command binaries when quality or security command checks are enabled
+- checks configured language command binaries when design, quality, or security command checks are enabled
 - checks target paths, baseline path, and cache destination
 
 ## Inline suppressions

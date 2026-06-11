@@ -14,6 +14,11 @@ const (
 	RuleLanguageGo         RuleLanguage = "go"
 	RuleLanguagePython     RuleLanguage = "python"
 	RuleLanguageTypeScript RuleLanguage = "typescript"
+	RuleLanguageJavaScript RuleLanguage = "javascript"
+	RuleLanguageRust       RuleLanguage = "rust"
+	RuleLanguageJava       RuleLanguage = "java"
+	RuleLanguageCSharp     RuleLanguage = "csharp"
+	RuleLanguageRuby       RuleLanguage = "ruby"
 )
 
 type RuleLanguageCoverageMode string

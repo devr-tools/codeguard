@@ -1,7 +1,6 @@
 package security
 
 import (
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -80,7 +79,7 @@ func parseTypeScriptBindingSpec(spec string) (string, string) {
 	return spec, spec
 }
 
-func typeScriptCallLinesWithShellOption(code string, alias string, namespaced bool) []int {
+func typeScriptCallLinesWithShellOption(ctx typeScriptScanContext, alias string, namespaced bool) []int {
 	lines := make([]int, 0)
 	seen := make(map[int]struct{})
 	patternText := `\b` + regexp.QuoteMeta(alias)
@@ -90,34 +89,28 @@ func typeScriptCallLinesWithShellOption(code string, alias string, namespaced bo
 		patternText += `\s*\(`
 	}
 	pattern := regexp.MustCompile(patternText)
-	for _, match := range pattern.FindAllStringIndex(code, -1) {
-		if !hasShellTrueNearOffset(code, match[0]) {
+	for _, call := range support.FindScriptCalls(ctx.source, ctx.code, pattern) {
+		if !scriptCallHasShellTrue(call.Args) {
 			continue
 		}
-		line := support.LineNumberForOffset(code, match[0])
-		if _, exists := seen[line]; exists {
+		if _, exists := seen[call.Line]; exists {
 			continue
 		}
-		seen[line] = struct{}{}
-		lines = append(lines, line)
+		seen[call.Line] = struct{}{}
+		lines = append(lines, call.Line)
 	}
 	return lines
 }
 
-func hasShellTrueNearOffset(code string, offset int) bool {
-	limit := offset + 240
-	if limit > len(code) {
-		limit = len(code)
+func scriptCallHasShellTrue(args []string) bool {
+	for _, arg := range args {
+		if support.HasObjectLiteralBooleanFlag(arg, "shell", true) {
+			return true
+		}
 	}
-	window := code[offset:limit]
-	return strings.Contains(window, "shell") && regexp.MustCompile(`shell\s*:\s*true`).MatchString(window)
+	return false
 }
 
 func isTypeScriptFile(path string) bool {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts":
-		return true
-	default:
-		return false
-	}
+	return support.IsTypeScriptLikeFile(path)
 }

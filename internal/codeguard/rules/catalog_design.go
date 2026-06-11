@@ -3,6 +3,15 @@ package rules
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 var designCatalog = map[string]core.RuleMetadata{
+	"design.command-check": {
+		ID:             "design.command-check",
+		Section:        "Design Patterns",
+		DefaultLevel:   "fail",
+		ExecutionModel: core.RuleExecutionModelCommandDriven,
+		Title:          "Language design command",
+		Description:    "Fails when a configured language-specific design command exits non-zero.",
+		HowToFix:       "Fix the reported issue from the command output or adjust the configured command if it does not fit the target.",
+	},
 	"design.cmd-through-internal-cli": {
 		ID:             "design.cmd-through-internal-cli",
 		Section:        "Design Patterns",
@@ -110,6 +119,24 @@ var designCatalog = map[string]core.RuleMetadata{
 		Title:          "Python public-to-entrypoint import",
 		Description:    "Fails when a public Python module imports a CLI or entrypoint module.",
 		HowToFix:       "Move shared behavior into a reusable module and keep entrypoints thin.",
+	},
+	"design.python.public-depends-on-cli": {
+		ID:             "design.python.public-depends-on-cli",
+		Section:        "Design Patterns",
+		DefaultLevel:   "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "Python transitive entrypoint dependency",
+		Description:    "Fails when a public Python module reaches a CLI or entrypoint module through the project import graph.",
+		HowToFix:       "Remove the dependency path into the entrypoint layer and move shared behavior into reusable modules.",
+	},
+	"design.python.import-cycle": {
+		ID:             "design.python.import-cycle",
+		Section:        "Design Patterns",
+		DefaultLevel:   "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "Python import cycle",
+		Description:    "Fails when Python modules form an internal import cycle.",
+		HowToFix:       "Break the cycle by extracting shared behavior behind a lower-level module or by inverting the dependency direction.",
 	},
 	"design.python.generic-module-name": {
 		ID:             "design.python.generic-module-name",

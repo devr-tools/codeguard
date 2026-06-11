@@ -95,6 +95,9 @@ func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig
 	if dst.ForbidServiceImportCmd == nil {
 		dst.ForbidServiceImportCmd = boolPtr(true)
 	}
+	if dst.LanguageCommands == nil && len(def.LanguageCommands) > 0 {
+		dst.LanguageCommands = cloneCommandCheckMap(def.LanguageCommands)
+	}
 }
 
 func applyPromptDefaults(dst *core.PromptRulesConfig, def core.PromptRulesConfig) {

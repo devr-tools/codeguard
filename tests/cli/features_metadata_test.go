@@ -16,7 +16,18 @@ func TestSDKRuleMetadataForBuiltInGoRule(t *testing.T) {
 func TestSDKRuleMetadataForMultiLanguageRule(t *testing.T) {
 	rule := requireRuleMetadata(t, "quality.max-function-lines")
 	assertExecutionModel(t, rule, codeguard.RuleExecutionModelLanguageAgnostic)
-	assertLanguageCoverage(t, rule, codeguard.RuleLanguageCoverageFixed, codeguard.RuleLanguageGo, codeguard.RuleLanguagePython, codeguard.RuleLanguageTypeScript)
+	assertLanguageCoverage(
+		t,
+		rule,
+		codeguard.RuleLanguageCoverageFixed,
+		codeguard.RuleLanguageCSharp,
+		codeguard.RuleLanguageGo,
+		codeguard.RuleLanguageJava,
+		codeguard.RuleLanguagePython,
+		codeguard.RuleLanguageRuby,
+		codeguard.RuleLanguageRust,
+		codeguard.RuleLanguageTypeScript,
+	)
 }
 
 func TestSDKRuleMetadataForTypeScriptRule(t *testing.T) {

@@ -33,7 +33,7 @@ func TestDesignCheckFailsWhenPythonPublicModuleImportsPrivateModule(t *testing.T
 
 func TestDesignCheckFailsWhenPythonPublicModuleImportsCLI(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "app", "service.py"), "import app.cli\n\nrun = app.cli.run\n")
+	writeFile(t, filepath.Join(dir, "app", "service.py"), "from app import cli\n\nrun = cli.run\n")
 	writeFile(t, filepath.Join(dir, "app", "cli.py"), "def run():\n    return 'ok'\n")
 
 	cfg := codeguard.ExampleConfig()

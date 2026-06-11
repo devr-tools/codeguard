@@ -31,6 +31,9 @@ func govulncheckDoctorCheck(cfg service.Config) (doctorCheck, bool) {
 
 func languageCommandDoctorChecks(cfg service.Config) []doctorCheck {
 	checks := make([]doctorCheck, 0)
+	if cfg.Checks.Design {
+		checks = append(checks, commandDoctorChecks("design", cfg.Checks.DesignRules.LanguageCommands, cfg.Targets)...)
+	}
 	if cfg.Checks.Quality {
 		checks = append(checks, commandDoctorChecks("quality", cfg.Checks.QualityRules.LanguageCommands, cfg.Targets)...)
 	}

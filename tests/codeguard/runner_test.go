@@ -58,6 +58,13 @@ func TestYAMLConfigRoundTrip(t *testing.T) {
 			Args:    []string{"tsc", "--noEmit"},
 		}},
 	}
+	cfg.Checks.DesignRules.LanguageCommands = map[string][]codeguard.CommandCheckConfig{
+		"python": {{
+			Name:    "import-linter",
+			Command: "lint-imports",
+			Args:    []string{"--config", "importlinter.ini"},
+		}},
+	}
 	if err := codeguard.WriteConfigFile(path, cfg); err != nil {
 		t.Fatalf("write yaml: %v", err)
 	}
@@ -71,6 +78,9 @@ func TestYAMLConfigRoundTrip(t *testing.T) {
 	}
 	if got := loaded.Checks.QualityRules.LanguageCommands["typescript"][0].Command; got != "npx" {
 		t.Fatalf("loaded command = %q, want %q", got, "npx")
+	}
+	if got := loaded.Checks.DesignRules.LanguageCommands["python"][0].Command; got != "lint-imports" {
+		t.Fatalf("loaded design command = %q, want %q", got, "lint-imports")
 	}
 }
 

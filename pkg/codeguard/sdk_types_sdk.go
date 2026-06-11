@@ -21,6 +21,11 @@ const (
 	RuleLanguageGo                     = core.RuleLanguageGo
 	RuleLanguagePython                 = core.RuleLanguagePython
 	RuleLanguageTypeScript             = core.RuleLanguageTypeScript
+	RuleLanguageJavaScript             = core.RuleLanguageJavaScript
+	RuleLanguageRust                   = core.RuleLanguageRust
+	RuleLanguageJava                   = core.RuleLanguageJava
+	RuleLanguageCSharp                 = core.RuleLanguageCSharp
+	RuleLanguageRuby                   = core.RuleLanguageRuby
 	RuleLanguageCoverageFixed          = core.RuleLanguageCoverageFixed
 	RuleLanguageCoverageRepositoryWide = core.RuleLanguageCoverageRepositoryWide
 	RuleLanguageCoverageConfigurable   = core.RuleLanguageCoverageConfigurable

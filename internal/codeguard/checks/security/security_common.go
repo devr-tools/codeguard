@@ -50,13 +50,14 @@ func appendCommonLineFindings(env support.Context, file string, lineNo int, line
 }
 
 func appendLanguageLineFindings(env support.Context, file string, lineNo int, line string) []core.Finding {
-	findings := make([]core.Finding, 0, 2)
+	findings := make([]core.Finding, 0, 3)
 	if isTypeScriptFile(file) {
 		findings = append(findings, appendTypeScriptLineFindings(env, file, lineNo, line)...)
 	}
 	if isPythonFile(file) {
 		findings = append(findings, appendPythonLineFindings(env, file, lineNo, line)...)
 	}
+	findings = append(findings, appendAdditionalLanguageLineFindings(env, file, lineNo, line)...)
 	return findings
 }
 
