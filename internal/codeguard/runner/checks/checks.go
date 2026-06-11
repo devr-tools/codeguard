@@ -41,7 +41,9 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 
 func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 	return checkSupport.Context{
-		Config: sc.Cfg,
+		Config:  sc.Cfg,
+		Mode:    sc.Opts.Mode,
+		BaseRef: sc.Opts.BaseRef,
 		ScanTargetFiles: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFiles(sc, target, sectionID, include, evaluator)
 		},
@@ -58,6 +60,12 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		FinalizeSection: func(id string, name string, findings []core.Finding) core.SectionResult {
 			return runnersupport.FinalizeSection(sc, id, name, findings)
 		},
+		PutArtifact: func(artifact core.Artifact) {
+			sc.Artifacts.Put(artifact)
+		},
+		GetArtifact: func(id string) (core.Artifact, bool) {
+			return sc.Artifacts.Get(id)
+		},
 		CountLines:           runnersupport.CountLines,
 		CyclomaticComplexity: runnersupport.CyclomaticComplexity,
 		TypeName:             runnersupport.TypeName,
@@ -73,6 +81,9 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		},
 		RunCommandCheck: func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error) {
 			return runnersupport.RunCommandCheck(ctx, dir, check)
+		},
+		RunDiffCommandCheck: func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error) {
+			return runnersupport.RunDiffCommandCheck(ctx, dir, baseRef, check)
 		},
 		NormalizedSeverity: runnersupport.NormalizedSeverity,
 	}

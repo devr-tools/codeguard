@@ -5,6 +5,7 @@ type QualityRulesConfig struct {
 	MaxFunctionLines        int                             `json:"max_function_lines"`
 	MaxParameters           int                             `json:"max_parameters"`
 	MaxCyclomaticComplexity int                             `json:"max_cyclomatic_complexity"`
+	CloneTokenThreshold     int                             `json:"clone_token_threshold,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
 }
 
@@ -18,6 +19,7 @@ type DesignRulesConfig struct {
 	MaxInterfaceMethods          int                             `json:"max_interface_methods"`
 	ForbiddenPackageNames        []string                        `json:"forbidden_package_names,omitempty"`
 	LanguageCommands             map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
+	LanguageDiffCommands         map[string][]CommandCheckConfig `json:"language_diff_commands,omitempty"`
 }
 
 type PromptRulesConfig struct {

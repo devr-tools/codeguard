@@ -11,10 +11,10 @@ import (
 
 func pythonTargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
 	graph := buildPythonImportGraph(env, target)
-	findings := make([]core.Finding, 0, len(graph.moduleOrder))
-	for _, module := range graph.moduleOrder {
-		node := graph.modules[module]
-		findings = append(findings, genericPythonModuleNameFindings(env, node.file)...)
+	findings := make([]core.Finding, 0, len(graph.graph.Order))
+	for _, module := range graph.graph.Order {
+		node := graph.graph.Nodes[module]
+		findings = append(findings, genericPythonModuleNameFindings(env, node.Path)...)
 		findings = append(findings, directPythonBoundaryFindings(env, node, graph.entrypoints)...)
 	}
 	findings = append(findings, transitivePythonEntrypointFindings(env, graph)...)

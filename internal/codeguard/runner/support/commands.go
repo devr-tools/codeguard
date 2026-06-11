@@ -3,6 +3,7 @@ package support
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -11,12 +12,36 @@ import (
 )
 
 func RunCommandCheck(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error) {
+	return runCommandCheck(ctx, dir, check, nil)
+}
+
+func RunDiffCommandCheck(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error) {
+	diffEnv, cleanup, err := prepareDiffCommandEnv(dir, baseRef)
+	if err != nil {
+		return "", err
+	}
+	defer cleanup()
+
+	env := os.Environ()
+	env = append(env,
+		"CODEGUARD_DIFF_BASE_DIR="+diffEnv.baseDir,
+		"CODEGUARD_DIFF_HEAD_DIR="+diffEnv.headDir,
+		"CODEGUARD_DIFF_TARGET_DIR="+diffEnv.headDir,
+		"CODEGUARD_DIFF_BASE_REF="+baseRef,
+	)
+	return runCommandCheck(ctx, diffEnv.headDir, check, env)
+}
+
+func runCommandCheck(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error) {
 	command := check.Command
 	if strings.Contains(command, string(filepath.Separator)) && !filepath.IsAbs(command) {
 		command = filepath.Join(dir, command)
 	}
 	cmd := exec.CommandContext(ctx, command, check.Args...)
 	cmd.Dir = dir
+	if len(env) > 0 {
+		cmd.Env = env
+	}
 	output, err := cmd.CombinedOutput()
 	text := strings.TrimSpace(string(output))
 	if err != nil {

@@ -65,6 +65,9 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	if dst.MaxCyclomaticComplexity == 0 {
 		dst.MaxCyclomaticComplexity = def.MaxCyclomaticComplexity
 	}
+	if dst.CloneTokenThreshold == 0 {
+		dst.CloneTokenThreshold = def.CloneTokenThreshold
+	}
 	if dst.LanguageCommands == nil && len(def.LanguageCommands) > 0 {
 		dst.LanguageCommands = cloneCommandCheckMap(def.LanguageCommands)
 	}
@@ -97,6 +100,9 @@ func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig
 	}
 	if dst.LanguageCommands == nil && len(def.LanguageCommands) > 0 {
 		dst.LanguageCommands = cloneCommandCheckMap(def.LanguageCommands)
+	}
+	if dst.LanguageDiffCommands == nil && len(def.LanguageDiffCommands) > 0 {
+		dst.LanguageDiffCommands = cloneCommandCheckMap(def.LanguageDiffCommands)
 	}
 }
 

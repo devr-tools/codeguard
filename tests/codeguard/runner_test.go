@@ -65,6 +65,12 @@ func TestYAMLConfigRoundTrip(t *testing.T) {
 			Args:    []string{"--config", "importlinter.ini"},
 		}},
 	}
+	cfg.Checks.DesignRules.LanguageDiffCommands = map[string][]codeguard.CommandCheckConfig{
+		"go": {{
+			Name:    "api-diff",
+			Command: "./scripts/api-diff.sh",
+		}},
+	}
 	if err := codeguard.WriteConfigFile(path, cfg); err != nil {
 		t.Fatalf("write yaml: %v", err)
 	}
@@ -81,6 +87,9 @@ func TestYAMLConfigRoundTrip(t *testing.T) {
 	}
 	if got := loaded.Checks.DesignRules.LanguageCommands["python"][0].Command; got != "lint-imports" {
 		t.Fatalf("loaded design command = %q, want %q", got, "lint-imports")
+	}
+	if got := loaded.Checks.DesignRules.LanguageDiffCommands["go"][0].Name; got != "api-diff" {
+		t.Fatalf("loaded diff command = %q, want %q", got, "api-diff")
 	}
 }
 

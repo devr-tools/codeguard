@@ -202,3 +202,55 @@ func TestDesignCheckFailsForConfiguredTypeScriptCommand(t *testing.T) {
 		t.Fatal("expected runtime metadata title for design.command-check")
 	}
 }
+
+func TestDesignCheckFailsForConfiguredDiffCommand(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/contractdiff\n\ngo 1.23.0\n")
+	writeFile(t, filepath.Join(dir, "api.go"), "package contractdiff\n\nfunc Stable() {}\n")
+
+	runGit(t, dir, "init", "-b", "main")
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test User")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "initial")
+	runGit(t, dir, "checkout", "-b", "feature")
+
+	writeFile(t, filepath.Join(dir, "api.go"), "package contractdiff\n\nfunc Replacement() {}\n")
+
+	script := filepath.Join(dir, "api-diff-check.sh")
+	writeExecutableFile(t, script, "#!/bin/sh\nif grep -q 'func Stable' \"$CODEGUARD_DIFF_BASE_DIR/api.go\" && ! grep -q 'func Stable' \"$CODEGUARD_DIFF_HEAD_DIR/api.go\"; then\n  echo 'exported symbol Stable removed'\n  exit 1\nfi\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "design-go-diff-command"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Design = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.Checks.DesignRules.LanguageDiffCommands = map[string][]codeguard.CommandCheckConfig{
+		"go": {{
+			Name:    "api-diff",
+			Command: script,
+		}},
+	}
+
+	report, err := codeguard.RunWithOptions(context.Background(), cfg, codeguard.ScanOptions{
+		Mode:    codeguard.ScanModeDiff,
+		BaseRef: "main",
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Design Patterns", "fail")
+	assertFindingRulePresent(t, report, "Design Patterns", "design.diff-command-check")
+
+	findings := report.Sections[0].Findings
+	if len(findings) == 0 {
+		t.Fatal("expected diff command finding")
+	}
+	if !strings.Contains(findings[0].Message, "Stable removed") {
+		t.Fatalf("expected diff command output in message, got %q", findings[0].Message)
+	}
+}

@@ -22,6 +22,7 @@ func baseExampleConfig() core.Config {
 				MaxFunctionLines:        80,
 				MaxParameters:           5,
 				MaxCyclomaticComplexity: 10,
+				CloneTokenThreshold:     60,
 			},
 			DesignRules: core.DesignRulesConfig{
 				RequireCmdThroughInternalCLI: boolPtr(true),

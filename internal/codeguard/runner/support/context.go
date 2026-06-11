@@ -16,6 +16,7 @@ type Context struct {
 	Opts        core.ScanOptions
 	Baseline    map[string]core.BaselineEntry
 	Diff        map[string]LineRanges
+	Artifacts   *ArtifactStore
 	Today       time.Time
 	RuleCatalog map[string]core.RuleMetadata
 	CustomRules []CompiledCustomRule
@@ -45,6 +46,7 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 	sc := Context{
 		Cfg:         cfg,
 		Opts:        opts,
+		Artifacts:   NewArtifactStore(),
 		Today:       time.Now(),
 		RuleCatalog: ruleCatalog,
 		CustomRules: customRules,

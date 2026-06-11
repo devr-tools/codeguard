@@ -8,17 +8,14 @@ import (
 )
 
 var (
-	rustFunctionPattern   = regexp.MustCompile(`^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)\s*(?:<[^>]*>)?\s*\(([^)]*)\)`)
-	javaMethodPattern     = regexp.MustCompile(`^\s*(?:@\w+(?:\([^)]*\))?\s*)*(?:(?:public|protected|private|static|final|abstract|synchronized|native|default|strictfp)\s+)+[\w<>\[\],.?&\s]+\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:throws [^{]+)?\{`)
-	csharpMethodPattern   = regexp.MustCompile(`^\s*(?:\[[^\]]+\]\s*)*(?:(?:public|protected|private|internal|static|virtual|override|sealed|abstract|async|partial|unsafe|extern|new)\s+)+[\w<>\[\],.?&\s]+\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:where [^{]+)?\{`)
-	rubyFunctionPattern   = regexp.MustCompile(`^\s*def\s+(?:self\.)?([A-Za-z_]\w*[!?=]?)\s*(?:\(([^)]*)\)|\s+([^#]+))?`)
-	javaControlStatements = map[string]struct{}{"if": {}, "for": {}, "while": {}, "switch": {}, "catch": {}, "return": {}, "new": {}, "throw": {}, "else": {}, "do": {}, "try": {}, "synchronized": {}}
-	csharpControlWords    = map[string]struct{}{"if": {}, "for": {}, "foreach": {}, "while": {}, "switch": {}, "catch": {}, "return": {}, "new": {}, "throw": {}, "lock": {}, "using": {}}
+	csharpMethodPattern = regexp.MustCompile(`^\s*(?:\[[^\]]+\]\s*)*(?:(?:public|protected|private|internal|static|virtual|override|sealed|abstract|async|partial|unsafe|extern|new)\s+)+[\w<>\[\],.?&\s]+\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:where [^{]+)?\{`)
+	rubyFunctionPattern = regexp.MustCompile(`^\s*def\s+(?:self\.)?([A-Za-z_]\w*[!?=]?)\s*(?:\(([^)]*)\)|\s+([^#]+))?`)
+	csharpControlWords  = map[string]struct{}{"if": {}, "for": {}, "foreach": {}, "while": {}, "switch": {}, "catch": {}, "return": {}, "new": {}, "throw": {}, "lock": {}, "using": {}}
 )
 
 func rustFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
 	findings := fileLengthFinding(env, file, data)
-	for _, fn := range braceLanguageFunctions(string(data), rustFunctionPattern, rustParameterCount, rustComplexity, nil) {
+	for _, fn := range parsedFunctionMetrics(support.ParseRustFunctions(string(data)), rustParameterCount, rustComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
 	return findings
@@ -26,7 +23,7 @@ func rustFindingsForFile(env support.Context, file string, data []byte) []core.F
 
 func javaFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
 	findings := fileLengthFinding(env, file, data)
-	for _, fn := range braceLanguageFunctions(string(data), javaMethodPattern, typedParameterCount, braceComplexity, javaControlStatements) {
+	for _, fn := range parsedFunctionMetrics(support.ParseJavaFunctions(string(data)), typedParameterCount, braceComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
 	return findings

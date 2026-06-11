@@ -1,35 +1,39 @@
 package design
 
-import "strings"
+import (
+	"strings"
 
-func pythonStatementEdges(statement pythonImportStatement, known map[string]pythonModuleNode) []pythonImportEdge {
+	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
+)
+
+func pythonStatementEdges(statement pythonImportStatement, known map[string]pythonGraphNode) []support.DependencyEdge {
 	if len(statement.modules) > 0 {
 		return pythonModuleImportEdges(statement, known)
 	}
 	return pythonFromImportEdges(statement, known)
 }
 
-func pythonModuleImportEdges(statement pythonImportStatement, known map[string]pythonModuleNode) []pythonImportEdge {
-	edges := make([]pythonImportEdge, 0, len(statement.modules))
+func pythonModuleImportEdges(statement pythonImportStatement, known map[string]pythonGraphNode) []support.DependencyEdge {
+	edges := make([]support.DependencyEdge, 0, len(statement.modules))
 	for _, module := range statement.modules {
 		if _, ok := known[module]; !ok {
 			continue
 		}
-		edges = append(edges, pythonImportEdge{to: module, line: statement.line})
+		edges = append(edges, support.DependencyEdge{To: module, Line: statement.line})
 	}
 	return edges
 }
 
-func pythonFromImportEdges(statement pythonImportStatement, known map[string]pythonModuleNode) []pythonImportEdge {
+func pythonFromImportEdges(statement pythonImportStatement, known map[string]pythonGraphNode) []support.DependencyEdge {
 	targets := pythonFromImportTargets(statement, known)
-	edges := make([]pythonImportEdge, 0, len(targets))
+	edges := make([]support.DependencyEdge, 0, len(targets))
 	for _, target := range targets {
-		edges = append(edges, pythonImportEdge{to: target, line: statement.line, names: statement.names})
+		edges = append(edges, support.DependencyEdge{To: target, Line: statement.line, Names: statement.names})
 	}
 	return edges
 }
 
-func pythonFromImportTargets(statement pythonImportStatement, known map[string]pythonModuleNode) []string {
+func pythonFromImportTargets(statement pythonImportStatement, known map[string]pythonGraphNode) []string {
 	targets := make([]string, 0, len(statement.names)+1)
 	for _, name := range statement.names {
 		if name == "*" {

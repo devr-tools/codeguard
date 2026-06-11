@@ -25,7 +25,34 @@ type Report struct {
 	Profile     string          `json:"profile,omitempty"`
 	GeneratedAt string          `json:"generated_at"`
 	Sections    []SectionResult `json:"sections"`
+	Artifacts   []Artifact      `json:"artifacts,omitempty"`
 	Summary     ReportSummary   `json:"summary"`
+}
+
+type Artifact struct {
+	ID              string                   `json:"id"`
+	Kind            string                   `json:"kind"`
+	Language        string                   `json:"language,omitempty"`
+	Target          string                   `json:"target,omitempty"`
+	DependencyGraph *DependencyGraphArtifact `json:"dependency_graph,omitempty"`
+}
+
+type DependencyGraphArtifact struct {
+	Order []string              `json:"order,omitempty"`
+	Nodes []DependencyGraphNode `json:"nodes"`
+}
+
+type DependencyGraphNode struct {
+	ID       string                `json:"id"`
+	Path     string                `json:"path,omitempty"`
+	IsPublic bool                  `json:"is_public,omitempty"`
+	Edges    []DependencyGraphEdge `json:"edges,omitempty"`
+}
+
+type DependencyGraphEdge struct {
+	To    string   `json:"to"`
+	Line  int      `json:"line,omitempty"`
+	Names []string `json:"names,omitempty"`
 }
 
 type SectionResult struct {

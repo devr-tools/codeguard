@@ -35,7 +35,8 @@ func typeScriptTargetFindings(ctx context.Context, env support.Context, target c
 
 func commandFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	checks := env.Config.Checks.DesignRules.LanguageCommands[normalizedLanguage(target.Language)]
-	findings := make([]core.Finding, 0, len(checks))
+	diffChecks := env.Config.Checks.DesignRules.LanguageDiffCommands[normalizedLanguage(target.Language)]
+	findings := make([]core.Finding, 0, len(checks)+len(diffChecks))
 	for _, check := range checks {
 		output, err := env.RunCommandCheck(ctx, target.Path, check)
 		if err == nil {
@@ -45,6 +46,20 @@ func commandFindings(ctx context.Context, env support.Context, target core.Targe
 			RuleID:  "design.command-check",
 			Level:   "fail",
 			Message: commandFailureMessage(target, check, output, err),
+		}))
+	}
+	if env.Mode != core.ScanModeDiff || env.RunDiffCommandCheck == nil {
+		return findings
+	}
+	for _, check := range diffChecks {
+		output, err := env.RunDiffCommandCheck(ctx, target.Path, env.BaseRef, check)
+		if err == nil {
+			continue
+		}
+		findings = append(findings, env.NewFinding(support.FindingInput{
+			RuleID:  "design.diff-command-check",
+			Level:   "fail",
+			Message: diffCommandFailureMessage(target, check, output, err),
 		}))
 	}
 	return findings
@@ -71,4 +86,15 @@ func trimmedOutput(output string) string {
 		return output[:237] + "..."
 	}
 	return output
+}
+
+func diffCommandFailureMessage(target core.TargetConfig, check core.CommandCheckConfig, output string, err error) string {
+	message := fmt.Sprintf("target %q design diff command %q detected contract drift", target.Name, check.Name)
+	output = trimmedOutput(output)
+	if output != "" {
+		message += ": " + output
+	} else if err != nil {
+		message += ": " + err.Error()
+	}
+	return message
 }

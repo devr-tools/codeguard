@@ -43,6 +43,7 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 		Profile:     sc.Cfg.Profile,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		Sections:    runnerchecks.Build(ctx, sc),
+		Artifacts:   sc.Artifacts.List(),
 	}
 	report.Summary = runnersupport.SummarizeSections(report.Sections)
 	if sc.Cache != nil {

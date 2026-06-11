@@ -12,6 +12,15 @@ var designCatalog = map[string]core.RuleMetadata{
 		Description:    "Fails when a configured language-specific design command exits non-zero.",
 		HowToFix:       "Fix the reported issue from the command output or adjust the configured command if it does not fit the target.",
 	},
+	"design.diff-command-check": {
+		ID:             "design.diff-command-check",
+		Section:        "Design Patterns",
+		DefaultLevel:   "fail",
+		ExecutionModel: core.RuleExecutionModelCommandDriven,
+		Title:          "Contract diff command",
+		Description:    "Fails in diff mode when a configured language-specific contract check reports breaking drift between the base ref and the current target.",
+		HowToFix:       "Restore compatibility or update the diff command and target contract if the change is intended.",
+	},
 	"design.cmd-through-internal-cli": {
 		ID:             "design.cmd-through-internal-cli",
 		Section:        "Design Patterns",

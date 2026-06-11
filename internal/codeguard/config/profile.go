@@ -21,6 +21,7 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.QualityRules.MaxFunctionLines = 120
 			cfg.Checks.QualityRules.MaxParameters = 7
 			cfg.Checks.QualityRules.MaxCyclomaticComplexity = 15
+			cfg.Checks.QualityRules.CloneTokenThreshold = 90
 			cfg.Checks.DesignRules.MaxDeclsPerFile = 16
 			cfg.Checks.DesignRules.MaxMethodsPerType = 10
 			cfg.Checks.DesignRules.MaxInterfaceMethods = 8
@@ -35,6 +36,7 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.QualityRules.MaxFunctionLines = 60
 			cfg.Checks.QualityRules.MaxParameters = 4
 			cfg.Checks.QualityRules.MaxCyclomaticComplexity = 8
+			cfg.Checks.QualityRules.CloneTokenThreshold = 45
 			cfg.Checks.DesignRules.MaxDeclsPerFile = 10
 			cfg.Checks.DesignRules.MaxMethodsPerType = 6
 			cfg.Checks.DesignRules.MaxInterfaceMethods = 4
@@ -48,6 +50,7 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.QualityRules.MaxFunctionLines = 60
 			cfg.Checks.QualityRules.MaxParameters = 4
 			cfg.Checks.QualityRules.MaxCyclomaticComplexity = 8
+			cfg.Checks.QualityRules.CloneTokenThreshold = 45
 			cfg.Checks.DesignRules.MaxDeclsPerFile = 10
 			cfg.Checks.DesignRules.MaxMethodsPerType = 6
 			cfg.Checks.DesignRules.MaxInterfaceMethods = 4
@@ -66,6 +69,7 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.SecurityRules.GovulncheckMode = "required"
 			cfg.Checks.QualityRules.MaxFunctionLines = 70
 			cfg.Checks.QualityRules.MaxCyclomaticComplexity = 9
+			cfg.Checks.QualityRules.CloneTokenThreshold = 50
 		},
 	},
 }

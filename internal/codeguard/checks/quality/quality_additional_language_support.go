@@ -121,15 +121,8 @@ func rubyBlockStart(line string) bool {
 }
 
 func rustParameterCount(signature string) int {
-	if strings.TrimSpace(signature) == "" {
-		return 0
-	}
 	count := 0
-	for _, part := range strings.Split(signature, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
+	for _, part := range splitTopLevelDelimited(signature) {
 		if part == "self" || part == "&self" || part == "&mut self" || strings.HasSuffix(part, " self") {
 			continue
 		}
@@ -139,31 +132,16 @@ func rustParameterCount(signature string) int {
 }
 
 func typedParameterCount(signature string) int {
-	if strings.TrimSpace(signature) == "" {
-		return 0
-	}
-	count := 0
-	for _, part := range strings.Split(signature, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		count++
-	}
-	return count
+	return len(splitTopLevelDelimited(signature))
 }
 
 func rubyParameterCount(signature string) int {
 	signature = strings.TrimSpace(signature)
 	signature = strings.TrimPrefix(signature, "|")
 	signature = strings.TrimSuffix(signature, "|")
-	if signature == "" {
-		return 0
-	}
 	count := 0
-	for _, part := range strings.Split(signature, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" || part == "&block" {
+	for _, part := range splitTopLevelDelimited(signature) {
+		if part == "&block" {
 			continue
 		}
 		count++
