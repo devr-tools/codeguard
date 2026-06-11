@@ -23,18 +23,7 @@ func securityRuleID(path string, suffix string) string {
 }
 
 func dedupeTypeScriptFindings(findings []core.Finding) []core.Finding {
-	if len(findings) <= 1 {
-		return findings
-	}
-	seen := make(map[string]struct{}, len(findings))
-	deduped := make([]core.Finding, 0, len(findings))
-	for _, finding := range findings {
-		key := finding.RuleID + "|" + finding.Path + "|" + fmt.Sprintf("%d", finding.Line)
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		deduped = append(deduped, finding)
-	}
-	return deduped
+	return support.DedupeFindings(findings, func(finding core.Finding) string {
+		return finding.RuleID + "|" + finding.Path + "|" + fmt.Sprintf("%d", finding.Line)
+	})
 }

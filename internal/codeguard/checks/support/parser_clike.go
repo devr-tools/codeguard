@@ -14,62 +14,77 @@ func tokenizeCLikeSource(source string, skipRawStrings bool) []parserToken {
 	line := 1
 	for idx := 0; idx < len(source); {
 		ch := source[idx]
-		switch ch {
-		case ' ', '\t', '\r':
+		if ch == ' ' || ch == '\t' || ch == '\r' {
 			idx++
-		case '\n':
+			continue
+		}
+		if ch == '\n' {
 			line++
 			idx++
-		case '/':
-			switch {
-			case idx+1 < len(source) && source[idx+1] == '/':
-				idx += 2
-				for idx < len(source) && source[idx] != '\n' {
-					idx++
-				}
-			case idx+1 < len(source) && source[idx+1] == '*':
-				idx += 2
-				for idx < len(source) {
-					if source[idx] == '\n' {
-						line++
-					}
-					if idx+1 < len(source) && source[idx] == '*' && source[idx+1] == '/' {
-						idx += 2
-						break
-					}
-					idx++
-				}
-			default:
-				tokens = append(tokens, parserToken{text: string(ch), start: idx, end: idx + 1, line: line})
-				idx++
-			}
-		case '"':
-			nextIdx, nextLine := skipQuotedLiteral(source, idx, line, '"')
+			continue
+		}
+		if ch == '/' {
+			nextIdx, nextLine, emitted := scanCLikeSlash(source, idx, line)
 			idx, line = nextIdx, nextLine
-		case '\'':
-			nextIdx, nextLine := skipQuotedLiteral(source, idx, line, '\'')
-			idx, line = nextIdx, nextLine
-		default:
-			if skipRawStrings {
-				if nextIdx, nextLine, ok := skipRustStringLiteral(source, idx, line); ok {
-					idx, line = nextIdx, nextLine
-					continue
-				}
+			if emitted.text != "" {
+				tokens = append(tokens, emitted)
 			}
-			if isParserIdentStart(ch) {
-				start := idx
-				idx++
-				for idx < len(source) && isParserIdentPart(source[idx]) {
-					idx++
-				}
-				tokens = append(tokens, parserToken{text: source[start:idx], start: start, end: idx, line: line})
+			continue
+		}
+		if ch == '"' || ch == '\'' {
+			idx, line = skipQuotedLiteral(source, idx, line, ch)
+			continue
+		}
+		if skipRawStrings {
+			if nextIdx, nextLine, ok := skipRustStringLiteral(source, idx, line); ok {
+				idx, line = nextIdx, nextLine
 				continue
 			}
-			tokens = append(tokens, parserToken{text: string(ch), start: idx, end: idx + 1, line: line})
-			idx++
 		}
+		if isParserIdentStart(ch) {
+			token, nextIdx := scanParserIdentifier(source, idx, line)
+			tokens = append(tokens, token)
+			idx = nextIdx
+			continue
+		}
+		tokens = append(tokens, parserToken{text: string(ch), start: idx, end: idx + 1, line: line})
+		idx++
 	}
 	return tokens
+}
+
+func scanCLikeSlash(source string, idx int, line int) (int, int, parserToken) {
+	switch {
+	case idx+1 < len(source) && source[idx+1] == '/':
+		idx += 2
+		for idx < len(source) && source[idx] != '\n' {
+			idx++
+		}
+		return idx, line, parserToken{}
+	case idx+1 < len(source) && source[idx+1] == '*':
+		idx += 2
+		for idx < len(source) {
+			if source[idx] == '\n' {
+				line++
+			}
+			if idx+1 < len(source) && source[idx] == '*' && source[idx+1] == '/' {
+				return idx + 2, line, parserToken{}
+			}
+			idx++
+		}
+		return idx, line, parserToken{}
+	default:
+		return idx + 1, line, parserToken{text: "/", start: idx, end: idx + 1, line: line}
+	}
+}
+
+func scanParserIdentifier(source string, idx int, line int) (parserToken, int) {
+	start := idx
+	idx++
+	for idx < len(source) && isParserIdentPart(source[idx]) {
+		idx++
+	}
+	return parserToken{text: source[start:idx], start: start, end: idx, line: line}, idx
 }
 
 func skipQuotedLiteral(source string, start int, line int, quote byte) (int, int) {

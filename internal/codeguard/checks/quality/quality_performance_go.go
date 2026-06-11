@@ -2,6 +2,7 @@ package quality
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/printer"
 	"go/token"
@@ -76,24 +77,9 @@ func goPerformanceFindings(env support.Context, file string, fset *token.FileSet
 		return true
 	})
 
-	return dedupePerformanceFindings(findings)
-}
-
-func dedupePerformanceFindings(findings []core.Finding) []core.Finding {
-	if len(findings) <= 1 {
-		return findings
-	}
-	seen := make(map[string]struct{}, len(findings))
-	deduped := make([]core.Finding, 0, len(findings))
-	for _, finding := range findings {
-		key := finding.RuleID + "|" + finding.Path + "|" + finding.Message + "|" + itoa(finding.Line)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		deduped = append(deduped, finding)
-	}
-	return deduped
+	return support.DedupeFindings(findings, func(finding core.Finding) string {
+		return finding.RuleID + "|" + finding.Path + "|" + finding.Message + "|" + fmt.Sprintf("%d", finding.Line)
+	})
 }
 
 func hasLoopAncestor(stack []ast.Node) bool {
@@ -195,26 +181,4 @@ func normalizedExprString(expr ast.Expr) string {
 	var buf bytes.Buffer
 	_ = printer.Fprint(&buf, token.NewFileSet(), expr)
 	return strings.ReplaceAll(buf.String(), " ", "")
-}
-
-func itoa(value int) string {
-	if value == 0 {
-		return "0"
-	}
-	negative := value < 0
-	if negative {
-		value = -value
-	}
-	digits := make([]byte, 0, 12)
-	for value > 0 {
-		digits = append(digits, byte('0'+value%10))
-		value /= 10
-	}
-	if negative {
-		digits = append(digits, '-')
-	}
-	for left, right := 0, len(digits)-1; left < right; left, right = left+1, right-1 {
-		digits[left], digits[right] = digits[right], digits[left]
-	}
-	return string(digits)
 }

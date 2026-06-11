@@ -75,33 +75,43 @@ func javaMethodSignature(tokens []parserToken, start int, bodyStart int) (int, i
 }
 
 func javaLooksLikeMethodHeader(tokens []parserToken, start int, nameIdx int, paramEnd int, bodyStart int) bool {
+	return javaHasMethodHeaderPrefix(tokens[start:nameIdx]) && javaHasValidMethodSuffix(tokens, paramEnd, bodyStart)
+}
+
+func javaHasMethodHeaderPrefix(tokens []parserToken) bool {
 	hasHeaderPrefix := false
-	for idx := start; idx < nameIdx; idx++ {
-		switch tokens[idx].text {
-		case ".", "->":
-			return false
-		case "new":
+	for _, token := range tokens {
+		switch token.text {
+		case ".", "->", "new":
 			return false
 		case "@":
 			hasHeaderPrefix = true
 		default:
-			if isParserIdentifier(tokens[idx].text) || tokens[idx].text == "<" || tokens[idx].text == ">" || tokens[idx].text == "[" || tokens[idx].text == "]" {
+			if isJavaHeaderToken(token.text) {
 				hasHeaderPrefix = true
 			}
 		}
 	}
-	if !hasHeaderPrefix {
-		return false
-	}
+	return hasHeaderPrefix
+}
+
+func javaHasValidMethodSuffix(tokens []parserToken, paramEnd int, bodyStart int) bool {
 	for idx := paramEnd + 1; idx < bodyStart; idx++ {
-		switch tokens[idx].text {
-		case "=", "(":
+		if tokens[idx].text == "=" || tokens[idx].text == "(" {
 			return false
-		case "-":
-			if idx+1 < bodyStart && tokens[idx+1].text == ">" {
-				return false
-			}
+		}
+		if tokens[idx].text == "-" && idx+1 < bodyStart && tokens[idx+1].text == ">" {
+			return false
 		}
 	}
 	return true
+}
+
+func isJavaHeaderToken(token string) bool {
+	switch token {
+	case "<", ">", "[", "]":
+		return true
+	default:
+		return isParserIdentifier(token)
+	}
 }

@@ -88,36 +88,48 @@ func pythonHeaderEnd(lines []string, start int) int {
 	for idx := start; idx < len(lines); idx++ {
 		line := lines[idx]
 		for pos := 0; pos < len(line); pos++ {
-			ch := line[pos]
 			if inString != 0 {
-				if ch == '\\' && pos+1 < len(line) {
-					pos++
-					continue
-				}
-				if ch == inString {
-					inString = 0
-				}
+				pos = advancePythonString(line, pos, &inString)
 				continue
 			}
-			switch ch {
-			case '\'', '"':
-				inString = ch
-			case '#':
-				pos = len(line)
-			case '(':
-				parenDepth++
-			case ')':
-				if parenDepth > 0 {
-					parenDepth--
-				}
-			case ':':
-				if parenDepth == 0 {
-					return idx
-				}
+			done, headerEnd := advancePythonHeader(line[pos], &parenDepth, &inString)
+			if headerEnd {
+				return idx
+			}
+			if done {
+				break
 			}
 		}
 	}
 	return -1
+}
+
+func advancePythonString(line string, pos int, inString *byte) int {
+	if line[pos] == '\\' && pos+1 < len(line) {
+		return pos + 1
+	}
+	if line[pos] == *inString {
+		*inString = 0
+	}
+	return pos
+}
+
+func advancePythonHeader(ch byte, parenDepth *int, inString *byte) (done bool, headerEnd bool) {
+	switch ch {
+	case '\'', '"':
+		*inString = ch
+	case '#':
+		return true, false
+	case '(':
+		*parenDepth = *parenDepth + 1
+	case ')':
+		if *parenDepth > 0 {
+			*parenDepth = *parenDepth - 1
+		}
+	case ':':
+		return false, *parenDepth == 0
+	}
+	return false, false
 }
 
 func findBalancedPythonDelimiter(source string, start int, open rune, close rune) int {

@@ -95,61 +95,23 @@ func splitTopLevelDelimited(signature string) []string {
 	}
 	parts := make([]string, 0)
 	start := 0
-	depthParen, depthBracket, depthBrace, depthAngle := 0, 0, 0, 0
-	inString := byte(0)
+	state := delimiterState{}
 	for idx := 0; idx < len(signature); idx++ {
 		ch := signature[idx]
-		if inString != 0 {
-			if ch == '\\' && idx+1 < len(signature) {
+		if state.inString != 0 {
+			if shouldSkipDelimitedStringByte(signature, idx, &state) {
 				idx++
-				continue
-			}
-			if ch == inString {
-				inString = 0
 			}
 			continue
 		}
-		switch ch {
-		case '"', '\'':
-			inString = ch
-		case '(':
-			depthParen++
-		case ')':
-			if depthParen > 0 {
-				depthParen--
-			}
-		case '[':
-			depthBracket++
-		case ']':
-			if depthBracket > 0 {
-				depthBracket--
-			}
-		case '{':
-			depthBrace++
-		case '}':
-			if depthBrace > 0 {
-				depthBrace--
-			}
-		case '<':
-			depthAngle++
-		case '>':
-			if depthAngle > 0 {
-				depthAngle--
-			}
-		case ',':
-			if depthParen == 0 && depthBracket == 0 && depthBrace == 0 && depthAngle == 0 {
-				part := strings.TrimSpace(signature[start:idx])
-				if part != "" {
-					parts = append(parts, part)
-				}
-				start = idx + 1
-			}
+		if ch == ',' && state.atTopLevel() {
+			parts = appendDelimitedPart(parts, signature[start:idx])
+			start = idx + 1
+			continue
 		}
+		state.advance(ch)
 	}
-	if tail := strings.TrimSpace(signature[start:]); tail != "" {
-		parts = append(parts, tail)
-	}
-	return parts
+	return appendDelimitedPart(parts, signature[start:])
 }
 
 func min(a, b int) int {

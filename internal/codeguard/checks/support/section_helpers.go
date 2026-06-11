@@ -81,10 +81,17 @@ func RunDiffCommandChecks(ctx context.Context, env Context, target core.TargetCo
 	return findings
 }
 
-func TypeScriptTargetFindings(ctx context.Context, env Context, target core.TargetConfig, sectionID string, extract func(TypeScriptSemanticResults) []FindingInput, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
+type TypeScriptTargetScan struct {
+	SectionID string
+	Extract   func(TypeScriptSemanticResults) []FindingInput
+	Include   func(string) bool
+	Evaluator func(string, []byte) []core.Finding
+}
+
+func TypeScriptTargetFindings(ctx context.Context, env Context, target core.TargetConfig, scan TypeScriptTargetScan) []core.Finding {
 	results, ok, err := AnalyzeTypeScriptTarget(ctx, target, env.Config)
 	if err == nil && ok {
-		return FindingsFromInputs(env, extract(results))
+		return FindingsFromInputs(env, scan.Extract(results))
 	}
-	return env.ScanTargetFiles(target, sectionID, include, evaluator)
+	return env.ScanTargetFiles(target, scan.SectionID, scan.Include, scan.Evaluator)
 }

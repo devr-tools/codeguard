@@ -9,119 +9,6 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-type testQualitySpec struct {
-	testDefinitionPatterns []*regexp.Regexp
-	assertionTokens        []string
-	assertionPatterns      []*regexp.Regexp
-	alwaysTruePatterns     []*regexp.Regexp
-}
-
-var testQualitySpecs = map[string]testQualitySpec{
-	"go": {
-		testDefinitionPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?m)^\s*func\s+Test[[:word:]]*\s*\(`),
-		},
-		assertionTokens: []string{
-			"t.Fatal(", "t.Fatalf(", "t.Error(", "t.Errorf(", "t.Fail(", "t.FailNow(",
-			"assert.", "require.", "cmp.Diff(", "panic(",
-		},
-		assertionPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`\bassert[A-Z]\w*\s*\(`),
-			regexp.MustCompile(`\brequire[A-Z]\w*\s*\(`),
-		},
-		alwaysTruePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`\b(?:assert|require)\.True\s*\(\s*t\s*,\s*true\s*(?:,|\))`),
-			regexp.MustCompile(`\b(?:assert|require)\.(?:Equal|Exactly)\s*\(\s*t\s*,\s*true\s*,\s*true\s*(?:,|\))`),
-		},
-	},
-	"python": {
-		testDefinitionPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?m)^\s*def\s+test_[[:word:]]*\s*\(`),
-			regexp.MustCompile(`(?m)^\s*class\s+Test[[:word:]]*[\(:]`),
-		},
-		assertionTokens: []string{
-			"assert ", "self.assert", "pytest.fail(", "pytest.raises(", "raise AssertionError",
-		},
-		alwaysTruePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`^\s*assert\s+True\b`),
-			regexp.MustCompile(`\bself\.assertTrue\s*\(\s*True\s*\)`),
-		},
-	},
-	"typescript": {
-		testDefinitionPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`\b(?:it|test)\s*\(`),
-		},
-		assertionTokens: []string{
-			"expect(", "assert.", "assert(", "should.", ".should(", "toThrow(",
-		},
-		alwaysTruePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`\bexpect\s*\(\s*true\s*\)\s*\.(?:toBe|toEqual|toStrictEqual)\s*\(\s*true\s*\)`),
-			regexp.MustCompile(`\bassert(?:\.ok)?\s*\(\s*true\s*(?:,|\))`),
-		},
-	},
-	"javascript": {
-		testDefinitionPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`\b(?:it|test)\s*\(`),
-		},
-		assertionTokens: []string{
-			"expect(", "assert.", "assert(", "should.", ".should(", "toThrow(",
-		},
-		alwaysTruePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`\bexpect\s*\(\s*true\s*\)\s*\.(?:toBe|toEqual|toStrictEqual)\s*\(\s*true\s*\)`),
-			regexp.MustCompile(`\bassert(?:\.ok)?\s*\(\s*true\s*(?:,|\))`),
-		},
-	},
-	"rust": {
-		testDefinitionPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?m)^\s*#\s*\[\s*test\s*\]`),
-		},
-		assertionTokens: []string{
-			"assert!(", "assert_eq!(", "assert_ne!(", "panic!(",
-		},
-		alwaysTruePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`\bassert!\s*\(\s*true\s*\)`),
-			regexp.MustCompile(`\bassert_eq!\s*\(\s*true\s*,\s*true\s*\)`),
-		},
-	},
-	"java": {
-		testDefinitionPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?m)^\s*@Test\b`),
-			regexp.MustCompile(`(?m)^\s*public\s+void\s+test[[:word:]]*\s*\(`),
-		},
-		assertionTokens: []string{
-			"assert", "Assertions.", "assertThat(", "fail(",
-		},
-		alwaysTruePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`\bassertTrue\s*\(\s*true\s*\)`),
-			regexp.MustCompile(`\bAssertions\.assertTrue\s*\(\s*true\s*\)`),
-		},
-	},
-	"csharp": {
-		testDefinitionPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?m)^\s*\[\s*(?:Fact|Theory|Test)\s*\]`),
-		},
-		assertionTokens: []string{
-			"Assert.", "Should().", "FluentActions.",
-		},
-		alwaysTruePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`\bAssert\.True\s*\(\s*true\s*\)`),
-		},
-	},
-	"ruby": {
-		testDefinitionPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?m)^\s*def\s+test_[[:word:]]*[!?=]?\s*$`),
-			regexp.MustCompile(`\b(?:it|specify|test)\s+["']`),
-		},
-		assertionTokens: []string{
-			"assert", "refute", "expect(", "raise_error",
-		},
-		alwaysTruePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`\bassert\s*\(?\s*true\s*\)?`),
-			regexp.MustCompile(`\bexpect\s*\(\s*true\s*\)\.to\s+eq\s*\(\s*true\s*\)`),
-		},
-	},
-}
-
 func testQualityFindings(env support.Context, target core.TargetConfig) []core.Finding {
 	spec, ok := testQualitySpecs[normalizedLanguage(target.Language)]
 	if !ok {
@@ -232,70 +119,94 @@ func stripCommentContent(line string, ext string, inBlockComment bool) (string, 
 	}
 
 	var out strings.Builder
-	i := 0
-	inSingleQuote := false
-	inDoubleQuote := false
-	inBacktick := false
-	for i < len(line) {
-		if inBlockComment {
-			end := strings.Index(line[i:], "*/")
-			if end == -1 {
-				return out.String(), true
-			}
-			i += end + 2
-			inBlockComment = false
-			continue
+	state := commentStripState{inBlockComment: inBlockComment}
+	for i := 0; i < len(line); {
+		next, done := state.advance(line, i, &out)
+		if done {
+			return out.String(), state.inBlockComment
 		}
-
-		switch {
-		case inSingleQuote:
-			out.WriteByte(line[i])
-			if line[i] == '\\' && i+1 < len(line) {
-				i++
-				out.WriteByte(line[i])
-			} else if line[i] == '\'' {
-				inSingleQuote = false
-			}
-			i++
-		case inDoubleQuote:
-			out.WriteByte(line[i])
-			if line[i] == '\\' && i+1 < len(line) {
-				i++
-				out.WriteByte(line[i])
-			} else if line[i] == '"' {
-				inDoubleQuote = false
-			}
-			i++
-		case inBacktick:
-			out.WriteByte(line[i])
-			if line[i] == '`' {
-				inBacktick = false
-			}
-			i++
-		case strings.HasPrefix(line[i:], "//"):
-			return out.String(), false
-		case strings.HasPrefix(line[i:], "/*"):
-			inBlockComment = true
-			i += 2
-		case line[i] == '\'':
-			inSingleQuote = true
-			out.WriteByte(line[i])
-			i++
-		case line[i] == '"':
-			inDoubleQuote = true
-			out.WriteByte(line[i])
-			i++
-		case line[i] == '`':
-			inBacktick = true
-			out.WriteByte(line[i])
-			i++
-		default:
-			out.WriteByte(line[i])
-			i++
-		}
+		i = next
 	}
 
-	return out.String(), inBlockComment
+	return out.String(), state.inBlockComment
+}
+
+type commentStripState struct {
+	inBlockComment bool
+	inSingleQuote  bool
+	inDoubleQuote  bool
+	inBacktick     bool
+}
+
+func (state *commentStripState) advance(line string, i int, out *strings.Builder) (int, bool) {
+	if state.inBlockComment {
+		end := strings.Index(line[i:], "*/")
+		if end == -1 {
+			return len(line), true
+		}
+		state.inBlockComment = false
+		return i + end + 2, false
+	}
+	if quote, ok := state.activeQuote(); ok {
+		return state.advanceQuoted(line, i, quote, out), false
+	}
+	if strings.HasPrefix(line[i:], "//") {
+		return len(line), true
+	}
+	if strings.HasPrefix(line[i:], "/*") {
+		state.inBlockComment = true
+		return i + 2, false
+	}
+	return state.advanceCode(line, i, out), false
+}
+
+func (state *commentStripState) activeQuote() (byte, bool) {
+	switch {
+	case state.inSingleQuote:
+		return '\'', true
+	case state.inDoubleQuote:
+		return '"', true
+	case state.inBacktick:
+		return '`', true
+	default:
+		return 0, false
+	}
+}
+
+func (state *commentStripState) advanceQuoted(line string, i int, quote byte, out *strings.Builder) int {
+	out.WriteByte(line[i])
+	if line[i] == '\\' && quote != '`' && i+1 < len(line) {
+		out.WriteByte(line[i+1])
+		return i + 2
+	}
+	if line[i] == quote {
+		state.clearQuote(quote)
+	}
+	return i + 1
+}
+
+func (state *commentStripState) advanceCode(line string, i int, out *strings.Builder) int {
+	switch line[i] {
+	case '\'':
+		state.inSingleQuote = true
+	case '"':
+		state.inDoubleQuote = true
+	case '`':
+		state.inBacktick = true
+	}
+	out.WriteByte(line[i])
+	return i + 1
+}
+
+func (state *commentStripState) clearQuote(quote byte) {
+	switch quote {
+	case '\'':
+		state.inSingleQuote = false
+	case '"':
+		state.inDoubleQuote = false
+	case '`':
+		state.inBacktick = false
+	}
 }
 
 func stripLineComment(line string, marker string) string {

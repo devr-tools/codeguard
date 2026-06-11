@@ -86,18 +86,12 @@ func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig
 	if dst.ForbiddenPackageNames == nil {
 		dst.ForbiddenPackageNames = append([]string(nil), def.ForbiddenPackageNames...)
 	}
-	if dst.RequireCmdThroughInternalCLI == nil {
-		dst.RequireCmdThroughInternalCLI = boolPtr(true)
-	}
-	if dst.ForbidInternalImportCmd == nil {
-		dst.ForbidInternalImportCmd = boolPtr(true)
-	}
-	if dst.ForbidServiceImportInternal == nil {
-		dst.ForbidServiceImportInternal = boolPtr(true)
-	}
-	if dst.ForbidServiceImportCmd == nil {
-		dst.ForbidServiceImportCmd = boolPtr(true)
-	}
+	applyDefaultBoolPtrs(
+		&dst.RequireCmdThroughInternalCLI,
+		&dst.ForbidInternalImportCmd,
+		&dst.ForbidServiceImportInternal,
+		&dst.ForbidServiceImportCmd,
+	)
 	if dst.LanguageCommands == nil && len(def.LanguageCommands) > 0 {
 		dst.LanguageCommands = cloneCommandCheckMap(def.LanguageCommands)
 	}
@@ -177,4 +171,12 @@ func cloneCommandCheckMap(src map[string][]core.CommandCheckConfig) map[string][
 		dst[language] = append([]core.CommandCheckConfig(nil), checks...)
 	}
 	return dst
+}
+
+func applyDefaultBoolPtrs(values ...**bool) {
+	for _, value := range values {
+		if *value == nil {
+			*value = boolPtr(true)
+		}
+	}
 }

@@ -38,34 +38,7 @@ func TestRunPublishesPythonDependencyGraphArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if len(report.Artifacts) != 1 {
-		t.Fatalf("expected 1 artifact, got %d", len(report.Artifacts))
-	}
-	artifact := report.Artifacts[0]
-	if artifact.ID != "dependency_graph.python.python-target" {
-		t.Fatalf("unexpected artifact ID %q", artifact.ID)
-	}
-	if artifact.Kind != "dependency_graph" {
-		t.Fatalf("unexpected artifact kind %q", artifact.Kind)
-	}
-	if artifact.Language != "python" {
-		t.Fatalf("unexpected artifact language %q", artifact.Language)
-	}
-	if artifact.Target != root {
-		t.Fatalf("unexpected artifact target %q", artifact.Target)
-	}
-	if artifact.DependencyGraph == nil {
-		t.Fatal("expected dependency graph payload")
-	}
-	if len(artifact.DependencyGraph.Nodes) != 4 {
-		t.Fatalf("expected 4 dependency graph nodes, got %d", len(artifact.DependencyGraph.Nodes))
-	}
-	if len(artifact.DependencyGraph.Order) != 4 {
-		t.Fatalf("expected 4 dependency graph order entries, got %d", len(artifact.DependencyGraph.Order))
-	}
-	if artifact.DependencyGraph.Nodes[0].ID != "app" {
-		t.Fatalf("expected sorted first node app, got %q", artifact.DependencyGraph.Nodes[0].ID)
-	}
+	assertPythonDependencyGraphArtifact(t, report, root)
 }
 
 func TestArtifactStoreListSortsAndReplaces(t *testing.T) {
@@ -93,5 +66,47 @@ func writeArtifactFile(t *testing.T, path string, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile(%q): %v", path, err)
+	}
+}
+
+func assertPythonDependencyGraphArtifact(t *testing.T, report codeguard.Report, root string) {
+	t.Helper()
+	if len(report.Artifacts) != 1 {
+		t.Fatalf("expected 1 artifact, got %d", len(report.Artifacts))
+	}
+	artifact := report.Artifacts[0]
+	assertArtifactMetadata(t, artifact, root)
+	assertDependencyGraphPayload(t, artifact)
+}
+
+func assertArtifactMetadata(t *testing.T, artifact core.Artifact, root string) {
+	t.Helper()
+	if artifact.ID != "dependency_graph.python.python-target" {
+		t.Fatalf("unexpected artifact ID %q", artifact.ID)
+	}
+	if artifact.Kind != "dependency_graph" {
+		t.Fatalf("unexpected artifact kind %q", artifact.Kind)
+	}
+	if artifact.Language != "python" {
+		t.Fatalf("unexpected artifact language %q", artifact.Language)
+	}
+	if artifact.Target != root {
+		t.Fatalf("unexpected artifact target %q", artifact.Target)
+	}
+}
+
+func assertDependencyGraphPayload(t *testing.T, artifact core.Artifact) {
+	t.Helper()
+	if artifact.DependencyGraph == nil {
+		t.Fatal("expected dependency graph payload")
+	}
+	if len(artifact.DependencyGraph.Nodes) != 4 {
+		t.Fatalf("expected 4 dependency graph nodes, got %d", len(artifact.DependencyGraph.Nodes))
+	}
+	if len(artifact.DependencyGraph.Order) != 4 {
+		t.Fatalf("expected 4 dependency graph order entries, got %d", len(artifact.DependencyGraph.Order))
+	}
+	if artifact.DependencyGraph.Nodes[0].ID != "app" {
+		t.Fatalf("expected sorted first node app, got %q", artifact.DependencyGraph.Nodes[0].ID)
 	}
 }

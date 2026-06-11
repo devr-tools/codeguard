@@ -7,35 +7,15 @@ func ParseRustFunctions(source string) []ParsedFunction {
 		if tokens[idx].text != "fn" {
 			continue
 		}
-		if idx+2 >= len(tokens) || !isParserIdentifier(tokens[idx+1].text) {
-			continue
-		}
-		nameTok := tokens[idx+1]
-		paramStart := idx + 2
-		if paramStart < len(tokens) && tokens[paramStart].text == "<" {
-			paramEnd := findMatchingToken(tokens, paramStart, "<", ">")
-			if paramEnd < 0 {
-				continue
-			}
-			paramStart = paramEnd + 1
-		}
-		if paramStart >= len(tokens) || tokens[paramStart].text != "(" {
+		nameTok, paramStart, ok := rustFunctionSignature(tokens, idx)
+		if !ok {
 			continue
 		}
 		paramEnd := findMatchingToken(tokens, paramStart, "(", ")")
 		if paramEnd < 0 {
 			continue
 		}
-		bodyStart := -1
-		for j := paramEnd + 1; j < len(tokens); j++ {
-			switch tokens[j].text {
-			case "{":
-				bodyStart = j
-				j = len(tokens)
-			case ";":
-				j = len(tokens)
-			}
-		}
+		bodyStart := rustFunctionBodyStart(tokens, paramEnd+1)
 		if bodyStart < 0 {
 			continue
 		}
@@ -52,6 +32,36 @@ func ParseRustFunctions(source string) []ParsedFunction {
 		})
 	}
 	return functions
+}
+
+func rustFunctionSignature(tokens []parserToken, idx int) (parserToken, int, bool) {
+	if idx+2 >= len(tokens) || !isParserIdentifier(tokens[idx+1].text) {
+		return parserToken{}, 0, false
+	}
+	paramStart := idx + 2
+	if paramStart < len(tokens) && tokens[paramStart].text == "<" {
+		paramEnd := findMatchingToken(tokens, paramStart, "<", ">")
+		if paramEnd < 0 {
+			return parserToken{}, 0, false
+		}
+		paramStart = paramEnd + 1
+	}
+	if paramStart >= len(tokens) || tokens[paramStart].text != "(" {
+		return parserToken{}, 0, false
+	}
+	return tokens[idx+1], paramStart, true
+}
+
+func rustFunctionBodyStart(tokens []parserToken, start int) int {
+	for j := start; j < len(tokens); j++ {
+		switch tokens[j].text {
+		case "{":
+			return j
+		case ";":
+			return -1
+		}
+	}
+	return -1
 }
 
 func isParserIdentifier(token string) bool {

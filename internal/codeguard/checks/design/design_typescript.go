@@ -10,10 +10,15 @@ import (
 )
 
 func typeScriptTargetFindingsImpl(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	return support.TypeScriptTargetFindings(ctx, env, target, "design", func(results support.TypeScriptSemanticResults) []support.FindingInput {
-		return results.Design
-	}, isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
-		return typeScriptFindingsForFile(env, file, data)
+	return support.TypeScriptTargetFindings(ctx, env, target, support.TypeScriptTargetScan{
+		SectionID: "design",
+		Extract: func(results support.TypeScriptSemanticResults) []support.FindingInput {
+			return results.Design
+		},
+		Include: isTypeScriptLikeFile,
+		Evaluator: func(file string, data []byte) []core.Finding {
+			return typeScriptFindingsForFile(env, file, data)
+		},
 	})
 }
 

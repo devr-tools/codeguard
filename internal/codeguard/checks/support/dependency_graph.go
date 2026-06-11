@@ -70,53 +70,11 @@ func (graph DependencyGraph) reachablePath(start string, target func(string) boo
 }
 
 func (graph DependencyGraph) StronglyConnectedComponents() [][]string {
-	index := 0
-	stack := make([]string, 0, len(graph.Nodes))
-	indices := make(map[string]int, len(graph.Nodes))
-	lowlink := make(map[string]int, len(graph.Nodes))
-	onStack := make(map[string]bool, len(graph.Nodes))
-	components := make([][]string, 0)
-	var visit func(string)
-	visit = func(id string) {
-		index++
-		indices[id] = index
-		lowlink[id] = index
-		stack = append(stack, id)
-		onStack[id] = true
-		node, ok := graph.Nodes[id]
-		if ok {
-			for _, edge := range node.Edges {
-				if indices[edge.To] == 0 {
-					visit(edge.To)
-					if lowlink[edge.To] < lowlink[id] {
-						lowlink[id] = lowlink[edge.To]
-					}
-					continue
-				}
-				if onStack[edge.To] && indices[edge.To] < lowlink[id] {
-					lowlink[id] = indices[edge.To]
-				}
-			}
-		}
-		if lowlink[id] != indices[id] {
-			return
-		}
-		component := make([]string, 0)
-		for {
-			last := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-			onStack[last] = false
-			component = append(component, last)
-			if last == id {
-				break
-			}
-		}
-		components = append(components, component)
-	}
+	state := newTarjanState(graph)
 	for _, id := range graph.Order {
-		if indices[id] == 0 {
-			visit(id)
+		if state.indices[id] == 0 {
+			state.visit(id)
 		}
 	}
-	return components
+	return state.components
 }
