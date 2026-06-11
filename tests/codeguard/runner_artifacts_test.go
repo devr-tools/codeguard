@@ -1,4 +1,4 @@
-package runner
+package codeguard_test
 
 import (
 	"context"
@@ -7,29 +7,31 @@ import (
 	"testing"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
+	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
 func TestRunPublishesPythonDependencyGraphArtifact(t *testing.T) {
 	root := t.TempDir()
-	writeTestFile(t, filepath.Join(root, "main.py"), "from app import service\n")
-	writeTestFile(t, filepath.Join(root, "app", "__init__.py"), "")
-	writeTestFile(t, filepath.Join(root, "app", "service.py"), "from . import shared\n")
-	writeTestFile(t, filepath.Join(root, "app", "shared.py"), "")
+	writeArtifactFile(t, filepath.Join(root, "main.py"), "from app import service\n")
+	writeArtifactFile(t, filepath.Join(root, "app", "__init__.py"), "")
+	writeArtifactFile(t, filepath.Join(root, "app", "service.py"), "from . import shared\n")
+	writeArtifactFile(t, filepath.Join(root, "app", "shared.py"), "")
 
 	cacheEnabled := false
-	report, err := Run(context.Background(), core.Config{
+	report, err := codeguard.Run(context.Background(), codeguard.Config{
 		Name: "artifact-test",
-		Targets: []core.TargetConfig{{
+		Targets: []codeguard.TargetConfig{{
 			Name:        "python-target",
 			Path:        root,
 			Language:    "python",
 			Entrypoints: []string{"main.py"},
 		}},
-		Checks: core.CheckConfig{
+		Checks: codeguard.CheckConfig{
 			Design: true,
 		},
-		Output: core.OutputConfig{Format: "json"},
-		Cache: core.CacheConfig{
+		Output: codeguard.OutputConfig{Format: "json"},
+		Cache: codeguard.CacheConfig{
 			Enabled: &cacheEnabled,
 		},
 	})
@@ -66,7 +68,25 @@ func TestRunPublishesPythonDependencyGraphArtifact(t *testing.T) {
 	}
 }
 
-func writeTestFile(t *testing.T, path string, content string) {
+func TestArtifactStoreListSortsAndReplaces(t *testing.T) {
+	store := runnersupport.NewArtifactStore()
+	store.Put(core.Artifact{ID: "b", Kind: "dependency_graph", Language: "python"})
+	store.Put(core.Artifact{ID: "a", Kind: "dependency_graph", Language: "go"})
+	store.Put(core.Artifact{ID: "b", Kind: "dependency_graph", Language: "typescript"})
+
+	artifacts := store.List()
+	if len(artifacts) != 2 {
+		t.Fatalf("expected 2 artifacts, got %d", len(artifacts))
+	}
+	if artifacts[0].ID != "a" || artifacts[1].ID != "b" {
+		t.Fatalf("expected sorted artifact IDs [a b], got [%s %s]", artifacts[0].ID, artifacts[1].ID)
+	}
+	if artifacts[1].Language != "typescript" {
+		t.Fatalf("expected replacement artifact language typescript, got %q", artifacts[1].Language)
+	}
+}
+
+func writeArtifactFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q): %v", path, err)

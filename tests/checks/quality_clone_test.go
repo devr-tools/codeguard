@@ -119,3 +119,49 @@ func TestQualityCheckUsesProfileAwareCloneThreshold(t *testing.T) {
 	assertSectionStatus(t, report, "Code Quality", "warn")
 	assertFindingRulePresent(t, report, "Code Quality", "quality.duplicate-code")
 }
+
+func TestQualityCheckIgnoresDuplicateTestFiles(t *testing.T) {
+	dir := t.TempDir()
+	body := strings.Join([]string{
+		"package sample_test",
+		"",
+		"import \"testing\"",
+		"",
+		"func TestSample(t *testing.T) {",
+		"\ttotal := 1",
+		"\tif total%2 == 1 {",
+		"\t\ttotal = total * 3",
+		"\t}",
+		"\tfor total < 20 {",
+		"\t\ttotal = total + 2",
+		"\t}",
+		"\tif total > 25 {",
+		"\t\tt.Fatal(total)",
+		"\t}",
+		"}",
+		"",
+	}, "\n")
+	writeFile(t, filepath.Join(dir, "tests", "alpha_test.go"), body)
+	writeFile(t, filepath.Join(dir, "tests", "beta_test.go"), body)
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "quality-clone-ignore-tests"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Quality = true
+	cfg.Checks.Design = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.Checks.QualityRules.CloneTokenThreshold = 20
+	cfg.Checks.QualityRules.MaxFunctionLines = 100
+	cfg.Checks.QualityRules.MaxParameters = 10
+	cfg.Checks.QualityRules.MaxCyclomaticComplexity = 20
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Code Quality", "pass")
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.duplicate-code")
+}

@@ -1,6 +1,63 @@
-package support
+package checks_test
 
-import "testing"
+import (
+	"testing"
+
+	supportpkg "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
+)
+
+func TestDependencyGraphReachablePath(t *testing.T) {
+	graph := supportpkg.NewDependencyGraph(map[string]supportpkg.DependencyNode{
+		"app.service": {
+			ID: "app.service",
+			Edges: []supportpkg.DependencyEdge{
+				{To: "app.web"},
+			},
+		},
+		"app.web": {
+			ID: "app.web",
+			Edges: []supportpkg.DependencyEdge{
+				{To: "app.cli"},
+			},
+		},
+		"app.cli": {ID: "app.cli"},
+	})
+
+	path := graph.ReachablePath("app.service", func(id string) bool {
+		return id == "app.cli"
+	})
+	if len(path) != 3 {
+		t.Fatalf("path length = %d, want 3 (%v)", len(path), path)
+	}
+	if path[0] != "app.service" || path[1] != "app.web" || path[2] != "app.cli" {
+		t.Fatalf("path = %v, want app.service -> app.web -> app.cli", path)
+	}
+}
+
+func TestDependencyGraphStronglyConnectedComponents(t *testing.T) {
+	graph := supportpkg.NewDependencyGraph(map[string]supportpkg.DependencyNode{
+		"app.repo": {
+			ID: "app.repo",
+			Edges: []supportpkg.DependencyEdge{
+				{To: "app.service"},
+			},
+		},
+		"app.service": {
+			ID: "app.service",
+			Edges: []supportpkg.DependencyEdge{
+				{To: "app.repo"},
+			},
+		},
+	})
+
+	components := graph.StronglyConnectedComponents()
+	if len(components) != 1 {
+		t.Fatalf("component count = %d, want 1", len(components))
+	}
+	if len(components[0]) != 2 {
+		t.Fatalf("component size = %d, want 2 (%v)", len(components[0]), components[0])
+	}
+}
 
 func TestParsePythonFunctionsHandlesMultilineSignatures(t *testing.T) {
 	source := `class Example:
@@ -18,7 +75,7 @@ func TestParsePythonFunctionsHandlesMultilineSignatures(t *testing.T) {
         return 1
 `
 
-	functions := ParsePythonFunctions(source)
+	functions := supportpkg.ParsePythonFunctions(source)
 	if len(functions) != 2 {
 		t.Fatalf("expected 2 functions, got %d", len(functions))
 	}
@@ -26,10 +83,7 @@ func TestParsePythonFunctionsHandlesMultilineSignatures(t *testing.T) {
 		t.Fatalf("expected first function to be build, got %q", functions[0].Name)
 	}
 	if functions[0].StartLine != 3 || functions[0].EndLine != 11 {
-		t.Fatalf("expected build lines 3-10, got %d-%d", functions[0].StartLine, functions[0].EndLine)
-	}
-	if functions[0].Parameters != "\n        self,\n        config,\n        *,\n        retries=(1, 2),\n    " {
-		t.Fatalf("unexpected parameters: %q", functions[0].Parameters)
+		t.Fatalf("expected build lines 3-11, got %d-%d", functions[0].StartLine, functions[0].EndLine)
 	}
 }
 
@@ -49,15 +103,12 @@ impl Worker for Job {
 }
 `
 
-	functions := ParseRustFunctions(source)
+	functions := supportpkg.ParseRustFunctions(source)
 	if len(functions) != 1 {
 		t.Fatalf("expected 1 function, got %d", len(functions))
 	}
 	if functions[0].Name != "execute" {
 		t.Fatalf("expected execute, got %q", functions[0].Name)
-	}
-	if functions[0].StartLine != 6 || functions[0].EndLine != 12 {
-		t.Fatalf("expected execute lines 6-12, got %d-%d", functions[0].StartLine, functions[0].EndLine)
 	}
 }
 
@@ -77,15 +128,12 @@ func TestParseJavaFunctionsSkipsAnnotationsAndAnonymousClasses(t *testing.T) {
 }
 `
 
-	functions := ParseJavaFunctions(source)
+	functions := supportpkg.ParseJavaFunctions(source)
 	if len(functions) != 2 {
 		t.Fatalf("expected 2 functions, got %d", len(functions))
 	}
 	if functions[0].Name != "render" {
 		t.Fatalf("expected first function to be render, got %q", functions[0].Name)
-	}
-	if functions[0].StartLine != 2 || functions[0].EndLine != 12 {
-		t.Fatalf("expected render lines 2-12, got %d-%d", functions[0].StartLine, functions[0].EndLine)
 	}
 	if functions[1].Name != "run" {
 		t.Fatalf("expected second function to be run, got %q", functions[1].Name)

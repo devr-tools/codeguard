@@ -28,7 +28,7 @@ type cacheEntry struct {
 	Findings   []core.Finding `json:"findings"`
 }
 
-const scanCacheVersion = 3
+const scanCacheVersion = 5
 
 func CacheEnabled(cfg core.CacheConfig) bool {
 	return cfg.Enabled != nil && *cfg.Enabled
@@ -95,7 +95,7 @@ func ConfigFingerprint(cfg core.Config) string {
 	if err != nil {
 		return ""
 	}
-	return hashBytes(append([]byte("scanner-version-3|"), data...))
+	return hashBytes(append([]byte("scanner-version-5|"), data...))
 }
 
 func cloneFindings(findings []core.Finding) []core.Finding {

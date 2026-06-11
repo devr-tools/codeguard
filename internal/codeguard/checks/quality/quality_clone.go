@@ -3,6 +3,7 @@ package quality
 import (
 	"fmt"
 	"hash/fnv"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -91,7 +92,10 @@ func cloneFindingsForTarget(env support.Context, target core.TargetConfig) []cor
 
 func cloneDocumentsForTarget(env support.Context, target core.TargetConfig) []cloneDocument {
 	docs := make([]cloneDocument, 0)
-	env.ScanTargetFiles(target, "quality-clone", cloneIncludeForLanguage(target.Language), func(file string, data []byte) []core.Finding {
+	include := cloneIncludeForLanguage(target.Language)
+	env.ScanTargetFiles(target, "quality-clone", func(rel string) bool {
+		return include(rel) && !cloneExcludedPath(target.Language, rel)
+	}, func(file string, data []byte) []core.Finding {
 		tokens := tokenizeNormalizedCloneText(string(data))
 		if len(tokens) > 0 {
 			docs = append(docs, cloneDocument{Path: file, Tokens: tokens})
@@ -101,8 +105,40 @@ func cloneDocumentsForTarget(env support.Context, target core.TargetConfig) []cl
 	return docs
 }
 
+func cloneExcludedPath(language string, rel string) bool {
+	slash := filepath.ToSlash(strings.ToLower(rel))
+	if strings.HasPrefix(slash, "tests/") || strings.Contains(slash, "/tests/") {
+		return true
+	}
+
+	switch support.NormalizedLanguage(language) {
+	case "", "go":
+		return strings.HasSuffix(slash, "_test.go")
+	case "python", "py":
+		base := path.Base(slash)
+		return base == "tests.py" || strings.HasPrefix(base, "test_") || strings.HasSuffix(base, "_test.py")
+	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
+		base := path.Base(slash)
+		return strings.Contains(base, ".test.") || strings.Contains(base, ".spec.") ||
+			strings.HasPrefix(slash, "__tests__/") || strings.Contains(slash, "/__tests__/")
+	case "java":
+		base := path.Base(slash)
+		return strings.HasSuffix(base, "test.java") || strings.HasSuffix(base, "tests.java") || strings.HasSuffix(base, "it.java")
+	case "csharp", "c#", "cs", "dotnet":
+		base := path.Base(slash)
+		return strings.HasSuffix(base, "test.cs") || strings.HasSuffix(base, "tests.cs") || strings.HasSuffix(base, "spec.cs")
+	case "ruby", "rb":
+		base := path.Base(slash)
+		return strings.HasPrefix(slash, "test/") || strings.HasPrefix(slash, "spec/") ||
+			strings.Contains(slash, "/test/") || strings.Contains(slash, "/spec/") ||
+			strings.HasSuffix(base, "_test.rb") || strings.HasSuffix(base, "_spec.rb")
+	default:
+		return false
+	}
+}
+
 func cloneIncludeForLanguage(language string) func(string) bool {
-	switch normalizedLanguage(language) {
+	switch support.NormalizedLanguage(language) {
 	case "", "go":
 		return func(rel string) bool { return strings.HasSuffix(strings.ToLower(rel), ".go") }
 	case "python", "py":

@@ -1,4 +1,4 @@
-package support
+package checks_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	supportpkg "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -15,15 +16,15 @@ func TestAnalyzeTypeScriptTarget_UntrustedInputFlowFindings(t *testing.T) {
 		t.Skip("node is required for TypeScript semantic tests")
 	}
 
-	libPath := discoverTypeScriptLibPath(".")
+	libPath := discoverTypeScriptLibPathForTest(".")
 	if libPath == "" {
 		t.Skip("typescript library not available")
 	}
-	t.Setenv(codeguardTypeScriptLibEnv, libPath)
+	t.Setenv("CODEGUARD_TYPESCRIPT_LIB_PATH", libPath)
 
 	dir := t.TempDir()
-	writeTestFile(t, dir, "tsconfig.json", `{"compilerOptions":{"allowJs":true,"checkJs":true,"noEmit":true}}`)
-	writeTestFile(t, dir, "flow.ts", `import { exec } from "child_process";
+	writeFile(t, filepath.Join(dir, "tsconfig.json"), `{"compilerOptions":{"allowJs":true,"checkJs":true,"noEmit":true}}`)
+	writeFile(t, filepath.Join(dir, "flow.ts"), `import { exec } from "child_process";
 
 export function run(req, element) {
   const cmd = req.query.cmd;
@@ -33,7 +34,7 @@ export function run(req, element) {
   element.innerHTML = html;
 }
 `)
-	writeTestFile(t, dir, "safe.ts", `import { exec } from "child_process";
+	writeFile(t, filepath.Join(dir, "safe.ts"), `import { exec } from "child_process";
 
 export function runSafe() {
   const cmd = "echo ok";
@@ -41,7 +42,7 @@ export function runSafe() {
 }
 `)
 
-	results, ok, err := AnalyzeTypeScriptTarget(context.Background(), core.TargetConfig{
+	results, ok, err := supportpkg.AnalyzeTypeScriptTarget(context.Background(), core.TargetConfig{
 		Name:     "fixture",
 		Path:     dir,
 		Language: "typescript",
@@ -53,15 +54,28 @@ export function runSafe() {
 		t.Fatal("AnalyzeTypeScriptTarget did not run semantic analysis")
 	}
 
-	if !hasFinding(results.Security, "security.typescript.untrusted-input-flow", filepath.ToSlash(filepath.Join("flow.ts")), 5) {
+	if !hasSemanticFinding(results.Security, "security.typescript.untrusted-input-flow", "flow.ts", 5) {
 		t.Fatalf("expected shell execution taint finding in flow.ts line 5, got %#v", results.Security)
 	}
-	if !hasFinding(results.Security, "security.typescript.untrusted-input-flow", filepath.ToSlash(filepath.Join("flow.ts")), 8) {
+	if !hasSemanticFinding(results.Security, "security.typescript.untrusted-input-flow", "flow.ts", 8) {
 		t.Fatalf("expected unsafe HTML taint finding in flow.ts line 8, got %#v", results.Security)
 	}
-	if hasFinding(results.Security, "security.typescript.untrusted-input-flow", filepath.ToSlash(filepath.Join("safe.ts")), 5) {
+	if hasSemanticFinding(results.Security, "security.typescript.untrusted-input-flow", "safe.ts", 5) {
 		t.Fatalf("did not expect taint finding in safe.ts, got %#v", results.Security)
 	}
+}
+
+func discoverTypeScriptLibPathForTest(targetPath string) string {
+	candidates := []string{
+		filepath.Join(targetPath, "node_modules", "typescript", "lib", "typescript.js"),
+		"/Applications/Visual Studio Code.app/Contents/Resources/app/extensions/node_modules/typescript/lib/typescript.js",
+	}
+	for _, candidate := range candidates {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+	return ""
 }
 
 func testTypeScriptSemanticConfig() core.Config {
@@ -80,19 +94,11 @@ func testTypeScriptSemanticConfig() core.Config {
 	}
 }
 
-func hasFinding(findings []FindingInput, ruleID string, path string, line int) bool {
+func hasSemanticFinding(findings []supportpkg.FindingInput, ruleID string, path string, line int) bool {
 	for _, finding := range findings {
-		if finding.RuleID == ruleID && finding.Path == path && finding.Line == line {
+		if finding.RuleID == ruleID && finding.Path == filepath.ToSlash(path) && finding.Line == line {
 			return true
 		}
 	}
 	return false
-}
-
-func writeTestFile(t *testing.T, dir string, name string, contents string) {
-	t.Helper()
-	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
-		t.Fatalf("write %s: %v", name, err)
-	}
 }

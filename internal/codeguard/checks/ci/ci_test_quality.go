@@ -12,6 +12,7 @@ import (
 type testQualitySpec struct {
 	testDefinitionPatterns []*regexp.Regexp
 	assertionTokens        []string
+	assertionPatterns      []*regexp.Regexp
 	alwaysTruePatterns     []*regexp.Regexp
 }
 
@@ -23,6 +24,10 @@ var testQualitySpecs = map[string]testQualitySpec{
 		assertionTokens: []string{
 			"t.Fatal(", "t.Fatalf(", "t.Error(", "t.Errorf(", "t.Fail(", "t.FailNow(",
 			"assert.", "require.", "cmp.Diff(", "panic(",
+		},
+		assertionPatterns: []*regexp.Regexp{
+			regexp.MustCompile(`\bassert[A-Z]\w*\s*\(`),
+			regexp.MustCompile(`\brequire[A-Z]\w*\s*\(`),
 		},
 		alwaysTruePatterns: []*regexp.Regexp{
 			regexp.MustCompile(`\b(?:assert|require)\.True\s*\(\s*t\s*,\s*true\s*(?:,|\))`),
@@ -136,7 +141,7 @@ func testQualityFindingsForFile(env support.Context, file string, text string, s
 	}
 
 	findings := make([]core.Finding, 0, 2)
-	if !containsAnyToken(text, spec.assertionTokens) {
+	if !containsAnyAssertion(text, spec.assertionTokens, spec.assertionPatterns) {
 		findings = append(findings, env.NewFinding(support.FindingInput{
 			RuleID:  "ci.test-without-assertion",
 			Level:   "fail",
@@ -178,13 +183,18 @@ func hasTestDefinition(text string, patterns []*regexp.Regexp) bool {
 	return false
 }
 
-func containsAnyToken(text string, tokens []string) bool {
+func containsAnyAssertion(text string, tokens []string, patterns []*regexp.Regexp) bool {
 	for _, line := range sanitizedLines(text, "") {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
 		for _, token := range tokens {
 			if strings.Contains(line, token) {
+				return true
+			}
+		}
+		for _, pattern := range patterns {
+			if pattern.MatchString(line) {
 				return true
 			}
 		}
@@ -223,6 +233,9 @@ func stripCommentContent(line string, ext string, inBlockComment bool) (string, 
 
 	var out strings.Builder
 	i := 0
+	inSingleQuote := false
+	inDoubleQuote := false
+	inBacktick := false
 	for i < len(line) {
 		if inBlockComment {
 			end := strings.Index(line[i:], "*/")
@@ -235,11 +248,47 @@ func stripCommentContent(line string, ext string, inBlockComment bool) (string, 
 		}
 
 		switch {
+		case inSingleQuote:
+			out.WriteByte(line[i])
+			if line[i] == '\\' && i+1 < len(line) {
+				i++
+				out.WriteByte(line[i])
+			} else if line[i] == '\'' {
+				inSingleQuote = false
+			}
+			i++
+		case inDoubleQuote:
+			out.WriteByte(line[i])
+			if line[i] == '\\' && i+1 < len(line) {
+				i++
+				out.WriteByte(line[i])
+			} else if line[i] == '"' {
+				inDoubleQuote = false
+			}
+			i++
+		case inBacktick:
+			out.WriteByte(line[i])
+			if line[i] == '`' {
+				inBacktick = false
+			}
+			i++
 		case strings.HasPrefix(line[i:], "//"):
 			return out.String(), false
 		case strings.HasPrefix(line[i:], "/*"):
 			inBlockComment = true
 			i += 2
+		case line[i] == '\'':
+			inSingleQuote = true
+			out.WriteByte(line[i])
+			i++
+		case line[i] == '"':
+			inDoubleQuote = true
+			out.WriteByte(line[i])
+			i++
+		case line[i] == '`':
+			inBacktick = true
+			out.WriteByte(line[i])
+			i++
 		default:
 			out.WriteByte(line[i])
 			i++
