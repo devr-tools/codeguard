@@ -1,9 +1,9 @@
 {
   "version": 3,
   "entries": {
-    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathscsharp-fail3240101827/001|src/WidgetTests.cs": {
+    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathscsharp-fail3596641528/001|src/WidgetTests.cs": {
       "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "98081d02af074252865e913e64a82663de9cf3d6",
+      "config_hash": "e413ad96506c19630a0787c10e990d32c273e7b4",
       "findings": [
         {
           "rule_id": "ci.test-file-location",
@@ -21,14 +21,14 @@
         }
       ]
     },
-    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathscsharp-pass824905419/001|tests/WidgetTests.cs": {
+    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathscsharp-pass628561948/001|tests/WidgetTests.cs": {
       "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "69c6ffa99dedaa003b3496bcd2a9f779081b9a4d",
+      "config_hash": "650c04e5a24444fb1266c90397a67e2f04ecde00",
       "findings": []
     },
-    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsjava-fail3347066597/001|src/test/java/SampleTest.java": {
+    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsjava-fail3136965517/001|src/test/java/SampleTest.java": {
       "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "d49db8ee4465e0ffa1870f0f1bbd487847cf31c7",
+      "config_hash": "b7994496eac7f552113ec5a950f808752658cdf9",
       "findings": [
         {
           "rule_id": "ci.test-file-location",
@@ -46,14 +46,14 @@
         }
       ]
     },
-    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsjava-pass1849661246/001|tests/java/SampleTest.java": {
+    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsjava-pass268849047/001|tests/java/SampleTest.java": {
       "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "145a8b55749b63f112ed7e4c90530a5d832a5a30",
+      "config_hash": "5478c8a996df2ef90863e188b53d2a61103cdd49",
       "findings": []
     },
-    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-fail1272519903/001|spec/sample_spec.rb": {
+    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-fail315798440/001|spec/sample_spec.rb": {
       "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "21403a01587ecf1a57480f2e7913107b36c869e7",
+      "config_hash": "b16efce5c812610baca0472efcb543f2c8bd9537",
       "findings": [
         {
           "rule_id": "ci.test-file-location",
@@ -71,14 +71,14 @@
         }
       ]
     },
-    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-pass2776094376/001|tests/sample_test.rb": {
+    "ci|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-pass489568313/001|tests/sample_test.rb": {
       "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "985f99d7ea6455e567d1b8ed81b52da2f4cb5af2",
+      "config_hash": "a10a645d8e7fceb66d0c0686bd1b2cd45eabd715",
       "findings": []
     },
-    "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilitycsharp1221609258/001|src/Sample.cs": {
+    "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilitycsharp2031691697/001|src/Sample.cs": {
       "file_hash": "332ac2a8f9dd82d9b87a9c91a83815b38a964601",
-      "config_hash": "1ed6b531cfbc40655e110b23c94053f02cf95459",
+      "config_hash": "953dcde5fab5227237f5f9fa51e10b1042e458f7",
       "findings": [
         {
           "rule_id": "quality.max-function-lines",
@@ -124,57 +124,9 @@
         }
       ]
     },
-    "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityjava4018390280/001|src/main/java/Sample.java": {
-      "file_hash": "5446be525b2bf776ede24263b558a3c6f0391dd4",
-      "config_hash": "4ac3db5ef8cc2012b34fbe0954305b0dca5955eb",
-      "findings": [
-        {
-          "rule_id": "quality.max-function-lines",
-          "level": "warn",
-          "severity": "warn",
-          "title": "Function length",
-          "section": "Code Quality",
-          "message": "function sample has 6 lines; max is 4",
-          "why": "function sample has 6 lines; max is 4",
-          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
-          "path": "src/main/java/Sample.java",
-          "line": 2,
-          "column": 1,
-          "fingerprint": "8bb2d5b62765ee6898bd169986d459c472f9e8a8"
-        },
-        {
-          "rule_id": "quality.max-parameters",
-          "level": "warn",
-          "severity": "warn",
-          "title": "Function parameters",
-          "section": "Code Quality",
-          "message": "function sample has 3 parameters; max is 2",
-          "why": "function sample has 3 parameters; max is 2",
-          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
-          "path": "src/main/java/Sample.java",
-          "line": 2,
-          "column": 1,
-          "fingerprint": "153cf603a73c028ddba2e003b3939098887d7492"
-        },
-        {
-          "rule_id": "quality.cyclomatic-complexity",
-          "level": "warn",
-          "severity": "warn",
-          "title": "Cyclomatic complexity",
-          "section": "Code Quality",
-          "message": "function sample has cyclomatic complexity 4; max is 2",
-          "why": "function sample has cyclomatic complexity 4; max is 2",
-          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
-          "path": "src/main/java/Sample.java",
-          "line": 2,
-          "column": 1,
-          "fingerprint": "1b3e5bc9f2bf1ad1d6757e158042e7490a5220c2"
-        }
-      ]
-    },
-    "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityruby337821994/001|app/sample.rb": {
+    "quality|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityruby27532846/001|app/sample.rb": {
       "file_hash": "60062246c65eb46b533c134856e0e54486452182",
-      "config_hash": "f638950670da115824235ebd785b3d7d5c3cb5a4",
+      "config_hash": "480a77af1e9f962d801c4d40f6103c64fea5b5f3",
       "findings": [
         {
           "rule_id": "quality.max-function-lines",
@@ -217,6 +169,40 @@
           "line": 1,
           "column": 1,
           "fingerprint": "d819900b148de6248f4607926928327ac7f19f24"
+        }
+      ]
+    },
+    "security|/var/folders/pq/8svgssb95ls6f74rxzxdvgsh0000gn/T/TestSecurityCheckFindsAdditionalLanguagePatternsjava123402425/001|src/main/java/Sample.java": {
+      "file_hash": "710a9bb42048d9ad95bdc25804cde18d7ebec375",
+      "config_hash": "3e881bfab890ffc19a0384c4bcbe05de4336ee0b",
+      "findings": [
+        {
+          "rule_id": "security.java.insecure-tls",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Java insecure TLS",
+          "section": "Security",
+          "message": "Java TLS verification is disabled",
+          "why": "Java TLS verification is disabled",
+          "how_to_fix": "Use the default TLS verification flow or a properly validated trust configuration.",
+          "path": "src/main/java/Sample.java",
+          "line": 3,
+          "column": 1,
+          "fingerprint": "0f01ab9e6655292cd46731c70ebd1487ceb751ef"
+        },
+        {
+          "rule_id": "security.java.shell-execution",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Java shell execution review",
+          "section": "Security",
+          "message": "Java shell execution primitive should be reviewed",
+          "why": "Java shell execution primitive should be reviewed",
+          "how_to_fix": "Prefer direct library calls, or tightly validate and constrain spawned commands.",
+          "path": "src/main/java/Sample.java",
+          "line": 4,
+          "column": 1,
+          "fingerprint": "8b0b6edf27cd16fb1e6d7e37540f4b1bf42e32c3"
         }
       ]
     }

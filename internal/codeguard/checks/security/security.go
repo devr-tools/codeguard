@@ -12,9 +12,13 @@ import (
 func Run(ctx context.Context, env support.Context) core.SectionResult {
 	findings := make([]core.Finding, 0)
 	for _, target := range env.Config.Targets {
-		findings = append(findings, env.ScanTargetFiles(target, "security", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
-			return findingsForFile(env, file, data)
-		})...)
+		if isTypeScriptTarget(target) {
+			findings = append(findings, typeScriptTargetFindings(ctx, env, target)...)
+		} else {
+			findings = append(findings, env.ScanTargetFiles(target, "security", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
+				return findingsForFile(env, file, data)
+			})...)
+		}
 		findings = append(findings, commandFindings(ctx, env, target)...)
 
 		if isGoTarget(target) {
@@ -83,6 +87,15 @@ func commandFailureMessage(target core.TargetConfig, check core.CommandCheckConf
 func isGoTarget(target core.TargetConfig) bool {
 	language := normalizedLanguage(target.Language)
 	return language == "" || language == "go"
+}
+
+func isTypeScriptTarget(target core.TargetConfig) bool {
+	switch normalizedLanguage(target.Language) {
+	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizedLanguage(language string) string {

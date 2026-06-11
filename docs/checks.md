@@ -151,6 +151,11 @@ Current inference behavior:
 | Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
 | Commands | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config |
 
+TypeScript semantic runtime:
+- native TypeScript and JavaScript built-ins use the TypeScript compiler API when `typescript.js` is available
+- discovery order is `CODEGUARD_TYPESCRIPT_LIB_PATH`, then `node_modules/typescript/lib/typescript.js` from the target path upward, then the bundled VS Code TypeScript runtime
+- if no runtime is available, codeguard falls back to the lightweight parser-based checks for TypeScript and JavaScript
+
 ## Quality
 
 Purpose:
@@ -178,6 +183,7 @@ Current behavior:
 - fails on parse errors
 - fails on non-`gofmt` files
 - warns when maintainability thresholds are exceeded
+- TypeScript and JavaScript quality built-ins use AST-derived function metrics and compiler-parsed syntax when the semantic runtime is available
 - includes native maintainability heuristics for Python, TypeScript, JavaScript, Rust, Java, C#, and Ruby targets
 - TypeScript and JavaScript targets also warn on `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, explicit `any`, double assertions, non-null assertions, and committed `debugger` statements
 - can run language-specific quality commands based on `targets[].language`
@@ -247,7 +253,7 @@ Current behavior:
 - fails on architecture boundary violations
 - Go targets keep the existing package, import-boundary, declaration-count, type-size, and interface-size heuristics
 - Python targets fail on public-to-private imports, direct or transitive entrypoint coupling, and internal import cycles, and warn on overly generic module names
-- TypeScript targets warn on overly generic module names, oversized classes, and oversized interfaces or object types
+- TypeScript targets warn on overly generic module names, oversized classes, and oversized interfaces or object types using compiler-parsed AST analysis when the semantic runtime is available
 - can run language-specific design commands based on `targets[].language`
 - language command failures surface as `design.command-check`
 
@@ -317,6 +323,7 @@ Current behavior:
 - can surface per-vulnerability findings from `govulncheck`
 - includes native Python, TypeScript, Rust, Java, C#, and Ruby security heuristics for shell execution and insecure TLS settings
 - includes dynamic code review heuristics for Python, TypeScript, and Ruby
+- TypeScript and JavaScript security built-ins resolve imports, aliases, and call sites through compiler-parsed AST analysis when the semantic runtime is available
 - can run language-specific security commands based on `targets[].language`
 - only runs `govulncheck` for Go targets
 

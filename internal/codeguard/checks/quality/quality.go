@@ -26,9 +26,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 				return pythonFindingsForFile(env, file, data)
 			})...)
 		case "typescript", "javascript", "ts", "tsx", "js", "jsx":
-			findings = append(findings, env.ScanTargetFiles(target, "quality", isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
-				return typeScriptFindingsForFile(env, file, data)
-			})...)
+			findings = append(findings, typeScriptTargetFindings(ctx, env, target)...)
 		case "rust", "rs":
 			findings = append(findings, env.ScanTargetFiles(target, "quality", isRustFile, func(file string, data []byte) []core.Finding {
 				return rustFindingsForFile(env, file, data)

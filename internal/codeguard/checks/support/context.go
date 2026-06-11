@@ -8,12 +8,12 @@ import (
 )
 
 type FindingInput struct {
-	RuleID  string
-	Level   string
-	Path    string
-	Line    int
-	Column  int
-	Message string
+	RuleID  string `json:"rule_id"`
+	Level   string `json:"level"`
+	Path    string `json:"path"`
+	Line    int    `json:"line"`
+	Column  int    `json:"column"`
+	Message string `json:"message"`
 }
 
 type Context struct {

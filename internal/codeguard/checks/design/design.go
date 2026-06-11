@@ -16,7 +16,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 		case "", "go":
 			findings = append(findings, goTargetFindings(env, target)...)
 		case "typescript", "javascript", "ts", "tsx", "js", "jsx":
-			findings = append(findings, typeScriptTargetFindings(env, target)...)
+			findings = append(findings, typeScriptTargetFindings(ctx, env, target)...)
 		case "python", "py":
 			findings = append(findings, pythonTargetFindings(env, target)...)
 		}
@@ -29,8 +29,8 @@ func normalizedLanguage(language string) string {
 	return strings.ToLower(strings.TrimSpace(language))
 }
 
-func typeScriptTargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
-	return typeScriptTargetFindingsImpl(env, target)
+func typeScriptTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+	return typeScriptTargetFindingsImpl(ctx, env, target)
 }
 
 func commandFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {

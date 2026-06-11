@@ -1,0 +1,766 @@
+const fs = require("fs");
+const path = require("path");
+
+const input = JSON.parse(fs.readFileSync(0, "utf8"));
+const ts = require(input.typescript_lib_path);
+const targetPath = path.resolve(input.target_path);
+
+const results = { design: [], quality: [], security: [] };
+const seen = new Set();
+
+const directivePatterns = [
+  { pattern: /^\s*(?:(?:\/\/)|(?:\/\*+)|\*)\s*@ts-ignore\b/, suffix: "ts-ignore", message: "suppression comment should be reviewed" },
+  { pattern: /^\s*(?:(?:\/\/)|(?:\/\*+)|\*)\s*@ts-nocheck\b/, suffix: "ts-nocheck", message: "file-level type checking is disabled" },
+  { pattern: /^\s*(?:(?:\/\/)|(?:\/\*+)|\*)\s*@ts-expect-error\b/, suffix: "ts-expect-error", message: "suppression comment should be reviewed" },
+];
+
+main();
+
+function main() {
+  const program = loadProgram();
+  const checker = program.getTypeChecker();
+
+  for (const sourceFile of program.getSourceFiles()) {
+    if (!isAnalyzableSourceFile(sourceFile)) {
+      continue;
+    }
+    const relPath = normalizePath(path.relative(targetPath, sourceFile.fileName));
+    const flavor = scriptFlavor(relPath);
+    if (!flavor) {
+      continue;
+    }
+
+    analyzeModuleName(sourceFile, relPath);
+    analyzeDirectives(sourceFile, relPath, flavor);
+    analyzeDesign(sourceFile, relPath);
+
+    const bindings = collectBindings(sourceFile);
+    visit(sourceFile, sourceFile, relPath, flavor, bindings, checker);
+  }
+
+  process.stdout.write(JSON.stringify(results));
+}
+
+function loadProgram() {
+  const configPath = findConfigPath();
+  if (configPath) {
+    const config = ts.readConfigFile(configPath, ts.sys.readFile);
+    if (config.error) {
+      throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, "\n"));
+    }
+    const parsed = ts.parseJsonConfigFileContent(
+      config.config,
+      ts.sys,
+      path.dirname(configPath),
+      defaultCompilerOptions(),
+      configPath,
+    );
+    return ts.createProgram({
+      rootNames: parsed.fileNames.filter((name) => isWithinTarget(path.resolve(name))),
+      options: parsed.options,
+    });
+  }
+
+  return ts.createProgram({
+    rootNames: ts.sys.readDirectory(targetPath, scriptExtensions(), undefined, undefined),
+    options: defaultCompilerOptions(),
+  });
+}
+
+function findConfigPath() {
+  return ts.findConfigFile(targetPath, ts.sys.fileExists, "tsconfig.json") ||
+    ts.findConfigFile(targetPath, ts.sys.fileExists, "jsconfig.json");
+}
+
+function defaultCompilerOptions() {
+  return {
+    allowJs: true,
+    checkJs: true,
+    noEmit: true,
+    skipLibCheck: true,
+    target: ts.ScriptTarget.Latest,
+    module: ts.ModuleKind.ESNext,
+    jsx: ts.JsxEmit.Preserve,
+  };
+}
+
+function scriptExtensions() {
+  return [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+}
+
+function isAnalyzableSourceFile(sourceFile) {
+  return !sourceFile.isDeclarationFile &&
+    scriptFlavor(sourceFile.fileName) &&
+    isWithinTarget(sourceFile.fileName);
+}
+
+function isWithinTarget(fileName) {
+  const resolved = path.resolve(fileName);
+  return resolved === targetPath || resolved.startsWith(targetPath + path.sep);
+}
+
+function normalizePath(value) {
+  return value.split(path.sep).join("/");
+}
+
+function scriptFlavor(fileName) {
+  switch (path.extname(fileName).toLowerCase()) {
+    case ".ts":
+    case ".tsx":
+    case ".mts":
+    case ".cts":
+      return "typescript";
+    case ".js":
+    case ".jsx":
+    case ".mjs":
+    case ".cjs":
+      return "javascript";
+    default:
+      return "";
+  }
+}
+
+function scriptLabel(flavor) {
+  return flavor === "javascript" ? "JavaScript" : "TypeScript";
+}
+
+function scriptRuleId(flavor, tsRuleId, jsRuleId) {
+  return flavor === "javascript" ? jsRuleId : tsRuleId;
+}
+
+function lineNumber(sourceFile, pos) {
+  return sourceFile.getLineAndCharacterOfPosition(pos).line + 1;
+}
+
+function pushFinding(section, sourceFile, relPath, flavor, ruleId, level, message, pos) {
+  const line = lineNumber(sourceFile, pos);
+  const key = [section, ruleId, relPath, line, message].join("|");
+  if (seen.has(key)) {
+    return;
+  }
+  seen.add(key);
+  results[section].push({
+    rule_id: ruleId,
+    level,
+    path: relPath,
+    line,
+    column: 1,
+    message,
+  });
+}
+
+function analyzeModuleName(sourceFile, relPath) {
+  const moduleName = normalizedModuleName(relPath);
+  for (const forbidden of input.forbidden_package_names || []) {
+    if (moduleName !== String(forbidden || "").toLowerCase()) {
+      continue;
+    }
+    pushFinding(
+      "design",
+      sourceFile,
+      relPath,
+      scriptFlavor(relPath),
+      "design.typescript.generic-module-name",
+      "warn",
+      `module name "${moduleName}" is too generic`,
+      0,
+    );
+  }
+}
+
+function normalizedModuleName(relPath) {
+  const lower = path.basename(relPath).toLowerCase();
+  for (const ext of [".d.ts", ".tsx", ".ts", ".jsx", ".js", ".mjs", ".cjs", ".mts", ".cts"]) {
+    if (lower.endsWith(ext)) {
+      return lower.slice(0, -ext.length);
+    }
+  }
+  return lower.slice(0, -path.extname(lower).length);
+}
+
+function analyzeDirectives(sourceFile, relPath, flavor) {
+  const lines = sourceFile.text.replace(/\r\n/g, "\n").split("\n");
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    for (const directive of directivePatterns) {
+      if (!directive.pattern.test(line)) {
+        continue;
+      }
+      pushFinding(
+        "quality",
+        sourceFile,
+        relPath,
+        flavor,
+        scriptRuleId(flavor, `quality.typescript.${directive.suffix}`, `quality.javascript.${directive.suffix}`),
+        "warn",
+        `${scriptLabel(flavor)} ${directive.message}`,
+        sourceFile.getPositionOfLineAndCharacter(index, 0),
+      );
+    }
+  }
+}
+
+function analyzeDesign(sourceFile, relPath) {
+  const flavor = scriptFlavor(relPath);
+  ts.forEachChild(sourceFile, (node) => {
+    if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
+      const name = classLikeName(node);
+      const methods = node.members.filter(isCountedClassMember).length;
+      if (methods > input.max_methods_per_type) {
+        pushFinding(
+          "design",
+          sourceFile,
+          relPath,
+          flavor,
+          "design.typescript.max-methods-per-type",
+          "warn",
+          `class ${name} has ${methods} methods; max is ${input.max_methods_per_type}`,
+          node.name ? node.name.getStart(sourceFile) : node.getStart(sourceFile),
+        );
+      }
+    }
+
+    if (ts.isInterfaceDeclaration(node)) {
+      const members = node.members.length;
+      if (members > input.max_interface_members) {
+        pushFinding(
+          "design",
+          sourceFile,
+          relPath,
+          flavor,
+          "design.typescript.max-interface-members",
+          "warn",
+          `interface ${node.name.text} has ${members} members; max is ${input.max_interface_members}`,
+          node.name.getStart(sourceFile),
+        );
+      }
+    }
+
+    if (ts.isTypeAliasDeclaration(node) && ts.isTypeLiteralNode(node.type)) {
+      const members = node.type.members.length;
+      if (members > input.max_interface_members) {
+        pushFinding(
+          "design",
+          sourceFile,
+          relPath,
+          flavor,
+          "design.typescript.max-interface-members",
+          "warn",
+          `type ${node.name.text} has ${members} members; max is ${input.max_interface_members}`,
+          node.name.getStart(sourceFile),
+        );
+      }
+    }
+  });
+}
+
+function classLikeName(node) {
+  return node.name && node.name.text ? node.name.text : "anonymous";
+}
+
+function isCountedClassMember(member) {
+  return (ts.isMethodDeclaration(member) || ts.isGetAccessorDeclaration(member) || ts.isSetAccessorDeclaration(member)) &&
+      member.name &&
+      !ts.isConstructorDeclaration(member) ||
+    ts.isPropertyDeclaration(member) &&
+      member.initializer &&
+      (ts.isArrowFunction(member.initializer) || ts.isFunctionExpression(member.initializer));
+}
+
+function visit(node, sourceFile, relPath, flavor, bindings, checker) {
+  analyzeQualityNode(node, sourceFile, relPath, flavor);
+  analyzeSecurityNode(node, sourceFile, relPath, flavor, bindings, checker);
+  analyzeFunctionMetrics(node, sourceFile, relPath, flavor);
+  ts.forEachChild(node, (child) => visit(child, sourceFile, relPath, flavor, bindings, checker));
+}
+
+function analyzeQualityNode(node, sourceFile, relPath, flavor) {
+  if (ts.isDebuggerStatement(node)) {
+    pushFinding(
+      "quality",
+      sourceFile,
+      relPath,
+      flavor,
+      scriptRuleId(flavor, "quality.typescript.debugger-statement", "quality.javascript.debugger-statement"),
+      "warn",
+      "debugger statements should not reach committed source",
+      node.getStart(sourceFile),
+    );
+  }
+
+  if (node.kind === ts.SyntaxKind.AnyKeyword) {
+    pushFinding(
+      "quality",
+      sourceFile,
+      relPath,
+      flavor,
+      scriptRuleId(flavor, "quality.typescript.explicit-any", "quality.javascript.explicit-any"),
+      "warn",
+      "explicit any should be reviewed",
+      node.getStart(sourceFile),
+    );
+  }
+
+  if (isDoubleAssertion(node)) {
+    pushFinding(
+      "quality",
+      sourceFile,
+      relPath,
+      flavor,
+      scriptRuleId(flavor, "quality.typescript.double-assertion", "quality.javascript.double-assertion"),
+      "warn",
+      "double type assertions should be reviewed",
+      node.getStart(sourceFile),
+    );
+  }
+
+  if (ts.isNonNullExpression(node)) {
+    pushFinding(
+      "quality",
+      sourceFile,
+      relPath,
+      flavor,
+      scriptRuleId(flavor, "quality.typescript.non-null-assertion", "quality.javascript.non-null-assertion"),
+      "warn",
+      "non-null assertions should be reviewed",
+      node.getStart(sourceFile),
+    );
+  }
+}
+
+function isDoubleAssertion(node) {
+  return isAssertionExpression(node) &&
+    isAssertionExpression(node.expression) &&
+    isAnyOrUnknownType(node.expression.type);
+}
+
+function isAssertionExpression(node) {
+  return ts.isAsExpression(node) || ts.isTypeAssertionExpression(node);
+}
+
+function isAnyOrUnknownType(node) {
+  return !!node && (node.kind === ts.SyntaxKind.AnyKeyword || node.kind === ts.SyntaxKind.UnknownKeyword);
+}
+
+function analyzeFunctionMetrics(node, sourceFile, relPath, flavor) {
+  if (!isMeasuredFunction(node)) {
+    return;
+  }
+
+  const metrics = functionMetrics(node, sourceFile);
+  if (metrics.length > input.max_function_lines) {
+    pushFinding(
+      "quality",
+      sourceFile,
+      relPath,
+      flavor,
+      "quality.max-function-lines",
+      "warn",
+      `function ${metrics.name} has ${metrics.length} lines; max is ${input.max_function_lines}`,
+      metrics.pos,
+    );
+  }
+  if (metrics.params > input.max_parameters) {
+    pushFinding(
+      "quality",
+      sourceFile,
+      relPath,
+      flavor,
+      "quality.max-parameters",
+      "warn",
+      `function ${metrics.name} has ${metrics.params} parameters; max is ${input.max_parameters}`,
+      metrics.pos,
+    );
+  }
+  if (metrics.complexity > input.max_cyclomatic_complexity) {
+    pushFinding(
+      "quality",
+      sourceFile,
+      relPath,
+      flavor,
+      "quality.cyclomatic-complexity",
+      "warn",
+      `function ${metrics.name} has cyclomatic complexity ${metrics.complexity}; max is ${input.max_cyclomatic_complexity}`,
+      metrics.pos,
+    );
+  }
+}
+
+function isMeasuredFunction(node) {
+  if (!ts.isFunctionLike(node) || ts.isConstructorDeclaration(node) || !node.body) {
+    return false;
+  }
+  return ts.isArrowFunction(node) ||
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node);
+}
+
+function functionMetrics(node, sourceFile) {
+  const startLine = lineNumber(sourceFile, node.getStart(sourceFile));
+  const endLine = lineNumber(sourceFile, node.body.end);
+  return {
+    name: functionName(node),
+    pos: node.name ? node.name.getStart(sourceFile) : node.getStart(sourceFile),
+    length: Math.max(1, endLine - startLine + 1),
+    params: node.parameters.length,
+    complexity: functionComplexity(node.body, node),
+  };
+}
+
+function functionName(node) {
+  if (node.name && ts.isIdentifier(node.name)) {
+    return node.name.text;
+  }
+  if (ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name)) {
+    return node.parent.name.text;
+  }
+  if (ts.isPropertyDeclaration(node.parent) && node.parent.name && ts.isIdentifier(node.parent.name)) {
+    return node.parent.name.text;
+  }
+  return "anonymous";
+}
+
+function functionComplexity(body, root) {
+  let complexity = 1;
+
+  function walk(node) {
+    if (node !== root && ts.isFunctionLike(node)) {
+      return;
+    }
+    if (incrementsComplexity(node)) {
+      complexity++;
+    }
+    ts.forEachChild(node, walk);
+  }
+
+  walk(body);
+  return complexity;
+}
+
+function incrementsComplexity(node) {
+  return ts.isIfStatement(node) ||
+    ts.isForStatement(node) ||
+    ts.isForInStatement(node) ||
+    ts.isForOfStatement(node) ||
+    ts.isWhileStatement(node) ||
+    ts.isDoStatement(node) ||
+    ts.isCatchClause(node) ||
+    ts.isConditionalExpression(node) ||
+    ts.isCaseClause(node) ||
+    isShortCircuitOperator(node);
+}
+
+function isShortCircuitOperator(node) {
+  return ts.isBinaryExpression(node) &&
+    (node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+      node.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+      node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken);
+}
+
+function analyzeSecurityNode(node, sourceFile, relPath, flavor, bindings, checker) {
+  if (isRejectUnauthorizedFalse(node)) {
+    pushFinding(
+      "security",
+      sourceFile,
+      relPath,
+      flavor,
+      scriptRuleId(flavor, "security.typescript.insecure-tls", "security.javascript.insecure-tls"),
+      "fail",
+      `${scriptLabel(flavor)} TLS verification is disabled`,
+      node.getStart(sourceFile),
+    );
+  }
+
+  if (isNodeTLSDisableAssignment(node)) {
+    pushFinding(
+      "security",
+      sourceFile,
+      relPath,
+      flavor,
+      scriptRuleId(flavor, "security.typescript.insecure-tls", "security.javascript.insecure-tls"),
+      "fail",
+      "NODE_TLS_REJECT_UNAUTHORIZED disables TLS verification",
+      node.getStart(sourceFile),
+    );
+  }
+
+  if (ts.isCallExpression(node)) {
+    analyzeCallExpression(node, sourceFile, relPath, flavor, bindings, checker);
+  }
+
+  if (ts.isNewExpression(node) && isDynamicFunctionConstructor(node)) {
+    pushFinding(
+      "security",
+      sourceFile,
+      relPath,
+      flavor,
+      scriptRuleId(flavor, "security.typescript.dynamic-code", "security.javascript.dynamic-code"),
+      "warn",
+      "dynamic code execution should be reviewed",
+      node.getStart(sourceFile),
+    );
+  }
+
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && isUnsafeHTMLAssignment(node.left)) {
+    pushFinding(
+      "security",
+      sourceFile,
+      relPath,
+      flavor,
+      scriptRuleId(flavor, "security.typescript.unsafe-html-sink", "security.javascript.unsafe-html-sink"),
+      "warn",
+      "unsafe HTML injection sink should be reviewed",
+      node.left.getStart(sourceFile),
+    );
+  }
+}
+
+function analyzeCallExpression(node, sourceFile, relPath, flavor, bindings, checker) {
+  const directCallee = callTarget(node.expression, bindings);
+  const rule = scriptRuleId;
+
+  if (isEvalCall(node.expression) || isFunctionCall(node.expression)) {
+    pushFinding("security", sourceFile, relPath, flavor, rule(flavor, "security.typescript.dynamic-code", "security.javascript.dynamic-code"), "warn", "dynamic code execution should be reviewed", node.expression.getStart(sourceFile));
+  }
+
+  if (directCallee && directCallee.module === "child_process") {
+    if (directCallee.member === "exec" || directCallee.member === "execSync") {
+      pushFinding("security", sourceFile, relPath, flavor, rule(flavor, "security.typescript.shell-execution", "security.javascript.shell-execution"), "warn", `${scriptLabel(flavor)} shell execution primitive should be reviewed`, node.expression.getStart(sourceFile));
+    }
+    if ((directCallee.member === "spawn" || directCallee.member === "spawnSync") && hasShellTrueOption(node.arguments)) {
+      pushFinding("security", sourceFile, relPath, flavor, rule(flavor, "security.typescript.shell-execution", "security.javascript.shell-execution"), "warn", `${scriptLabel(flavor)} shell execution primitive should be reviewed`, node.expression.getStart(sourceFile));
+    }
+  }
+
+  if (directCallee && directCallee.module === "vm" && isVMExecutionMember(directCallee.member)) {
+    pushFinding("security", sourceFile, relPath, flavor, rule(flavor, "security.typescript.vm-dynamic-code", "security.javascript.vm-dynamic-code"), "warn", "Node vm dynamic code execution should be reviewed", node.expression.getStart(sourceFile));
+  }
+
+  if (isInsertAdjacentHTML(node.expression) || isDocumentWrite(node.expression, checker)) {
+    pushFinding("security", sourceFile, relPath, flavor, rule(flavor, "security.typescript.unsafe-html-sink", "security.javascript.unsafe-html-sink"), "warn", "unsafe HTML injection sink should be reviewed", node.expression.getStart(sourceFile));
+  }
+
+  if (isTimerCall(node.expression) && node.arguments.length > 0 && isStringLiteralArgument(node.arguments[0])) {
+    pushFinding("security", sourceFile, relPath, flavor, rule(flavor, "security.typescript.string-timer-code", "security.javascript.string-timer-code"), "warn", `${scriptLabel(flavor)} string-based timer execution should be reviewed`, node.expression.getStart(sourceFile));
+  }
+
+  if (isPostMessageCall(node.expression) && node.arguments.length > 1 && isWildcardString(node.arguments[1])) {
+    pushFinding("security", sourceFile, relPath, flavor, rule(flavor, "security.typescript.postmessage-wildcard", "security.javascript.postmessage-wildcard"), "warn", `${scriptLabel(flavor)} postMessage wildcard origin should be reviewed`, node.expression.getStart(sourceFile));
+  }
+}
+
+function isRejectUnauthorizedFalse(node) {
+  return ts.isPropertyAssignment(node) &&
+    propertyName(node.name) === "rejectUnauthorized" &&
+    node.initializer.kind === ts.SyntaxKind.FalseKeyword;
+}
+
+function isNodeTLSDisableAssignment(node) {
+  return ts.isBinaryExpression(node) &&
+    node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+    isNodeTLSIdentifier(node.left) &&
+    isZeroLiteral(node.right);
+}
+
+function isNodeTLSIdentifier(node) {
+  if (ts.isIdentifier(node)) {
+    return node.text === "NODE_TLS_REJECT_UNAUTHORIZED";
+  }
+  if (ts.isPropertyAccessExpression(node)) {
+    return node.name.text === "NODE_TLS_REJECT_UNAUTHORIZED";
+  }
+  if (ts.isElementAccessExpression(node) && isStringLiteralArgument(node.argumentExpression)) {
+    return literalText(node.argumentExpression) === "NODE_TLS_REJECT_UNAUTHORIZED";
+  }
+  return false;
+}
+
+function isZeroLiteral(node) {
+  return (ts.isStringLiteralLike(node) && node.text === "0") ||
+    (ts.isNumericLiteral(node) && node.text === "0");
+}
+
+function collectBindings(sourceFile) {
+  const named = new Map();
+  const namespaces = new Map();
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+      const moduleName = stripNodePrefix(statement.moduleSpecifier.text);
+      const clause = statement.importClause;
+      if (!clause) {
+        continue;
+      }
+      if (clause.name) {
+        namespaces.set(clause.name.text, moduleName);
+      }
+      if (clause.namedBindings) {
+        if (ts.isNamespaceImport(clause.namedBindings)) {
+          namespaces.set(clause.namedBindings.name.text, moduleName);
+        } else if (ts.isNamedImports(clause.namedBindings)) {
+          for (const element of clause.namedBindings.elements) {
+            named.set(element.name.text, {
+              module: moduleName,
+              member: element.propertyName ? element.propertyName.text : element.name.text,
+            });
+          }
+        }
+      }
+      continue;
+    }
+
+    if (!ts.isVariableStatement(statement)) {
+      continue;
+    }
+    for (const declaration of statement.declarationList.declarations) {
+      collectRequireBinding(declaration, named, namespaces);
+    }
+  }
+
+  return { named, namespaces };
+}
+
+function collectRequireBinding(declaration, named, namespaces) {
+  const directModule = requireModuleName(declaration.initializer);
+  if (directModule) {
+    if (ts.isIdentifier(declaration.name)) {
+      namespaces.set(declaration.name.text, directModule);
+    }
+    if (ts.isObjectBindingPattern(declaration.name)) {
+      for (const element of declaration.name.elements) {
+        const alias = element.name && ts.isIdentifier(element.name) ? element.name.text : "";
+        if (!alias) {
+          continue;
+        }
+        named.set(alias, {
+          module: directModule,
+          member: element.propertyName && ts.isIdentifier(element.propertyName) ? element.propertyName.text : alias,
+        });
+      }
+    }
+    return;
+  }
+
+  if (!ts.isIdentifier(declaration.name) || !ts.isPropertyAccessExpression(declaration.initializer || {})) {
+    return;
+  }
+  const moduleName = requireModuleName(declaration.initializer.expression);
+  if (!moduleName) {
+    return;
+  }
+  named.set(declaration.name.text, {
+    module: moduleName,
+    member: declaration.initializer.name.text,
+  });
+}
+
+function requireModuleName(node) {
+  if (!node || !ts.isCallExpression(node) || !ts.isIdentifier(node.expression) || node.expression.text !== "require" || node.arguments.length !== 1) {
+    return "";
+  }
+  if (!ts.isStringLiteral(node.arguments[0])) {
+    return "";
+  }
+  return stripNodePrefix(node.arguments[0].text);
+}
+
+function stripNodePrefix(moduleName) {
+  return String(moduleName || "").replace(/^node:/, "");
+}
+
+function callTarget(expression, bindings) {
+  if (ts.isIdentifier(expression) && bindings.named.has(expression.text)) {
+    return bindings.named.get(expression.text);
+  }
+  if (ts.isPropertyAccessExpression(expression)) {
+    if (ts.isIdentifier(expression.expression) && bindings.namespaces.has(expression.expression.text)) {
+      return { module: bindings.namespaces.get(expression.expression.text), member: expression.name.text };
+    }
+    const moduleName = requireModuleName(expression.expression);
+    if (moduleName) {
+      return { module: moduleName, member: expression.name.text };
+    }
+  }
+  return null;
+}
+
+function hasShellTrueOption(args) {
+  return args.some((argument) =>
+    ts.isObjectLiteralExpression(argument) &&
+    argument.properties.some((property) =>
+      ts.isPropertyAssignment(property) &&
+      propertyName(property.name) === "shell" &&
+      property.initializer.kind === ts.SyntaxKind.TrueKeyword,
+    ),
+  );
+}
+
+function propertyName(name) {
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
+    return name.text;
+  }
+  if (ts.isComputedPropertyName(name) && ts.isStringLiteralLike(name.expression)) {
+    return name.expression.text;
+  }
+  return "";
+}
+
+function isVMExecutionMember(member) {
+  return member === "runInContext" ||
+    member === "runInNewContext" ||
+    member === "runInThisContext" ||
+    member === "compileFunction";
+}
+
+function isEvalCall(expression) {
+  return ts.isIdentifier(expression) && expression.text === "eval";
+}
+
+function isFunctionCall(expression) {
+  return ts.isIdentifier(expression) && expression.text === "Function";
+}
+
+function isDynamicFunctionConstructor(node) {
+  return ts.isIdentifier(node.expression) && node.expression.text === "Function";
+}
+
+function isUnsafeHTMLAssignment(node) {
+  return ts.isPropertyAccessExpression(node) &&
+    (node.name.text === "innerHTML" || node.name.text === "outerHTML");
+}
+
+function isInsertAdjacentHTML(expression) {
+  return ts.isPropertyAccessExpression(expression) && expression.name.text === "insertAdjacentHTML";
+}
+
+function isDocumentWrite(expression) {
+  return ts.isPropertyAccessExpression(expression) &&
+    (expression.name.text === "write" || expression.name.text === "writeln") &&
+    ts.isIdentifier(expression.expression) &&
+    expression.expression.text === "document";
+}
+
+function isTimerCall(expression) {
+  return ts.isIdentifier(expression) &&
+    (expression.text === "setTimeout" || expression.text === "setInterval");
+}
+
+function isPostMessageCall(expression) {
+  return ts.isIdentifier(expression) && expression.text === "postMessage" ||
+    ts.isPropertyAccessExpression(expression) && expression.name.text === "postMessage";
+}
+
+function isStringLiteralArgument(node) {
+  return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node);
+}
+
+function isWildcardString(node) {
+  return isStringLiteralArgument(node) && literalText(node) === "*";
+}
+
+function literalText(node) {
+  return node.text || "";
+}
