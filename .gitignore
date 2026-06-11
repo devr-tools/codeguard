@@ -17,7 +17,6 @@ coverage.*
 *.coverprofile
 profile.cov
 dist/
-codeguard
 .gocache/
 .gomodcache/
 
