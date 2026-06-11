@@ -10,7 +10,7 @@ import (
 
 func TestDesignCheckFailsWhenServiceImportsInternal(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "codeguard", "service.go"), "package codeguard\n\nimport _ \"github.com/devr-tools/codeguard/internal/cli\"\n")
+	writeFile(t, filepath.Join(dir, "pkg", "publicapi", "service.go"), "package publicapi\n\nimport _ \"github.com/devr-tools/codeguard/internal/cli\"\n")
 
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "design-service-internal"
@@ -31,7 +31,7 @@ func TestDesignCheckFailsWhenServiceImportsInternal(t *testing.T) {
 
 func TestDesignCheckFailsWhenCmdImportsServiceDirectly(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "cmd", "tool", "main.go"), "package main\n\nimport _ \"github.com/devr-tools/codeguard/codeguard/runner\"\n")
+	writeFile(t, filepath.Join(dir, "cmd", "tool", "main.go"), "package main\n\nimport _ \"github.com/devr-tools/codeguard/pkg/codeguard\"\n")
 
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "design-cmd-service"
@@ -53,8 +53,8 @@ func TestDesignCheckFailsWhenCmdImportsServiceDirectly(t *testing.T) {
 func TestDesignCheckPassesForLayeredLayout(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "cmd", "tool", "main.go"), "package main\n\nimport _ \"github.com/devr-tools/codeguard/internal/cli\"\n")
-	writeFile(t, filepath.Join(dir, "internal", "cli", "run.go"), "package cli\n\nimport _ \"github.com/devr-tools/codeguard/codeguard/runner\"\n")
-	writeFile(t, filepath.Join(dir, "codeguard", "runner", "runner.go"), "package runner\n")
+	writeFile(t, filepath.Join(dir, "internal", "cli", "run.go"), "package cli\n\nimport _ \"github.com/devr-tools/codeguard/pkg/codeguard\"\n")
+	writeFile(t, filepath.Join(dir, "pkg", "codeguard", "sdk.go"), "package codeguard\n")
 
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "design-pass"
@@ -75,7 +75,7 @@ func TestDesignCheckPassesForLayeredLayout(t *testing.T) {
 
 func TestDesignCheckAllowsDisabledRuleOverride(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "cmd", "tool", "main.go"), "package main\n\nimport _ \"github.com/devr-tools/codeguard/codeguard/runner\"\n")
+	writeFile(t, filepath.Join(dir, "cmd", "tool", "main.go"), "package main\n\nimport _ \"github.com/devr-tools/codeguard/pkg/codeguard\"\n")
 
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "design-override"
@@ -98,7 +98,7 @@ func TestDesignCheckAllowsDisabledRuleOverride(t *testing.T) {
 
 func TestDesignCheckWarnsForGenericPackageName(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "codeguard", "util.go"), "package util\n")
+	writeFile(t, filepath.Join(dir, "pkg", "codeguard", "util.go"), "package util\n")
 
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "design-package-name"
@@ -119,7 +119,7 @@ func TestDesignCheckWarnsForGenericPackageName(t *testing.T) {
 
 func TestDesignCheckWarnsForTooManyMethodsOnType(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "codeguard", "service.go"), "package codeguard\n\ntype Service struct{}\n\nfunc (Service) A(){}\nfunc (Service) B(){}\nfunc (Service) C(){}\n")
+	writeFile(t, filepath.Join(dir, "pkg", "codeguard", "service.go"), "package codeguard\n\ntype Service struct{}\n\nfunc (Service) A(){}\nfunc (Service) B(){}\nfunc (Service) C(){}\n")
 
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "design-srp"
@@ -141,7 +141,7 @@ func TestDesignCheckWarnsForTooManyMethodsOnType(t *testing.T) {
 
 func TestDesignCheckWarnsForLargeInterface(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "codeguard", "ports.go"), "package codeguard\n\ntype Client interface {\n\tA()\n\tB()\n\tC()\n}\n")
+	writeFile(t, filepath.Join(dir, "pkg", "codeguard", "ports.go"), "package codeguard\n\ntype Client interface {\n\tA()\n\tB()\n\tC()\n}\n")
 
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "design-isp"

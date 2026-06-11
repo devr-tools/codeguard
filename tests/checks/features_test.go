@@ -184,19 +184,40 @@ func TestWriteReportSupportsSARIFAndGitHub(t *testing.T) {
 	report := codeguard.Report{
 		Name: "format-test",
 		Sections: []codeguard.SectionResult{{
-			ID:     "security",
-			Name:   "Security",
-			Status: codeguard.StatusFail,
-			Findings: []codeguard.Finding{{
-				RuleID:      "security.hardcoded-secret",
-				Level:       "fail",
-				Message:     "possible hardcoded secret detected",
-				Path:        "config.go",
-				Line:        3,
-				Column:      1,
-				Fingerprint: "abc123",
-			}},
+			ID:     "quality",
+			Name:   "Code Quality",
+			Status: codeguard.StatusWarn,
+			Findings: []codeguard.Finding{
+				{
+					RuleID:      "quality.cyclomatic-complexity",
+					Level:       "warn",
+					Title:       "Cyclomatic complexity",
+					Message:     "function assertTextReportFormatting has cyclomatic complexity 11; max is 10",
+					Why:         "function assertTextReportFormatting has cyclomatic complexity 11; max is 10",
+					HowToFix:    "Reduce branching in the function or refactor logic into smaller units.",
+					Path:        "tests/checks/test_helpers_test.go",
+					Line:        58,
+					Column:      1,
+					Fingerprint: "abc123",
+				},
+				{
+					RuleID:      "quality.dependency-direction",
+					Level:       "warn",
+					Title:       "Dependency direction",
+					Message:     "non-CLI package imports internal implementation detail",
+					Why:         "non-CLI package imports internal implementation detail",
+					HowToFix:    "Move shared logic into reusable packages and keep internal or CLI details out of library code.",
+					Path:        "pkg/codeguard/sdk_types_state.go",
+					Line:        3,
+					Column:      1,
+					Fingerprint: "def456",
+				},
+			},
 		}},
+		Summary: codeguard.ReportSummary{
+			WarnedSections: 1,
+			TotalFindings:  2,
+		},
 	}
 
 	var text bytes.Buffer
@@ -225,8 +246,124 @@ func TestWriteReportSupportsSARIFAndGitHub(t *testing.T) {
 	if err := codeguard.WriteReport(&github, report, "github"); err != nil {
 		t.Fatalf("write github: %v", err)
 	}
-	if !strings.Contains(github.String(), "::error file=config.go,line=3,col=1::") {
+	if !strings.Contains(github.String(), "::warning file=tests/checks/test_helpers_test.go,line=58,col=1::") {
 		t.Fatalf("expected GitHub annotation, got: %s", github.String())
+	}
+}
+
+func TestWriteReportUsesSameGroupedLayoutAcrossSections(t *testing.T) {
+	report := codeguard.Report{
+		Name: "layout-test",
+		Sections: []codeguard.SectionResult{
+			{
+				ID:     "quality",
+				Name:   "Code Quality",
+				Status: codeguard.StatusWarn,
+				Findings: []codeguard.Finding{{
+					RuleID:      "quality.cyclomatic-complexity",
+					Level:       "warn",
+					Title:       "Cyclomatic complexity",
+					Message:     "quality why",
+					Why:         "quality why",
+					HowToFix:    "quality fix",
+					Path:        "quality.go",
+					Line:        10,
+					Fingerprint: "quality-1",
+				}},
+			},
+			{
+				ID:     "design",
+				Name:   "Design Patterns",
+				Status: codeguard.StatusWarn,
+				Findings: []codeguard.Finding{{
+					RuleID:      "design.max-methods-per-type",
+					Level:       "warn",
+					Title:       "Methods per type",
+					Message:     "design why",
+					Why:         "design why",
+					HowToFix:    "design fix",
+					Path:        "design.go",
+					Line:        20,
+					Fingerprint: "design-1",
+				}},
+			},
+			{
+				ID:     "security",
+				Name:   "Security",
+				Status: codeguard.StatusWarn,
+				Findings: []codeguard.Finding{{
+					RuleID:      "security.shell-execution",
+					Level:       "warn",
+					Title:       "Shell execution review",
+					Message:     "security why",
+					Why:         "security why",
+					HowToFix:    "security fix",
+					Path:        "security.go",
+					Line:        30,
+					Fingerprint: "security-1",
+				}},
+			},
+			{
+				ID:     "prompts",
+				Name:   "AI Prompts",
+				Status: codeguard.StatusWarn,
+				Findings: []codeguard.Finding{{
+					RuleID:      "prompts.unsafe-instructions",
+					Level:       "warn",
+					Title:       "Unsafe instructions",
+					Message:     "prompts why",
+					Why:         "prompts why",
+					HowToFix:    "prompts fix",
+					Path:        "prompts.md",
+					Line:        40,
+					Fingerprint: "prompts-1",
+				}},
+			},
+			{
+				ID:     "ci",
+				Name:   "CI/CD",
+				Status: codeguard.StatusWarn,
+				Findings: []codeguard.Finding{{
+					RuleID:      "ci.workflow-content",
+					Level:       "warn",
+					Title:       "Workflow content",
+					Message:     "ci why",
+					Why:         "ci why",
+					HowToFix:    "ci fix",
+					Path:        ".github/workflows/ci.yml",
+					Line:        50,
+					Fingerprint: "ci-1",
+				}},
+			},
+		},
+		Summary: codeguard.ReportSummary{
+			WarnedSections: 5,
+			TotalFindings:  5,
+		},
+	}
+
+	var out bytes.Buffer
+	t.Setenv("NO_COLOR", "1")
+	if err := codeguard.WriteReport(&out, report, "text"); err != nil {
+		t.Fatalf("write text: %v", err)
+	}
+
+	rendered := out.String()
+	for _, want := range []string{
+		"[⚠️ WARN] Code Quality",
+		"  Cyclomatic complexity\n  1. at: quality.go:10",
+		"[⚠️ WARN] Design Patterns",
+		"  Methods per type\n  1. at: design.go:20",
+		"[⚠️ WARN] Security",
+		"  Shell execution review\n  1. at: security.go:30",
+		"[⚠️ WARN] AI Prompts",
+		"  Unsafe instructions\n  1. at: prompts.md:40",
+		"[⚠️ WARN] CI/CD",
+		"  Workflow content\n  1. at: .github/workflows/ci.yml:50",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("expected grouped layout fragment %q, got:\n%s", want, rendered)
+		}
 	}
 }
 

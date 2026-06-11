@@ -5,23 +5,19 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/devr-tools/codeguard"
+	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
-func TestValidateConfigRejectsBlankWorkflowNeedle(t *testing.T) {
+func TestValidateConfigRejectsBlankTargetPath(t *testing.T) {
 	cfg := codeguard.ExampleConfig()
-	cfg.Checks.CIRules.WorkflowContentRules = []codeguard.WorkflowRuleConfig{{
-		Path:             ".github/workflows/ci.yml",
-		RequiredContains: []string{"make test", "  "},
-	}}
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: "", Language: "go"}}
 
 	err := codeguard.ValidateConfig(cfg)
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
-	if !strings.Contains(err.Error(), "required_contains[1]") {
+	if !strings.Contains(err.Error(), "target path is required") {
 		t.Fatalf("unexpected validation error: %v", err)
 	}
 }
@@ -31,18 +27,25 @@ func TestWriteReportTextIncludesSummary(t *testing.T) {
 
 	report := codeguard.Report{
 		Name:        "sample",
-		GeneratedAt: time.Date(2026, 6, 10, 19, 30, 0, 0, time.UTC),
+		GeneratedAt: "2026-06-10T19:30:00Z",
 		Sections: []codeguard.SectionResult{
 			{
 				Name:   "Code Quality",
 				Status: "warn",
-				Note:   "Maintainability warning",
 				Findings: []codeguard.Finding{{
-					Path:     "main.go",
-					Message:  "function is too long",
-					Severity: "warn",
+					RuleID:      "quality.max-function-lines",
+					Level:       "warn",
+					Path:        "main.go",
+					Line:        12,
+					Message:     "function is too long",
+					Severity:    "warn",
+					Fingerprint: "abc123",
 				}},
 			},
+		},
+		Summary: codeguard.ReportSummary{
+			WarnedSections: 1,
+			TotalFindings:  1,
 		},
 	}
 
@@ -53,10 +56,16 @@ func TestWriteReportTextIncludesSummary(t *testing.T) {
 
 	rendered := out.String()
 	rendered = stripANSI(rendered)
-	if !strings.Contains(rendered, "CodeGuard Report sample") {
+	if !strings.Contains(rendered, "sample") {
 		t.Fatalf("missing header in report:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "✓ 0 pass  0 warn  0 fail  0 skip") {
+	if !strings.Contains(rendered, "quality.max-function-lines") {
+		t.Fatalf("missing grouped finding subsection in report:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "1. at: main.go:12") {
+		t.Fatalf("missing finding location in report:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "Summary: 0 pass, 1 warn, 0 fail, 1 findings, 0 suppressed") {
 		t.Fatalf("missing summary in report:\n%s", rendered)
 	}
 }

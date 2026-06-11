@@ -50,6 +50,7 @@ func strippedANSI(value string) string {
 	return strings.NewReplacer(
 		"\x1b[38;2;10;18;60m", "",
 		"\x1b[38;2;37;169;255m", "",
+		"\x1b[33m", "",
 		"\x1b[31m", "",
 		"\x1b[0m", "",
 	).Replace(value)
@@ -70,22 +71,31 @@ func assertTextReportFormatting(t *testing.T, buf *bytes.Buffer) {
 	if !strings.Contains(buf.String(), "| Section ") {
 		t.Fatalf("expected summary table, got: %s", buf.String())
 	}
-	if !strings.Contains(buf.String(), "\x1b[31mFAIL\x1b[0m") {
-		t.Fatalf("expected colored fail status, got: %q", buf.String())
+	if !strings.Contains(buf.String(), "\x1b[33mWARN\x1b[0m") {
+		t.Fatalf("expected colored warn status, got: %q", buf.String())
 	}
-	if !strings.Contains(buf.String(), "❌ FAIL") {
-		t.Fatalf("expected fail icon, got: %q", buf.String())
+	if !strings.Contains(buf.String(), "⚠️ WARN") {
+		t.Fatalf("expected warn icon, got: %q", buf.String())
 	}
-	if !strings.Contains(ansiStripped, "- [FAIL] security.hardcoded-secret") {
-		t.Fatalf("expected stacked finding title with badge, got: %s", ansiStripped)
+	if !strings.Contains(ansiStripped, "[⚠️ WARN] Code Quality") {
+		t.Fatalf("expected warn code quality section header, got: %s", ansiStripped)
 	}
-	if !strings.Contains(ansiStripped, "at: config.go:3") {
-		t.Fatalf("expected finding location line, got: %s", ansiStripped)
+	if !strings.Contains(ansiStripped, "\n  Cyclomatic complexity\n") {
+		t.Fatalf("expected cyclomatic complexity subsection title, got: %s", ansiStripped)
 	}
-	if !strings.Contains(ansiStripped, "rule: security.hardcoded-secret") {
+	if !strings.Contains(ansiStripped, "\n  Dependency direction\n") {
+		t.Fatalf("expected dependency direction subsection title, got: %s", ansiStripped)
+	}
+	if !strings.Contains(ansiStripped, "1. at: tests/checks/test_helpers_test.go:58") {
+		t.Fatalf("expected numbered finding location line, got: %s", ansiStripped)
+	}
+	if !strings.Contains(ansiStripped, "rule: quality.cyclomatic-complexity") {
 		t.Fatalf("expected finding rule line, got: %s", ansiStripped)
 	}
-	if strings.Contains(ansiStripped, "severity: fail") {
+	if !strings.Contains(ansiStripped, "rule: quality.dependency-direction") {
+		t.Fatalf("expected dependency direction rule line, got: %s", ansiStripped)
+	}
+	if strings.Contains(ansiStripped, "severity: warn") {
 		t.Fatalf("expected severity line to be removed, got: %s", ansiStripped)
 	}
 }
@@ -98,7 +108,7 @@ func assertPlainTextReportFormatting(t *testing.T, buf *bytes.Buffer) {
 	if !strings.Contains(buf.String(), "⢀⣠⠤⠶⠲⠦⢤⣀") {
 		t.Fatalf("expected plain output to use img/codeguard.txt logo, got: %s", buf.String())
 	}
-	if !strings.Contains(buf.String(), "- [FAIL] security.hardcoded-secret") {
-		t.Fatalf("expected plain output to include finding badge, got: %s", buf.String())
+	if !strings.Contains(buf.String(), "\n  Cyclomatic complexity\n") {
+		t.Fatalf("expected plain output to include grouped subsection title, got: %s", buf.String())
 	}
 }

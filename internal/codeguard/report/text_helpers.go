@@ -64,34 +64,61 @@ func writeTextSection(w io.Writer, section core.SectionResult) error {
 		}
 		return nil
 	}
-	for _, finding := range section.Findings {
-		if err := writeTextFinding(w, finding); err != nil {
+	for _, group := range groupTextFindings(section.Findings) {
+		if _, err := fmt.Fprintf(w, "\n  %s\n", group.name); err != nil {
 			return err
+		}
+		for idx, finding := range group.findings {
+			if err := writeTextFinding(w, idx+1, finding); err != nil {
+				return err
+			}
 		}
 	}
 	if section.SuppressedCount > 0 {
-		if _, err := fmt.Fprintf(w, "  suppressed: %d\n", section.SuppressedCount); err != nil {
+		if _, err := fmt.Fprintf(w, "\n  suppressed: %d\n", section.SuppressedCount); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func writeTextFinding(w io.Writer, finding core.Finding) error {
-	if _, err := fmt.Fprintf(w, "  - %s %s\n", renderStatusBadge(finding.Level), firstNonEmpty(finding.Title, finding.RuleID)); err != nil {
+type textFindingGroup struct {
+	name     string
+	findings []core.Finding
+}
+
+func groupTextFindings(findings []core.Finding) []textFindingGroup {
+	order := make([]string, 0)
+	groups := make(map[string][]core.Finding)
+	for _, finding := range findings {
+		name := firstNonEmpty(finding.Title, finding.RuleID)
+		if _, ok := groups[name]; !ok {
+			order = append(order, name)
+		}
+		groups[name] = append(groups[name], finding)
+	}
+	out := make([]textFindingGroup, 0, len(order))
+	for _, name := range order {
+		out = append(out, textFindingGroup{
+			name:     name,
+			findings: groups[name],
+		})
+	}
+	return out
+}
+
+func writeTextFinding(w io.Writer, index int, finding core.Finding) error {
+	if _, err := fmt.Fprintf(w, "  %d. at: %s\n", index, findingLocation(finding)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "    at: %s\n", findingLocation(finding)); err != nil {
+	if _, err := fmt.Fprintf(w, "     rule: %s\n", finding.RuleID); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "    rule: %s\n", finding.RuleID); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "    why: %s\n", firstNonEmpty(finding.Why, finding.Message)); err != nil {
+	if _, err := fmt.Fprintf(w, "     why: %s\n", firstNonEmpty(finding.Why, finding.Message)); err != nil {
 		return err
 	}
 	if finding.HowToFix != "" {
-		if _, err := fmt.Fprintf(w, "    fix: %s\n", finding.HowToFix); err != nil {
+		if _, err := fmt.Fprintf(w, "     fix: %s\n", finding.HowToFix); err != nil {
 			return err
 		}
 	}

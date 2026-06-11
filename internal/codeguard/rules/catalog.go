@@ -72,7 +72,7 @@ var catalog = map[string]core.RuleMetadata{
 		Section:      "Design Patterns",
 		DefaultLevel: "fail",
 		Title:        "Service to internal import",
-		Description:  "Fails when reusable service code imports internal packages.",
+		Description:  "Fails when reusable public packages, other than the SDK facade, import internal packages.",
 		HowToFix:     "Move the dependency behind a public boundary or relocate the service code.",
 	},
 	"design.service-import-cmd": {

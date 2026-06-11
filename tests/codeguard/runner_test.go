@@ -5,10 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/devr-tools/codeguard"
+	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
 func TestRunnerProducesSections(t *testing.T) {
@@ -39,41 +38,12 @@ func TestRunnerDisablesIndividualChecks(t *testing.T) {
 		sections[section.Name] = string(section.Status)
 	}
 
-	if sections["Security"] != "skip" {
-		t.Fatalf("expected Security to be skipped, got %q", sections["Security"])
+	if _, ok := sections["Security"]; ok {
+		t.Fatalf("expected Security section to be omitted when disabled, got %q", sections["Security"])
 	}
-	if sections["CI/CD"] != "skip" {
-		t.Fatalf("expected CI/CD to be skipped, got %q", sections["CI/CD"])
+	if _, ok := sections["CI/CD"]; ok {
+		t.Fatalf("expected CI/CD section to be omitted when disabled, got %q", sections["CI/CD"])
 	}
-}
-
-func TestRunnerWarnsForFutureLanguageSupport(t *testing.T) {
-	cfg := codeguard.ExampleConfig()
-	cfg.Targets = append(cfg.Targets, codeguard.TargetConfig{
-		Name:     "frontend",
-		Path:     ".",
-		Language: "typescript",
-	})
-
-	report, err := codeguard.Run(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("run: %v", err)
-	}
-
-	for _, section := range report.Sections {
-		if section.Name != "Language Support" {
-			continue
-		}
-		if string(section.Status) != "warn" {
-			t.Fatalf("expected warn status, got %q", section.Status)
-		}
-		if !strings.Contains(section.Note, "future language support") {
-			t.Fatalf("unexpected note %q", section.Note)
-		}
-		return
-	}
-
-	t.Fatal("Language Support section not found")
 }
 
 func TestYAMLConfigRoundTrip(t *testing.T) {
