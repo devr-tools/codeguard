@@ -44,6 +44,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 				return rubyFindingsForFile(env, file, data)
 			})...)
 		}
+		findings = append(findings, cloneFindingsForTarget(env, target)...)
 		findings = append(findings, commandFindings(ctx, env, target)...)
 	}
 	return env.FinalizeSection("quality", "Code Quality", findings)

@@ -38,7 +38,7 @@ func TestCICheckFailsWhenPythonTestsLiveOutsideAllowedPaths(t *testing.T) {
 
 func TestCICheckPassesWhenPythonTestsLiveUnderAllowedPaths(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "tests", "test_sample.py"), "def test_sample():\n    assert True\n")
+	writeFile(t, filepath.Join(dir, "tests", "test_sample.py"), "def test_sample():\n    value = 1 + 1\n    assert value == 2\n")
 
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "ci-python-test-location-pass"

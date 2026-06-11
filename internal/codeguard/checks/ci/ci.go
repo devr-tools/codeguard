@@ -27,6 +27,7 @@ func findingsForTarget(env support.Context, target core.TargetConfig) []core.Fin
 	findings = append(findings, requiredPathFindings(env, target, env.Config.Checks.CIRules.RequiredAutomationPaths, "required automation path is missing")...)
 	findings = append(findings, workflowContentFindings(env, target)...)
 	findings = append(findings, testFileLocationFindings(env, target)...)
+	findings = append(findings, testQualityFindings(env, target)...)
 	return findings
 }
 
@@ -88,7 +89,7 @@ func testFileLocationFindings(env support.Context, target core.TargetConfig) []c
 	if len(allowed) == 0 {
 		return nil
 	}
-	return env.ScanTargetFiles(target, "ci", func(rel string) bool {
+	return env.ScanTargetFiles(target, "ci-test-file-location", func(rel string) bool {
 		return isTargetTestFile(target.Language, rel)
 	}, func(file string, _ []byte) []core.Finding {
 		for _, pattern := range allowed {
