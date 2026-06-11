@@ -26,6 +26,7 @@ func findingsForTarget(env support.Context, target core.TargetConfig) []core.Fin
 	findings = append(findings, requiredPathFindings(env, target, env.Config.Checks.CIRules.RequiredReleaseFiles, "required release file is missing")...)
 	findings = append(findings, requiredPathFindings(env, target, env.Config.Checks.CIRules.RequiredAutomationPaths, "required automation path is missing")...)
 	findings = append(findings, workflowContentFindings(env, target)...)
+	findings = append(findings, testFileLocationFindings(env, target)...)
 	return findings
 }
 
@@ -80,4 +81,35 @@ func workflowContentFindings(env support.Context, target core.TargetConfig) []co
 		}
 	}
 	return findings
+}
+
+func testFileLocationFindings(env support.Context, target core.TargetConfig) []core.Finding {
+	allowed := env.Config.Checks.CIRules.AllowedTestPaths
+	if len(allowed) == 0 {
+		return nil
+	}
+	return env.ScanTargetFiles(target, "ci", func(rel string) bool {
+		return strings.HasSuffix(rel, "_test.go")
+	}, func(file string, _ []byte) []core.Finding {
+		for _, pattern := range allowed {
+			matched, err := filepath.Match(filepath.FromSlash(pattern), filepath.FromSlash(file))
+			if err == nil && matched {
+				return nil
+			}
+			if strings.Contains(pattern, "**") {
+				prefix := strings.TrimSuffix(filepath.ToSlash(pattern), "**")
+				if strings.HasPrefix(filepath.ToSlash(file), prefix) {
+					return nil
+				}
+			}
+		}
+		return []core.Finding{env.NewFinding(support.FindingInput{
+			RuleID:  "ci.test-file-location",
+			Level:   "fail",
+			Path:    file,
+			Line:    1,
+			Column:  1,
+			Message: "test files must live under configured test paths",
+		})}
+	})
 }

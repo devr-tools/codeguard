@@ -146,3 +146,59 @@ func TestCICheckAllowsEmptyReleaseFileOverride(t *testing.T) {
 
 	assertSectionStatus(t, report, "CI/CD", "pass")
 }
+
+func TestCICheckFailsWhenTestsLiveOutsideAllowedPaths(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "pkg", "sample", "sample_test.go"), "package sample_test\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "ci-test-location-fail"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.CI = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Design = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	disabled := false
+	cfg.Checks.CIRules.RequireWorkflowDir = &disabled
+	cfg.Checks.CIRules.RequiredWorkflowFiles = []string{}
+	cfg.Checks.CIRules.RequiredReleaseFiles = []string{}
+	cfg.Checks.CIRules.RequiredAutomationPaths = []string{}
+	cfg.Checks.CIRules.WorkflowContentRules = []codeguard.WorkflowRuleConfig{}
+	cfg.Checks.CIRules.AllowedTestPaths = []string{"tests/**"}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "CI/CD", "fail")
+}
+
+func TestCICheckPassesWhenTestsLiveUnderAllowedPaths(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "tests", "cli", "sample_test.go"), "package cli_test\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "ci-test-location-pass"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.CI = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Design = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	disabled := false
+	cfg.Checks.CIRules.RequireWorkflowDir = &disabled
+	cfg.Checks.CIRules.RequiredWorkflowFiles = []string{}
+	cfg.Checks.CIRules.RequiredReleaseFiles = []string{}
+	cfg.Checks.CIRules.RequiredAutomationPaths = []string{}
+	cfg.Checks.CIRules.WorkflowContentRules = []codeguard.WorkflowRuleConfig{}
+	cfg.Checks.CIRules.AllowedTestPaths = []string{"tests/**"}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "CI/CD", "pass")
+}

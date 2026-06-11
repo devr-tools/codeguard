@@ -50,6 +50,7 @@ func baseExampleConfig() core.Config {
 				}},
 				RequiredReleaseFiles:    []string{".goreleaser.yaml"},
 				RequiredAutomationPaths: []string{"Makefile"},
+				AllowedTestPaths:        []string{"tests/**"},
 			},
 			SecurityRules: core.SecurityRulesConfig{
 				GovulncheckMode:    "auto",

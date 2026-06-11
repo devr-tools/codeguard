@@ -125,6 +125,9 @@ func applyCIDefaults(dst *core.CIRulesConfig, def core.CIRulesConfig) {
 	if dst.RequiredAutomationPaths == nil && len(def.RequiredAutomationPaths) > 0 {
 		dst.RequiredAutomationPaths = append([]string(nil), def.RequiredAutomationPaths...)
 	}
+	if dst.AllowedTestPaths == nil && len(def.AllowedTestPaths) > 0 {
+		dst.AllowedTestPaths = append([]string(nil), def.AllowedTestPaths...)
+	}
 }
 
 func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRulesConfig) {

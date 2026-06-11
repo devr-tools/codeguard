@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 GO ?= go
 GOFMT ?= gofmt
 ifeq ($(origin GOROOT),environment)
@@ -60,7 +62,7 @@ lint:
 	$(GO) vet ./...
 
 test:
-	$(GO) test ./...
+	@set -o pipefail; $(GO) test ./... 2>&1 | grep -v '\[no test files\]'
 
 codeguard-ci: build
 	$(CODEGUARD_BIN) validate -config $(CI_CONFIG)

@@ -7,6 +7,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"path/filepath"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -109,6 +110,9 @@ func importFindings(env support.Context, file string, fset *token.FileSet, parse
 
 func allowsInternalImport(env support.Context, file string) bool {
 	if env.IsInternalOrCmdFile(file) {
+		return false
+	}
+	if strings.HasPrefix(filepath.ToSlash(file), "tests/") {
 		return false
 	}
 	return !env.IsSDKFacadeFile(file)

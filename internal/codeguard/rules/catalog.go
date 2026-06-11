@@ -195,6 +195,14 @@ var catalog = map[string]core.RuleMetadata{
 		Description:  "Fails when required workflow file markers are absent.",
 		HowToFix:     "Update the workflow file so the required steps or markers are present.",
 	},
+	"ci.test-file-location": {
+		ID:           "ci.test-file-location",
+		Section:      "CI/CD",
+		DefaultLevel: "fail",
+		Title:        "Test file location",
+		Description:  "Fails when Go test files live outside the configured test directories.",
+		HowToFix:     "Move the test file under the configured test path or update the CI policy if the layout is intentional.",
+	},
 }
 
 func Catalog() map[string]core.RuleMetadata {

@@ -62,7 +62,10 @@ jobs:
           cache: true
 
       - name: Run go test directly
-        run: go test ./...
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./... 2>&1 | grep -v '\[no test files\]'
 
       - name: Run test suite
         run: make test

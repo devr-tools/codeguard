@@ -261,7 +261,8 @@ Config keys:
         }
       ],
       "required_release_files": [".goreleaser.yaml", "Dockerfile.release", ".github/release-please-config.json", ".release-please-manifest.json", "CHANGELOG.md"],
-      "required_automation_paths": ["Makefile", "scripts/commit.sh"]
+      "required_automation_paths": ["Makefile", "scripts/commit.sh"],
+      "allowed_test_paths": ["tests/**"]
     }
   }
 }
@@ -270,6 +271,7 @@ Config keys:
 Current behavior:
 - fails when required workflow, release, or automation files are missing
 - fails when required workflow content markers are missing
+- fails when `*_test.go` files live outside the configured test directories
 
 ## Output
 

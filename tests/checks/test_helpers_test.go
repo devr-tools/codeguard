@@ -59,56 +59,38 @@ func strippedANSI(value string) string {
 func assertTextReportFormatting(t *testing.T, buf *bytes.Buffer) {
 	t.Helper()
 	ansiStripped := strippedANSI(buf.String())
-	if !strings.Contains(ansiStripped, "⢀⣠⠤⠶⠲⠦⢤⣀") {
-		t.Fatalf("expected logo from img/codeguard.txt, got: %s", ansiStripped)
-	}
-	if !strings.Contains(buf.String(), "\x1b[38;2;37;169;255m") {
-		t.Fatalf("expected blue brand color in header, got: %q", buf.String())
-	}
-	if strings.Contains(ansiStripped, "\ncodeguard\n") {
-		t.Fatalf("expected asset-backed logo without duplicate wordmark, got: %s", ansiStripped)
-	}
-	if !strings.Contains(buf.String(), "| Section ") {
-		t.Fatalf("expected summary table, got: %s", buf.String())
-	}
-	if !strings.Contains(buf.String(), "\x1b[33mWARN\x1b[0m") {
-		t.Fatalf("expected colored warn status, got: %q", buf.String())
-	}
-	if !strings.Contains(buf.String(), "⚠️ WARN") {
-		t.Fatalf("expected warn icon, got: %q", buf.String())
-	}
-	if !strings.Contains(ansiStripped, "[⚠️ WARN] Code Quality") {
-		t.Fatalf("expected warn code quality section header, got: %s", ansiStripped)
-	}
-	if !strings.Contains(ansiStripped, "\n  Cyclomatic complexity\n") {
-		t.Fatalf("expected cyclomatic complexity subsection title, got: %s", ansiStripped)
-	}
-	if !strings.Contains(ansiStripped, "\n  Dependency direction\n") {
-		t.Fatalf("expected dependency direction subsection title, got: %s", ansiStripped)
-	}
-	if !strings.Contains(ansiStripped, "1. at: tests/checks/test_helpers_test.go:58") {
-		t.Fatalf("expected numbered finding location line, got: %s", ansiStripped)
-	}
-	if !strings.Contains(ansiStripped, "rule: quality.cyclomatic-complexity") {
-		t.Fatalf("expected finding rule line, got: %s", ansiStripped)
-	}
-	if !strings.Contains(ansiStripped, "rule: quality.dependency-direction") {
-		t.Fatalf("expected dependency direction rule line, got: %s", ansiStripped)
-	}
-	if strings.Contains(ansiStripped, "severity: warn") {
-		t.Fatalf("expected severity line to be removed, got: %s", ansiStripped)
-	}
+	assertContains(t, ansiStripped, "⢀⣠⠤⠶⠲⠦⢤⣀", "expected logo from img/codeguard.txt")
+	assertContains(t, buf.String(), "\x1b[38;2;37;169;255m", "expected blue brand color in header")
+	assertNotContains(t, ansiStripped, "\ncodeguard\n", "expected asset-backed logo without duplicate wordmark")
+	assertContains(t, buf.String(), "| Section ", "expected summary table")
+	assertContains(t, buf.String(), "\x1b[33mWARN\x1b[0m", "expected colored warn status")
+	assertContains(t, buf.String(), "⚠️ WARN", "expected warn icon")
+	assertContains(t, ansiStripped, "[⚠️ WARN] Code Quality", "expected warn code quality section header")
+	assertContains(t, ansiStripped, "\n  Cyclomatic complexity\n", "expected cyclomatic complexity subsection title")
+	assertContains(t, ansiStripped, "\n  Dependency direction\n", "expected dependency direction subsection title")
+	assertContains(t, ansiStripped, "1. at: tests/checks/test_helpers_test.go:58", "expected numbered finding location line")
+	assertContains(t, ansiStripped, "rule: quality.cyclomatic-complexity", "expected finding rule line")
+	assertContains(t, ansiStripped, "rule: quality.dependency-direction", "expected dependency direction rule line")
+	assertNotContains(t, ansiStripped, "severity: warn", "expected severity line to be removed")
 }
 
 func assertPlainTextReportFormatting(t *testing.T, buf *bytes.Buffer) {
 	t.Helper()
-	if strings.Contains(buf.String(), "\x1b[31m") {
-		t.Fatalf("expected NO_COLOR output to omit ANSI escapes, got: %q", buf.String())
+	assertNotContains(t, buf.String(), "\x1b[31m", "expected NO_COLOR output to omit ANSI escapes")
+	assertContains(t, buf.String(), "⢀⣠⠤⠶⠲⠦⢤⣀", "expected plain output to use img/codeguard.txt logo")
+	assertContains(t, buf.String(), "\n  Cyclomatic complexity\n", "expected plain output to include grouped subsection title")
+}
+
+func assertContains(t *testing.T, text string, needle string, message string) {
+	t.Helper()
+	if !strings.Contains(text, needle) {
+		t.Fatalf("%s, got: %s", message, text)
 	}
-	if !strings.Contains(buf.String(), "⢀⣠⠤⠶⠲⠦⢤⣀") {
-		t.Fatalf("expected plain output to use img/codeguard.txt logo, got: %s", buf.String())
-	}
-	if !strings.Contains(buf.String(), "\n  Cyclomatic complexity\n") {
-		t.Fatalf("expected plain output to include grouped subsection title, got: %s", buf.String())
+}
+
+func assertNotContains(t *testing.T, text string, needle string, message string) {
+	t.Helper()
+	if strings.Contains(text, needle) {
+		t.Fatalf("%s, got: %s", message, text)
 	}
 }

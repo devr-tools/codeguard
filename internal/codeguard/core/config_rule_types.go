@@ -31,6 +31,7 @@ type CIRulesConfig struct {
 	WorkflowContentRules    []WorkflowRuleConfig `json:"workflow_content_rules,omitempty"`
 	RequiredReleaseFiles    []string             `json:"required_release_files,omitempty"`
 	RequiredAutomationPaths []string             `json:"required_automation_paths,omitempty"`
+	AllowedTestPaths        []string             `json:"allowed_test_paths,omitempty"`
 }
 
 type WorkflowRuleConfig struct {
