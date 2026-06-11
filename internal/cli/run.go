@@ -199,6 +199,9 @@ func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode
 	if err != nil {
 		return err
 	}
+	if err := writeScanMetadata(stdout, cfg.Output.Format, scanMode, baseRef); err != nil {
+		return err
+	}
 	if err := service.WriteReport(stdout, report, cfg.Output.Format); err != nil {
 		return fmt.Errorf("write report: %w", err)
 	}
@@ -206,6 +209,17 @@ func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode
 		return fmt.Errorf("one or more sections failed")
 	}
 	return nil
+}
+
+func writeScanMetadata(stdout io.Writer, format string, scanMode service.ScanMode, baseRef string) error {
+	if strings.TrimSpace(format) != "" && strings.TrimSpace(format) != "text" {
+		return nil
+	}
+	if scanMode != service.ScanModeDiff {
+		return nil
+	}
+	_, err := fmt.Fprintf(stdout, "Base Ref: %s\n", baseRef)
+	return err
 }
 
 func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
