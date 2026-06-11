@@ -43,6 +43,7 @@ func loadDoctorConfig(configPath string, profile string) (service.Config, []doct
 func writeDoctorChecks(checks *[]doctorCheck, cfg service.Config) {
 	*checks = append(*checks, gitDoctorCheck())
 	*checks = append(*checks, targetDoctorChecks(cfg.Targets)...)
+	*checks = append(*checks, languageCommandDoctorChecks(cfg)...)
 	if govulncheck, ok := govulncheckDoctorCheck(cfg); ok {
 		*checks = append(*checks, govulncheck)
 	}

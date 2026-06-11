@@ -89,7 +89,7 @@ func testFileLocationFindings(env support.Context, target core.TargetConfig) []c
 		return nil
 	}
 	return env.ScanTargetFiles(target, "ci", func(rel string) bool {
-		return strings.HasSuffix(rel, "_test.go")
+		return isTargetTestFile(target.Language, rel)
 	}, func(file string, _ []byte) []core.Finding {
 		for _, pattern := range allowed {
 			matched, err := filepath.Match(filepath.FromSlash(pattern), filepath.FromSlash(file))
@@ -112,4 +112,49 @@ func testFileLocationFindings(env support.Context, target core.TargetConfig) []c
 			Message: "test files must live under configured test paths",
 		})}
 	})
+}
+
+func isTargetTestFile(language, rel string) bool {
+	switch normalizedLanguage(language) {
+	case "", "go":
+		return strings.HasSuffix(rel, "_test.go")
+	case "python":
+		return isPythonTestFile(rel)
+	case "typescript", "javascript", "ts", "js":
+		return isJavaScriptTestFile(rel)
+	default:
+		return false
+	}
+}
+
+func normalizedLanguage(language string) string {
+	return strings.ToLower(strings.TrimSpace(language))
+}
+
+func isPythonTestFile(rel string) bool {
+	if !strings.HasSuffix(rel, ".py") {
+		return false
+	}
+	name := filepath.Base(rel)
+	return name == "tests.py" || strings.HasPrefix(name, "test_") || strings.HasSuffix(name, "_test.py")
+}
+
+func isJavaScriptTestFile(rel string) bool {
+	slashPath := filepath.ToSlash(rel)
+	if hasJavaScriptTestExtension(slashPath) {
+		base := filepath.Base(slashPath)
+		if strings.Contains(base, ".test.") || strings.Contains(base, ".spec.") {
+			return true
+		}
+	}
+	return (strings.HasPrefix(slashPath, "__tests__/") || strings.Contains(slashPath, "/__tests__/")) && hasJavaScriptTestExtension(slashPath)
+}
+
+func hasJavaScriptTestExtension(rel string) bool {
+	for _, ext := range []string{".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"} {
+		if strings.HasSuffix(rel, ext) {
+			return true
+		}
+	}
+	return false
 }

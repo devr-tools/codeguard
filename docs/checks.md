@@ -109,6 +109,48 @@ codeguard profiles
 codeguard scan -config codeguard.yaml -profile strict
 ```
 
+## Rule metadata
+
+SDK and catalog discovery surfaces return both `execution_model` and `language_coverage` for each rule via `codeguard.Rules()`, `codeguard.RulesForConfig(...)`, `codeguard.ExplainRule(...)`, and `codeguard.ExplainRuleForConfig(...)`.
+
+`execution_model` values:
+- `go-native`: built-in logic that currently depends on Go-specific source structure or Go-only integrations
+- `language-agnostic`: built-in or config-defined checks that operate across languages through shared file, text, or lightweight syntax heuristics
+- `command-driven`: checks that delegate to an external tool such as `govulncheck`, `tsc`, `ruff`, or `npm audit`
+
+`language_coverage` shape:
+
+```json
+{
+  "mode": "fixed",
+  "languages": ["go", "python", "typescript"]
+}
+```
+
+`language_coverage.mode` values:
+- `fixed`: the rule currently applies to the listed target languages
+- `repository-wide`: the rule scans repo assets that are not tied to a single target language, such as prompt files, workflow files, or generic text secrets
+- `configurable`: the rule's effective coverage depends on config-defined command mappings or custom rule-pack targeting
+
+CLI rendering:
+- `go`
+- `go, python, typescript`
+- `repository-wide`
+- `configurable`
+
+Current inference behavior:
+- rules with language prefixes such as `quality.typescript.*`, `security.python.*`, `design.typescript.*`, or `design.python.*` automatically resolve to fixed coverage for that language
+- custom rule-pack metadata defaults to `execution_model: language-agnostic` and `language_coverage: configurable`
+
+## Built-in language coverage snapshot
+
+| Family | Go | Python | TypeScript |
+| --- | --- | --- | --- |
+| Quality | `gofmt`, parseability, maintainability thresholds | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `explicit any`, double assertions, non-null assertions |
+| Design | boundary rules, generic package names, type/interface/file-size heuristics | public-imports-private, public-imports-cli, generic module names | generic module names, max methods per class, max members per interface/object type |
+| Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, Node `vm` execution, unsafe HTML sinks |
+| Commands | language command mappings via config | language command mappings via config | language command mappings via config |
+
 ## Quality
 
 Purpose:
@@ -136,6 +178,34 @@ Current behavior:
 - fails on parse errors
 - fails on non-`gofmt` files
 - warns when maintainability thresholds are exceeded
+- includes native maintainability heuristics for Python and TypeScript targets
+- TypeScript targets also warn on `@ts-ignore`, `@ts-nocheck`, explicit `any`, double assertions, and non-null assertions
+- can run language-specific quality commands based on `targets[].language`
+
+Language command example:
+
+```json
+{
+  "targets": [
+    {"name": "frontend", "path": "frontend", "language": "typescript"},
+    {"name": "backend", "path": "backend", "language": "python"}
+  ],
+  "checks": {
+    "quality": true,
+    "quality_rules": {
+      "language_commands": {
+        "typescript": [
+          {"name": "tsc", "command": "npx", "args": ["tsc", "--noEmit"]}
+        ],
+        "python": [
+          {"name": "ruff", "command": "python", "args": ["-m", "ruff", "check", "."]},
+          {"name": "mypy", "command": "python", "args": ["-m", "mypy", "."]}
+        ]
+      }
+    }
+  }
+}
+```
 
 ## Design
 
@@ -167,7 +237,9 @@ Config keys:
 
 Current behavior:
 - fails on architecture boundary violations
-- warns on principle drift such as overly generic package names, too many declarations, too many methods on a type, or oversized interfaces
+- Go targets keep the existing package, import-boundary, declaration-count, type-size, and interface-size heuristics
+- Python targets fail when public modules import private modules or CLI entrypoints, and warn on overly generic module names
+- TypeScript targets warn on overly generic module names, oversized classes, and oversized interfaces or object types
 
 ## Security
 
@@ -177,6 +249,12 @@ Purpose:
 - Insecure TLS detection
 - Shell execution review markers
 - Optional `govulncheck`
+
+Current behavior:
+- repository-wide secret and private-key scans apply regardless of target language
+- Go targets include insecure TLS review, shell execution review, and optional `govulncheck`
+- Python targets include insecure TLS review, shell execution review, and dynamic code review markers
+- TypeScript targets include insecure TLS review, shell execution review, dynamic code review markers, Node `vm` execution review, and unsafe HTML sink review
 
 Config keys:
 
@@ -201,6 +279,36 @@ Current behavior:
 - fails on blocking security findings
 - warns on reviewable findings
 - can surface per-vulnerability findings from `govulncheck`
+- includes native Python and TypeScript security heuristics for shell execution, insecure TLS settings, and dynamic code execution
+- can run language-specific security commands based on `targets[].language`
+- only runs `govulncheck` for Go targets
+
+Language command example:
+
+```json
+{
+  "targets": [
+    {"name": "frontend", "path": "frontend", "language": "typescript"},
+    {"name": "backend", "path": "backend", "language": "python"}
+  ],
+  "checks": {
+    "security": true,
+    "security_rules": {
+      "govulncheck_mode": "auto",
+      "govulncheck_command": "govulncheck",
+      "language_commands": {
+        "typescript": [
+          {"name": "npm-audit", "command": "npm", "args": ["audit", "--audit-level=high"]}
+        ],
+        "python": [
+          {"name": "bandit", "command": "python", "args": ["-m", "bandit", "-r", "."]},
+          {"name": "pip-audit", "command": "python", "args": ["-m", "pip_audit"]}
+        ]
+      }
+    }
+  }
+}
+```
 
 ## Prompts
 
@@ -375,6 +483,7 @@ Current behavior:
 - validates config loading
 - checks Git availability and worktree detection
 - checks `govulncheck` availability when security integration is enabled
+- checks configured language command binaries when quality or security command checks are enabled
 - checks target paths, baseline path, and cache destination
 
 ## Inline suppressions

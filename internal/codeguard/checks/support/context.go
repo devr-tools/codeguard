@@ -30,5 +30,6 @@ type Context struct {
 	IsSDKFacadeFile      func(path string) bool
 	IsPromptFile         func(rel string) bool
 	RunGovulncheck       func(ctx context.Context, dir string, cmdName string) ([]core.Finding, error)
+	RunCommandCheck      func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error)
 	NormalizedSeverity   func(level string) string
 }

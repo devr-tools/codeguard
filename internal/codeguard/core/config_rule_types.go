@@ -1,10 +1,11 @@
 package core
 
 type QualityRulesConfig struct {
-	MaxFileLines            int `json:"max_file_lines"`
-	MaxFunctionLines        int `json:"max_function_lines"`
-	MaxParameters           int `json:"max_parameters"`
-	MaxCyclomaticComplexity int `json:"max_cyclomatic_complexity"`
+	MaxFileLines            int                             `json:"max_file_lines"`
+	MaxFunctionLines        int                             `json:"max_function_lines"`
+	MaxParameters           int                             `json:"max_parameters"`
+	MaxCyclomaticComplexity int                             `json:"max_cyclomatic_complexity"`
+	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
 }
 
 type DesignRulesConfig struct {
@@ -40,6 +41,13 @@ type WorkflowRuleConfig struct {
 }
 
 type SecurityRulesConfig struct {
-	GovulncheckMode    string `json:"govulncheck_mode,omitempty"`
-	GovulncheckCommand string `json:"govulncheck_command,omitempty"`
+	GovulncheckMode    string                          `json:"govulncheck_mode,omitempty"`
+	GovulncheckCommand string                          `json:"govulncheck_command,omitempty"`
+	LanguageCommands   map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
+}
+
+type CommandCheckConfig struct {
+	Name    string   `json:"name"`
+	Command string   `json:"command"`
+	Args    []string `json:"args,omitempty"`
 }

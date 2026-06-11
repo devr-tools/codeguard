@@ -10,3 +10,4 @@ type DesignRulesConfig = core.DesignRulesConfig
 type PromptRulesConfig = core.PromptRulesConfig
 type CIRulesConfig = core.CIRulesConfig
 type WorkflowRuleConfig = core.WorkflowRuleConfig
+type CommandCheckConfig = core.CommandCheckConfig

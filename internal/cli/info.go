@@ -28,7 +28,7 @@ func runRules(args []string, stdout io.Writer, stderr io.Writer) int {
 		rules = service.RulesForConfig(cfg)
 	}
 	for _, rule := range rules {
-		_, _ = fmt.Fprintf(stdout, "%s\t%s\t%s\t%s\n", rule.ID, rule.DefaultLevel, rule.Section, rule.Title)
+		_, _ = fmt.Fprintf(stdout, "%s\t%s\t%s\t%s\t%s\t%s\n", rule.ID, rule.DefaultLevel, rule.ExecutionModel, rule.LanguageCoverage, rule.Section, rule.Title)
 	}
 	return 0
 }
@@ -60,7 +60,7 @@ func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "unknown rule %q\n", ruleID)
 		return 1
 	}
-	_, _ = fmt.Fprintf(stdout, "%s\ntitle: %s\nsection: %s\nlevel: %s\n%s\n", rule.ID, rule.Title, rule.Section, rule.DefaultLevel, rule.Description)
+	_, _ = fmt.Fprintf(stdout, "%s\ntitle: %s\nsection: %s\nlevel: %s\nexecution model: %s\nlanguage coverage: %s\n%s\n", rule.ID, rule.Title, rule.Section, rule.DefaultLevel, rule.ExecutionModel, rule.LanguageCoverage, rule.Description)
 	if strings.TrimSpace(rule.HowToFix) != "" {
 		_, _ = fmt.Fprintf(stdout, "how to fix: %s\n", rule.HowToFix)
 	}

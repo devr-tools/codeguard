@@ -52,20 +52,22 @@ func buildCustomRuleMetadata(rule core.CustomRuleConfig) core.RuleMetadata {
 		severity = "warn"
 	}
 
-	return core.RuleMetadata{
-		ID:           rule.ID,
-		Section:      section,
-		DefaultLevel: severity,
-		Title:        rule.Title,
-		Description:  firstNonEmpty(rule.Description, rule.Message),
-		HowToFix:     rule.HowToFix,
-	}
+	return core.NormalizeRuleMetadata(core.RuleMetadata{
+		ID:               rule.ID,
+		Section:          section,
+		DefaultLevel:     severity,
+		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.ConfigurableRuleLanguageCoverage(),
+		Title:            rule.Title,
+		Description:      firstNonEmpty(rule.Description, rule.Message),
+		HowToFix:         rule.HowToFix,
+	})
 }
 
 func ruleListFromCatalog(catalog map[string]core.RuleMetadata) []core.RuleMetadata {
 	out := make([]core.RuleMetadata, 0, len(catalog))
 	for _, meta := range catalog {
-		out = append(out, meta)
+		out = append(out, core.NormalizeRuleMetadata(meta))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out

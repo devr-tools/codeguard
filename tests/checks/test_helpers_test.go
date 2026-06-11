@@ -20,6 +20,14 @@ func writeFile(t *testing.T, path string, content string) {
 	}
 }
 
+func writeExecutableFile(t *testing.T, path string, content string) {
+	t.Helper()
+	writeFile(t, path, content)
+	if err := os.Chmod(path, 0o755); err != nil {
+		t.Fatalf("chmod %s: %v", path, err)
+	}
+}
+
 func assertSectionStatus(t *testing.T, report codeguard.Report, name string, want string) {
 	t.Helper()
 	for _, section := range report.Sections {

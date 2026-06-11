@@ -51,6 +51,13 @@ func TestYAMLConfigRoundTrip(t *testing.T) {
 	path := filepath.Join(dir, "codeguard.yaml")
 
 	cfg := codeguard.ExampleConfig()
+	cfg.Checks.QualityRules.LanguageCommands = map[string][]codeguard.CommandCheckConfig{
+		"typescript": {{
+			Name:    "tsc",
+			Command: "npx",
+			Args:    []string{"tsc", "--noEmit"},
+		}},
+	}
 	if err := codeguard.WriteConfigFile(path, cfg); err != nil {
 		t.Fatalf("write yaml: %v", err)
 	}
@@ -61,6 +68,9 @@ func TestYAMLConfigRoundTrip(t *testing.T) {
 	}
 	if loaded.Name != cfg.Name {
 		t.Fatalf("loaded name = %q, want %q", loaded.Name, cfg.Name)
+	}
+	if got := loaded.Checks.QualityRules.LanguageCommands["typescript"][0].Command; got != "npx" {
+		t.Fatalf("loaded command = %q, want %q", got, "npx")
 	}
 }
 

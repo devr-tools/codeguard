@@ -23,6 +23,9 @@ func Validate(cfg core.Config) error {
 	if err := validateWaivers(cfg.Waivers); err != nil {
 		return err
 	}
+	if err := validateCommandChecks(cfg); err != nil {
+		return err
+	}
 	return validateRulePacks(cfg.RulePacks)
 }
 
@@ -72,6 +75,30 @@ func validateWaivers(waivers []core.WaiverConfig) error {
 		}
 		if _, err := time.Parse("2006-01-02", waiver.ExpiresOn); err != nil {
 			return errors.New("waiver expires_on must use YYYY-MM-DD")
+		}
+	}
+	return nil
+}
+
+func validateCommandChecks(cfg core.Config) error {
+	if err := validateLanguageCommandMap("quality_rules.language_commands", cfg.Checks.QualityRules.LanguageCommands); err != nil {
+		return err
+	}
+	return validateLanguageCommandMap("security_rules.language_commands", cfg.Checks.SecurityRules.LanguageCommands)
+}
+
+func validateLanguageCommandMap(field string, languageCommands map[string][]core.CommandCheckConfig) error {
+	for language, checks := range languageCommands {
+		if strings.TrimSpace(language) == "" {
+			return fmt.Errorf("%s contains an empty language key", field)
+		}
+		for idx, check := range checks {
+			if strings.TrimSpace(check.Name) == "" {
+				return fmt.Errorf("%s[%q][%d].name is required", field, language, idx)
+			}
+			if strings.TrimSpace(check.Command) == "" {
+				return fmt.Errorf("%s[%q][%d].command is required", field, language, idx)
+			}
 		}
 	}
 	return nil

@@ -71,6 +71,9 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		RunGovulncheck: func(ctx context.Context, dir string, cmdName string) ([]core.Finding, error) {
 			return govulncheckrunner.Run(ctx, dir, cmdName, sc)
 		},
+		RunCommandCheck: func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error) {
+			return runnersupport.RunCommandCheck(ctx, dir, check)
+		},
 		NormalizedSeverity: runnersupport.NormalizedSeverity,
 	}
 }

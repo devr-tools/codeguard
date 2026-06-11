@@ -21,7 +21,23 @@
       "max_file_lines": 400,
       "max_function_lines": 80,
       "max_parameters": 5,
-      "max_cyclomatic_complexity": 10
+      "max_cyclomatic_complexity": 10,
+      "language_commands": {
+        "typescript": [
+          {
+            "name": "tsc",
+            "command": "npx",
+            "args": ["tsc", "--noEmit"]
+          }
+        ],
+        "python": [
+          {
+            "name": "ruff",
+            "command": "python",
+            "args": ["-m", "ruff", "check", "."]
+          }
+        ]
+      }
     },
     "design_rules": {
       "require_cmd_through_internal_cli": true,
@@ -61,7 +77,23 @@
     },
     "security_rules": {
       "govulncheck_mode": "auto",
-      "govulncheck_command": "govulncheck"
+      "govulncheck_command": "govulncheck",
+      "language_commands": {
+        "typescript": [
+          {
+            "name": "npm-audit",
+            "command": "npm",
+            "args": ["audit", "--audit-level=high"]
+          }
+        ],
+        "python": [
+          {
+            "name": "bandit",
+            "command": "python",
+            "args": ["-m", "bandit", "-r", "."]
+          }
+        ]
+      }
     }
   },
   "exclude": ["vendor/**", "**/testdata/**"],

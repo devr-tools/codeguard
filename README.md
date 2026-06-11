@@ -5,9 +5,11 @@
 
 `codeguard` is a standalone Go service and CLI for repository checks across code quality, design boundaries, security, CI/CD hygiene, AI prompt governance, and repo-specific policy rules.
 
-It now supports repository exclusions, baselines, waivers, changed-lines diff scans, SARIF output, GitHub annotations, custom rule packs, policy profiles, scan caching, doctor checks, and rule discovery from the CLI.
+It now supports repository exclusions, baselines, waivers, changed-lines diff scans, SARIF output, GitHub annotations, custom rule packs, policy profiles, scan caching, doctor checks, rule discovery from the CLI, native TypeScript/Python quality, design, and security heuristics, and language-specific command checks.
 
 The public Go SDK lives at `github.com/devr-tools/codeguard/pkg/codeguard`.
+
+Rule discovery APIs expose per-check metadata, including `execution_model` (`go-native`, `language-agnostic`, or `command-driven`) and `language_coverage` (fixed target languages, `repository-wide`, or `configurable`).
 
 ## Installation
 
@@ -56,6 +58,8 @@ codeguard profiles
 codeguard explain security.hardcoded-secret
 codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 ```
+
+`codeguard rules` prints each rule's level, execution model, language coverage, section, and title. `codeguard explain <rule-id>` includes the same metadata for a single rule.
 
 By default, `codeguard` looks for `codeguard.yaml`, `codeguard.yml`, or `codeguard.json` in the repository root. If those are missing, it also checks `.codeguard/codeguard.yaml`, `.codeguard/codeguard.yml`, and `.codeguard/codeguard.json`.
 

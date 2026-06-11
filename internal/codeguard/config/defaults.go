@@ -65,6 +65,9 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	if dst.MaxCyclomaticComplexity == 0 {
 		dst.MaxCyclomaticComplexity = def.MaxCyclomaticComplexity
 	}
+	if dst.LanguageCommands == nil && len(def.LanguageCommands) > 0 {
+		dst.LanguageCommands = cloneCommandCheckMap(def.LanguageCommands)
+	}
 }
 
 func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig) {
@@ -137,6 +140,9 @@ func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRules
 	if dst.GovulncheckCommand == "" {
 		dst.GovulncheckCommand = def.GovulncheckCommand
 	}
+	if dst.LanguageCommands == nil && len(def.LanguageCommands) > 0 {
+		dst.LanguageCommands = cloneCommandCheckMap(def.LanguageCommands)
+	}
 }
 
 func applyRulePackDefaults(cfg *core.Config) {
@@ -151,4 +157,15 @@ func applyRulePackDefaults(cfg *core.Config) {
 			}
 		}
 	}
+}
+
+func cloneCommandCheckMap(src map[string][]core.CommandCheckConfig) map[string][]core.CommandCheckConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string][]core.CommandCheckConfig, len(src))
+	for language, checks := range src {
+		dst[language] = append([]core.CommandCheckConfig(nil), checks...)
+	}
+	return dst
 }
