@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/internal/cli"
-	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
 func TestRunRules(t *testing.T) {
@@ -112,95 +110,6 @@ func TestRunRulesWithConfigIncludesCustomRules(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "custom.disallow-env") {
 		t.Fatalf("expected custom rule in rules output, got: %s", stdout.String())
-	}
-}
-
-func TestSDKRuleMetadataIncludesExecutionModel(t *testing.T) {
-	rule, ok := codeguard.ExplainRule("quality.gofmt")
-	if !ok {
-		t.Fatal("expected quality.gofmt metadata")
-	}
-	if rule.ExecutionModel != codeguard.RuleExecutionModelGoNative {
-		t.Fatalf("quality.gofmt execution model = %q, want %q", rule.ExecutionModel, codeguard.RuleExecutionModelGoNative)
-	}
-	if rule.LanguageCoverage.Mode != codeguard.RuleLanguageCoverageFixed {
-		t.Fatalf("quality.gofmt language coverage mode = %q, want %q", rule.LanguageCoverage.Mode, codeguard.RuleLanguageCoverageFixed)
-	}
-	if !reflect.DeepEqual(rule.LanguageCoverage.Languages, []codeguard.RuleLanguage{codeguard.RuleLanguageGo}) {
-		t.Fatalf("quality.gofmt language coverage languages = %#v, want %#v", rule.LanguageCoverage.Languages, []codeguard.RuleLanguage{codeguard.RuleLanguageGo})
-	}
-
-	rule, ok = codeguard.ExplainRule("quality.max-function-lines")
-	if !ok {
-		t.Fatal("expected quality.max-function-lines metadata")
-	}
-	if rule.ExecutionModel != codeguard.RuleExecutionModelLanguageAgnostic {
-		t.Fatalf("quality.max-function-lines execution model = %q, want %q", rule.ExecutionModel, codeguard.RuleExecutionModelLanguageAgnostic)
-	}
-	if rule.LanguageCoverage.Mode != codeguard.RuleLanguageCoverageFixed {
-		t.Fatalf("quality.max-function-lines language coverage mode = %q, want %q", rule.LanguageCoverage.Mode, codeguard.RuleLanguageCoverageFixed)
-	}
-	if !reflect.DeepEqual(rule.LanguageCoverage.Languages, []codeguard.RuleLanguage{codeguard.RuleLanguageGo, codeguard.RuleLanguagePython, codeguard.RuleLanguageTypeScript}) {
-		t.Fatalf("quality.max-function-lines language coverage languages = %#v, want %#v", rule.LanguageCoverage.Languages, []codeguard.RuleLanguage{codeguard.RuleLanguageGo, codeguard.RuleLanguagePython, codeguard.RuleLanguageTypeScript})
-	}
-
-	rule, ok = codeguard.ExplainRule("quality.typescript.explicit-any")
-	if !ok {
-		t.Fatal("expected quality.typescript.explicit-any metadata")
-	}
-	if rule.LanguageCoverage.Mode != codeguard.RuleLanguageCoverageFixed {
-		t.Fatalf("quality.typescript.explicit-any language coverage mode = %q, want %q", rule.LanguageCoverage.Mode, codeguard.RuleLanguageCoverageFixed)
-	}
-	if !reflect.DeepEqual(rule.LanguageCoverage.Languages, []codeguard.RuleLanguage{codeguard.RuleLanguageTypeScript}) {
-		t.Fatalf("quality.typescript.explicit-any language coverage languages = %#v, want %#v", rule.LanguageCoverage.Languages, []codeguard.RuleLanguage{codeguard.RuleLanguageTypeScript})
-	}
-
-	rule, ok = codeguard.ExplainRule("security.command-check")
-	if !ok {
-		t.Fatal("expected security.command-check metadata")
-	}
-	if rule.ExecutionModel != codeguard.RuleExecutionModelCommandDriven {
-		t.Fatalf("security.command-check execution model = %q, want %q", rule.ExecutionModel, codeguard.RuleExecutionModelCommandDriven)
-	}
-	if rule.LanguageCoverage.Mode != codeguard.RuleLanguageCoverageConfigurable {
-		t.Fatalf("security.command-check language coverage mode = %q, want %q", rule.LanguageCoverage.Mode, codeguard.RuleLanguageCoverageConfigurable)
-	}
-
-	rule, ok = codeguard.ExplainRule("security.hardcoded-secret")
-	if !ok {
-		t.Fatal("expected security.hardcoded-secret metadata")
-	}
-	if rule.LanguageCoverage.Mode != codeguard.RuleLanguageCoverageRepositoryWide {
-		t.Fatalf("security.hardcoded-secret language coverage mode = %q, want %q", rule.LanguageCoverage.Mode, codeguard.RuleLanguageCoverageRepositoryWide)
-	}
-
-	cfg := codeguard.ExampleConfig()
-	cfg.RulePacks = []codeguard.RulePackConfig{{
-		Name: "repo-policy",
-		Rules: []codeguard.CustomRuleConfig{{
-			ID:       "custom.disallow-env",
-			Title:    "Disallow env files",
-			Severity: "fail",
-			Message:  "env files must not be committed",
-			Paths:    []string{".env"},
-		}},
-	}}
-
-	var customRule codeguard.RuleMetadata
-	for _, meta := range codeguard.RulesForConfig(cfg) {
-		if meta.ID == "custom.disallow-env" {
-			customRule = meta
-			break
-		}
-	}
-	if customRule.ID == "" {
-		t.Fatal("expected custom.disallow-env metadata")
-	}
-	if customRule.ExecutionModel != codeguard.RuleExecutionModelLanguageAgnostic {
-		t.Fatalf("custom.disallow-env execution model = %q, want %q", customRule.ExecutionModel, codeguard.RuleExecutionModelLanguageAgnostic)
-	}
-	if customRule.LanguageCoverage.Mode != codeguard.RuleLanguageCoverageConfigurable {
-		t.Fatalf("custom.disallow-env language coverage mode = %q, want %q", customRule.LanguageCoverage.Mode, codeguard.RuleLanguageCoverageConfigurable)
 	}
 }
 

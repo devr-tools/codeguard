@@ -168,7 +168,11 @@ func resolvePythonImportModule(currentModule string, imported string) string {
 	if len(parts) == 0 {
 		return remainder
 	}
-	base := parts[:max(0, len(parts)-dots)]
+	limit := len(parts) - dots
+	if limit < 0 {
+		limit = 0
+	}
+	base := parts[:limit]
 	if remainder != "" {
 		base = append(base, remainder)
 	}
