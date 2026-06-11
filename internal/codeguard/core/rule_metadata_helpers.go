@@ -66,6 +66,9 @@ func defaultRuleLanguageCoverage(ruleID string, executionModel RuleExecutionMode
 		"security.private-key",
 		"prompts.secret-interpolation",
 		"prompts.unsafe-instructions",
+		"prompts.agent-dangerous-instructions",
+		"prompts.agent-standing-permissions",
+		"prompts.mcp-config-risk",
 		"ci.required-workflow-dir",
 		"ci.required-file",
 		"ci.workflow-content":

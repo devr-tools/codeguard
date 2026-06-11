@@ -1,14 +1,109 @@
 {
   "version": 5,
   "entries": {
-    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathscsharp-pass3372214676/001|tests/WidgetTests.cs": {
-      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "342b0aebac4e69f3830ac0c0bb9cc07fb052ad8e",
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsForAlwaysTruePythonAssertions2923325712/001|tests/test_sample.py": {
+      "file_hash": "60ec2777a25f9e47b85ffefa6097ef8b80908632",
+      "config_hash": "c5c71c5fc095f954c4e4193f2ddde07565c3099a",
       "findings": []
     },
-    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-fail1020231733/001|spec/sample_spec.rb": {
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsForGoTestsWithoutAssertions4107861948/001|tests/sample_test.go": {
+      "file_hash": "97e5d64e6a6af67613b9b59c47c6d0723352e53d",
+      "config_hash": "5e3df21271af2c4a3c7bc43c8b1849ca726dfb40",
+      "findings": []
+    },
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsWhenJavaScriptTestsUseTestsDirectoryLayoutOutsid3767000907/001|__tests__/sample.js": {
+      "file_hash": "16896235f9facbd3f3c5335e7ff299ab60f29382",
+      "config_hash": "650b26a46fbc5cb23d5a69ecd500712a1d406ccb",
+      "findings": [
+        {
+          "rule_id": "ci.test-file-location",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Test file location",
+          "section": "CI/CD",
+          "message": "test files must live under configured test paths",
+          "why": "test files must live under configured test paths",
+          "how_to_fix": "Move the test file under the configured test path or update the CI policy if the layout is intentional.",
+          "path": "__tests__/sample.js",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "4b711d305deaf6499c9fc7173c4edaa70bade89d"
+        }
+      ]
+    },
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsWhenPythonTestsLiveOutsideAllowedPaths3311762493/001|pkg/test_sample.py": {
+      "file_hash": "60ec2777a25f9e47b85ffefa6097ef8b80908632",
+      "config_hash": "4d596e2c3cfa609794c11de6dea6c72dc903276e",
+      "findings": [
+        {
+          "rule_id": "ci.test-file-location",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Test file location",
+          "section": "CI/CD",
+          "message": "test files must live under configured test paths",
+          "why": "test files must live under configured test paths",
+          "how_to_fix": "Move the test file under the configured test path or update the CI policy if the layout is intentional.",
+          "path": "pkg/test_sample.py",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "eebeeef04e5053a458dc29f015c03e4421502ff6"
+        }
+      ]
+    },
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsWhenTestsLiveOutsideAllowedPaths1834992276/001|pkg/sample/sample_test.go": {
+      "file_hash": "214cbf0e0bdb80350b2281d6ec86120b3809dac6",
+      "config_hash": "2994e614fd9d09eeb5f8cea502c8764be1546cd8",
+      "findings": [
+        {
+          "rule_id": "ci.test-file-location",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Test file location",
+          "section": "CI/CD",
+          "message": "test files must live under configured test paths",
+          "why": "test files must live under configured test paths",
+          "how_to_fix": "Move the test file under the configured test path or update the CI policy if the layout is intentional.",
+          "path": "pkg/sample/sample_test.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "be898887d98bd1f6c12ccbeb761ef544eea17ee3"
+        }
+      ]
+    },
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsWhenTypeScriptTestsLiveOutsideAllowedPaths2472075259/001|src/sample.test.ts": {
+      "file_hash": "16896235f9facbd3f3c5335e7ff299ab60f29382",
+      "config_hash": "e357d768f8cb85b51bb807963eac6b6a4d6d4371",
+      "findings": [
+        {
+          "rule_id": "ci.test-file-location",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Test file location",
+          "section": "CI/CD",
+          "message": "test files must live under configured test paths",
+          "why": "test files must live under configured test paths",
+          "how_to_fix": "Move the test file under the configured test path or update the CI policy if the layout is intentional.",
+          "path": "src/sample.test.ts",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "5d5d200890c312a88ce5da6c063ef7653c309ca8"
+        }
+      ]
+    },
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathscsharp-pass1501164565/001|tests/WidgetTests.cs": {
       "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "a8a16caa1a2a605d2f29c11cf54c8fa95d6426a1",
+      "config_hash": "edf6d8ab0cac3f0ac1763e32f244cdd0215bae87",
+      "findings": []
+    },
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathscsharp-pass94991426/001|tests/WidgetTests.cs": {
+      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
+      "config_hash": "cd91dafd5f540764e15ba8bf0bd9e32eefbd2cdd",
+      "findings": []
+    },
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-fail1866252348/001|spec/sample_spec.rb": {
+      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
+      "config_hash": "4eb7819ff688b6d704e28830421d0fa0a38766e5",
       "findings": [
         {
           "rule_id": "ci.test-file-location",
@@ -26,34 +121,1038 @@
         }
       ]
     },
-    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-pass3991418747/001|tests/sample_test.rb": {
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-fail2315575470/001|spec/sample_spec.rb": {
       "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "1b92b6b3802c43eed4771fd2cdf7bed6a8f696ec",
+      "config_hash": "52d6fe76b09d5484b28b4e58b9c1d6fe5e79d6fa",
+      "findings": [
+        {
+          "rule_id": "ci.test-file-location",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Test file location",
+          "section": "CI/CD",
+          "message": "test files must live under configured test paths",
+          "why": "test files must live under configured test paths",
+          "how_to_fix": "Move the test file under the configured test path or update the CI policy if the layout is intentional.",
+          "path": "spec/sample_spec.rb",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "407fcd56013606b8fecf5ab4a69851f883e0f27f"
+        }
+      ]
+    },
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-pass1891409200/001|tests/sample_test.rb": {
+      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
+      "config_hash": "af63046893f19a346f9dda78db6f495d93fc907e",
       "findings": []
     },
-    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathscsharp-pass3372214676/001|tests/WidgetTests.cs": {
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-pass2429252746/001|tests/sample_test.rb": {
       "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "342b0aebac4e69f3830ac0c0bb9cc07fb052ad8e",
+      "config_hash": "1e061c9ed92d636dac993f4b414a948bb0c6cabb",
       "findings": []
     },
-    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-fail1020231733/001|spec/sample_spec.rb": {
-      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "a8a16caa1a2a605d2f29c11cf54c8fa95d6426a1",
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckIgnoresCommentedAssertionTokensAndPassesRealTypeScrip45907511/001|tests/sample.test.ts": {
+      "file_hash": "4c46a8ac2a27f47ba4bbb1e642eb94042e0e7796",
+      "config_hash": "88d21db6437fdff93f7d4a69bbf905395e91a22e",
       "findings": []
     },
-    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-pass3991418747/001|tests/sample_test.rb": {
-      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
-      "config_hash": "1b92b6b3802c43eed4771fd2cdf7bed6a8f696ec",
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckPassesWhenPythonTestsLiveUnderAllowedPaths2769662732/001|tests/test_sample.py": {
+      "file_hash": "55105d769e931a3de24037cba2756c1cc623e931",
+      "config_hash": "a32e63b51d8b1df6769c926b8bab6bcde8ec16bf",
       "findings": []
     },
-    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityruby4008994837/001|app/sample.rb": {
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckPassesWhenTestsLiveUnderAllowedPaths703556311/001|tests/cli/sample_test.go": {
+      "file_hash": "3256dda25a548fb2ddac589f06a1c76044f97c18",
+      "config_hash": "8aaddc080926e25d7a2a0ad5bfe88ef8056e6be1",
+      "findings": []
+    },
+    "ci-test-file-location|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckPassesWhenTypeScriptTestsLiveUnderAllowedPaths1584115610/001|tests/unit/sample.spec.tsx": {
+      "file_hash": "16896235f9facbd3f3c5335e7ff299ab60f29382",
+      "config_hash": "77302a2d7a36e6ab72888d771595e8c383c5a3d1",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsForAlwaysTruePythonAssertions2923325712/001|tests/test_sample.py": {
+      "file_hash": "60ec2777a25f9e47b85ffefa6097ef8b80908632",
+      "config_hash": "c5c71c5fc095f954c4e4193f2ddde07565c3099a",
+      "findings": [
+        {
+          "rule_id": "ci.always-true-test-assertion",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Always-true test assertion",
+          "section": "CI/CD",
+          "message": "test assertion is always true and does not verify behavior",
+          "why": "test assertion is always true and does not verify behavior",
+          "how_to_fix": "Replace the tautological assertion with one that checks observable output, state, or an expected failure.",
+          "path": "tests/test_sample.py",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "f2060a832013edec649ff1639adabd3638156b29"
+        }
+      ]
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsForGoTestsWithoutAssertions4107861948/001|tests/sample_test.go": {
+      "file_hash": "97e5d64e6a6af67613b9b59c47c6d0723352e53d",
+      "config_hash": "5e3df21271af2c4a3c7bc43c8b1849ca726dfb40",
+      "findings": [
+        {
+          "rule_id": "ci.test-without-assertion",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Assertion-free test file",
+          "section": "CI/CD",
+          "message": "test file defines tests but contains no recognizable assertion or failure signal",
+          "why": "test file defines tests but contains no recognizable assertion or failure signal",
+          "how_to_fix": "Add a real assertion or explicit failure path so the test verifies observable behavior.",
+          "path": "tests/sample_test.go",
+          "line": 5,
+          "column": 1,
+          "fingerprint": "d6149b4d853bbc4aeded805cc3ee545eb0a138ed"
+        }
+      ]
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsWhenJavaScriptTestsUseTestsDirectoryLayoutOutsid3767000907/001|__tests__/sample.js": {
+      "file_hash": "16896235f9facbd3f3c5335e7ff299ab60f29382",
+      "config_hash": "650b26a46fbc5cb23d5a69ecd500712a1d406ccb",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsWhenPythonTestsLiveOutsideAllowedPaths3311762493/001|pkg/test_sample.py": {
+      "file_hash": "60ec2777a25f9e47b85ffefa6097ef8b80908632",
+      "config_hash": "4d596e2c3cfa609794c11de6dea6c72dc903276e",
+      "findings": [
+        {
+          "rule_id": "ci.always-true-test-assertion",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Always-true test assertion",
+          "section": "CI/CD",
+          "message": "test assertion is always true and does not verify behavior",
+          "why": "test assertion is always true and does not verify behavior",
+          "how_to_fix": "Replace the tautological assertion with one that checks observable output, state, or an expected failure.",
+          "path": "pkg/test_sample.py",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "089b8e83298d8d8357f8e2a8ceef0db39b178718"
+        }
+      ]
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsWhenTestsLiveOutsideAllowedPaths1834992276/001|pkg/sample/sample_test.go": {
+      "file_hash": "214cbf0e0bdb80350b2281d6ec86120b3809dac6",
+      "config_hash": "2994e614fd9d09eeb5f8cea502c8764be1546cd8",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckFailsWhenTypeScriptTestsLiveOutsideAllowedPaths2472075259/001|src/sample.test.ts": {
+      "file_hash": "16896235f9facbd3f3c5335e7ff299ab60f29382",
+      "config_hash": "e357d768f8cb85b51bb807963eac6b6a4d6d4371",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathscsharp-pass1501164565/001|tests/WidgetTests.cs": {
+      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
+      "config_hash": "edf6d8ab0cac3f0ac1763e32f244cdd0215bae87",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathscsharp-pass94991426/001|tests/WidgetTests.cs": {
+      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
+      "config_hash": "cd91dafd5f540764e15ba8bf0bd9e32eefbd2cdd",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-fail1866252348/001|spec/sample_spec.rb": {
+      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
+      "config_hash": "4eb7819ff688b6d704e28830421d0fa0a38766e5",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-fail2315575470/001|spec/sample_spec.rb": {
+      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
+      "config_hash": "52d6fe76b09d5484b28b4e58b9c1d6fe5e79d6fa",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-pass1891409200/001|tests/sample_test.rb": {
+      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
+      "config_hash": "af63046893f19a346f9dda78db6f495d93fc907e",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckHandlesAdditionalLanguageTestPathsruby-pass2429252746/001|tests/sample_test.rb": {
+      "file_hash": "f8d2bc2e9aaffaab2cb9f7fc62037c16289406f3",
+      "config_hash": "1e061c9ed92d636dac993f4b414a948bb0c6cabb",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckIgnoresCommentedAssertionTokensAndPassesRealTypeScrip45907511/001|tests/sample.test.ts": {
+      "file_hash": "4c46a8ac2a27f47ba4bbb1e642eb94042e0e7796",
+      "config_hash": "88d21db6437fdff93f7d4a69bbf905395e91a22e",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckPassesWhenPythonTestsLiveUnderAllowedPaths2769662732/001|tests/test_sample.py": {
+      "file_hash": "55105d769e931a3de24037cba2756c1cc623e931",
+      "config_hash": "a32e63b51d8b1df6769c926b8bab6bcde8ec16bf",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckPassesWhenTestsLiveUnderAllowedPaths703556311/001|tests/cli/sample_test.go": {
+      "file_hash": "3256dda25a548fb2ddac589f06a1c76044f97c18",
+      "config_hash": "8aaddc080926e25d7a2a0ad5bfe88ef8056e6be1",
+      "findings": []
+    },
+    "ci-test-quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCICheckPassesWhenTypeScriptTestsLiveUnderAllowedPaths1584115610/001|tests/unit/sample.spec.tsx": {
+      "file_hash": "16896235f9facbd3f3c5335e7ff299ab60f29382",
+      "config_hash": "77302a2d7a36e6ab72888d771595e8c383c5a3d1",
+      "findings": []
+    },
+    "custom|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCustomRulePackFindingsAndGuidance3392931631/001|.env": {
+      "file_hash": "9843220c01322f99775c096c4efcf3d156e4c655",
+      "config_hash": "8c8357992c4e77226d171375ae4497361ddcf634",
+      "findings": [
+        {
+          "rule_id": "custom.env-file",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Environment file committed",
+          "section": "Custom Rules",
+          "message": "environment files must not be committed",
+          "why": "environment files must not be committed",
+          "how_to_fix": "Remove the file from the repository and load secrets at runtime.",
+          "path": ".env",
+          "fingerprint": "1550365f1aa0d4f0b4d3c18bc3203eff2721487a"
+        }
+      ]
+    },
+    "custom|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestCustomRulePackFindingsAndGuidance3392931631/001|prompts/system.md": {
+      "file_hash": "f222d24b66e0aea7a3541b939f2267f92fd5ee44",
+      "config_hash": "8c8357992c4e77226d171375ae4497361ddcf634",
+      "findings": [
+        {
+          "rule_id": "custom.prompt-override",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Prompt override phrase",
+          "section": "Custom Rules",
+          "message": "prompt contains an override phrase",
+          "why": "prompt contains an override phrase",
+          "how_to_fix": "Rewrite the prompt to remove override instructions.",
+          "path": "prompts/system.md",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "2ee4d46cd48046d2214b17059735a863d5898387"
+        }
+      ]
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckAllowsDisabledRuleOverride912285951/001|cmd/tool/main.go": {
+      "file_hash": "793eb816f516ce0e1a0d6fe57a788f5c72de8d97",
+      "config_hash": "d65fa7e37a97d275eb760d4b7fdc920b769e7947",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsForConfiguredDiffCommand4252459047/001|api.go": {
+      "file_hash": "6e734c10d8cff88b318159c921b50a9d9dc3437a",
+      "config_hash": "1fc469fbd192a78152e36468e2c43e01a38d6511",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsForPythonImportCycle1846995687/001|app/repo.py": {
+      "file_hash": "2e5b944a46d7e57c270467a267c8fa2766a5a2ba",
+      "config_hash": "78c6dba3190c33d09659ef832c026755f0ac241f",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsForPythonImportCycle1846995687/001|app/service.py": {
+      "file_hash": "a58975474b005f3ed69086e5036d1edc353bac70",
+      "config_hash": "78c6dba3190c33d09659ef832c026755f0ac241f",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsWhenCmdImportsServiceDirectly1632020704/001|cmd/tool/main.go": {
+      "file_hash": "793eb816f516ce0e1a0d6fe57a788f5c72de8d97",
+      "config_hash": "537745de050848e3a0899db0b1eb1f0018fafb04",
+      "findings": [
+        {
+          "rule_id": "design.cmd-through-internal-cli",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Command layer routing",
+          "section": "Design Patterns",
+          "message": "cmd package imports reusable service package directly",
+          "why": "cmd package imports reusable service package directly",
+          "how_to_fix": "Route command execution through internal/cli and keep cmd thin.",
+          "path": "cmd/tool/main.go",
+          "line": 3,
+          "column": 8,
+          "fingerprint": "76fe0fd3328eb4ce551291d4e2cfcfcd3c56b704"
+        }
+      ]
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsWhenPythonPublicModuleImportsCLI718658793/001|app/cli.py": {
+      "file_hash": "5ae789eefdb981c7db86303d88be913fdd62803b",
+      "config_hash": "56a8d6767b47a3fef381d424f6107fe56cd9107a",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsWhenPythonPublicModuleImportsCLI718658793/001|app/service.py": {
+      "file_hash": "0df2d4e9357994d89be5d002800cb4be035bbda7",
+      "config_hash": "56a8d6767b47a3fef381d424f6107fe56cd9107a",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsWhenPythonPublicModuleImportsPrivateModule154839525/001|app/_internal.py": {
+      "file_hash": "5ae789eefdb981c7db86303d88be913fdd62803b",
+      "config_hash": "2e16b8d8ef4e793962878ef37229dce1c7d42593",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsWhenPythonPublicModuleImportsPrivateModule154839525/001|app/service.py": {
+      "file_hash": "95a9892ffe5335787d44c14fae70dd6125182c71",
+      "config_hash": "2e16b8d8ef4e793962878ef37229dce1c7d42593",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsWhenPythonPublicModuleTransitivelyDependsOnC469210643/001|app/cli.py": {
+      "file_hash": "5ae789eefdb981c7db86303d88be913fdd62803b",
+      "config_hash": "d67f305dc5989c0fa213716bd0a3ca5ca4c3334b",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsWhenPythonPublicModuleTransitivelyDependsOnC469210643/001|app/service.py": {
+      "file_hash": "30630f7235ee2db347537cff52ea2e154d491f71",
+      "config_hash": "d67f305dc5989c0fa213716bd0a3ca5ca4c3334b",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsWhenPythonPublicModuleTransitivelyDependsOnC469210643/001|app/web/handler.py": {
+      "file_hash": "485bea3b9db4d8d6a580b77e1ddb1c7652330c28",
+      "config_hash": "d67f305dc5989c0fa213716bd0a3ca5ca4c3334b",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckFailsWhenServiceImportsInternal3230530748/001|pkg/publicapi/service.go": {
+      "file_hash": "1b02ccc427111ddd633a6f006b6f63fa4f6540a2",
+      "config_hash": "b2ed2651acee57d1e091846c185b9855d9c550d5",
+      "findings": [
+        {
+          "rule_id": "design.service-import-internal",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Service to internal import",
+          "section": "Design Patterns",
+          "message": "service package imports internal package",
+          "why": "service package imports internal package",
+          "how_to_fix": "Move the dependency behind a public boundary or relocate the service code.",
+          "path": "pkg/publicapi/service.go",
+          "line": 3,
+          "column": 8,
+          "fingerprint": "f4a124faa62beddc1c9f34f18bfd086d390fab50"
+        }
+      ]
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckHandlesMultilinePythonImports2298229770/001|app/cli.py": {
+      "file_hash": "5ae789eefdb981c7db86303d88be913fdd62803b",
+      "config_hash": "6ed765a10377b9adc628ef7f54e79e682695e02d",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckHandlesMultilinePythonImports2298229770/001|app/service.py": {
+      "file_hash": "c705b1f9e6f70098dd9b3d96ef313e82dda6e776",
+      "config_hash": "6ed765a10377b9adc628ef7f54e79e682695e02d",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckPassesForLayeredLayout2056842336/001|cmd/tool/main.go": {
+      "file_hash": "dbdf7c7b1b5db0b8755d9908ae2ae3aa021d83f7",
+      "config_hash": "d084a0c04c63d85a3291df27f2caa964d2dbeac7",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckPassesForLayeredLayout2056842336/001|internal/cli/run.go": {
+      "file_hash": "10c36c44cca2cabf27584bd94579a24f3fbf1623",
+      "config_hash": "d084a0c04c63d85a3291df27f2caa964d2dbeac7",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckPassesForLayeredLayout2056842336/001|pkg/codeguard/sdk.go": {
+      "file_hash": "0612e7bec122f9ab936b9e2cc56f562bd5f76138",
+      "config_hash": "d084a0c04c63d85a3291df27f2caa964d2dbeac7",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckPassesForLayeredPythonLayout2990662911/001|app/cli.py": {
+      "file_hash": "0381511acb1f1be4ce361cc6a4b39833679b1f4d",
+      "config_hash": "13311183ea3ed608a29dca088df18602091ef1b5",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckPassesForLayeredPythonLayout2990662911/001|app/service.py": {
+      "file_hash": "5ae789eefdb981c7db86303d88be913fdd62803b",
+      "config_hash": "13311183ea3ed608a29dca088df18602091ef1b5",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckPassesForLayeredPythonLayout2990662911/001|tests/test_service.py": {
+      "file_hash": "fceb1bb61c5d57812d35c9f19b87f28abccad654",
+      "config_hash": "13311183ea3ed608a29dca088df18602091ef1b5",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckWarnsForGenericPackageName4071301174/001|pkg/codeguard/util.go": {
+      "file_hash": "081e91de850151c193a0ad85bd835d5c7d3d42ce",
+      "config_hash": "2cba83907b2a22d92423447039fa7114c55bc5e4",
+      "findings": [
+        {
+          "rule_id": "design.generic-package-name",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Generic package name",
+          "section": "Design Patterns",
+          "message": "package name \"util\" is too generic",
+          "why": "package name \"util\" is too generic",
+          "how_to_fix": "Rename the package to something specific to its responsibility.",
+          "path": "pkg/codeguard/util.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "8f970a142788fa0bbdd5112b5eedb730fd09f3c8"
+        }
+      ]
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckWarnsForGenericPythonModuleName1450679329/001|app/utils.py": {
+      "file_hash": "d4383e1064b94b94686bd2e7ce82a485c3e83363",
+      "config_hash": "2fab5bb2153994b2c98d363925aea49306bb686b",
+      "findings": []
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckWarnsForLargeInterface3675390089/001|pkg/codeguard/ports.go": {
+      "file_hash": "1990fa09e9b1d9aa7b1c61b611a19c088d43b831",
+      "config_hash": "c8a414aaf3d906e91864dc4c14c2b846eb4efc27",
+      "findings": [
+        {
+          "rule_id": "design.max-interface-methods",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Interface size",
+          "section": "Design Patterns",
+          "message": "interface Client has 3 methods; max is 2",
+          "why": "interface Client has 3 methods; max is 2",
+          "how_to_fix": "Break the interface into smaller focused contracts.",
+          "path": "pkg/codeguard/ports.go",
+          "line": 3,
+          "column": 6,
+          "fingerprint": "80ebbd1e410947fc8765b2ef5dfa419a63d1f289"
+        }
+      ]
+    },
+    "design|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDesignCheckWarnsForTooManyMethodsOnType29301517/001|pkg/codeguard/service.go": {
+      "file_hash": "0017f7f77c39bb116fa8ae292e5b4f1f7304ff69",
+      "config_hash": "f23c26ecfab29d7a0811459725a56b1ee9ed1138",
+      "findings": [
+        {
+          "rule_id": "design.max-methods-per-type",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Methods per type",
+          "section": "Design Patterns",
+          "message": "type Service has 3 methods; max is 2",
+          "why": "type Service has 3 methods; max is 2",
+          "how_to_fix": "Split responsibilities across smaller types or interfaces.",
+          "path": "pkg/codeguard/service.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "90cad7a21abbac7906e14faa44b548eeb5a277ed"
+        }
+      ]
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestBaselineSuppressesExistingFinding520962525/001|prompts/system.prompt": {
+      "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
+      "config_hash": "612e3b0c89f46b2b664509b0c4adc00b857b4ed7",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        }
+      ]
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestDiffModeReportsOnlyChangedLines1108404534/001|prompts/system.prompt": {
+      "file_hash": "e56b03346107443b0df39476794b313b389a2bea",
+      "config_hash": "55f637719f88a8ce774363b8a04dc51a3fae798c",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        },
+        {
+          "rule_id": "prompts.unsafe-instructions",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Unsafe prompt instructions",
+          "section": "AI Prompts",
+          "message": "prompt contains unsafe instruction pattern",
+          "why": "prompt contains unsafe instruction pattern",
+          "how_to_fix": "Rewrite the prompt to remove instruction override or prompt exfiltration language.",
+          "path": "prompts/system.prompt",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "f837fe81a865167a06e4e442fd17ddae4d9126c4"
+        }
+      ]
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestInlineSuppressionExpiredDoesNotSuppress2032686267/001|prompts/assistant.md": {
+      "file_hash": "8278c8881383c06a2935de628c8f54140d049bae",
+      "config_hash": "de843f304caff59945f75eb8c8a9e74d39fcb910",
+      "findings": [
+        {
+          "rule_id": "prompts.unsafe-instructions",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Unsafe prompt instructions",
+          "section": "AI Prompts",
+          "message": "prompt contains unsafe instruction pattern",
+          "why": "prompt contains unsafe instruction pattern",
+          "how_to_fix": "Rewrite the prompt to remove instruction override or prompt exfiltration language.",
+          "path": "prompts/assistant.md",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "f7798bd25f255b4e7ab8b6c8dc126872460ffb57"
+        }
+      ]
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestInlineSuppressionHonorsExpiry816864534/001|prompts/assistant.md": {
+      "file_hash": "73e6c7fb06b974d941709db01286cde56ed90993",
+      "config_hash": "c52a7dfd5d323321d5793e074d28635258cfb58b",
+      "findings": [
+        {
+          "rule_id": "prompts.unsafe-instructions",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Unsafe prompt instructions",
+          "section": "AI Prompts",
+          "message": "prompt contains unsafe instruction pattern",
+          "why": "prompt contains unsafe instruction pattern",
+          "how_to_fix": "Rewrite the prompt to remove instruction override or prompt exfiltration language.",
+          "path": "prompts/assistant.md",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "f7798bd25f255b4e7ab8b6c8dc126872460ffb57"
+        }
+      ]
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestPromptCheckAllowsDisabledUnsafeInstructionRule2758779689/001|prompts/assistant.md": {
+      "file_hash": "492b2ff6a8bd2a07ca367d5922d8c35261673da3",
+      "config_hash": "0eb0d6d3eafb5759da3bda030bc72123454cbf84",
+      "findings": []
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestPromptCheckFailsForSecretInterpolation3616865361/001|prompts/system.prompt": {
+      "file_hash": "e98977b5ab97deb43c552363e3dea78d8cbfcb99",
+      "config_hash": "8a9d5bad8e8f2aa14881d201818f3103cfdaed72",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        }
+      ]
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestPromptCheckScansAgentConfigsForDangerousInstructions172417142/001|AGENTS.md": {
+      "file_hash": "101b46b6c869b06a055e1c7134923c026cddba24",
+      "config_hash": "1185f38f8b600117f231409d0775f3613dd2aab6",
+      "findings": [
+        {
+          "rule_id": "prompts.agent-dangerous-instructions",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Dangerous agent instructions",
+          "section": "AI Prompts",
+          "message": "agent config contains dangerous instruction or approval bypass pattern",
+          "why": "agent config contains dangerous instruction or approval bypass pattern",
+          "how_to_fix": "Remove the bypass language and replace it with least-privilege guidance that preserves approval and sandbox checks.",
+          "path": "AGENTS.md",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "0baa9fd2ad856bb8197f237d77ec29bddc423d13"
+        }
+      ]
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestPromptCheckScansAgentConfigsForSecretInterpolation2186379605/001|CLAUDE.md": {
+      "file_hash": "76fffb727bcbbe768feb0ab1f5e2be7ccecc84e3",
+      "config_hash": "adeb91322f567657c67abdfbefaef765cc18ba4d",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "CLAUDE.md",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "62bba3e1eb6a04aafba93eaf720c9a163c7bfc9b"
+        }
+      ]
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestPromptCheckScansCursorRulesForStandingPermissions240291586/001|.cursorrules": {
+      "file_hash": "a457d94fe6a9323eb5cbb9e34c03b2b0f84d7781",
+      "config_hash": "ec5e2365155525054f292620412a71de6a47ef2b",
+      "findings": [
+        {
+          "rule_id": "prompts.agent-standing-permissions",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Standing agent permissions",
+          "section": "AI Prompts",
+          "message": "agent config grants standing wildcard permissions or unrestricted tool access",
+          "why": "agent config grants standing wildcard permissions or unrestricted tool access",
+          "how_to_fix": "Scope tool permissions to the minimum required commands, paths, and hosts instead of broad allowlists or always-allow settings.",
+          "path": ".cursorrules",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "b7cfade7bccb89f99c646364c1f9a0df0e8f8f64"
+        }
+      ]
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestPromptCheckScansMCPConfigsForRiskyShellWrappedCommands2648207977/001|.cursor/mcp.json": {
+      "file_hash": "803f88ec1cfedbca1c4bf8d749a8abbcf15871ba",
+      "config_hash": "794dd3ec4233b5c00db161c0f6b2b4fb4716438b",
+      "findings": [
+        {
+          "rule_id": "prompts.mcp-config-risk",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Risky MCP configuration",
+          "section": "AI Prompts",
+          "message": "MCP config allows risky tool execution or overly broad permissions",
+          "why": "MCP config allows risky tool execution or overly broad permissions",
+          "how_to_fix": "Restrict MCP tool permissions, avoid wildcard allowlists, and prefer fixed binaries over shell-wrapped commands.",
+          "path": ".cursor/mcp.json",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "4257093e338efa4e8dc43fc7acb517c9c1004363"
+        }
+      ]
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestPromptCheckWarnsForUnsafeInstructions3802609984/001|prompts/assistant.md": {
+      "file_hash": "492b2ff6a8bd2a07ca367d5922d8c35261673da3",
+      "config_hash": "fdf1890ddbc167cae4072a12931563d6ebbe91de",
+      "findings": [
+        {
+          "rule_id": "prompts.unsafe-instructions",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Unsafe prompt instructions",
+          "section": "AI Prompts",
+          "message": "prompt contains unsafe instruction pattern",
+          "why": "prompt contains unsafe instruction pattern",
+          "how_to_fix": "Rewrite the prompt to remove instruction override or prompt exfiltration language.",
+          "path": "prompts/assistant.md",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "3cb30df588f77af390d23982466933c3f1767eb9"
+        }
+      ]
+    },
+    "prompts|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestWaiverSuppressesFindingUntilExpiry3186330657/001|prompts/system.prompt": {
+      "file_hash": "fc044406ded92f50fb62c660c1f4d9984bbce4aa",
+      "config_hash": "4586651a83c2b27b0c8f97e96324d1f916f5cbd8",
+      "findings": [
+        {
+          "rule_id": "prompts.secret-interpolation",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Prompt secret interpolation",
+          "section": "AI Prompts",
+          "message": "prompt contains secret interpolation pattern",
+          "why": "prompt contains secret interpolation pattern",
+          "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text.",
+          "path": "prompts/system.prompt",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "7f2c3baa5ff543c211bf9db3f86eb45e65e23f79"
+        }
+      ]
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestExcludeSkipsFiles1240916579/001|main.go": {
+      "file_hash": "70e17b8c817089a25faab3194aebd02b639221a7",
+      "config_hash": "23cf085a1891b6142212a76a2e212c8ea59dacaf",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckFailsForConfiguredTypeScriptCommand2276252249/001|src/index.ts": {
+      "file_hash": "aa6d0212cb9139788d78741b759160f2aae493b3",
+      "config_hash": "cd6930eedfce9a7a66ee23a840c06fbbb130185c",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckFailsForUnformattedGoFile1513728600/001|main.go": {
+      "file_hash": "14643fbc412dee87e662d6adb3c9ee51ada4ed95",
+      "config_hash": "6abf819025ed924fdc0d4c5bcf20c819bd6bfe54",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckIgnoresJavaScriptMarkersInsideStrings3264685130/001|src/safe.js": {
+      "file_hash": "3c62f10b7749f24993d68b4b68be9b5d1a8521dc",
+      "config_hash": "84b2b34ae2e3048f4eb32db08b165021dddb2718",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckIgnoresTypeScriptPatternsInStringsAndComments452105247/001|src/safe.ts": {
+      "file_hash": "c3908bc446c8aa85ac0dd4b5da484de49ec98f73",
+      "config_hash": "529650be3920a98c773ae7b96ff3c7516c1b49c2",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckUsesProfileAwareCloneThreshold2077231712/001|alpha.go": {
+      "file_hash": "cd0ecbcd0501a8c47d43c4abb6fd18f6b8bc2483",
+      "config_hash": "760bfe3f5a07dfc8dff10f91e1c900bc61d99c35",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckUsesProfileAwareCloneThreshold2077231712/001|beta.go": {
+      "file_hash": "cd0ecbcd0501a8c47d43c4abb6fd18f6b8bc2483",
+      "config_hash": "760bfe3f5a07dfc8dff10f91e1c900bc61d99c35",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckUsesSemanticTypeScriptAnalyzerForClassArrowMetho3109433004/001|src/service.ts": {
+      "file_hash": "2847a785b25232611ffdec075cea5da62bef288a",
+      "config_hash": "70d4cd171c5392d8db8ff5f05d629e50b0d1a181",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilitycsharp1001346459/001|src/Sample.cs": {
+      "file_hash": "332ac2a8f9dd82d9b87a9c91a83815b38a964601",
+      "config_hash": "d06ecb86ff8e458f2c1f902ea6adf86812e1ff8b",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilitycsharp546194890/001|src/Sample.cs": {
+      "file_hash": "332ac2a8f9dd82d9b87a9c91a83815b38a964601",
+      "config_hash": "576870432da66026466dc25fd1ff3ecd106b66d7",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityjava679863842/001|src/main/java/Sample.java": {
+      "file_hash": "5446be525b2bf776ede24263b558a3c6f0391dd4",
+      "config_hash": "7f714012a0a1b4c182f5775b011f0a54703342e2",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilitypython3158458707/001|pkg/example.py": {
+      "file_hash": "23e1d712726f0b9fed5d6e5d5c33582732c97bf7",
+      "config_hash": "f9f66e658f44cef3d1e2713f5862f77078c9a625",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityruby2215497813/001|app/sample.rb": {
       "file_hash": "60062246c65eb46b533c134856e0e54486452182",
-      "config_hash": "d1b4304e750538e314466550ffb289afa66656bc",
+      "config_hash": "13cc787659f31f07578344bdd2f8986e98ff22de",
       "findings": []
     },
-    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityruby4008994837/001|app/sample.rb": {
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityruby71555420/001|app/sample.rb": {
       "file_hash": "60062246c65eb46b533c134856e0e54486452182",
-      "config_hash": "d1b4304e750538e314466550ffb289afa66656bc",
+      "config_hash": "2d3b18d4dfca00bdef2554a827a444bc81bcb45c",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityrust1359699921/001|src/lib.rs": {
+      "file_hash": "e541585f53b2df0f423bb2299a087f7e276f7418",
+      "config_hash": "93a3e7c59fb31201cb054f2263abe5f96aa9d746",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForCyclomaticComplexity2214311570/001|main.go": {
+      "file_hash": "ea196ada33689c232f9aaa2ada6a8deb6687462b",
+      "config_hash": "7889ecebfb97b8f2bc7bdb71ce992cda87e23771",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForDependencyDirection2221524896/001|lib.go": {
+      "file_hash": "fd89546db0b32c51eeea26873a6f89148e257256",
+      "config_hash": "959cff94d428f3ba3b54d33ecaa6827238dbc3b4",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForDuplicateCodeAtConfiguredThreshold470647263/001|alpha.go": {
+      "file_hash": "ad2c5e1deca6b005f477fb4e263d418a74ae6120",
+      "config_hash": "d38a8f04b99cba3a1068d8dfda9f21fc405e7869",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForDuplicateCodeAtConfiguredThreshold470647263/001|beta.go": {
+      "file_hash": "fc13a7ba6a255ed8a0d282d15c86a6dbc7b1f1fd",
+      "config_hash": "d38a8f04b99cba3a1068d8dfda9f21fc405e7869",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForGoroutinesInLoop3709919381/001|worker.go": {
+      "file_hash": "a8263c743fd275662158879de58611adbaca2d14",
+      "config_hash": "5961e93daf68ccff43af217128764bd7ba17f9e3",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForMaintainabilityThresholds3415127796/001|main.go": {
+      "file_hash": "adbbe25fbccb4ef689a8020dde1d4da2e3351596",
+      "config_hash": "bea29786480ca60533ec425b9dfdf79dffa4531f",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForNativeJavaScriptRules1357523247/001|src/index.js": {
+      "file_hash": "5a8cc2c0fa3e043ddc7f72c817d7026f9e817540",
+      "config_hash": "4390b0dd63b90d9fbd371580a4e785b9d0867dbe",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForNativePythonRules1905038976/001|app.py": {
+      "file_hash": "d38881b5b21dab37e66b4014f7f4573003c7d4b9",
+      "config_hash": "5e58d1c2ab4658e32f991bfe43033dcbbb656d29",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForNativeTypeScriptRules3545859588/001|src/index.ts": {
+      "file_hash": "fb99c77ffbd03452608c04d32818a4b9bdcde19a",
+      "config_hash": "4c3746ab64b6c20eafcf0a91de0df9dee023efb4",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForNewNativeTypeScriptRules3663082223/001|src/index.ts": {
+      "file_hash": "39eeb4526aa9e7e4c7b50abb15582b297b38fbf6",
+      "config_hash": "ae3f9ded945589a6752d85aae35e877fa2529fa8",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForPythonMaintainability3545414014/001|app.py": {
+      "file_hash": "6c8a1020a8c3aee33f1e96828280578e5b7937fa",
+      "config_hash": "147ed6e6cdfbd7d1cfeba65ca4b003341a42ba07",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForSyncIOInRequestPath1592645096/001|handler.go": {
+      "file_hash": "0d6ea8ccc120d50a750328069124fdd2ebd31f58",
+      "config_hash": "94cde76dcb3d5cef7e18970dc3414e679ec0aa4f",
+      "findings": []
+    },
+    "quality-clone|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForTypeScriptMaintainability414501360/001|sample.ts": {
+      "file_hash": "48fe470a4e2eb2dca1e9fb5763b52e8c5e670f01",
+      "config_hash": "066f631572915e004bcd71d6773aaa3ec1faa1a4",
+      "findings": []
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestExcludeSkipsFiles1240916579/001|main.go": {
+      "file_hash": "70e17b8c817089a25faab3194aebd02b639221a7",
+      "config_hash": "23cf085a1891b6142212a76a2e212c8ea59dacaf",
+      "findings": []
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckFailsForUnformattedGoFile1513728600/001|main.go": {
+      "file_hash": "14643fbc412dee87e662d6adb3c9ee51ada4ed95",
+      "config_hash": "6abf819025ed924fdc0d4c5bcf20c819bd6bfe54",
+      "findings": [
+        {
+          "rule_id": "quality.gofmt",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Go formatting",
+          "section": "Code Quality",
+          "message": "file is not gofmt-formatted",
+          "why": "file is not gofmt-formatted",
+          "how_to_fix": "Run gofmt on the file and commit the formatted result.",
+          "path": "main.go",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "c7205b1d58695a66cf8cd2cffdbe482bd0232058"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckIgnoresDuplicateTestFiles3227672351/001|tests/alpha_test.go": {
+      "file_hash": "3cb32c95d9f7e05ca3803e2d3090fc67fc3aac68",
+      "config_hash": "6238e238a17b236ffcf78a6571c18b12247b10ae",
+      "findings": []
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckIgnoresDuplicateTestFiles3227672351/001|tests/beta_test.go": {
+      "file_hash": "3cb32c95d9f7e05ca3803e2d3090fc67fc3aac68",
+      "config_hash": "6238e238a17b236ffcf78a6571c18b12247b10ae",
+      "findings": []
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckUsesProfileAwareCloneThreshold2077231712/001|alpha.go": {
+      "file_hash": "cd0ecbcd0501a8c47d43c4abb6fd18f6b8bc2483",
+      "config_hash": "760bfe3f5a07dfc8dff10f91e1c900bc61d99c35",
+      "findings": []
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckUsesProfileAwareCloneThreshold2077231712/001|beta.go": {
+      "file_hash": "cd0ecbcd0501a8c47d43c4abb6fd18f6b8bc2483",
+      "config_hash": "760bfe3f5a07dfc8dff10f91e1c900bc61d99c35",
+      "findings": []
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilitycsharp1001346459/001|src/Sample.cs": {
+      "file_hash": "332ac2a8f9dd82d9b87a9c91a83815b38a964601",
+      "config_hash": "d06ecb86ff8e458f2c1f902ea6adf86812e1ff8b",
+      "findings": [
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function Run has 6 lines; max is 4",
+          "why": "function Run has 6 lines; max is 4",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "src/Sample.cs",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "d578c55322d31264d28f5062bf7c70ba4e17d4ab"
+        },
+        {
+          "rule_id": "quality.max-parameters",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function parameters",
+          "section": "Code Quality",
+          "message": "function Run has 3 parameters; max is 2",
+          "why": "function Run has 3 parameters; max is 2",
+          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
+          "path": "src/Sample.cs",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "4d690b0915d7db170b2c9ba68ab060a2af6c5596"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function Run has cyclomatic complexity 4; max is 2",
+          "why": "function Run has cyclomatic complexity 4; max is 2",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "src/Sample.cs",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "83d1816cc448d0f9891cd00bc87a1519828ad3cb"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilitycsharp546194890/001|src/Sample.cs": {
+      "file_hash": "332ac2a8f9dd82d9b87a9c91a83815b38a964601",
+      "config_hash": "576870432da66026466dc25fd1ff3ecd106b66d7",
+      "findings": [
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function Run has 6 lines; max is 4",
+          "why": "function Run has 6 lines; max is 4",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "src/Sample.cs",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "d578c55322d31264d28f5062bf7c70ba4e17d4ab"
+        },
+        {
+          "rule_id": "quality.max-parameters",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function parameters",
+          "section": "Code Quality",
+          "message": "function Run has 3 parameters; max is 2",
+          "why": "function Run has 3 parameters; max is 2",
+          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
+          "path": "src/Sample.cs",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "4d690b0915d7db170b2c9ba68ab060a2af6c5596"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function Run has cyclomatic complexity 4; max is 2",
+          "why": "function Run has cyclomatic complexity 4; max is 2",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "src/Sample.cs",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "83d1816cc448d0f9891cd00bc87a1519828ad3cb"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityjava679863842/001|src/main/java/Sample.java": {
+      "file_hash": "5446be525b2bf776ede24263b558a3c6f0391dd4",
+      "config_hash": "7f714012a0a1b4c182f5775b011f0a54703342e2",
+      "findings": [
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function sample has 6 lines; max is 4",
+          "why": "function sample has 6 lines; max is 4",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "src/main/java/Sample.java",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "8bb2d5b62765ee6898bd169986d459c472f9e8a8"
+        },
+        {
+          "rule_id": "quality.max-parameters",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function parameters",
+          "section": "Code Quality",
+          "message": "function sample has 3 parameters; max is 2",
+          "why": "function sample has 3 parameters; max is 2",
+          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
+          "path": "src/main/java/Sample.java",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "153cf603a73c028ddba2e003b3939098887d7492"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function sample has cyclomatic complexity 4; max is 2",
+          "why": "function sample has cyclomatic complexity 4; max is 2",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "src/main/java/Sample.java",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "1b3e5bc9f2bf1ad1d6757e158042e7490a5220c2"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilitypython3158458707/001|pkg/example.py": {
+      "file_hash": "23e1d712726f0b9fed5d6e5d5c33582732c97bf7",
+      "config_hash": "f9f66e658f44cef3d1e2713f5862f77078c9a625",
+      "findings": [
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function sample has 11 lines; max is 4",
+          "why": "function sample has 11 lines; max is 4",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "pkg/example.py",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "ab6c6ef71682f9b6296754197707d645782e60e2"
+        },
+        {
+          "rule_id": "quality.max-parameters",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function parameters",
+          "section": "Code Quality",
+          "message": "function sample has 3 parameters; max is 2",
+          "why": "function sample has 3 parameters; max is 2",
+          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
+          "path": "pkg/example.py",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "5a5ee17a12023a0cae9853f8b95f3d25c9ab62f1"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function sample has cyclomatic complexity 3; max is 2",
+          "why": "function sample has cyclomatic complexity 3; max is 2",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "pkg/example.py",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "3ad3f9ac5d046bf66d6166c5979c34ff7987b444"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityruby2215497813/001|app/sample.rb": {
+      "file_hash": "60062246c65eb46b533c134856e0e54486452182",
+      "config_hash": "13cc787659f31f07578344bdd2f8986e98ff22de",
       "findings": [
         {
           "rule_id": "quality.max-function-lines",
@@ -98,6 +1197,541 @@
           "fingerprint": "d819900b148de6248f4607926928327ac7f19f24"
         }
       ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityruby71555420/001|app/sample.rb": {
+      "file_hash": "60062246c65eb46b533c134856e0e54486452182",
+      "config_hash": "2d3b18d4dfca00bdef2554a827a444bc81bcb45c",
+      "findings": [
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function sample has 12 lines; max is 4",
+          "why": "function sample has 12 lines; max is 4",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "app/sample.rb",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "6d672e5fc6a779d402701c592d930c551803d77a"
+        },
+        {
+          "rule_id": "quality.max-parameters",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function parameters",
+          "section": "Code Quality",
+          "message": "function sample has 3 parameters; max is 2",
+          "why": "function sample has 3 parameters; max is 2",
+          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
+          "path": "app/sample.rb",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "85660bb11d596b30d9cef06ee17eaedcb36be115"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function sample has cyclomatic complexity 4; max is 2",
+          "why": "function sample has cyclomatic complexity 4; max is 2",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "app/sample.rb",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "d819900b148de6248f4607926928327ac7f19f24"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForAdditionalLanguageMaintainabilityrust1359699921/001|src/lib.rs": {
+      "file_hash": "e541585f53b2df0f423bb2299a087f7e276f7418",
+      "config_hash": "93a3e7c59fb31201cb054f2263abe5f96aa9d746",
+      "findings": [
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function sample has 6 lines; max is 4",
+          "why": "function sample has 6 lines; max is 4",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "src/lib.rs",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "b348e921896159076a4e27e5b357a6aa73a33023"
+        },
+        {
+          "rule_id": "quality.max-parameters",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function parameters",
+          "section": "Code Quality",
+          "message": "function sample has 3 parameters; max is 2",
+          "why": "function sample has 3 parameters; max is 2",
+          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
+          "path": "src/lib.rs",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "bb5c0f1a81f357cc58d823653c05ef40c41a0e8e"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function sample has cyclomatic complexity 4; max is 2",
+          "why": "function sample has cyclomatic complexity 4; max is 2",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "src/lib.rs",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "10cc1b8ea4bae2a2fede18ad14ba9fc71cc020e8"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForCyclomaticComplexity2214311570/001|main.go": {
+      "file_hash": "ea196ada33689c232f9aaa2ada6a8deb6687462b",
+      "config_hash": "7889ecebfb97b8f2bc7bdb71ce992cda87e23771",
+      "findings": [
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function sample has cyclomatic complexity 4; max is 2",
+          "why": "function sample has cyclomatic complexity 4; max is 2",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "main.go",
+          "line": 3,
+          "column": 1,
+          "fingerprint": "26a87033a4d675ea5cd4ef8ba2d4f94efa6840f4"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForDependencyDirection2221524896/001|lib.go": {
+      "file_hash": "fd89546db0b32c51eeea26873a6f89148e257256",
+      "config_hash": "959cff94d428f3ba3b54d33ecaa6827238dbc3b4",
+      "findings": [
+        {
+          "rule_id": "quality.dependency-direction",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Dependency direction",
+          "section": "Code Quality",
+          "message": "non-CLI package imports internal implementation detail",
+          "why": "non-CLI package imports internal implementation detail",
+          "how_to_fix": "Move shared logic into reusable packages and keep internal or CLI details out of library code.",
+          "path": "lib.go",
+          "line": 3,
+          "column": 8,
+          "fingerprint": "4eb33ac80fdc8ef3158a13dabf3c85bd60f8216b"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForDuplicateCodeAtConfiguredThreshold470647263/001|alpha.go": {
+      "file_hash": "ad2c5e1deca6b005f477fb4e263d418a74ae6120",
+      "config_hash": "d38a8f04b99cba3a1068d8dfda9f21fc405e7869",
+      "findings": []
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForDuplicateCodeAtConfiguredThreshold470647263/001|beta.go": {
+      "file_hash": "fc13a7ba6a255ed8a0d282d15c86a6dbc7b1f1fd",
+      "config_hash": "d38a8f04b99cba3a1068d8dfda9f21fc405e7869",
+      "findings": []
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForGoroutinesInLoop3709919381/001|worker.go": {
+      "file_hash": "a8263c743fd275662158879de58611adbaca2d14",
+      "config_hash": "5961e93daf68ccff43af217128764bd7ba17f9e3",
+      "findings": [
+        {
+          "rule_id": "quality.unbounded-goroutines-in-loop",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Goroutines launched from loops",
+          "section": "Code Quality",
+          "message": "goroutine launched inside a loop should be bounded or queued explicitly",
+          "why": "goroutine launched inside a loop should be bounded or queued explicitly",
+          "how_to_fix": "Use a worker pool, semaphore, errgroup limit, or explicit queue so loop-driven concurrency stays bounded.",
+          "path": "worker.go",
+          "line": 5,
+          "column": 3,
+          "fingerprint": "662f0f0a4cbe7e994d5ae28988683555985cd0d8"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForMaintainabilityThresholds3415127796/001|main.go": {
+      "file_hash": "adbbe25fbccb4ef689a8020dde1d4da2e3351596",
+      "config_hash": "bea29786480ca60533ec425b9dfdf79dffa4531f",
+      "findings": [
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function sample has 3 lines; max is 1",
+          "why": "function sample has 3 lines; max is 1",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "main.go",
+          "line": 3,
+          "column": 1,
+          "fingerprint": "2501c57e14bf927821c06637bfa05ff4dee95116"
+        },
+        {
+          "rule_id": "quality.max-parameters",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function parameters",
+          "section": "Code Quality",
+          "message": "function sample has 2 parameters; max is 1",
+          "why": "function sample has 2 parameters; max is 1",
+          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
+          "path": "main.go",
+          "line": 3,
+          "column": 1,
+          "fingerprint": "ac046006b75c371c5ed2617ea80b758488d4d908"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForNativePythonRules1905038976/001|app.py": {
+      "file_hash": "d38881b5b21dab37e66b4014f7f4573003c7d4b9",
+      "config_hash": "5e58d1c2ab4658e32f991bfe43033dcbbb656d29",
+      "findings": [
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function sample has 7 lines; max is 4",
+          "why": "function sample has 7 lines; max is 4",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "app.py",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "55eeb5f5f862b6376aab628c9ebf8386e402d74a"
+        },
+        {
+          "rule_id": "quality.max-parameters",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function parameters",
+          "section": "Code Quality",
+          "message": "function sample has 3 parameters; max is 2",
+          "why": "function sample has 3 parameters; max is 2",
+          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
+          "path": "app.py",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "c907c23de5fd48ec3c1dfcc84cf439bacacb18c5"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function sample has cyclomatic complexity 3; max is 2",
+          "why": "function sample has cyclomatic complexity 3; max is 2",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "app.py",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "481dce695567539ba89bc1b7d9924ab29b7a710d"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForPythonMaintainability3545414014/001|app.py": {
+      "file_hash": "6c8a1020a8c3aee33f1e96828280578e5b7937fa",
+      "config_hash": "147ed6e6cdfbd7d1cfeba65ca4b003341a42ba07",
+      "findings": [
+        {
+          "rule_id": "quality.max-function-lines",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function length",
+          "section": "Code Quality",
+          "message": "function sample has 11 lines; max is 4",
+          "why": "function sample has 11 lines; max is 4",
+          "how_to_fix": "Break the function into smaller helpers or raise the threshold intentionally.",
+          "path": "app.py",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "bfc5768b6883aefd38e7b99d4b09474051032a3d"
+        },
+        {
+          "rule_id": "quality.max-parameters",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Function parameters",
+          "section": "Code Quality",
+          "message": "function sample has 3 parameters; max is 2",
+          "why": "function sample has 3 parameters; max is 2",
+          "how_to_fix": "Group related inputs into a struct or simplify the function signature.",
+          "path": "app.py",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "c907c23de5fd48ec3c1dfcc84cf439bacacb18c5"
+        },
+        {
+          "rule_id": "quality.cyclomatic-complexity",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Cyclomatic complexity",
+          "section": "Code Quality",
+          "message": "function sample has cyclomatic complexity 6; max is 3",
+          "why": "function sample has cyclomatic complexity 6; max is 3",
+          "how_to_fix": "Reduce branching in the function or refactor logic into smaller units.",
+          "path": "app.py",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "e15da4c50a09f72e1bc29b08b4f53b2dc8a345f1"
+        }
+      ]
+    },
+    "quality|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestQualityCheckWarnsForSyncIOInRequestPath1592645096/001|handler.go": {
+      "file_hash": "0d6ea8ccc120d50a750328069124fdd2ebd31f58",
+      "config_hash": "94cde76dcb3d5cef7e18970dc3414e679ec0aa4f",
+      "findings": [
+        {
+          "rule_id": "quality.sync-io-in-request-path",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Synchronous I/O in request path",
+          "section": "Code Quality",
+          "message": "synchronous file I/O in an HTTP request path can add tail latency",
+          "why": "synchronous file I/O in an HTTP request path can add tail latency",
+          "how_to_fix": "Move the I/O out of the request path, preload or cache the data, or switch to an architecture that avoids per-request filesystem access.",
+          "path": "handler.go",
+          "line": 9,
+          "column": 9,
+          "fingerprint": "3e826215ec0d44f602340d4fb723905f6fde067c"
+        }
+      ]
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckFailsForConfiguredPythonCommand779033734/001|app.py": {
+      "file_hash": "8df0164c4e34402669262f277c81be417994085c",
+      "config_hash": "becc0ef3b66d467e658a4911d09af988760554de",
+      "findings": []
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckFailsForConfiguredPythonCommand779033734/001|fake-bandit.sh": {
+      "file_hash": "c44087ef5c56728c3a80e1fb9bde1836ff0d92fa",
+      "config_hash": "becc0ef3b66d467e658a4911d09af988760554de",
+      "findings": []
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckFailsForHardcodedSecret3154247949/001|config.go": {
+      "file_hash": "c986a6d56ad121b6e31508ee0f1b26a7a8576228",
+      "config_hash": "6f4e15260ba3f226bd499b90b9763ebddff13140",
+      "findings": [
+        {
+          "rule_id": "security.hardcoded-secret",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Hardcoded secret",
+          "section": "Security",
+          "message": "possible hardcoded secret detected",
+          "why": "possible hardcoded secret detected",
+          "how_to_fix": "Remove the secret from the repository and load it from a secret manager or environment at runtime.",
+          "path": "config.go",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "77f8a9a9e39eb9311c6ddfe8e84e0096dc68bc00"
+        }
+      ]
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckFailsWhenGovulncheckIsRequiredButMissing4185694334/001|main.go": {
+      "file_hash": "cfdd8fe8e95bbb8e1e30fe87f0aa9d18daaa77dd",
+      "config_hash": "c033acadb380e76c53c589c7f219b3ae0b4009b3",
+      "findings": []
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckFindsAdditionalLanguagePatternsruby1154397066/001|app/sample.rb": {
+      "file_hash": "94ceea485b23df88a7b1e16bbec54a8a31b847a8",
+      "config_hash": "3fcbb4f521c4072f796bddb5b290843f2720b893",
+      "findings": [
+        {
+          "rule_id": "security.ruby.insecure-tls",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Ruby insecure TLS",
+          "section": "Security",
+          "message": "Ruby TLS verification is disabled",
+          "why": "Ruby TLS verification is disabled",
+          "how_to_fix": "Enable certificate verification and use trusted certificates in non-local environments.",
+          "path": "app/sample.rb",
+          "line": 1,
+          "column": 1,
+          "fingerprint": "be8aa9bda9a534ce5de6566b5822031b1b0c27ac"
+        },
+        {
+          "rule_id": "security.ruby.shell-execution",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Ruby shell execution review",
+          "section": "Security",
+          "message": "Ruby shell execution primitive should be reviewed",
+          "why": "Ruby shell execution primitive should be reviewed",
+          "how_to_fix": "Prefer direct library calls, or tightly validate and constrain spawned commands.",
+          "path": "app/sample.rb",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "b30cd0c25a43caa856afb94009dff2b65606bd38"
+        },
+        {
+          "rule_id": "security.ruby.dynamic-code",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Ruby dynamic code execution",
+          "section": "Security",
+          "message": "dynamic code execution should be reviewed",
+          "why": "dynamic code execution should be reviewed",
+          "how_to_fix": "Remove eval-style execution or strictly constrain and validate the executed content.",
+          "path": "app/sample.rb",
+          "line": 3,
+          "column": 1,
+          "fingerprint": "ac4608c16654113b171ea05cb76133cd581cf520"
+        }
+      ]
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckFindsNativePythonPatterns1507200698/001|app.py": {
+      "file_hash": "2b3b2c30145735b962b34fe1b46247b371f86908",
+      "config_hash": "fe49be6d38692d4658c3aedab689e9b3ffe5ebd1",
+      "findings": [
+        {
+          "rule_id": "security.python.insecure-tls",
+          "level": "fail",
+          "severity": "fail",
+          "title": "Python insecure TLS",
+          "section": "Security",
+          "message": "Python TLS verification is disabled",
+          "why": "Python TLS verification is disabled",
+          "how_to_fix": "Enable certificate verification and use trusted certificates in non-local environments.",
+          "path": "app.py",
+          "line": 4,
+          "column": 1,
+          "fingerprint": "4b211b53d2f71a3f5fffc04a4e44819d79e6391c"
+        },
+        {
+          "rule_id": "security.python.shell-execution",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Python shell execution review",
+          "section": "Security",
+          "message": "Python shell execution primitive should be reviewed",
+          "why": "Python shell execution primitive should be reviewed",
+          "how_to_fix": "Prefer direct library calls, or tightly validate and constrain command execution.",
+          "path": "app.py",
+          "line": 5,
+          "column": 1,
+          "fingerprint": "c4947995ecb134cec7e332be406ea5bc52b92bd3"
+        },
+        {
+          "rule_id": "security.python.dynamic-code",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Python dynamic code execution",
+          "section": "Security",
+          "message": "dynamic code execution should be reviewed",
+          "why": "dynamic code execution should be reviewed",
+          "how_to_fix": "Remove eval or exec usage, or strictly constrain and validate the executed content.",
+          "path": "app.py",
+          "line": 6,
+          "column": 1,
+          "fingerprint": "299a848ae14403a4793fe8a06c634a92c336cece"
+        },
+        {
+          "rule_id": "security.python.shell-execution",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Python shell execution review",
+          "section": "Security",
+          "message": "Python shell execution primitive should be reviewed",
+          "why": "Python shell execution primitive should be reviewed",
+          "how_to_fix": "Prefer direct library calls, or tightly validate and constrain command execution.",
+          "path": "app.py",
+          "line": 7,
+          "column": 1,
+          "fingerprint": "9f34695e45ba267a8f333951c99862e224a36fd1"
+        }
+      ]
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckSkipsGovulncheckForNonGoTargets2609343350/001|app.py": {
+      "file_hash": "8df0164c4e34402669262f277c81be417994085c",
+      "config_hash": "2c590fdde2badc422e5344f0ceb32c3f931adfed",
+      "findings": []
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckSurfacesStructuredGovulncheckFindings3395135625/001|fake-govulncheck.sh": {
+      "file_hash": "4faaa8a90dc89d848a06515ad1dbb6a47ced9662",
+      "config_hash": "03e5164e67b1d8472f3538f51779f3f5bf27db03",
+      "findings": []
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckSurfacesStructuredGovulncheckFindings3395135625/001|main.go": {
+      "file_hash": "cfdd8fe8e95bbb8e1e30fe87f0aa9d18daaa77dd",
+      "config_hash": "03e5164e67b1d8472f3538f51779f3f5bf27db03",
+      "findings": []
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckWarnsForNativePythonSecurityPatterns2936630597/001|app.py": {
+      "file_hash": "0ebd0affceaea26ae50f8d80d446b35a98925176",
+      "config_hash": "8ccd859207c8f79a1b2d747161b690ef87039fa5",
+      "findings": [
+        {
+          "rule_id": "security.python.shell-execution",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Python shell execution review",
+          "section": "Security",
+          "message": "Python shell execution primitive should be reviewed",
+          "why": "Python shell execution primitive should be reviewed",
+          "how_to_fix": "Prefer direct library calls, or tightly validate and constrain command execution.",
+          "path": "app.py",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "9f8d0648927828251c39f9259b284fe24e763f2e"
+        }
+      ]
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckWarnsForShellExecution1760372758/001|exec.go": {
+      "file_hash": "6e9d0ebc41446f73a330c99e32a39654e4c23538",
+      "config_hash": "6aafe4b1d004a2126fe95d76b4e92ca3713739a7",
+      "findings": [
+        {
+          "rule_id": "security.shell-execution",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Shell execution review",
+          "section": "Security",
+          "message": "shell execution primitive should be reviewed",
+          "why": "shell execution primitive should be reviewed",
+          "how_to_fix": "Prefer direct library calls, or tightly validate and constrain command execution.",
+          "path": "exec.go",
+          "line": 2,
+          "column": 1,
+          "fingerprint": "32d3dbbf8d40c539ed7e698597c50a4e3b029501"
+        },
+        {
+          "rule_id": "security.shell-execution",
+          "level": "warn",
+          "severity": "warn",
+          "title": "Shell execution review",
+          "section": "Security",
+          "message": "shell execution primitive should be reviewed",
+          "why": "shell execution primitive should be reviewed",
+          "how_to_fix": "Prefer direct library calls, or tightly validate and constrain command execution.",
+          "path": "exec.go",
+          "line": 3,
+          "column": 1,
+          "fingerprint": "2dee38a1a4784886b2b96d1295edba1a29ab8ab7"
+        }
+      ]
+    },
+    "security|/var/folders/rn/th6vn9lx36v9m7fw4gpbzgm00000gn/T/TestSecurityCheckWarnsWhenGovulncheckIsAutoButMissing947275066/001|main.go": {
+      "file_hash": "cfdd8fe8e95bbb8e1e30fe87f0aa9d18daaa77dd",
+      "config_hash": "a1933d44463230f59e574b8e7815b7dc95c4c93d",
+      "findings": []
     }
   }
 }

@@ -23,6 +23,8 @@ func Write(w io.Writer, report core.Report, format string) error {
 		return writeSARIF(w, report)
 	case "github":
 		return writeGitHubAnnotations(w, report)
+	case "github-comment":
+		return writeGitHubComment(w, report)
 	default:
 		return fmt.Errorf("unsupported report format %q", format)
 	}

@@ -96,7 +96,9 @@ func main() {
 ## Docs
 
 - [Getting started](/Users/alex/Documents/GitHub/codeguard/docs/getting-started.md:1)
+- [Agent-native features](/Users/alex/Documents/GitHub/codeguard/docs/agent-native.md:1)
 - [Integrations](/Users/alex/Documents/GitHub/codeguard/docs/integrations.md:1)
+- [Hook-pack examples](/Users/alex/Documents/GitHub/codeguard/examples/hooks/README.md:1)
 - [SDK guide](/Users/alex/Documents/GitHub/codeguard/docs/sdk.md:1)
 - [Checks reference](/Users/alex/Documents/GitHub/codeguard/docs/checks.md:1)
 - [Architecture](/Users/alex/Documents/GitHub/codeguard/docs/architecture.md:1)
