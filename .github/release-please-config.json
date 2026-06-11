@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "1b8b649c5cef64b2241a5d28b1f12a5c4ee12431",
+  "packages": {
+    ".": {
+      "release-type": "go",
+      "package-name": "codeguard",
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md",
+      "include-v-in-tag": true,
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "internal/version/version.go"
+        }
+      ]
+    }
+  }
+}

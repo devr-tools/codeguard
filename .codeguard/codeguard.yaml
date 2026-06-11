@@ -1,0 +1,52 @@
+name: codeguard-repo-ci
+targets:
+  - name: repository
+    path: .
+    language: go
+    entrypoints:
+      - cmd/codeguard
+checks:
+  quality: true
+  design: true
+  security: false
+  prompts: false
+  ci: true
+  quality_rules:
+    max_file_lines: 400
+    max_function_lines: 80
+    max_parameters: 5
+    max_cyclomatic_complexity: 10
+  ci_rules:
+    require_workflow_dir: true
+    required_workflow_files:
+      - .github/workflows/ci.yml
+      - .github/workflows/cd.yml
+      - .github/workflows/release.yml
+    workflow_content_rules:
+      - path: .github/workflows/ci.yml
+        required_contains:
+          - make fmt-check
+          - make lint
+          - make test
+          - make codeguard-ci
+      - path: .github/workflows/cd.yml
+        required_contains:
+          - googleapis/release-please-action
+          - "uses: ./.github/workflows/release.yml"
+          - RELEASE_PLEASE_TOKEN
+      - path: .github/workflows/release.yml
+        required_contains:
+          - goreleaser/goreleaser-action@v7
+          - sync-homebrew-formula
+          - Formula/codeguard.rb
+    required_release_files:
+      - .goreleaser.yaml
+      - Dockerfile.release
+      - .github/release-please-config.json
+      - .release-please-manifest.json
+      - CHANGELOG.md
+    required_automation_paths:
+      - Makefile
+      - scripts/commit.sh
+output:
+  format: text

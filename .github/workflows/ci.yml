@@ -61,6 +61,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Run go test directly
+        run: go test ./...
+
       - name: Run test suite
         run: make test
 

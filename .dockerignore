@@ -1,0 +1,9 @@
+.git
+.github
+.gocache
+.gomodcache
+dist
+private
+coverage.*
+*.coverprofile
+*.out

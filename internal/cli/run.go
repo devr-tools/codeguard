@@ -75,7 +75,7 @@ func runInit(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	configPath := fs.String("config", service.DefaultConfigPath(), "config path")
+	configPath := fs.String("config", service.DefaultConfigPath(), "config file or directory path")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -97,65 +97,92 @@ func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	configPath := fs.String("config", service.DefaultConfigPath(), "config path")
-	mode := fs.String("mode", string(service.ScanModeFull), "scan mode: full or diff")
-	baseRef := fs.String("base-ref", "main", "base branch/ref for diff mode")
+	inputs := scanInputs{
+		configPath: fs.String("config", service.DefaultConfigPath(), "config file or directory path"),
+		mode:       fs.String("mode", string(service.ScanModeFull), "scan mode: full or diff"),
+		baseRef:    fs.String("base-ref", "main", "base branch/ref for diff mode"),
+	}
 	interactive := fs.Bool("interactive", false, "prompt for scan inputs in the terminal")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 
-	if *interactive {
-		reader := bufio.NewReader(stdin)
-		var err error
-		*configPath, err = promptString(reader, stdout, "config path", *configPath)
-		if err != nil {
-			_, _ = fmt.Fprintf(stderr, "interactive scan: %v\n", err)
-			return 1
-		}
-		*mode, err = promptString(reader, stdout, "scan mode (full|diff)", *mode)
-		if err != nil {
-			_, _ = fmt.Fprintf(stderr, "interactive scan: %v\n", err)
-			return 1
-		}
-		if strings.TrimSpace(*mode) == string(service.ScanModeDiff) {
-			*baseRef, err = promptString(reader, stdout, "base ref", *baseRef)
-			if err != nil {
-				_, _ = fmt.Fprintf(stderr, "interactive scan: %v\n", err)
-				return 1
-			}
-		}
+	if err := promptScanInputs(*interactive, stdin, stdout, &inputs); err != nil {
+		_, _ = fmt.Fprintf(stderr, "interactive scan: %v\n", err)
+		return 1
 	}
 
-	cfg, err := service.LoadConfigFile(*configPath)
+	scanMode, err := parseScanMode(*inputs.mode)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return 1
+	}
+
+	cfg, err := service.LoadConfigFile(*inputs.configPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return 1
 	}
 
-	scanMode := service.ScanMode(strings.TrimSpace(*mode))
-	if scanMode != service.ScanModeFull && scanMode != service.ScanModeDiff {
-		_, _ = fmt.Fprintf(stderr, "invalid scan mode %q\n", *mode)
-		return 1
-	}
-
-	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
-		Mode:    scanMode,
-		BaseRef: strings.TrimSpace(*baseRef),
-	})
-	if err != nil {
+	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef)); err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
 		return 1
 	}
-	if err := service.WriteReport(stdout, report, cfg.Output.Format); err != nil {
-		_, _ = fmt.Fprintf(stderr, "write report: %v\n", err)
-		return 1
+	return 0
+}
+
+type scanInputs struct {
+	configPath *string
+	mode       *string
+	baseRef    *string
+}
+
+func promptScanInputs(interactive bool, stdin io.Reader, stdout io.Writer, inputs *scanInputs) error {
+	if !interactive {
+		return nil
 	}
 
-	if report.Summary.FailedSections > 0 {
-		return 1
+	reader := bufio.NewReader(stdin)
+	var err error
+	*inputs.configPath, err = promptString(reader, stdout, "config path", *inputs.configPath)
+	if err != nil {
+		return err
 	}
-	return 0
+	*inputs.mode, err = promptString(reader, stdout, "scan mode (full|diff)", *inputs.mode)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(*inputs.mode) != string(service.ScanModeDiff) {
+		return nil
+	}
+
+	*inputs.baseRef, err = promptString(reader, stdout, "base ref", *inputs.baseRef)
+	return err
+}
+
+func parseScanMode(mode string) (service.ScanMode, error) {
+	scanMode := service.ScanMode(strings.TrimSpace(mode))
+	if scanMode != service.ScanModeFull && scanMode != service.ScanModeDiff {
+		return "", fmt.Errorf("invalid scan mode %q", mode)
+	}
+	return scanMode, nil
+}
+
+func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string) error {
+	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
+		Mode:    scanMode,
+		BaseRef: baseRef,
+	})
+	if err != nil {
+		return err
+	}
+	if err := service.WriteReport(stdout, report, cfg.Output.Format); err != nil {
+		return fmt.Errorf("write report: %w", err)
+	}
+	if report.Summary.FailedSections > 0 {
+		return fmt.Errorf("one or more sections failed")
+	}
+	return nil
 }
 
 func promptString(reader *bufio.Reader, stdout io.Writer, label string, fallback string) (string, error) {

@@ -58,3 +58,72 @@ func TestRunInteractiveInitWritesYAML(t *testing.T) {
 		t.Fatalf("expected yaml config file: %v", err)
 	}
 }
+
+func TestRunValidateFindsDotCodeguardConfigByDefault(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+
+	dir := t.TempDir()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir tempdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(cwd)
+	})
+
+	configDir := filepath.Join(dir, ".codeguard")
+	configPath := filepath.Join(configDir, "codeguard.json")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("mkdir .codeguard: %v", err)
+	}
+	config := `{
+  "name": "from-dot-codeguard",
+  "targets": [{"name": "repo", "path": ".", "language": "go"}],
+  "checks": {"quality": false, "design": false, "security": false, "prompts": false, "ci": false},
+  "output": {"format": "text"}
+}`
+	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := cli.Run([]string{"validate"}, strings.NewReader(""), &stdout, &stderr); code != 0 {
+		t.Fatalf("validate exit code = %d, stderr = %s", code, stderr.String())
+	}
+}
+
+func TestRunValidateAcceptsConfigDirectory(t *testing.T) {
+	dir := t.TempDir()
+	configDir := filepath.Join(dir, ".codeguard")
+	configPath := filepath.Join(configDir, "config.yaml")
+
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("mkdir .codeguard: %v", err)
+	}
+	config := `name: from-config-directory
+targets:
+  - name: repo
+    path: .
+    language: go
+checks:
+  quality: false
+  design: false
+  security: false
+  prompts: false
+  ci: false
+output:
+  format: text
+`
+	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := cli.Run([]string{"validate", "-config", configDir}, strings.NewReader(""), &stdout, &stderr); code != 0 {
+		t.Fatalf("validate exit code = %d, stderr = %s", code, stderr.String())
+	}
+}

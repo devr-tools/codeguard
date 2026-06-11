@@ -5,10 +5,12 @@ else ifeq ($(wildcard $(GOROOT)),)
 GO := env -u GOROOT $(GO)
 GOFMT := env -u GOROOT $(GOFMT)
 endif
+VERSION ?= dev
+REPOSITORY ?= devr-tools/codeguard
 GOCACHE ?= $(CURDIR)/.gocache
 GOMODCACHE ?= $(CURDIR)/.gomodcache
 CONFIG ?= examples/codeguard.json
-CI_CONFIG ?= codeguard-ci.json
+CI_CONFIG ?= .codeguard/codeguard.yaml
 BASE_REF ?= main
 GOFILES := $(shell find cmd codeguard internal tests -type f -name '*.go' 2>/dev/null)
 
@@ -17,7 +19,7 @@ export GOMODCACHE
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt fmt-check lint test codeguard-ci check ci build table table-diff table-interactive clean
+.PHONY: help fmt fmt-check lint test codeguard-ci check ci build release release-snapshot release-check deploy commit table table-diff table-interactive clean
 
 help:
 	@printf "\ncodeguard make targets\n\n"
@@ -29,6 +31,11 @@ help:
 	@printf "  make check      Run fmt-check, lint, test, and codeguard-ci\n"
 	@printf "  make ci         Run the local CI gate\n"
 	@printf "  make build      Build the codeguard CLI\n"
+	@printf "  make release    Build snapshot release artifacts with GoReleaser\n"
+	@printf "  make release-check  Validate GoReleaser config without publishing\n"
+	@printf "  make release-snapshot  Build local snapshot release artifacts\n"
+	@printf "  make deploy     Alias for make release\n"
+	@printf "  make commit     Create an interactive conventional commit\n"
 	@printf "  make table      Run a full scan and print the terminal table\n"
 	@printf "  make table-diff Run a diff scan and print the terminal table\n"
 	@printf "  make table-interactive  Launch interactive terminal scanning\n"
@@ -63,6 +70,19 @@ ci: check build
 build:
 	@mkdir -p dist
 	$(GO) build -trimpath -o ./dist/codeguard ./cmd/codeguard
+
+release: release-snapshot
+
+release-check:
+	goreleaser check
+
+release-snapshot:
+	goreleaser release --snapshot --clean
+
+deploy: release
+
+commit:
+	./scripts/commit.sh
 
 table:
 	$(GO) run ./cmd/codeguard scan -config $(CONFIG)

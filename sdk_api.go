@@ -7,28 +7,6 @@ import (
 	corepkg "github.com/devr-tools/codeguard/codeguard"
 )
 
-type Config = corepkg.Config
-type ScanMode = corepkg.ScanMode
-type ScanOptions = corepkg.ScanOptions
-type TargetConfig = corepkg.TargetConfig
-type CheckConfig = corepkg.CheckConfig
-type OutputConfig = corepkg.OutputConfig
-type QualityRulesConfig = corepkg.QualityRulesConfig
-type DesignRulesConfig = corepkg.DesignRulesConfig
-type PromptRulesConfig = corepkg.PromptRulesConfig
-type CIRulesConfig = corepkg.CIRulesConfig
-type SecurityRulesConfig = corepkg.SecurityRulesConfig
-type WorkflowRuleConfig = corepkg.WorkflowRuleConfig
-type Report = corepkg.Report
-type SectionResult = corepkg.SectionResult
-type Finding = corepkg.Finding
-type Runner = corepkg.Runner
-
-const (
-	ScanModeFull = corepkg.ScanModeFull
-	ScanModeDiff = corepkg.ScanModeDiff
-)
-
 func ExampleConfig() Config {
 	return corepkg.ExampleConfig()
 }

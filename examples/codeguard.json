@@ -40,15 +40,23 @@
     },
     "ci_rules": {
       "require_workflow_dir": true,
-      "required_workflow_files": [".github/workflows/ci.yml"],
+      "required_workflow_files": [".github/workflows/ci.yml", ".github/workflows/cd.yml", ".github/workflows/release.yml"],
       "workflow_content_rules": [
         {
           "path": ".github/workflows/ci.yml",
           "required_contains": ["actions/checkout", "go test ./..."]
+        },
+        {
+          "path": ".github/workflows/cd.yml",
+          "required_contains": ["googleapis/release-please-action", "uses: ./.github/workflows/release.yml", "RELEASE_PLEASE_TOKEN"]
+        },
+        {
+          "path": ".github/workflows/release.yml",
+          "required_contains": ["goreleaser/goreleaser-action@v7", "sync-homebrew-formula", "Formula/codeguard.rb"]
         }
       ],
-      "required_release_files": [".goreleaser.yaml"],
-      "required_automation_paths": ["Makefile"]
+      "required_release_files": [".goreleaser.yaml", "Dockerfile.release", ".github/release-please-config.json", ".release-please-manifest.json", "CHANGELOG.md"],
+      "required_automation_paths": ["Makefile", "scripts/commit.sh"]
     },
     "security_rules": {
       "govulncheck_mode": "auto",
