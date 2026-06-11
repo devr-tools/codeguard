@@ -9,14 +9,15 @@ type TypeScriptSemanticResults struct {
 }
 
 type typeScriptSemanticInput struct {
-	TypeScriptLibPath       string   `json:"typescript_lib_path"`
-	TargetPath              string   `json:"target_path"`
-	ForbiddenPackageNames   []string `json:"forbidden_package_names"`
-	MaxMethodsPerType       int      `json:"max_methods_per_type"`
-	MaxInterfaceMembers     int      `json:"max_interface_members"`
-	MaxFunctionLines        int      `json:"max_function_lines"`
-	MaxParameters           int      `json:"max_parameters"`
-	MaxCyclomaticComplexity int      `json:"max_cyclomatic_complexity"`
+	TypeScriptLibPath       string               `json:"typescript_lib_path"`
+	TargetPath              string               `json:"target_path"`
+	ForbiddenPackageNames   []string             `json:"forbidden_package_names"`
+	MaxMethodsPerType       int                  `json:"max_methods_per_type"`
+	MaxInterfaceMembers     int                  `json:"max_interface_members"`
+	MaxFunctionLines        int                  `json:"max_function_lines"`
+	MaxParameters           int                  `json:"max_parameters"`
+	MaxCyclomaticComplexity int                  `json:"max_cyclomatic_complexity"`
+	TaintModel              TypeScriptTaintModel `json:"taint_model"`
 }
 
 func newTypeScriptSemanticInput(target core.TargetConfig, cfg core.Config, libPath string) typeScriptSemanticInput {
@@ -29,5 +30,6 @@ func newTypeScriptSemanticInput(target core.TargetConfig, cfg core.Config, libPa
 		MaxFunctionLines:        cfg.Checks.QualityRules.MaxFunctionLines,
 		MaxParameters:           cfg.Checks.QualityRules.MaxParameters,
 		MaxCyclomaticComplexity: cfg.Checks.QualityRules.MaxCyclomaticComplexity,
+		TaintModel:              defaultTypeScriptTaintModel(),
 	}
 }

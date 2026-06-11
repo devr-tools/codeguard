@@ -1,0 +1,128 @@
+package support
+
+func defaultTypeScriptTaintModel() TypeScriptTaintModel {
+	return TypeScriptTaintModel{
+		Sources: []TypeScriptTaintSource{
+			{
+				ID:                "request-input",
+				Label:             "request input",
+				Kind:              "member-access",
+				BaseIdentifiers:   []string{"req", "request"},
+				BasePropertyNames: []string{"body", "query", "params", "headers", "cookies"},
+			},
+			{
+				ID:                "url-search-params",
+				Label:             "URL query input",
+				Kind:              "call-result",
+				CallMembers:       []string{"get"},
+				ReceiverTypeNames: []string{"URLSearchParams", "FormData"},
+			},
+		},
+		Sinks: []TypeScriptTaintSink{
+			{
+				ID:              "child-process-exec",
+				Label:           "shell execution",
+				Kind:            "call",
+				Module:          "child_process",
+				Member:          "exec",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "child-process-exec-sync",
+				Label:           "shell execution",
+				Kind:            "call",
+				Module:          "child_process",
+				Member:          "execSync",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "eval",
+				Label:           "dynamic code execution",
+				Kind:            "call",
+				Member:          "eval",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "function-call",
+				Label:           "dynamic code execution",
+				Kind:            "call",
+				Member:          "Function",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "function-constructor",
+				Label:           "dynamic code execution",
+				Kind:            "new",
+				Member:          "Function",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "vm-run-in-context",
+				Label:           "dynamic code execution",
+				Kind:            "call",
+				Module:          "vm",
+				Member:          "runInContext",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "vm-run-in-new-context",
+				Label:           "dynamic code execution",
+				Kind:            "call",
+				Module:          "vm",
+				Member:          "runInNewContext",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "vm-run-in-this-context",
+				Label:           "dynamic code execution",
+				Kind:            "call",
+				Module:          "vm",
+				Member:          "runInThisContext",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "vm-compile-function",
+				Label:           "dynamic code execution",
+				Kind:            "call",
+				Module:          "vm",
+				Member:          "compileFunction",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "inner-html",
+				Label:           "unsafe HTML sink",
+				Kind:            "assignment",
+				PropertyName:    "innerHTML",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "outer-html",
+				Label:           "unsafe HTML sink",
+				Kind:            "assignment",
+				PropertyName:    "outerHTML",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "insert-adjacent-html",
+				Label:           "unsafe HTML sink",
+				Kind:            "call",
+				Member:          "insertAdjacentHTML",
+				ArgumentIndexes: []int{1},
+			},
+			{
+				ID:              "document-write",
+				Label:           "unsafe HTML sink",
+				Kind:            "call",
+				Member:          "document.write",
+				ArgumentIndexes: []int{0},
+			},
+			{
+				ID:              "document-writeln",
+				Label:           "unsafe HTML sink",
+				Kind:            "call",
+				Member:          "document.writeln",
+				ArgumentIndexes: []int{0},
+			},
+		},
+	}
+}

@@ -7,6 +7,7 @@ const targetPath = path.resolve(input.target_path);
 
 const results = { design: [], quality: [], security: [] };
 const seen = new Set();
+const taintModel = normalizeTaintModel(input.taint_model);
 
 const directivePatterns = [
   { pattern: /^\s*(?:(?:\/\/)|(?:\/\*+)|\*)\s*@ts-ignore\b/, suffix: "ts-ignore", message: "suppression comment should be reviewed" },
@@ -35,6 +36,8 @@ function main() {
     analyzeDesign(sourceFile, relPath);
 
     const bindings = collectBindings(sourceFile);
+    sourceFile.bindings = bindings;
+    analyzeTaintFlows(sourceFile, relPath, flavor, bindings, checker);
     visit(sourceFile, sourceFile, relPath, flavor, bindings, checker);
   }
 
@@ -130,6 +133,16 @@ function scriptRuleId(flavor, tsRuleId, jsRuleId) {
 
 function lineNumber(sourceFile, pos) {
   return sourceFile.getLineAndCharacterOfPosition(pos).line + 1;
+}
+
+function normalizeTaintModel(model) {
+  const normalized = { sources: [], sinks: [] };
+  if (!model || typeof model !== "object") {
+    return normalized;
+  }
+  normalized.sources = Array.isArray(model.sources) ? model.sources : [];
+  normalized.sinks = Array.isArray(model.sinks) ? model.sinks : [];
+  return normalized;
 }
 
 function pushFinding(section, sourceFile, relPath, flavor, ruleId, level, message, pos) {
@@ -458,6 +471,360 @@ function isShortCircuitOperator(node) {
     (node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
       node.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
       node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken);
+}
+
+function analyzeTaintFlows(sourceFile, relPath, flavor, bindings, checker) {
+  if (taintModel.sources.length === 0 || taintModel.sinks.length === 0) {
+    return;
+  }
+  const symbolTaintCache = new Map();
+  const expressionTaintCache = new Map();
+  visitTaintNode(sourceFile);
+
+  function visitTaintNode(node) {
+    if (ts.isCallExpression(node)) {
+      const sink = taintSinkForCall(node, bindings, checker);
+      if (sink && callHasTaintedArgument(node, sink, checker, symbolTaintCache, expressionTaintCache)) {
+        pushFinding(
+          "security",
+          sourceFile,
+          relPath,
+          flavor,
+          scriptRuleId(flavor, "security.typescript.untrusted-input-flow", "security.javascript.untrusted-input-flow"),
+          "warn",
+          `${scriptLabel(flavor)} untrusted input flows to ${sink.label}`,
+          node.expression.getStart(sourceFile),
+        );
+      }
+    }
+
+    if (ts.isNewExpression(node)) {
+      const sink = taintSinkForNewExpression(node);
+      if (sink && callHasTaintedArgument(node, sink, checker, symbolTaintCache, expressionTaintCache)) {
+        pushFinding(
+          "security",
+          sourceFile,
+          relPath,
+          flavor,
+          scriptRuleId(flavor, "security.typescript.untrusted-input-flow", "security.javascript.untrusted-input-flow"),
+          "warn",
+          `${scriptLabel(flavor)} untrusted input flows to ${sink.label}`,
+          node.expression.getStart(sourceFile),
+        );
+      }
+    }
+
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      const sink = taintSinkForAssignment(node.left);
+      if (sink && expressionTaint(node.right, checker, symbolTaintCache, expressionTaintCache)) {
+        pushFinding(
+          "security",
+          sourceFile,
+          relPath,
+          flavor,
+          scriptRuleId(flavor, "security.typescript.untrusted-input-flow", "security.javascript.untrusted-input-flow"),
+          "warn",
+          `${scriptLabel(flavor)} untrusted input flows to ${sink.label}`,
+          node.left.getStart(sourceFile),
+        );
+      }
+    }
+
+    ts.forEachChild(node, visitTaintNode);
+  }
+}
+
+function callHasTaintedArgument(node, sink, checker, symbolTaintCache, expressionTaintCache) {
+  const args = Array.isArray(node.arguments) ? node.arguments : [];
+  for (const index of sink.argument_indexes || []) {
+    if (index < 0 || index >= args.length) {
+      continue;
+    }
+    if (expressionTaint(args[index], checker, symbolTaintCache, expressionTaintCache)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function expressionTaint(node, checker, symbolTaintCache, expressionTaintCache) {
+  if (!node) {
+    return null;
+  }
+  if (expressionTaintCache.has(node)) {
+    return expressionTaintCache.get(node);
+  }
+  expressionTaintCache.set(node, null);
+  const taint = computeExpressionTaint(node, checker, symbolTaintCache, expressionTaintCache);
+  expressionTaintCache.set(node, taint);
+  return taint;
+}
+
+function computeExpressionTaint(node, checker, symbolTaintCache, expressionTaintCache) {
+  const source = directTaintSource(node, checker, bindingsForNode(node));
+  if (source) {
+    return source;
+  }
+
+  if (ts.isIdentifier(node)) {
+    return symbolTaint(symbolForNode(node, checker), checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+    return expressionTaint(node.expression, checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isCallExpression(node)) {
+    return directTaintSource(node, checker, bindingsForNode(node));
+  }
+
+  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isNonNullExpression(node) || ts.isAwaitExpression(node)) {
+    return expressionTaint(node.expression, checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isConditionalExpression(node)) {
+    return expressionTaint(node.whenTrue, checker, symbolTaintCache, expressionTaintCache) ||
+      expressionTaint(node.whenFalse, checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isBinaryExpression(node)) {
+    return expressionTaint(node.left, checker, symbolTaintCache, expressionTaintCache) ||
+      expressionTaint(node.right, checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isTemplateExpression(node)) {
+    for (const span of node.templateSpans) {
+      const taint = expressionTaint(span.expression, checker, symbolTaintCache, expressionTaintCache);
+      if (taint) {
+        return taint;
+      }
+    }
+    return null;
+  }
+
+  if (ts.isTemplateSpan(node)) {
+    return expressionTaint(node.expression, checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isArrayLiteralExpression(node)) {
+    for (const element of node.elements) {
+      const taint = expressionTaint(element, checker, symbolTaintCache, expressionTaintCache);
+      if (taint) {
+        return taint;
+      }
+    }
+    return null;
+  }
+
+  if (ts.isObjectLiteralExpression(node)) {
+    for (const property of node.properties) {
+      if (ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property)) {
+        const value = ts.isShorthandPropertyAssignment(property) ? property.name : property.initializer;
+        const taint = expressionTaint(value, checker, symbolTaintCache, expressionTaintCache);
+        if (taint) {
+          return taint;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function symbolTaint(symbol, checker, symbolTaintCache, expressionTaintCache) {
+  if (!symbol) {
+    return null;
+  }
+  if (symbolTaintCache.has(symbol)) {
+    return symbolTaintCache.get(symbol);
+  }
+  symbolTaintCache.set(symbol, null);
+  const aliased = checker.getAliasedSymbol && symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+  if (aliased !== symbol) {
+    const taint = symbolTaint(aliased, checker, symbolTaintCache, expressionTaintCache);
+    symbolTaintCache.set(symbol, taint);
+    return taint;
+  }
+  const declarations = symbol.declarations || [];
+  for (const declaration of declarations) {
+    const taint = taintFromDeclaration(declaration, checker, symbolTaintCache, expressionTaintCache);
+    if (taint) {
+      symbolTaintCache.set(symbol, taint);
+      return taint;
+    }
+  }
+  return null;
+}
+
+function taintFromDeclaration(declaration, checker, symbolTaintCache, expressionTaintCache) {
+  if (ts.isVariableDeclaration(declaration)) {
+    if (ts.isIdentifier(declaration.name)) {
+      return expressionTaint(declaration.initializer, checker, symbolTaintCache, expressionTaintCache);
+    }
+    if (ts.isObjectBindingPattern(declaration.name)) {
+      return expressionTaint(declaration.initializer, checker, symbolTaintCache, expressionTaintCache);
+    }
+  }
+
+  if (ts.isBindingElement(declaration)) {
+    const pattern = declaration.parent;
+    const variableDeclaration = pattern && pattern.parent && ts.isVariableDeclaration(pattern.parent) ? pattern.parent : null;
+    if (!variableDeclaration) {
+      return null;
+    }
+    const bindingSource = expressionTaint(variableDeclaration.initializer, checker, symbolTaintCache, expressionTaintCache);
+    if (bindingSource) {
+      return bindingSource;
+    }
+  }
+
+  if (ts.isParameter(declaration)) {
+    return directTaintSource(declaration.name, checker, bindingsForNode(declaration));
+  }
+
+  return null;
+}
+
+function directTaintSource(node, checker, bindings) {
+  for (const source of taintModel.sources) {
+    if (source.kind === "member-access" && isConfiguredMemberSource(node, source, checker)) {
+      return source;
+    }
+    if (source.kind === "call-result" && isConfiguredCallSource(node, source, checker, bindings)) {
+      return source;
+    }
+  }
+  return null;
+}
+
+function isConfiguredMemberSource(node, source, checker) {
+  if (!ts.isPropertyAccessExpression(node) && !ts.isElementAccessExpression(node)) {
+    return false;
+  }
+  const property = accessedPropertyName(node);
+  if (!property || !(source.base_property_names || []).includes(property)) {
+    return false;
+  }
+  const base = node.expression;
+  if (ts.isIdentifier(base) && (source.base_identifiers || []).includes(base.text)) {
+    return true;
+  }
+  return expressionTypeMatches(base, checker, source.receiver_type_names || source.base_type_names || []);
+}
+
+function isConfiguredCallSource(node, source, checker, bindings) {
+  if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) {
+    return false;
+  }
+  if (!(source.call_members || []).includes(node.expression.name.text)) {
+    return false;
+  }
+  const receiver = node.expression.expression;
+  const target = callTarget(node.expression, bindings || emptyBindings());
+  return expressionTypeMatches(receiver, checker, source.receiver_type_names || []) ||
+    (!!target && target.module === source.module);
+}
+
+function expressionTypeMatches(node, checker, expectedNames) {
+  if (!node || !checker || !Array.isArray(expectedNames) || expectedNames.length === 0) {
+    return false;
+  }
+  try {
+    const type = checker.getTypeAtLocation(node);
+    const text = checker.typeToString(type);
+    return expectedNames.some((name) => text === name || text.endsWith(`.${name}`) || text.includes(name));
+  } catch (error) {
+    return false;
+  }
+}
+
+function taintSinkForCall(node, bindings, checker) {
+  for (const sink of taintModel.sinks) {
+    if (sink.kind !== "call") {
+      continue;
+    }
+    if (matchesCallSink(node, sink, bindings, checker)) {
+      return sink;
+    }
+  }
+  return null;
+}
+
+function taintSinkForNewExpression(node) {
+  for (const sink of taintModel.sinks) {
+    if (sink.kind === "new" && ts.isIdentifier(node.expression) && node.expression.text === sink.member) {
+      return sink;
+    }
+  }
+  return null;
+}
+
+function taintSinkForAssignment(left) {
+  for (const sink of taintModel.sinks) {
+    if (sink.kind === "assignment" && propertyAccessMatches(left, sink.property_name)) {
+      return sink;
+    }
+  }
+  return null;
+}
+
+function matchesCallSink(node, sink, bindings, checker) {
+  if (sink.member === "document.write" || sink.member === "document.writeln") {
+    return isDocumentWriteMember(node.expression, sink.member);
+  }
+  if (sink.module) {
+    const target = callTarget(node.expression, bindings);
+    return !!target && target.module === sink.module && target.member === sink.member;
+  }
+  if (sink.member === "eval" || sink.member === "Function") {
+    return ts.isIdentifier(node.expression) && node.expression.text === sink.member;
+  }
+  return propertyAccessMatches(node.expression, sink.member);
+}
+
+function isDocumentWriteMember(expression, name) {
+  return ts.isPropertyAccessExpression(expression) &&
+    `${expression.expression.getText()}.${expression.name.text}` === name;
+}
+
+function propertyAccessMatches(node, propertyName) {
+  return ts.isPropertyAccessExpression(node) && node.name.text === propertyName;
+}
+
+function accessedPropertyName(node) {
+  if (ts.isPropertyAccessExpression(node)) {
+    return node.name.text;
+  }
+  if (ts.isElementAccessExpression(node) && isStringLiteralArgument(node.argumentExpression)) {
+    return literalText(node.argumentExpression);
+  }
+  return "";
+}
+
+function symbolForNode(node, checker) {
+  if (!node || !checker) {
+    return null;
+  }
+  try {
+    return checker.getSymbolAtLocation(node);
+  } catch (error) {
+    return null;
+  }
+}
+
+function bindingsForNode(node) {
+  let current = node;
+  while (current) {
+    if (current.bindings) {
+      return current.bindings;
+    }
+    current = current.parent;
+  }
+  return emptyBindings();
+}
+
+function emptyBindings() {
+  return { named: new Map(), namespaces: new Map() };
 }
 
 function analyzeSecurityNode(node, sourceFile, relPath, flavor, bindings, checker) {
