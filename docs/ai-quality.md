@@ -23,7 +23,8 @@ This brief tracks the AI-generated-code quality features currently implemented i
   - `quality.ai.semantic-doc-mismatch`
   - `quality.ai.semantic-error-message`
   - `quality.ai.semantic-test-coverage`
-  - only runs in diff/patch mode when both `CODEGUARD_SEMANTIC_CHECKS=1` and AI provenance is active
+  - runs for changed files from patch/diff input, or from a git diff against the scan base ref during full scans
+  - requires the semantic runtime to be explicitly enabled either through `ai.enabled` / `--ai` with a command-backed provider, or through `CODEGUARD_SEMANTIC_CHECKS=1`
   - shells out to the command in `CODEGUARD_SEMANTIC_COMMAND`, sends a bounded JSON payload on stdin, and expects JSON verdicts on stdout
   - caches verdicts by request content hash in a sibling cache file next to the normal scan cache
 - Hybrid AI triage for static findings
@@ -31,7 +32,7 @@ This brief tracks the AI-generated-code quality features currently implemented i
   - stays fully offline when `CODEGUARD_AI_TRIAGE_PROVIDER` is unset
   - caches provider verdicts by packaged finding content hash inside the normal scan cache
 - Verified auto-fix
-  - `codeguard.VerifyFix(...)` and `codeguard.GenerateVerifiedFix(ctx, req)` only return patches after diff-scoped verification and nearest-test reruns pass in an isolated workspace
+  - `codeguard.VerifyFix(...)` and `codeguard.GenerateVerifiedFix(ctx, req)` only return patches after diff-scoped verification and inferred or explicit verification tests pass in an isolated workspace
   - `codeguard fix -ai` exposes the same verified-fix flow from the CLI for one selected finding
 - Natural-language custom rules
   - custom rule packs can use `natural_language` instructions alongside regex and path matchers
@@ -59,19 +60,25 @@ When enabled, `codeguard` packages each active finding with rule metadata and a 
 - Dead-code detection is heuristic:
   - currently focuses on obvious constant-condition branches such as `if false` and `if (false)`
 - Semantic review is opt-in:
-  - intended for AI-assisted changes already marked by provenance hints such as `CODEGUARD_AI_ASSISTED=true`
-  - currently scopes itself to changed files from diff or patch input and a small set of nearby test files
+  - can be enabled through the normal AI runtime or through `CODEGUARD_SEMANTIC_CHECKS=1`
+  - scopes itself to changed files from diff or patch input, or from a git diff against the configured base ref during full scans, plus a small set of nearby test files
+  - `ai.semantic.function_contract`, `ai.semantic.misleading_error_messages`, and `ai.semantic.test_behavior_coverage` control which semantic prompts are sent
   - the external semantic command must read a JSON request from stdin and return `{"verdicts":[...]}` with `rule_id`, `path`, `line`, `level`, and `message`
 - Verified auto-fix is fail-closed:
   - fix generation requires an explicit AI provider plus `-ai`
   - the proposed diff must apply cleanly, pass a diff-scoped `codeguard` rerun, and pass inferred or explicit verification tests
+  - inferred verification currently covers:
+    - nearest Go package tests
+    - nearest Python `unittest` files via `python3 -m unittest <test-file>`
+    - nearest runnable Node test files via `node --test`
+    - JavaScript/TypeScript package-manager `test` scripts from `package.json` as a conservative fallback
 - Natural-language rules are opt-in:
   - set `rule_packs[].rules[].natural_language`
   - provide an AI runtime through `ai.provider`, typically the `command` provider for local or BYO model execution
 
 ## Follow-on opportunities
 
-- broaden verified-fix test inference beyond Go so LLM remediation can stay fail-closed across more repository types
+- add deeper TypeScript-aware nearest-test inference beyond generic package-script fallback
 - add Python import-resolution support against lockfiles and environments
 - expand idiom drift beyond test frameworks into error handling and naming style
 - add PR-level provenance adapters for hosted review systems

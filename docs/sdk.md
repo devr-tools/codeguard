@@ -85,4 +85,11 @@ if err := codeguard.WriteReport(os.Stdout, report, "json"); err != nil {
 - a diff-scoped `codeguard` run returns no findings for the proposed change
 - verification test commands pass
 
-By default, the verifier infers nearest Go package tests from the changed files. Other languages should pass explicit `FixVerificationCommand` entries through `FixOptions.TestCommands` until broader test-command inference is added.
+By default, the verifier infers conservative verification commands from the changed files:
+
+- Go: nearest package tests
+- Python: nearest `unittest` files through `python3 -m unittest <test-file>`
+- JavaScript: nearest runnable `node --test` files
+- JavaScript and TypeScript: `package.json` `test` scripts as a fallback when no runnable nearest-file command can be inferred
+
+When those defaults are not appropriate for your repo, pass explicit `FixVerificationCommand` entries through `FixOptions.TestCommands`.

@@ -10,20 +10,18 @@ import (
 )
 
 func semanticFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	if env.Mode != core.ScanModeDiff {
-		return nil
-	}
-	if !aiProvenanceActive(env) {
+	if !semanticEligible(env) {
 		return nil
 	}
 	findings, err := semantic.Analyze(ctx, semantic.Options{
-		Target:    target,
-		Language:  support.NormalizedLanguage(target.Language),
-		BaseRef:   env.BaseRef,
-		DiffText:  env.DiffText,
-		CachePath: semanticCachePath(env.Config.Cache),
-		Command:   semanticCommand(env.Config.AI),
-		Enabled:   semanticEnabled(env),
+		Target:         target,
+		Language:       support.NormalizedLanguage(target.Language),
+		BaseRef:        env.BaseRef,
+		DiffText:       env.DiffText,
+		CachePath:      semanticCachePath(env.Config.Cache),
+		Command:        semanticCommand(env.Config.AI),
+		Enabled:        semanticEnabled(env),
+		CheckSelection: semanticCheckSelection(env.Config.AI.Semantic),
 		NewFinding: func(ruleID string, level string, path string, line int, message string) core.Finding {
 			return env.NewFinding(support.FindingInput{
 				RuleID:  ruleID,
@@ -41,11 +39,23 @@ func semanticFindings(ctx context.Context, env support.Context, target core.Targ
 	return findings
 }
 
+func semanticEligible(env support.Context) bool {
+	return semanticEnabled(env)
+}
+
 func semanticEnabled(env support.Context) bool {
 	if env.Config.AI.Semantic.Enabled != nil {
 		return *env.Config.AI.Semantic.Enabled && aiRuntimeEnabled(env)
 	}
 	return aiRuntimeEnabled(env) && semantic.Enabled()
+}
+
+func semanticCheckSelection(cfg core.AISemanticConfig) semantic.CheckSelection {
+	return semantic.CheckSelection{
+		FunctionContract:        cfg.FunctionContract == nil || *cfg.FunctionContract,
+		MisleadingErrorMessages: cfg.MisleadingErrorMessages == nil || *cfg.MisleadingErrorMessages,
+		TestBehaviorCoverage:    cfg.TestBehaviorCoverage == nil || *cfg.TestBehaviorCoverage,
+	}
 }
 
 func semanticCommand(cfg core.AIConfig) string {

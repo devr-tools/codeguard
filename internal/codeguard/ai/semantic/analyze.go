@@ -51,12 +51,13 @@ func Analyze(ctx context.Context, opts Options) ([]core.Finding, error) {
 }
 
 type Options struct {
-	Target     core.TargetConfig
-	Language   string
-	BaseRef    string
-	DiffText   string
-	CachePath  string
-	Command    string
-	Enabled    bool
-	NewFinding func(ruleID string, level string, path string, line int, message string) core.Finding
+	Target         core.TargetConfig
+	Language       string
+	BaseRef        string
+	DiffText       string
+	CachePath      string
+	Command        string
+	Enabled        bool
+	CheckSelection CheckSelection
+	NewFinding     func(ruleID string, level string, path string, line int, message string) core.Finding
 }

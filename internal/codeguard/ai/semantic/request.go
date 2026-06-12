@@ -14,6 +14,10 @@ var supportedRuleIDs = map[string]struct{}{
 }
 
 func buildRequest(opts Options) (Request, bool) {
+	checks := semanticCheckSpecs(opts.CheckSelection)
+	if len(checks) == 0 {
+		return Request{}, false
+	}
 	diffText := strings.TrimSpace(opts.DiffText)
 	if diffText == "" {
 		diffText = loadGitDiff(opts.Target.Path, opts.BaseRef)
@@ -35,30 +39,36 @@ func buildRequest(opts Options) (Request, bool) {
 		BaseRef:      opts.BaseRef,
 		Diff:         diffText,
 		ChangedFiles: changedFiles,
-		Checks:       semanticCheckSpecs(),
+		Checks:       checks,
 		SourceFiles:  sourceFiles,
 		TestFiles:    testFiles,
 	}, true
 }
 
-func semanticCheckSpecs() []CheckSpec {
-	return []CheckSpec{
-		{
+func semanticCheckSpecs(selection CheckSelection) []CheckSpec {
+	checks := make([]CheckSpec, 0, 3)
+	if selection.FunctionContract {
+		checks = append(checks, CheckSpec{
 			RuleID:      "quality.ai.semantic-doc-mismatch",
 			Title:       "Function and documentation mismatch",
 			Description: "Flag changed functions whose names or adjacent docs describe behavior that the implementation does not appear to perform.",
-		},
-		{
+		})
+	}
+	if selection.MisleadingErrorMessages {
+		checks = append(checks, CheckSpec{
 			RuleID:      "quality.ai.semantic-error-message",
 			Title:       "Misleading error message",
 			Description: "Flag changed error strings that would mislead an operator about the failing condition, input, or recovery path.",
-		},
-		{
+		})
+	}
+	if selection.TestBehaviorCoverage {
+		checks = append(checks, CheckSpec{
 			RuleID:      "quality.ai.semantic-test-coverage",
 			Title:       "Behavior not exercised by tests",
 			Description: "Flag changed production behavior when nearby changed or local tests do not appear to exercise the new branch, output, or failure mode.",
-		},
+		})
 	}
+	return checks
 }
 
 func findingsFromResponse(newFinding func(string, string, string, int, string) core.Finding, resp Response) []core.Finding {

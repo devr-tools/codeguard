@@ -2,7 +2,9 @@ package checks_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,7 +12,7 @@ import (
 	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
-func TestQualitySemanticChecksRequireAIGate(t *testing.T) {
+func TestQualitySemanticChecksRunWithoutProvenanceWhenSemanticRuntimeIsConfigured(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "service.go"), `package sample
 
@@ -43,8 +45,8 @@ func BuildUser() error {
 		t.Fatalf("run patch: %v", err)
 	}
 
-	assertRuleAbsentAnywhere(t, report, "quality.ai.semantic-doc-mismatch")
-	assertFileMissing(t, counterPath)
+	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.semantic-doc-mismatch")
+	assertFileEquals(t, counterPath, "1")
 }
 
 func TestQualitySemanticChecksEmitVerdictsForAIAssistedPatch(t *testing.T) {
@@ -94,6 +96,42 @@ func TestBuildUser(t *testing.T) {}
 	assertFileEquals(t, counterPath, "1")
 }
 
+func TestQualitySemanticChecksRunInFullScanUsingGitBaseRef(t *testing.T) {
+	dir := t.TempDir()
+	runSemanticGit(t, dir, "init", "-b", "main")
+	runSemanticGit(t, dir, "config", "user.email", "test@example.com")
+	runSemanticGit(t, dir, "config", "user.name", "CodeGuard Test")
+	writeFile(t, filepath.Join(dir, "service.go"), `package sample
+
+func BuildUser() error {
+	return nil
+}
+`)
+	runSemanticGit(t, dir, "add", ".")
+	runSemanticGit(t, dir, "commit", "-m", "base")
+	writeFile(t, filepath.Join(dir, "service.go"), `package sample
+
+// BuildUser removes a user.
+func BuildUser() error {
+	return nil
+}
+`)
+	counterPath := filepath.Join(dir, "semantic-calls.txt")
+	scriptPath := filepath.Join(dir, "semantic.sh")
+	writeExecutableFile(t, scriptPath, semanticScript(counterPath, `{"verdicts":[{"rule_id":"quality.ai.semantic-doc-mismatch","path":"service.go","line":3,"message":"comment and implementation disagree"}]}`))
+
+	t.Setenv("CODEGUARD_SEMANTIC_CHECKS", "1")
+	t.Setenv("CODEGUARD_SEMANTIC_COMMAND", scriptPath)
+
+	report, err := codeguard.Run(context.Background(), qualityAISemanticConfig(dir, "quality-ai-semantic-full"))
+	if err != nil {
+		t.Fatalf("run full scan: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.semantic-doc-mismatch")
+	assertFileEquals(t, counterPath, "1")
+}
+
 func TestQualitySemanticChecksUseVerdictCache(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "service.go"), `package sample
@@ -135,6 +173,64 @@ func BuildUser() error {
 	assertFileEquals(t, counterPath, "1")
 }
 
+func TestQualitySemanticChecksHonorRuleSelection(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "service.go"), `package sample
+
+func BuildUser() error {
+	return nil
+}
+`)
+	diff := stringsJoin(
+		"diff --git a/service.go b/service.go",
+		"--- a/service.go",
+		"+++ b/service.go",
+		"@@ -1,4 +1,5 @@",
+		" package sample",
+		" ",
+		"+// BuildUser removes a user.",
+		" func BuildUser() error {",
+		" \treturn nil",
+		" }",
+	)
+	counterPath := filepath.Join(dir, "semantic-calls.txt")
+	requestPath := filepath.Join(dir, "semantic-request.json")
+	scriptPath := filepath.Join(dir, "semantic.sh")
+	writeExecutableFile(t, scriptPath, semanticCaptureScript(counterPath, requestPath, `{"verdicts":[{"rule_id":"quality.ai.semantic-doc-mismatch","path":"service.go","line":3,"message":"comment and implementation disagree"}]}`))
+
+	t.Setenv("CODEGUARD_SEMANTIC_CHECKS", "1")
+	t.Setenv("CODEGUARD_SEMANTIC_COMMAND", scriptPath)
+
+	cfg := qualityAISemanticConfig(dir, "quality-ai-semantic-selection")
+	enabled := false
+	cfg.AI.Semantic.MisleadingErrorMessages = &enabled
+	cfg.AI.Semantic.TestBehaviorCoverage = &enabled
+
+	report, err := codeguard.RunPatch(context.Background(), cfg, diff)
+	if err != nil {
+		t.Fatalf("run patch: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.semantic-doc-mismatch")
+	assertFileEquals(t, counterPath, "1")
+
+	var req struct {
+		Checks []struct {
+			RuleID string `json:"rule_id"`
+		} `json:"checks"`
+	}
+	data, err := os.ReadFile(requestPath)
+	if err != nil {
+		t.Fatalf("read request: %v", err)
+	}
+	if err := json.Unmarshal(data, &req); err != nil {
+		t.Fatalf("unmarshal request: %v", err)
+	}
+	if len(req.Checks) != 1 || req.Checks[0].RuleID != "quality.ai.semantic-doc-mismatch" {
+		t.Fatalf("semantic checks = %#v, want only doc-mismatch", req.Checks)
+	}
+}
+
 func qualityAISemanticConfig(dir string, name string) codeguard.Config {
 	cfg := qualityAITestConfig(dir, name)
 	enabled := true
@@ -153,14 +249,24 @@ func semanticScript(counterPath string, response string) string {
 		"printf '%s' '" + response + "'\n"
 }
 
-func assertRuleAbsentAnywhere(t *testing.T, report codeguard.Report, ruleID string) {
+func semanticCaptureScript(counterPath string, requestPath string, response string) string {
+	return "#!/bin/sh\n" +
+		"count=0\n" +
+		"if [ -f \"" + counterPath + "\" ]; then count=$(cat \"" + counterPath + "\"); fi\n" +
+		"count=$((count + 1))\n" +
+		"printf \"%s\" \"$count\" > \"" + counterPath + "\"\n" +
+		"cat >\"" + requestPath + "\"\n" +
+		"printf '%s' '" + response + "'\n"
+}
+
+func runSemanticGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	for _, section := range report.Sections {
-		for _, finding := range section.Findings {
-			if finding.RuleID == ruleID {
-				t.Fatalf("unexpected finding %s in report %#v", ruleID, report)
-			}
-		}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, string(output))
 	}
 }
 
@@ -172,13 +278,6 @@ func assertFileEquals(t *testing.T, path string, want string) {
 	}
 	if string(data) != want {
 		t.Fatalf("%s = %q, want %q", path, string(data), want)
-	}
-}
-
-func assertFileMissing(t *testing.T, path string) {
-	t.Helper()
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatalf("expected %s to be absent, err=%v", path, err)
 	}
 }
 

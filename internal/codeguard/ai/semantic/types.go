@@ -37,3 +37,9 @@ type Verdict struct {
 	Message    string `json:"message"`
 	Confidence string `json:"confidence,omitempty"`
 }
+
+type CheckSelection struct {
+	FunctionContract        bool
+	MisleadingErrorMessages bool
+	TestBehaviorCoverage    bool
+}

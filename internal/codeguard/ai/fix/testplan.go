@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 func buildTestPlan(cfg core.Config, patched core.Config, changedByTarget map[string][]string, opts Options) ([]testStep, error) {
@@ -65,122 +64,13 @@ func inferTestCommands(target core.TargetConfig, patchedRoot string, changed []s
 	switch normalizedLanguage(target.Language) {
 	case "", "go":
 		return inferGoTestCommands(patchedRoot, changed, excludes, maxNearest)
+	case "python":
+		return inferPythonTestCommands(patchedRoot, changed, excludes, maxNearest)
+	case "javascript", "typescript":
+		return inferScriptTestCommands(patchedRoot, changed, excludes, maxNearest)
 	default:
 		return nil
 	}
-}
-
-func inferGoTestCommands(root string, changed []string, excludes []string, maxNearest int) []core.CommandCheckConfig {
-	testFiles, err := runnersupport.WalkFiles(root, excludes, func(rel string) bool {
-		return strings.HasSuffix(rel, "_test.go")
-	})
-	if err != nil {
-		return nil
-	}
-
-	selected := nearestOrFallbackGoTests(changed, testFiles, maxNearest)
-	checks := make([]core.CommandCheckConfig, 0, len(selected))
-	for _, dir := range selected {
-		pattern, name := goTestPattern(filepath.ToSlash(dir))
-		checks = append(checks, core.CommandCheckConfig{
-			Name:    name,
-			Command: "go",
-			Args:    []string{"test", pattern},
-		})
-	}
-	return checks
-}
-
-func nearestOrFallbackGoTests(changed []string, testFiles []string, maxNearest int) []string {
-	limit := maxNearest
-	if limit <= 0 {
-		limit = 3
-	}
-
-	selected := nearestGoTestFiles(changed, testFiles, limit)
-	if len(selected) == 0 {
-		return fallbackGoPackageDirs(changed)
-	}
-	return uniquePackageDirs(selected)
-}
-
-func nearestGoTestFiles(changed []string, testFiles []string, limit int) []string {
-	type scoredCandidate struct {
-		path  string
-		score int
-	}
-
-	best := map[string]int{}
-	for _, changedFile := range changed {
-		for _, testFile := range testFiles {
-			score := goTestScore(changedFile, testFile)
-			if score <= 0 || score <= best[testFile] {
-				continue
-			}
-			best[testFile] = score
-		}
-	}
-	if len(best) == 0 {
-		return nil
-	}
-
-	ranked := make([]scoredCandidate, 0, len(best))
-	for path, score := range best {
-		ranked = append(ranked, scoredCandidate{path: path, score: score})
-	}
-	slices.SortFunc(ranked, func(a, b scoredCandidate) int {
-		if a.score != b.score {
-			return b.score - a.score
-		}
-		return strings.Compare(a.path, b.path)
-	})
-
-	if limit > len(ranked) {
-		limit = len(ranked)
-	}
-	selected := make([]string, 0, limit)
-	for _, item := range ranked[:limit] {
-		selected = append(selected, item.path)
-	}
-	return selected
-}
-
-func goTestScore(changedFile string, testFile string) int {
-	if !strings.HasSuffix(changedFile, ".go") || strings.HasSuffix(changedFile, "_test.go") {
-		return 0
-	}
-	changedDir := filepath.ToSlash(filepath.Dir(changedFile))
-	testDir := filepath.ToSlash(filepath.Dir(testFile))
-	changedBase := strings.TrimSuffix(filepath.Base(changedFile), ".go")
-	testBase := strings.TrimSuffix(filepath.Base(testFile), "_test.go")
-
-	score := 10
-	if changedDir == testDir {
-		score += 100
-	}
-	if changedBase == testBase {
-		score += 60
-	}
-	if strings.HasPrefix(testBase, changedBase) || strings.HasPrefix(changedBase, testBase) {
-		score += 25
-	}
-	score -= pathDistance(changedDir, testDir) * 5
-	return score
-}
-
-func fallbackGoPackageDirs(changed []string) []string {
-	dirs := make([]string, 0, len(changed))
-	for _, rel := range changed {
-		if !strings.HasSuffix(rel, ".go") {
-			continue
-		}
-		dir := filepath.ToSlash(filepath.Dir(rel))
-		if dir == "" {
-			dir = "."
-		}
-		dirs = append(dirs, dir)
-	}
-	return uniquePackageDirs(dirs)
 }
 
 func uniquePackageDirs(paths []string) []string {
@@ -216,4 +106,45 @@ func dedupeTestSteps(steps []testStep) []testStep {
 		out = append(out, step)
 	}
 	return out
+}
+
+func nearestRankedTestFiles(changed []string, testFiles []string, limit int, scorer func(string, string) int) []string {
+	type scoredCandidate struct {
+		path  string
+		score int
+	}
+
+	best := map[string]int{}
+	for _, changedFile := range changed {
+		for _, testFile := range testFiles {
+			score := scorer(changedFile, testFile)
+			if score <= 0 || score <= best[testFile] {
+				continue
+			}
+			best[testFile] = score
+		}
+	}
+	if len(best) == 0 {
+		return nil
+	}
+
+	ranked := make([]scoredCandidate, 0, len(best))
+	for path, score := range best {
+		ranked = append(ranked, scoredCandidate{path: path, score: score})
+	}
+	slices.SortFunc(ranked, func(a, b scoredCandidate) int {
+		if a.score != b.score {
+			return b.score - a.score
+		}
+		return strings.Compare(a.path, b.path)
+	})
+
+	if limit > len(ranked) {
+		limit = len(ranked)
+	}
+	selected := make([]string, 0, limit)
+	for _, item := range ranked[:limit] {
+		selected = append(selected, item.path)
+	}
+	return selected
 }
