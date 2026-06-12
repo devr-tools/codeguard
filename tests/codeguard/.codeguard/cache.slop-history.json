@@ -1,0 +1,364 @@
+{
+  "version": 1,
+  "entries": {
+    "slop_score.go.repo": [
+      {
+        "timestamp": "2026-06-12T17:12:49Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:12:49Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:12:50Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:12:52Z",
+        "score": 60,
+        "signals": 2,
+        "components": [
+          {
+            "rule_id": "quality.ai.dead-code",
+            "count": 2,
+            "weight": 3,
+            "contribution": 6
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:13:54Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:13:55Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:13:55Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:13:57Z",
+        "score": 60,
+        "signals": 2,
+        "components": [
+          {
+            "rule_id": "quality.ai.dead-code",
+            "count": 2,
+            "weight": 3,
+            "contribution": 6
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:18:07Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:18:07Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:18:08Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:18:10Z",
+        "score": 60,
+        "signals": 2,
+        "components": [
+          {
+            "rule_id": "quality.ai.dead-code",
+            "count": 2,
+            "weight": 3,
+            "contribution": 6
+          }
+        ]
+      }
+    ],
+    "slop_score.go.repository": [
+      {
+        "timestamp": "2026-06-12T17:12:51Z",
+        "score": 100,
+        "signals": 11,
+        "components": [
+          {
+            "rule_id": "quality.ai.hallucinated-import",
+            "count": 11,
+            "weight": 5,
+            "contribution": 55
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:12:52Z",
+        "score": 100,
+        "signals": 11,
+        "components": [
+          {
+            "rule_id": "quality.ai.hallucinated-import",
+            "count": 11,
+            "weight": 5,
+            "contribution": 55
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:13:56Z",
+        "score": 100,
+        "signals": 11,
+        "components": [
+          {
+            "rule_id": "quality.ai.hallucinated-import",
+            "count": 11,
+            "weight": 5,
+            "contribution": 55
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:13:57Z",
+        "score": 100,
+        "signals": 11,
+        "components": [
+          {
+            "rule_id": "quality.ai.hallucinated-import",
+            "count": 11,
+            "weight": 5,
+            "contribution": 55
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:18:09Z",
+        "score": 100,
+        "signals": 11,
+        "components": [
+          {
+            "rule_id": "quality.ai.hallucinated-import",
+            "count": 11,
+            "weight": 5,
+            "contribution": 55
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:18:10Z",
+        "score": 100,
+        "signals": 11,
+        "components": [
+          {
+            "rule_id": "quality.ai.hallucinated-import",
+            "count": 11,
+            "weight": 5,
+            "contribution": 55
+          }
+        ]
+      }
+    ],
+    "slop_score.javascript.repo": [
+      {
+        "timestamp": "2026-06-12T17:12:46Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:12:47Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:13:51Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:13:52Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:18:04Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:18:05Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      }
+    ],
+    "slop_score.python.repo": [
+      {
+        "timestamp": "2026-06-12T17:12:46Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:13:50Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-06-12T17:18:04Z",
+        "score": 40,
+        "signals": 1,
+        "components": [
+          {
+            "rule_id": "quality.ai.swallowed-error",
+            "count": 1,
+            "weight": 4,
+            "contribution": 4
+          }
+        ]
+      }
+    ]
+  }
+}

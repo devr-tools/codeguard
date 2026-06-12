@@ -14,7 +14,7 @@ func TestHybridTriageStaysOfflineWithoutProvider(t *testing.T) {
 	root := t.TempDir()
 	writeArtifactFile(t, filepath.Join(root, "service.go"), `package sample
 
-func buildClient() error {
+func BuildClient() error {
 	err := doThing()
 	_ = err
 	return nil
@@ -55,7 +55,7 @@ func TestHybridTriageDismissesStaticFinding(t *testing.T) {
 	root := t.TempDir()
 	writeArtifactFile(t, filepath.Join(root, "service.go"), `package sample
 
-func buildClient() error {
+func BuildClient() error {
 	err := doThing()
 	_ = err
 	return nil
@@ -109,7 +109,7 @@ func TestHybridTriageCachesVerdictsByContentHash(t *testing.T) {
 	root := t.TempDir()
 	writeArtifactFile(t, filepath.Join(root, "service.go"), `package sample
 
-func buildClient() error {
+func BuildClient() error {
 	err := doThing()
 	_ = err
 	return nil

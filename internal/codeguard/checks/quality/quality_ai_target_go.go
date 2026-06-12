@@ -28,32 +28,70 @@ func goAITargetFindings(env support.Context, target core.TargetConfig) []core.Fi
 	}
 	metadata := readGoModuleMetadata(target.Path)
 	dominant := dominantGoTestFramework(target.Path, files)
+	errorStyle := dominantGoErrorStyle(target.Path, files)
+	naming := dominantNamingConvention(target.Path, files, goDeclaredNames)
+	packageFiles := map[string][]goParsedFile{}
 	findings := make([]core.Finding, 0)
 	for _, rel := range files {
-		findings = append(findings, goFileAIQualityFindings(env, target.Path, rel, metadata, dominant)...)
+		fileFindings, parsedFile := goFileAIQualityFindings(env, target.Path, rel, goFileScanInput{
+			metadata:   metadata,
+			dominant:   dominant,
+			errorStyle: errorStyle,
+			naming:     naming,
+		})
+		findings = append(findings, fileFindings...)
+		if parsedFile != nil {
+			dir := filepath.Dir(rel)
+			packageFiles[dir] = append(packageFiles[dir], *parsedFile)
+		}
+	}
+	if aiCheckEnabled(env.Config.Checks.QualityRules.AIChecks.DeadCode) {
+		for _, parsedFiles := range packageFiles {
+			findings = append(findings, goUnusedPrivateFunctionFindings(env, parsedFiles)...)
+		}
 	}
 	return findings
 }
 
-func goFileAIQualityFindings(env support.Context, root string, rel string, metadata goModuleMetadata, dominant string) []core.Finding {
+type goFileScanInput struct {
+	metadata   goModuleMetadata
+	dominant   string
+	errorStyle string
+	naming     string
+}
+
+func goFileAIQualityFindings(env support.Context, root string, rel string, input goFileScanInput) ([]core.Finding, *goParsedFile) {
 	abs := filepath.Join(root, rel)
 	data, err := os.ReadFile(abs)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
+	source := string(data)
+	checks := env.Config.Checks.QualityRules.AIChecks
 	findings := make([]core.Finding, 0)
+	var parsedFile *goParsedFile
 	fset := token.NewFileSet()
-	if parsed, err := parser.ParseFile(fset, abs, data, parser.ImportsOnly); err == nil {
-		findings = append(findings, goHallucinatedImportFindings(env, rel, fset, parsed, metadata)...)
-	}
 	if parsed, err := parser.ParseFile(fset, abs, data, 0); err == nil {
-		findings = append(findings, goDeadCodeFindings(env, rel, fset, parsed)...)
+		parsedFile = &goParsedFile{rel: rel, fset: fset, parsed: parsed}
+		if aiCheckEnabled(checks.HallucinatedImport) {
+			findings = append(findings, goHallucinatedImportFindings(env, rel, fset, parsed, input.metadata)...)
+		}
+		if aiCheckEnabled(checks.DeadCode) {
+			findings = append(findings, goDeadCodeFindings(env, rel, fset, parsed)...)
+			findings = append(findings, goUnreachableCodeFindings(env, rel, fset, parsed)...)
+		}
+	}
+	if aiCheckEnabled(checks.ErrorStyleDrift) {
+		findings = append(findings, goErrorStyleDriftFinding(env, rel, source, input.errorStyle)...)
+	}
+	if aiCheckEnabled(checks.NamingDrift) {
+		findings = append(findings, namingDriftFinding(env, rel, source, input.naming, goDeclaredNames)...)
 	}
 	if strings.HasSuffix(rel, "_test.go") {
-		findings = append(findings, goOverMockedTestFinding(env, rel, string(data))...)
-		findings = append(findings, goIdiomDriftFinding(env, rel, string(data), dominant)...)
+		findings = append(findings, goOverMockedTestFinding(env, rel, source)...)
+		findings = append(findings, goIdiomDriftFinding(env, rel, source, input.dominant)...)
 	}
-	return findings
+	return findings, parsedFile
 }
 
 func readGoModuleMetadata(root string) goModuleMetadata {

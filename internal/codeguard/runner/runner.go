@@ -64,6 +64,17 @@ func WriteBaselineFile(path string, entries []core.BaselineEntry) error {
 	return runnersupport.WriteBaselineFile(path, entries)
 }
 
+// SlopHistoryPath derives the slop-score history file path for a config.
+func SlopHistoryPath(cfg core.Config) string {
+	config.ApplyDefaults(&cfg)
+	return runnersupport.SlopHistoryPathForBase(cfg.Cache.Path)
+}
+
+// LoadSlopHistory reads the persisted slop-score trend, keyed by artifact ID.
+func LoadSlopHistory(path string) map[string][]core.SlopHistoryEntry {
+	return runnersupport.LoadSlopHistory(path)
+}
+
 func BaselineEntriesFromReport(report core.Report) []core.BaselineEntry {
 	return runnersupport.BaselineEntriesFromReport(report)
 }

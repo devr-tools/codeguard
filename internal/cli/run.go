@@ -16,6 +16,7 @@ var commandCatalog = map[string]commandRunner{
 	"fix":            withoutStdin(runFix),
 	"init":           runInit,
 	"profiles":       noArgs(runProfiles),
+	"report":         withoutStdin(runReport),
 	"rules":          withoutStdin(runRules),
 	"scan":           runScan,
 	"serve":          runServe,

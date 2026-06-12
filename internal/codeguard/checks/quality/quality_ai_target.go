@@ -9,6 +9,8 @@ func aiTargetFindings(env support.Context, target core.TargetConfig) []core.Find
 	switch support.NormalizedLanguage(target.Language) {
 	case "", "go":
 		return goAITargetFindings(env, target)
+	case "python", "py":
+		return pythonAITargetFindings(env, target)
 	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
 		return typeScriptAITargetFindings(env, target)
 	default:

@@ -38,26 +38,52 @@ func typeScriptAITargetFindings(env support.Context, target core.TargetConfig) [
 		workspacePackage: readWorkspacePackageNames(target.Path, env.Config.Exclude),
 	}
 	dominant := dominantScriptTestFramework(target.Path, files, manifest)
+	input := scriptFileScanInput{
+		catalog:    catalog,
+		dominant:   dominant,
+		errorStyle: dominantScriptErrorStyle(target.Path, files),
+		naming:     dominantNamingConvention(target.Path, files, scriptDeclaredNames),
+	}
 	findings := make([]core.Finding, 0)
 	for _, rel := range files {
-		findings = append(findings, scriptFileAIQualityFindings(env, target.Path, rel, catalog, dominant)...)
+		findings = append(findings, scriptFileAIQualityFindings(env, target.Path, rel, input)...)
 	}
 	return findings
 }
 
-func scriptFileAIQualityFindings(env support.Context, root string, rel string, catalog scriptImportCatalog, dominant string) []core.Finding {
+type scriptFileScanInput struct {
+	catalog    scriptImportCatalog
+	dominant   string
+	errorStyle string
+	naming     string
+}
+
+func scriptFileAIQualityFindings(env support.Context, root string, rel string, input scriptFileScanInput) []core.Finding {
 	abs := filepath.Join(root, rel)
 	data, err := os.ReadFile(abs)
 	if err != nil {
 		return nil
 	}
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
+	checks := env.Config.Checks.QualityRules.AIChecks
 	findings := make([]core.Finding, 0)
-	findings = append(findings, scriptImportFindings(env, root, rel, source, catalog)...)
-	findings = append(findings, scriptDeadCodeFindings(env, rel, source)...)
+	if aiCheckEnabled(checks.HallucinatedImport) {
+		findings = append(findings, scriptImportFindings(env, root, rel, source, input.catalog)...)
+	}
+	if aiCheckEnabled(checks.DeadCode) {
+		findings = append(findings, scriptDeadCodeFindings(env, rel, source)...)
+		findings = append(findings, scriptUnreachableFindings(env, rel, source)...)
+		findings = append(findings, scriptUnusedFunctionFindings(env, rel, source)...)
+	}
+	if aiCheckEnabled(checks.ErrorStyleDrift) {
+		findings = append(findings, scriptErrorStyleDriftFinding(env, rel, source, input.errorStyle)...)
+	}
+	if aiCheckEnabled(checks.NamingDrift) {
+		findings = append(findings, namingDriftFinding(env, rel, source, input.naming, scriptDeclaredNames)...)
+	}
 	if isScriptTestFile(rel) {
 		findings = append(findings, scriptOverMockedTestFinding(env, rel, source)...)
-		findings = append(findings, scriptIdiomDriftFinding(env, rel, source, dominant)...)
+		findings = append(findings, scriptIdiomDriftFinding(env, rel, source, input.dominant)...)
 	}
 	return findings
 }

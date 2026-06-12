@@ -19,10 +19,18 @@ var aiSlopRuleWeights = map[string]int{
 	"quality.ai.dead-code":              3,
 	"quality.ai.over-mocked-test":       3,
 	"quality.ai.local-idiom-drift":      2,
+	"quality.ai.error-style-drift":      2,
+	"quality.ai.naming-drift":           1,
 	"quality.ai.provenance-policy":      2,
 	"quality.ai.semantic-doc-mismatch":  3,
 	"quality.ai.semantic-error-message": 4,
 	"quality.ai.semantic-test-coverage": 4,
+}
+
+// aiCheckEnabled treats a nil toggle as enabled so the AI-quality heuristics
+// run by default and can be opted out individually.
+func aiCheckEnabled(flag *bool) bool {
+	return flag == nil || *flag
 }
 
 func artifactSafeID(value string) string {

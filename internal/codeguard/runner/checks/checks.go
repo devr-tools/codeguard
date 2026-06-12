@@ -46,6 +46,7 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		Mode:      sc.Opts.Mode,
 		BaseRef:   sc.Opts.BaseRef,
 		DiffText:  sc.Opts.DiffText,
+		ScanTime:  sc.Today,
 		ScanTargetFiles: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFiles(sc, target, sectionID, include, evaluator)
 		},
