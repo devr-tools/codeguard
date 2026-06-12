@@ -14,7 +14,7 @@ import (
 
 const triageFixtureSource = `package sample
 
-func buildClient() error {
+func BuildClient() error {
 	err := doThing()
 	_ = err
 	return nil
