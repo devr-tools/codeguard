@@ -16,6 +16,31 @@ func TestServeMCPListsAndCallsTools(t *testing.T) {
 	assertMCPPromptFileUnchanged(t, promptPath)
 }
 
+func TestServeMCPExplainReturnsFixTemplate(t *testing.T) {
+	configPath := writeMCPConfig(t, `{
+  "name": "mcp-fix-template-test",
+  "targets": [{"name": "repo", "path": "`+t.TempDir()+`", "language": "go"}],
+  "checks": {"quality": false, "design": false, "security": false, "prompts": false, "ci": false},
+  "output": {"format": "json"}
+}`)
+
+	lines := runMCPServer(t, configPath, joinMCPMessages(t,
+		initializeMessage(1, "2025-06-18"),
+		map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"},
+		map[string]any{
+			"jsonrpc": "2.0",
+			"id":      2,
+			"method":  "tools/call",
+			"params": map[string]any{
+				"name":      "explain",
+				"arguments": map[string]any{"rule_id": "quality.gofmt"},
+			},
+		},
+	))
+
+	assertExplainFixTemplateLine(t, findResponseLineByID(t, lines, "2"), "quality.gofmt")
+}
+
 func TestServeMCPEmitsProgressNotifications(t *testing.T) {
 	configPath := writeMCPConfig(t, `{
   "name": "mcp-progress-test",

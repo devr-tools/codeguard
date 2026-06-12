@@ -58,6 +58,26 @@ func assertExplainLine(t *testing.T, line string, ruleID string, executionModel 
 	}
 }
 
+func assertExplainFixTemplateLine(t *testing.T, line string, ruleID string) {
+	t.Helper()
+	var resp struct {
+		Result struct {
+			IsError           bool `json:"isError"`
+			StructuredContent struct {
+				ID          string `json:"id"`
+				FixTemplate string `json:"fix_template"`
+			} `json:"structuredContent"`
+		} `json:"result"`
+	}
+	decodeMCPLine(t, line, &resp)
+	if resp.Result.IsError || resp.Result.StructuredContent.ID != ruleID {
+		t.Fatalf("unexpected explain payload: %#v", resp)
+	}
+	if strings.TrimSpace(resp.Result.StructuredContent.FixTemplate) == "" {
+		t.Fatalf("expected populated fix_template for %s, got %#v", ruleID, resp)
+	}
+}
+
 func assertValidatePatchLine(t *testing.T, line string) {
 	t.Helper()
 	var resp struct {

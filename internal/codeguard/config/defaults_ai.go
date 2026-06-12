@@ -1,6 +1,10 @@
 package config
 
-import "github.com/devr-tools/codeguard/internal/codeguard/core"
+import (
+	"strings"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
+)
 
 func applyAIDefaults(dst *core.AIConfig, def core.AIConfig) {
 	applyAIProviderDefaults(&dst.Provider, def.Provider)
@@ -12,6 +16,12 @@ func applyAIDefaults(dst *core.AIConfig, def core.AIConfig) {
 func applyAIProviderDefaults(dst *core.AIProviderConfig, def core.AIProviderConfig) {
 	if dst.Type == "" {
 		dst.Type = def.Type
+	}
+	// Model, base URL, and key env defaults are provider-flavored; applying
+	// them to a different provider type (for example anthropic) would point
+	// it at another provider's endpoint and credentials.
+	if !strings.EqualFold(strings.TrimSpace(dst.Type), strings.TrimSpace(def.Type)) {
+		return
 	}
 	if dst.Model == "" {
 		dst.Model = def.Model

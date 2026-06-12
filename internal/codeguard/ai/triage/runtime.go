@@ -33,20 +33,36 @@ func discoverRuntime(cfg core.AIConfig, opts core.ScanOptions) runtimeConfig {
 		os.Getenv("CODEGUARD_AI_TRIAGE_PROVIDER"),
 		cfg.Provider.Type,
 	)
+	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
+	// Config provider settings only apply when the effective provider matches
+	// the configured one; otherwise an env-selected provider would inherit
+	// another provider's model, base URL, or key env.
+	configProvider := cfg.Provider
+	if !strings.EqualFold(strings.TrimSpace(configProvider.Type), normalizedProvider) {
+		configProvider = core.AIProviderConfig{Type: configProvider.Type}
+	}
 	model := firstNonEmpty(
 		os.Getenv("CODEGUARD_AI_TRIAGE_MODEL"),
-		cfg.Provider.Model,
+		configProvider.Model,
 	)
 	baseURL := firstNonEmpty(
 		os.Getenv("CODEGUARD_AI_TRIAGE_BASE_URL"),
-		cfg.Provider.BaseURL,
+		configProvider.BaseURL,
 	)
 	apiKey := firstNonEmpty(
 		os.Getenv("CODEGUARD_AI_TRIAGE_API_KEY"),
-		apiKeyFromConfig(cfg.Provider),
+		apiKeyFromConfig(configProvider),
 	)
+	if normalizedProvider == "anthropic" {
+		if apiKey == "" {
+			apiKey = strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY"))
+		}
+		if strings.TrimSpace(model) == "" {
+			model = anthropicDefaultModel
+		}
+	}
 	return runtimeConfig{
-		Provider:     strings.ToLower(strings.TrimSpace(provider)),
+		Provider:     normalizedProvider,
 		Model:        model,
 		BaseURL:      baseURL,
 		APIKey:       apiKey,
@@ -71,6 +87,8 @@ func (cfg runtimeConfig) validate() error {
 	case "mock":
 		return nil
 	case "openai":
+		return nil
+	case "anthropic":
 		return nil
 	default:
 		return fmt.Errorf("unsupported CODEGUARD_AI_TRIAGE_PROVIDER %q", cfg.Provider)
@@ -109,7 +127,10 @@ func aiEnabled(cfg core.AIConfig, opts core.ScanOptions) bool {
 func apiKeyFromConfig(cfg core.AIProviderConfig) string {
 	keyEnv := strings.TrimSpace(cfg.APIKeyEnv)
 	if keyEnv == "" {
-		return ""
+		if !strings.EqualFold(strings.TrimSpace(cfg.Type), "anthropic") {
+			return ""
+		}
+		keyEnv = "ANTHROPIC_API_KEY"
 	}
 	return os.Getenv(keyEnv)
 }

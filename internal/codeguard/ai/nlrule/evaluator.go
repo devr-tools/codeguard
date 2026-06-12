@@ -15,15 +15,36 @@ type EvaluatedFinding struct {
 }
 
 func EvaluateFile(ctx context.Context, runtime Runtime, rule core.CustomRuleConfig, path string, data []byte) ([]EvaluatedFinding, error) {
+	return EvaluateFileCached(ctx, runtime, nil, rule, path, data)
+}
+
+// EvaluateFileCached evaluates one natural-language rule against one file,
+// serving the verdict from cache when the rule, runtime, and file contents
+// are unchanged so the runtime is not re-invoked.
+func EvaluateFileCached(ctx context.Context, runtime Runtime, cache VerdictCache, rule core.CustomRuleConfig, path string, data []byte) ([]EvaluatedFinding, error) {
 	if runtime == nil || !runtime.Enabled() || strings.TrimSpace(rule.NaturalLanguage) == "" {
 		return nil, nil
+	}
+	key := ""
+	if cache != nil {
+		key = VerdictCacheKey(runtime.Fingerprint(), rule, path, data)
+		if verdict, ok := cache.GetNLRuleVerdict(key); ok {
+			return findingsFromMatches(rule, matchesFromCachedVerdict(verdict)), nil
+		}
 	}
 	response, err := runtime.Evaluate(ctx, Compile(rule, path, data))
 	if err != nil {
 		return nil, err
 	}
-	findings := make([]EvaluatedFinding, 0, len(response.Matches))
-	for _, match := range response.Matches {
+	if cache != nil {
+		cache.PutNLRuleVerdict(key, cachedVerdictFromMatches(response.Matches))
+	}
+	return findingsFromMatches(rule, response.Matches), nil
+}
+
+func findingsFromMatches(rule core.CustomRuleConfig, matches []Match) []EvaluatedFinding {
+	findings := make([]EvaluatedFinding, 0, len(matches))
+	for _, match := range matches {
 		message := strings.TrimSpace(match.Message)
 		if message == "" {
 			message = rule.Message
@@ -39,7 +60,7 @@ func EvaluateFile(ctx context.Context, runtime Runtime, rule core.CustomRuleConf
 			Why:     why,
 		})
 	}
-	return findings, nil
+	return findings
 }
 
 func max(value int, minimum int) int {

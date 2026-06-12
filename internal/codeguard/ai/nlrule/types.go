@@ -5,6 +5,7 @@ import "context"
 const (
 	runtimeCommandEnv = "CODEGUARD_AI_RUNTIME_COMMAND"
 	maxSourceBytes    = 64 * 1024
+	promptVersion     = "codeguard.nlrule.v1"
 )
 
 type Runtime interface {

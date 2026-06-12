@@ -20,7 +20,7 @@ func RunSection(ctx context.Context, sc runnersupport.Context) core.SectionResul
 					continue
 				}
 				if rule.UsesNaturalLanguage() {
-					matches, err := nlrule.EvaluateFile(ctx, sc.NLRuntime, rule.Rule, file, data)
+					matches, err := nlrule.EvaluateFileCached(ctx, sc.NLRuntime, sc.Cache, rule.Rule, file, data)
 					if err != nil {
 						continue
 					}

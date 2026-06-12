@@ -7,7 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/ai/httpretry"
 )
+
+const triageSystemPrompt = "You adversarially verify static-analysis findings. Dismiss only when the finding is clearly a false positive from the provided local evidence. If uncertain, keep it. Respond with JSON only: {\"verdicts\":[{\"content_hash\":\"...\",\"decision\":\"keep|dismiss\",\"summary\":\"...\"}]}"
 
 type openAIProvider struct {
 	cfg runtimeConfig
@@ -35,7 +39,7 @@ func (provider openAIProvider) requestBody(prompt string) ([]byte, error) {
 		Messages: []openAIMessage{
 			{
 				Role:    "system",
-				Content: "You adversarially verify static-analysis findings. Dismiss only when the finding is clearly a false positive from the provided local evidence. If uncertain, keep it. Respond with JSON only: {\"verdicts\":[{\"content_hash\":\"...\",\"decision\":\"keep|dismiss\",\"summary\":\"...\"}]}",
+				Content: triageSystemPrompt,
 			},
 			{
 				Role:    "user",
@@ -49,15 +53,17 @@ func (provider openAIProvider) requestBody(prompt string) ([]byte, error) {
 func (provider openAIProvider) doRequest(ctx context.Context, body []byte) (*http.Response, error) {
 	baseURL := provider.baseURL()
 	httpClient := &http.Client{Timeout: provider.cfg.Timeout}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if provider.cfg.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+provider.cfg.APIKey)
-	}
-	return httpClient.Do(req)
+	return httpretry.Do(ctx, httpClient, httpretry.FromEnv(), func() (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if provider.cfg.APIKey != "" {
+			req.Header.Set("Authorization", "Bearer "+provider.cfg.APIKey)
+		}
+		return req, nil
+	})
 }
 
 func (provider openAIProvider) baseURL() string {

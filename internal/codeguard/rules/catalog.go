@@ -12,7 +12,7 @@ var catalog = mergeRuleCatalogs(
 func Catalog() map[string]core.RuleMetadata {
 	out := make(map[string]core.RuleMetadata, len(catalog))
 	for id, meta := range catalog {
-		out[id] = core.NormalizeRuleMetadata(meta)
+		out[id] = core.NormalizeRuleMetadata(applyFixTemplate(meta))
 	}
 	return out
 }
