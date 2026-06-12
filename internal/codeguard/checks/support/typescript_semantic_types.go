@@ -6,6 +6,7 @@ type TypeScriptSemanticResults struct {
 	Design   []FindingInput `json:"design"`
 	Quality  []FindingInput `json:"quality"`
 	Security []FindingInput `json:"security"`
+	Debug    []string       `json:"debug,omitempty"`
 }
 
 type typeScriptSemanticInput struct {
@@ -18,6 +19,7 @@ type typeScriptSemanticInput struct {
 	MaxParameters           int                  `json:"max_parameters"`
 	MaxCyclomaticComplexity int                  `json:"max_cyclomatic_complexity"`
 	TaintModel              TypeScriptTaintModel `json:"taint_model"`
+	TaintMaxDepth           int                  `json:"taint_max_depth"`
 }
 
 func newTypeScriptSemanticInput(target core.TargetConfig, cfg core.Config, libPath string) typeScriptSemanticInput {
@@ -31,5 +33,6 @@ func newTypeScriptSemanticInput(target core.TargetConfig, cfg core.Config, libPa
 		MaxParameters:           cfg.Checks.QualityRules.MaxParameters,
 		MaxCyclomaticComplexity: cfg.Checks.QualityRules.MaxCyclomaticComplexity,
 		TaintModel:              defaultTypeScriptTaintModel(),
+		TaintMaxDepth:           cfg.Checks.SecurityRules.TypeScriptTaintMaxDepth,
 	}
 }

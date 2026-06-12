@@ -125,6 +125,9 @@ func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRules
 	if dst.TaintPython == nil {
 		dst.TaintPython = boolPtr(true)
 	}
+	if dst.TypeScriptTaintMaxDepth == 0 {
+		dst.TypeScriptTaintMaxDepth = def.TypeScriptTaintMaxDepth
+	}
 	if dst.GovulncheckCommand == "" {
 		dst.GovulncheckCommand = def.GovulncheckCommand
 	}

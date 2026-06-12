@@ -111,6 +111,15 @@ var securityCatalog = map[string]core.RuleMetadata{
 		Description:    "Warns when TypeScript code uses string-based setTimeout or setInterval execution.",
 		HowToFix:       "Pass a function instead of source text to timer APIs.",
 	},
+	"security.typescript.taint-flow": {
+		ID:             "security.typescript.taint-flow",
+		Section:        "Security",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "TypeScript tainted data flow",
+		Description:    "Warns when untrusted input flows into a sensitive sink, including across module boundaries.",
+		HowToFix:       "Validate or sanitize the untrusted value, or use a parameterized API before it reaches the sink.",
+	},
 	"security.typescript.postmessage-wildcard": {
 		ID:             "security.typescript.postmessage-wildcard",
 		Section:        "Security",
@@ -182,6 +191,15 @@ var securityCatalog = map[string]core.RuleMetadata{
 		Title:          "JavaScript string timer execution",
 		Description:    "Warns when JavaScript code uses string-based setTimeout or setInterval execution.",
 		HowToFix:       "Pass a function instead of source text to timer APIs.",
+	},
+	"security.javascript.taint-flow": {
+		ID:             "security.javascript.taint-flow",
+		Section:        "Security",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "JavaScript tainted data flow",
+		Description:    "Warns when untrusted input flows into a sensitive sink, including across module boundaries.",
+		HowToFix:       "Validate or sanitize the untrusted value, or use a parameterized API before it reaches the sink.",
 	},
 	"security.javascript.postmessage-wildcard": {
 		ID:             "security.javascript.postmessage-wildcard",

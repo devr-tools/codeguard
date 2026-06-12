@@ -61,7 +61,8 @@ func exampleCIRules() core.CIRulesConfig {
 
 func exampleSecurityRules() core.SecurityRulesConfig {
 	return core.SecurityRulesConfig{
-		GovulncheckMode:    "auto",
-		GovulncheckCommand: "govulncheck",
+		GovulncheckMode:         "auto",
+		GovulncheckCommand:      "govulncheck",
+		TypeScriptTaintMaxDepth: 8,
 	}
 }
