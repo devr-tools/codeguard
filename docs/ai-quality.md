@@ -31,7 +31,7 @@ This brief tracks the AI-generated-code quality features currently implemented i
   - stays fully offline when `CODEGUARD_AI_TRIAGE_PROVIDER` is unset
   - caches provider verdicts by packaged finding content hash inside the normal scan cache
 - Verified auto-fix
-  - `codeguard.VerifyFix(...)` and `codeguard.GenerateVerifiedFix(...)` only return patches after diff-scoped verification and nearest-test reruns pass in an isolated workspace
+  - `codeguard.VerifyFix(...)` and `codeguard.GenerateVerifiedFix(ctx, req)` only return patches after diff-scoped verification and nearest-test reruns pass in an isolated workspace
   - `codeguard fix -ai` exposes the same verified-fix flow from the CLI for one selected finding
 - Natural-language custom rules
   - custom rule packs can use `natural_language` instructions alongside regex and path matchers

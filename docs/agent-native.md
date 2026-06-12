@@ -19,7 +19,7 @@ This document is a short status brief for `codeguard` features aimed at AI agent
 
 - Verified auto-fix SDK flow
   - `codeguard.VerifyFix(...)` verifies a proposed diff in an isolated workspace
-  - `codeguard.GenerateVerifiedFix(...)` composes patch generation with the same verifier
+  - `codeguard.GenerateVerifiedFix(ctx, req)` composes patch generation with the same verifier
   - the verifier reruns `codeguard` against the proposed diff, executes inferred nearest tests, and fails closed when tests cannot be inferred or do not pass
 
 - Machine-first explain output

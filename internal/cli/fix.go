@@ -64,9 +64,15 @@ func runFix(args []string, stdout io.Writer, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, "no AI provider is configured for fix generation")
 		return 1
 	}
-	result, err := service.GenerateVerifiedFix(context.Background(), cfg, finding, firstNonEmpty(finding.Why, finding.Message), generator, service.FixOptions{
-		BaseRef:      strings.TrimSpace(*baseRef),
-		TestCommands: fixVerificationCommands(cfg),
+	result, err := service.GenerateVerifiedFix(context.Background(), service.FixGenerateRequest{
+		Config:    cfg,
+		Finding:   finding,
+		Analysis:  firstNonEmpty(finding.Why, finding.Message),
+		Generator: generator,
+		Options: service.FixOptions{
+			BaseRef:      strings.TrimSpace(*baseRef),
+			TestCommands: fixVerificationCommands(cfg),
+		},
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "generate verified fix: %v\n", err)

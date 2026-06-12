@@ -10,20 +10,20 @@ import (
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
-func GenerateVerified(ctx context.Context, cfg core.Config, finding core.Finding, analysis string, generator Generator, opts Options) (Result, error) {
-	if generator == nil {
+func GenerateVerified(ctx context.Context, req GenerateRequest) (Result, error) {
+	if req.Generator == nil {
 		return Result{}, fmt.Errorf("fix generator is required")
 	}
-	candidate, err := generator.GenerateFix(ctx, GenerateInput{
-		Config:       cfg,
-		Finding:      finding,
-		Analysis:     analysis,
+	candidate, err := req.Generator.GenerateFix(ctx, GenerateInput{
+		Config:       req.Config,
+		Finding:      req.Finding,
+		Analysis:     req.Analysis,
 		Instructions: "Return a unified diff that resolves the finding without unrelated edits. The patch will only be surfaced if codeguard verification and nearest tests pass.",
 	})
 	if err != nil {
 		return Result{}, err
 	}
-	return Verify(ctx, cfg, finding, candidate, opts)
+	return Verify(ctx, req.Config, req.Finding, candidate, req.Options)
 }
 
 func Verify(ctx context.Context, cfg core.Config, finding core.Finding, candidate Candidate, opts Options) (Result, error) {

@@ -13,40 +13,23 @@ type openAIProvider struct {
 	cfg runtimeConfig
 }
 
-type openAIRequest struct {
-	Model    string          `json:"model"`
-	Messages []openAIMessage `json:"messages"`
-}
-
-type openAIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type openAIResponse struct {
-	Choices []struct {
-		Message openAIMessage `json:"message"`
-	} `json:"choices"`
-}
-
-type openAIVerdictPayload struct {
-	Verdicts []struct {
-		ContentHash string `json:"content_hash"`
-		Decision    string `json:"decision"`
-		Summary     string `json:"summary"`
-	} `json:"verdicts"`
-}
-
 func (provider openAIProvider) Triage(ctx context.Context, candidates []candidate) (map[string]providerVerdict, error) {
-	baseURL := strings.TrimRight(provider.cfg.BaseURL, "/")
-	if baseURL == "" {
-		baseURL = "https://api.openai.com/v1"
-	}
-
 	prompt, err := buildPrompt(candidates)
 	if err != nil {
 		return nil, err
 	}
+	body, err := provider.requestBody(prompt)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := provider.doRequest(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	return decodeVerdicts(resp)
+}
+
+func (provider openAIProvider) requestBody(prompt string) ([]byte, error) {
 	payload := openAIRequest{
 		Model: provider.cfg.Model,
 		Messages: []openAIMessage{
@@ -60,11 +43,11 @@ func (provider openAIProvider) Triage(ctx context.Context, candidates []candidat
 			},
 		},
 	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
+	return json.Marshal(payload)
+}
 
+func (provider openAIProvider) doRequest(ctx context.Context, body []byte) (*http.Response, error) {
+	baseURL := provider.baseURL()
 	httpClient := &http.Client{Timeout: provider.cfg.Timeout}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
@@ -74,11 +57,18 @@ func (provider openAIProvider) Triage(ctx context.Context, candidates []candidat
 	if provider.cfg.APIKey != "" {
 		req.Header.Set("Authorization", "Bearer "+provider.cfg.APIKey)
 	}
+	return httpClient.Do(req)
+}
 
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, err
+func (provider openAIProvider) baseURL() string {
+	baseURL := strings.TrimRight(provider.cfg.BaseURL, "/")
+	if baseURL == "" {
+		return "https://api.openai.com/v1"
 	}
+	return baseURL
+}
+
+func decodeVerdicts(resp *http.Response) (map[string]providerVerdict, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("ai triage provider returned %s", resp.Status)
@@ -91,8 +81,11 @@ func (provider openAIProvider) Triage(ctx context.Context, candidates []candidat
 	if len(decoded.Choices) == 0 {
 		return nil, fmt.Errorf("ai triage provider returned no choices")
 	}
+	return parseVerdictText(decoded.Choices[0].Message.Content)
+}
 
-	text := strings.TrimSpace(decoded.Choices[0].Message.Content)
+func parseVerdictText(text string) (map[string]providerVerdict, error) {
+	text = strings.TrimSpace(text)
 	var verdictPayload openAIVerdictPayload
 	if err := json.Unmarshal([]byte(text), &verdictPayload); err != nil {
 		return nil, fmt.Errorf("ai triage provider returned invalid JSON verdicts: %w", err)

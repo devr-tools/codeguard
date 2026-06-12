@@ -39,8 +39,8 @@ func VerifyFix(ctx context.Context, cfg Config, finding Finding, candidate FixCa
 	return internalfix.Verify(ctx, cfg, finding, candidate, opts)
 }
 
-func GenerateVerifiedFix(ctx context.Context, cfg Config, finding Finding, analysis string, generator FixGenerator, opts FixOptions) (VerifiedFix, error) {
-	return internalfix.GenerateVerified(ctx, cfg, finding, analysis, generator, opts)
+func GenerateVerifiedFix(ctx context.Context, req FixGenerateRequest) (VerifiedFix, error) {
+	return internalfix.GenerateVerified(ctx, req)
 }
 
 func WriteBaselineFile(path string, entries []BaselineEntry) error {

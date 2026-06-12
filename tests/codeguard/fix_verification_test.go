@@ -235,7 +235,13 @@ func TestRunReturnsUnderlyingError(t *testing.T) {
 		Summary: "return the error to the caller",
 		Diff:    diff,
 	}}
-	result, err := codeguard.GenerateVerifiedFix(context.Background(), cfg, finding, "swallowed error", generator, codeguard.FixOptions{})
+	result, err := codeguard.GenerateVerifiedFix(context.Background(), codeguard.FixGenerateRequest{
+		Config:    cfg,
+		Finding:   finding,
+		Analysis:  "swallowed error",
+		Generator: generator,
+		Options:   codeguard.FixOptions{},
+	})
 	if err != nil {
 		t.Fatalf("generate verified fix: %v", err)
 	}

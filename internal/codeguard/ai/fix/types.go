@@ -48,6 +48,14 @@ type Result struct {
 	TestResults  []CommandResult `json:"test_results,omitempty"`
 }
 
+type GenerateRequest struct {
+	Config    core.Config  `json:"config"`
+	Finding   core.Finding `json:"finding"`
+	Analysis  string       `json:"analysis,omitempty"`
+	Generator Generator    `json:"-"`
+	Options   Options      `json:"options,omitempty"`
+}
+
 type testStep struct {
 	target core.TargetConfig
 	dir    string
