@@ -52,11 +52,16 @@ func buildCustomRuleMetadata(rule core.CustomRuleConfig) core.RuleMetadata {
 		severity = "warn"
 	}
 
+	executionModel := core.RuleExecutionModelLanguageAgnostic
+	if strings.TrimSpace(rule.NaturalLanguage) != "" {
+		executionModel = core.RuleExecutionModelCommandDriven
+	}
+
 	return core.NormalizeRuleMetadata(core.RuleMetadata{
 		ID:               rule.ID,
 		Section:          section,
 		DefaultLevel:     severity,
-		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
+		ExecutionModel:   executionModel,
 		LanguageCoverage: core.ConfigurableRuleLanguageCoverage(),
 		Title:            rule.Title,
 		Description:      firstNonEmpty(rule.Description, rule.Message),

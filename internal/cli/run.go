@@ -13,6 +13,7 @@ var commandCatalog = map[string]commandRunner{
 	"baseline":       withoutStdin(runBaseline),
 	"doctor":         withoutStdin(runDoctor),
 	"explain":        withoutStdin(runExplain),
+	"fix":            withoutStdin(runFix),
 	"init":           runInit,
 	"profiles":       noArgs(runProfiles),
 	"rules":          withoutStdin(runRules),

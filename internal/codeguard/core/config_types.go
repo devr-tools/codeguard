@@ -5,6 +5,7 @@ type Config struct {
 	Profile   string           `json:"profile,omitempty"`
 	Targets   []TargetConfig   `json:"targets"`
 	Checks    CheckConfig      `json:"checks"`
+	AI        AIConfig         `json:"ai,omitempty"`
 	RulePacks []RulePackConfig `json:"rule_packs,omitempty"`
 	Output    OutputConfig     `json:"output"`
 	Exclude   []string         `json:"exclude,omitempty"`

@@ -181,6 +181,41 @@ func TestRunRulesWithConfigIncludesCustomRules(t *testing.T) {
 	}
 }
 
+func TestRunRulesWithConfigIncludesNaturalLanguageExecutionModel(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "codeguard.json")
+	config := `{
+  "name": "custom-rule-cli-nl",
+  "targets": [{"name": "repo", "path": "` + dir + `", "language": "go"}],
+  "checks": {"quality": false, "design": false, "security": false, "prompts": false, "ci": false},
+  "output": {"format": "text"},
+  "rule_packs": [{
+    "name": "repo-policy",
+    "rules": [{
+      "id": "custom.no-request-body-logs",
+      "title": "Never log request bodies",
+      "severity": "fail",
+      "message": "request bodies must not be logged in handlers",
+      "natural_language": "never log request bodies in handlers",
+      "paths": ["handlers/**"]
+    }]
+  }]
+}`
+	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := cli.Run([]string{"rules", "-config", configPath}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d, stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "custom.no-request-body-logs\tfail\tcommand-driven\tconfigurable\tCustom Rules\tNever log request bodies") {
+		t.Fatalf("expected command-driven natural-language rule metadata, got: %s", stdout.String())
+	}
+}
+
 func TestRunDoctor(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "codeguard.json")

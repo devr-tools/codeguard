@@ -186,6 +186,7 @@ Current behavior:
 - includes an AI-failure-mode pack for swallowed errors, narrative comments, hallucinated imports, plausible dead code, over-mocked tests, and codebase-idiom drift in Go, TypeScript, and JavaScript targets
 - publishes a `slop_score` artifact in the report when AI-failure-mode signals are present so CI systems can trend the metric over time
 - can apply a provenance-aware policy for AI-assisted changes through `quality_rules.ai_provenance` using environment hints or commit trailers
+- can optionally run command-backed semantic review for AI-assisted diff scans when `CODEGUARD_SEMANTIC_CHECKS=1` and `CODEGUARD_SEMANTIC_COMMAND` are set
 - TypeScript and JavaScript quality built-ins use AST-derived function metrics and compiler-parsed syntax when the semantic runtime is available
 - includes native maintainability heuristics for Python, TypeScript, JavaScript, Rust, Java, C#, and Ruby targets
 - TypeScript and JavaScript targets also warn on `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, explicit `any`, double assertions, non-null assertions, and committed `debugger` statements
@@ -476,7 +477,7 @@ Findings now carry:
 ## Custom rule packs
 
 Purpose:
-- Add repo-specific regex, content, and path policies without modifying Go code
+- Add repo-specific regex, content, path, and optional AI-evaluated natural-language policies without modifying Go code
 
 Config keys:
 
@@ -502,6 +503,15 @@ Config keys:
           "message": "prompt contains unresolved TODO placeholder text",
           "paths": ["prompts/**"],
           "content_regex": "(?i)todo"
+        },
+        {
+          "id": "custom.no-request-body-logs",
+          "title": "Never log request bodies",
+          "severity": "fail",
+          "message": "request bodies must not be logged in handlers",
+          "how_to_fix": "Remove request body logging and log a request identifier instead.",
+          "paths": ["handlers/**"],
+          "natural_language": "never log request bodies in handlers"
         }
       ]
     }
@@ -512,6 +522,9 @@ Config keys:
 Current behavior:
 - path-only rules can flag files by glob, extension, or path regex
 - content rules scan matching files line-by-line with the supplied regex
+- natural-language rules compile a file-scoped evaluation request for an optional AI runtime command
+- when `CODEGUARD_AI_RUNTIME_COMMAND` is unset, natural-language custom rules are skipped without failing the scan
+- when `CODEGUARD_AI_RUNTIME_COMMAND` is set, `codeguard` sends JSON on stdin and expects `{"matches":[{"line":number,"column":number,"message":string,"rationale":string}]}` on stdout
 - custom rules show up in `codeguard rules -config ...` and `codeguard explain -config ...`
 
 ## Cache
@@ -532,6 +545,7 @@ Config keys:
 
 Current behavior:
 - caches quality, design, security, prompt, and custom-rule file findings by file hash
+- caches optional semantic-review verdicts by hashed request content in a sibling semantic cache file
 - invalidates cached entries when file content or config changes
 
 ## Doctor

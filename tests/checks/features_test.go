@@ -230,6 +230,132 @@ func TestCustomRulePackFindingsAndGuidance(t *testing.T) {
 	}
 }
 
+func TestNaturalLanguageCustomRuleSkipsWhenRuntimeDisabled(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "handlers", "login.go"), "package handlers\n\nfunc handleLogin(body string) {\n\tlog.Printf(\"body=%s\", body)\n}\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "custom-nl-disabled"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Design = false
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.RulePacks = []codeguard.RulePackConfig{{
+		Name: "repo-policy",
+		Rules: []codeguard.CustomRuleConfig{{
+			ID:              "custom.no-request-body-logs",
+			Title:           "Never log request bodies",
+			Severity:        "fail",
+			Message:         "request bodies must not be logged in handlers",
+			NaturalLanguage: "never log request bodies in handlers",
+			Paths:           []string{"handlers/**"},
+		}},
+	}}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Custom Rules", "pass")
+	if got := len(report.Sections[0].Findings); got != 0 {
+		t.Fatalf("expected no findings with runtime disabled, got %d", got)
+	}
+}
+
+func TestNaturalLanguageCustomRuleFindingsWhenRuntimeEnabled(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "handlers", "login.go"), "package handlers\n\nimport \"log\"\n\nfunc handleLogin(body string) {\n\tlog.Printf(\"body=%s\", body)\n}\n")
+	runtimePath := writeNLRuleRuntime(t, dir)
+	t.Setenv("CODEGUARD_AI_RUNTIME_COMMAND", runtimePath)
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "custom-nl-enabled"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Design = false
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.RulePacks = []codeguard.RulePackConfig{{
+		Name: "repo-policy",
+		Rules: []codeguard.CustomRuleConfig{{
+			ID:              "custom.no-request-body-logs",
+			Title:           "Never log request bodies",
+			Severity:        "fail",
+			Message:         "request bodies must not be logged in handlers",
+			HowToFix:        "Remove request body logging and log a request identifier instead.",
+			NaturalLanguage: "never log request bodies in handlers",
+			Paths:           []string{"handlers/**"},
+		}},
+	}}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Custom Rules", "fail")
+	if got := len(report.Sections[0].Findings); got != 1 {
+		t.Fatalf("expected one finding, got %d", got)
+	}
+	finding := report.Sections[0].Findings[0]
+	if finding.RuleID != "custom.no-request-body-logs" {
+		t.Fatalf("unexpected rule id %q", finding.RuleID)
+	}
+	if finding.Line != 6 {
+		t.Fatalf("expected line 6, got %d", finding.Line)
+	}
+	if !strings.Contains(finding.Why, "request body") {
+		t.Fatalf("expected rationale in why field, got %q", finding.Why)
+	}
+}
+
+func TestNaturalLanguageCustomRuleCacheInvalidatesWhenRuntimeEnables(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "handlers", "login.go"), "package handlers\n\nimport \"log\"\n\nfunc handleLogin(body string) {\n\tlog.Printf(\"body=%s\", body)\n}\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "custom-nl-cache"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Design = false
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.RulePacks = []codeguard.RulePackConfig{{
+		Name: "repo-policy",
+		Rules: []codeguard.CustomRuleConfig{{
+			ID:              "custom.no-request-body-logs",
+			Title:           "Never log request bodies",
+			Severity:        "fail",
+			Message:         "request bodies must not be logged in handlers",
+			NaturalLanguage: "never log request bodies in handlers",
+			Paths:           []string{"handlers/**"},
+		}},
+	}}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run with runtime disabled: %v", err)
+	}
+	assertSectionStatus(t, report, "Custom Rules", "pass")
+
+	runtimePath := writeNLRuleRuntime(t, dir)
+	t.Setenv("CODEGUARD_AI_RUNTIME_COMMAND", runtimePath)
+
+	report, err = codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run with runtime enabled: %v", err)
+	}
+	assertSectionStatus(t, report, "Custom Rules", "fail")
+	if got := len(report.Sections[0].Findings); got != 1 {
+		t.Fatalf("expected one finding after enabling runtime, got %d", got)
+	}
+}
+
 func TestCacheFileCreatedAndInvalidatedOnContentChange(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "prompts", "system.prompt"), "Use ${OPENAI_API_KEY} for downstream calls.\n")
@@ -259,6 +385,18 @@ func TestCacheFileCreatedAndInvalidatedOnContentChange(t *testing.T) {
 		t.Fatalf("run after edit: %v", err)
 	}
 	assertSectionStatus(t, report, "AI Prompts", "pass")
+}
+
+func writeNLRuleRuntime(t *testing.T, dir string) string {
+	t.Helper()
+	runtimePath := filepath.Join(dir, "fake-nl-runtime.sh")
+	script := strings.Join([]string{
+		"#!/bin/sh",
+		"cat >/dev/null",
+		"printf '%s\\n' '{\"matches\":[{\"line\":6,\"column\":2,\"message\":\"request body is logged in a handler\",\"rationale\":\"the handler logs the request body through log.Printf\"}]}'",
+	}, "\n")
+	writeExecutableFile(t, runtimePath, script)
+	return runtimePath
 }
 
 func TestProfileOverridesGovulncheckMode(t *testing.T) {

@@ -45,6 +45,7 @@ This keeps the runner tree organized with the same directory-first style as `int
 - `ci` enforces configurable repository policy for workflow directories, workflow files, workflow contents, release files, and automation entrypoints
 - `security` runs local heuristic scanning first and can optionally run `govulncheck` in `off`, `auto`, or `required` mode with per-vulnerability findings when output is available
 - custom rule packs add config-driven path and content policies without changing the Go scanner
+- natural-language custom rules are compiled in `internal/codeguard/ai/nlrule/` and evaluated through an optional external AI runtime command
 - policy profiles apply preset defaults for thresholds and scan posture
 - exclusions remove files or paths from scanning before checks run
 - waivers and inline suppressions allow time-bounded exceptions

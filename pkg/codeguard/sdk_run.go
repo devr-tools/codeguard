@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	internalfix "github.com/devr-tools/codeguard/internal/codeguard/ai/fix"
 	"github.com/devr-tools/codeguard/internal/codeguard/config"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	"github.com/devr-tools/codeguard/internal/codeguard/report"
@@ -32,6 +33,14 @@ func RunPatch(ctx context.Context, cfg Config, diffText string) (Report, error) 
 		BaseRef:  "stdin",
 		DiffText: diffText,
 	})
+}
+
+func VerifyFix(ctx context.Context, cfg Config, finding Finding, candidate FixCandidate, opts FixOptions) (VerifiedFix, error) {
+	return internalfix.Verify(ctx, cfg, finding, candidate, opts)
+}
+
+func GenerateVerifiedFix(ctx context.Context, cfg Config, finding Finding, analysis string, generator FixGenerator, opts FixOptions) (VerifiedFix, error) {
+	return internalfix.GenerateVerified(ctx, cfg, finding, analysis, generator, opts)
 }
 
 func WriteBaselineFile(path string, entries []BaselineEntry) error {

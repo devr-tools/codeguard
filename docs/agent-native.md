@@ -17,6 +17,11 @@ This document is a short status brief for `codeguard` features aimed at AI agent
   - `codeguard.RunPatch(ctx, cfg, diffText)` is available in the public Go SDK
   - validation runs against synthesized patched content and does not mutate the working tree
 
+- Verified auto-fix SDK flow
+  - `codeguard.VerifyFix(...)` verifies a proposed diff in an isolated workspace
+  - `codeguard.GenerateVerifiedFix(...)` composes patch generation with the same verifier
+  - the verifier reruns `codeguard` against the proposed diff, executes inferred nearest tests, and fails closed when tests cannot be inferred or do not pass
+
 - Machine-first explain output
   - `codeguard explain -format agent <rule-id>` returns JSON for agent consumption
   - current fields include `id`, `title`, `section`, `level`, `execution_model`, `language_coverage`, `description`, `why`, `how_to_fix`, and `fix_template`

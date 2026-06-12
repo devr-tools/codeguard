@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	aitriage "github.com/devr-tools/codeguard/internal/codeguard/ai/triage"
 	"github.com/devr-tools/codeguard/internal/codeguard/config"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	runnerchecks "github.com/devr-tools/codeguard/internal/codeguard/runner/checks"
@@ -39,13 +40,19 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	}
 	defer sc.Close()
 
+	sections := runnerchecks.Build(ctx, sc)
+	sections, triageArtifact := aitriage.Apply(ctx, sc.Cfg, sc.Opts, sections, sc.Cache)
+
 	report := core.Report{
 		Name:        sc.Cfg.Name,
 		Profile:     sc.Cfg.Profile,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
-		Sections:    runnerchecks.Build(ctx, sc),
-		Artifacts:   sc.Artifacts.List(),
+		Sections:    sections,
 	}
+	if triageArtifact != nil {
+		sc.Artifacts.Put(*triageArtifact)
+	}
+	report.Artifacts = sc.Artifacts.List()
 	report.Summary = runnersupport.SummarizeSections(report.Sections)
 	if sc.Cache != nil {
 		_ = sc.Cache.Save()

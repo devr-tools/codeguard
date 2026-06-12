@@ -34,16 +34,18 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 		sections = append(sections, ciCheck.Run(ctx, checkEnv))
 	}
 	if len(sc.CustomRules) > 0 {
-		sections = append(sections, customrunner.RunSection(sc))
+		sections = append(sections, customrunner.RunSection(ctx, sc))
 	}
 	return sections
 }
 
 func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 	return checkSupport.Context{
-		Config:  sc.Cfg,
-		Mode:    sc.Opts.Mode,
-		BaseRef: sc.Opts.BaseRef,
+		Config:    sc.Cfg,
+		AIEnabled: sc.Opts.EnableAI || (sc.Cfg.AI.Enabled != nil && *sc.Cfg.AI.Enabled),
+		Mode:      sc.Opts.Mode,
+		BaseRef:   sc.Opts.BaseRef,
+		DiffText:  sc.Opts.DiffText,
 		ScanTargetFiles: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFiles(sc, target, sectionID, include, evaluator)
 		},

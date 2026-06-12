@@ -12,14 +12,16 @@ import (
 )
 
 type ScanCache struct {
-	path    string
-	entries map[string]cacheEntry
-	dirty   bool
+	path          string
+	entries       map[string]cacheEntry
+	triageVerdict map[string]core.AITriageCacheVerdict
+	dirty         bool
 }
 
 type cacheFile struct {
-	Version int                   `json:"version"`
-	Entries map[string]cacheEntry `json:"entries"`
+	Version       int                                  `json:"version"`
+	Entries       map[string]cacheEntry                `json:"entries"`
+	TriageVerdict map[string]core.AITriageCacheVerdict `json:"triage_verdicts,omitempty"`
 }
 
 type cacheEntry struct {
@@ -28,7 +30,7 @@ type cacheEntry struct {
 	Findings   []core.Finding `json:"findings"`
 }
 
-const scanCacheVersion = 5
+const scanCacheVersion = 6
 
 func CacheEnabled(cfg core.CacheConfig) bool {
 	return cfg.Enabled != nil && *cfg.Enabled
@@ -36,8 +38,9 @@ func CacheEnabled(cfg core.CacheConfig) bool {
 
 func LoadScanCache(path string) *ScanCache {
 	cache := &ScanCache{
-		path:    path,
-		entries: map[string]cacheEntry{},
+		path:          path,
+		entries:       map[string]cacheEntry{},
+		triageVerdict: map[string]core.AITriageCacheVerdict{},
 	}
 	if strings.TrimSpace(path) == "" {
 		return cache
@@ -56,6 +59,9 @@ func LoadScanCache(path string) *ScanCache {
 	if file.Entries != nil {
 		cache.entries = file.Entries
 	}
+	if file.TriageVerdict != nil {
+		cache.triageVerdict = file.TriageVerdict
+	}
 	return cache
 }
 
@@ -64,8 +70,9 @@ func (cache *ScanCache) Save() error {
 		return nil
 	}
 	payload := cacheFile{
-		Version: scanCacheVersion,
-		Entries: cache.entries,
+		Version:       scanCacheVersion,
+		Entries:       cache.entries,
+		TriageVerdict: cache.triageVerdict,
 	}
 	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
@@ -90,16 +97,36 @@ func hashBytes(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func ConfigFingerprint(cfg core.Config) string {
+func ConfigFingerprint(cfg core.Config, extras ...string) string {
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		return ""
 	}
-	return hashBytes(append([]byte("scanner-version-5|"), data...))
+	prefix := "scanner-version-6|" + strings.Join(extras, "|") + "|"
+	return hashBytes(append([]byte(prefix), data...))
 }
 
 func cloneFindings(findings []core.Finding) []core.Finding {
 	out := make([]core.Finding, len(findings))
 	copy(out, findings)
 	return out
+}
+
+func (cache *ScanCache) GetTriageVerdict(contentHash string) (core.AITriageCacheVerdict, bool) {
+	if cache == nil {
+		return core.AITriageCacheVerdict{}, false
+	}
+	verdict, ok := cache.triageVerdict[contentHash]
+	return verdict, ok
+}
+
+func (cache *ScanCache) PutTriageVerdict(contentHash string, verdict core.AITriageCacheVerdict) {
+	if cache == nil || strings.TrimSpace(contentHash) == "" {
+		return
+	}
+	if cache.triageVerdict == nil {
+		cache.triageVerdict = map[string]core.AITriageCacheVerdict{}
+	}
+	cache.triageVerdict[contentHash] = verdict
+	cache.dirty = true
 }

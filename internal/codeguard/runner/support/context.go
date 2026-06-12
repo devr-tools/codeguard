@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/ai/nlrule"
 	"github.com/devr-tools/codeguard/internal/codeguard/config"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
@@ -21,6 +22,7 @@ type Context struct {
 	Today       time.Time
 	RuleCatalog map[string]core.RuleMetadata
 	CustomRules []CompiledCustomRule
+	NLRuntime   nlrule.Runtime
 	Cache       *ScanCache
 	ConfigHash  string
 	DiffCommand map[string]diffCommandEnv
@@ -45,6 +47,7 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 
 	ruleCatalog := config.RuleCatalogForConfig(cfg)
 	ensureRuntimeRuleMetadata(ruleCatalog)
+	runtime := nlrule.NewRuntime(cfg.AI)
 
 	sc := Context{
 		Cfg:         cfg,
@@ -53,7 +56,8 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 		Today:       time.Now(),
 		RuleCatalog: ruleCatalog,
 		CustomRules: customRules,
-		ConfigHash:  ConfigFingerprint(cfg),
+		NLRuntime:   runtime,
+		ConfigHash:  ConfigFingerprint(cfg, runtime.Fingerprint()),
 		DiffCommand: map[string]diffCommandEnv{},
 		cleanup:     func() {},
 	}
@@ -66,7 +70,7 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 		sc.Cfg = patchedCfg
 		sc.DiffCommand = diffCommand
 		sc.cleanup = cleanup
-		sc.ConfigHash = ConfigFingerprint(patchedCfg)
+		sc.ConfigHash = ConfigFingerprint(patchedCfg, runtime.Fingerprint())
 	}
 	if cfg.Baseline.Path != "" {
 		baseline, err := loadBaselineFile(cfg.Baseline.Path)

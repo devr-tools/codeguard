@@ -26,6 +26,9 @@ func Validate(cfg core.Config) error {
 	if err := validateCommandChecks(cfg); err != nil {
 		return err
 	}
+	if err := validateAIConfig(cfg.AI); err != nil {
+		return err
+	}
 	if err := validateAIProvenance(cfg.Checks.QualityRules.AIProvenance); err != nil {
 		return err
 	}

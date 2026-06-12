@@ -42,6 +42,12 @@ func applyRootDefaults(cfg *core.Config, def core.Config) {
 	if cfg.Cache.Path == "" {
 		cfg.Cache.Path = def.Cache.Path
 	}
+	if cfg.AI.Enabled == nil {
+		cfg.AI.Enabled = boolPtr(false)
+	}
+	if cfg.AI.Cache.Path == "" {
+		cfg.AI.Cache.Path = def.AI.Cache.Path
+	}
 }
 
 func applyCheckDefaults(cfg *core.Config, def core.Config) {
@@ -50,6 +56,7 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	applyPromptDefaults(&cfg.Checks.PromptRules, def.Checks.PromptRules)
 	applyCIDefaults(&cfg.Checks.CIRules, def.Checks.CIRules)
 	applySecurityDefaults(&cfg.Checks.SecurityRules, def.Checks.SecurityRules)
+	applyAIDefaults(&cfg.AI, def.AI)
 }
 
 func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesConfig) {
@@ -159,5 +166,56 @@ func applyRulePackDefaults(cfg *core.Config) {
 				rule.Severity = "warn"
 			}
 		}
+	}
+}
+
+func applyAIDefaults(dst *core.AIConfig, def core.AIConfig) {
+	if dst.Provider.Type == "" {
+		dst.Provider.Type = def.Provider.Type
+	}
+	if dst.Provider.Model == "" {
+		dst.Provider.Model = def.Provider.Model
+	}
+	if dst.Provider.BaseURL == "" {
+		dst.Provider.BaseURL = def.Provider.BaseURL
+	}
+	if dst.Provider.APIKeyEnv == "" {
+		dst.Provider.APIKeyEnv = def.Provider.APIKeyEnv
+	}
+	if dst.HybridTriage.Enabled == nil {
+		dst.HybridTriage.Enabled = boolPtr(true)
+	}
+	if dst.HybridTriage.SuppressDismissed == nil {
+		dst.HybridTriage.SuppressDismissed = boolPtr(true)
+	}
+	if dst.HybridTriage.CandidateSections == nil {
+		dst.HybridTriage.CandidateSections = append([]string(nil), def.HybridTriage.CandidateSections...)
+	}
+	if dst.HybridTriage.CandidateSeverities == nil {
+		dst.HybridTriage.CandidateSeverities = append([]string(nil), def.HybridTriage.CandidateSeverities...)
+	}
+	if dst.Semantic.Enabled == nil {
+		dst.Semantic.Enabled = boolPtr(true)
+	}
+	if dst.Semantic.FunctionContract == nil {
+		dst.Semantic.FunctionContract = boolPtr(true)
+	}
+	if dst.Semantic.MisleadingErrorMessages == nil {
+		dst.Semantic.MisleadingErrorMessages = boolPtr(true)
+	}
+	if dst.Semantic.TestBehaviorCoverage == nil {
+		dst.Semantic.TestBehaviorCoverage = boolPtr(true)
+	}
+	if dst.AutoFix.Enabled == nil {
+		dst.AutoFix.Enabled = boolPtr(false)
+	}
+	if dst.AutoFix.VerifyTests == nil {
+		dst.AutoFix.VerifyTests = boolPtr(true)
+	}
+	if dst.AutoFix.MaxFixes == 0 {
+		dst.AutoFix.MaxFixes = def.AutoFix.MaxFixes
+	}
+	if dst.AutoFix.TestCommands == nil && len(def.AutoFix.TestCommands) > 0 {
+		dst.AutoFix.TestCommands = append([]core.CommandCheckConfig(nil), def.AutoFix.TestCommands...)
 	}
 }

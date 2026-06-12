@@ -65,6 +65,35 @@ func baseExampleConfig() core.Config {
 				GovulncheckCommand: "govulncheck",
 			},
 		},
+		AI: core.AIConfig{
+			Enabled: boolPtr(false),
+			Provider: core.AIProviderConfig{
+				Type:      "openai",
+				Model:     "gpt-5",
+				BaseURL:   "https://api.openai.com/v1",
+				APIKeyEnv: "OPENAI_API_KEY",
+			},
+			Cache: core.AICacheConfig{
+				Path: ".codeguard/ai-cache.json",
+			},
+			HybridTriage: core.AIHybridTriageConfig{
+				Enabled:             boolPtr(true),
+				SuppressDismissed:   boolPtr(true),
+				CandidateSections:   []string{"Code Quality", "Design Patterns", "Security", "Custom Rules"},
+				CandidateSeverities: []string{"warn", "fail"},
+			},
+			Semantic: core.AISemanticConfig{
+				Enabled:                 boolPtr(true),
+				FunctionContract:        boolPtr(true),
+				MisleadingErrorMessages: boolPtr(true),
+				TestBehaviorCoverage:    boolPtr(true),
+			},
+			AutoFix: core.AIAutoFixConfig{
+				Enabled:     boolPtr(false),
+				VerifyTests: boolPtr(true),
+				MaxFixes:    5,
+			},
+		},
 		Output: core.OutputConfig{Format: "text"},
 		Cache: core.CacheConfig{
 			Enabled: boolPtr(true),

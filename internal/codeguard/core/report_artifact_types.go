@@ -7,6 +7,8 @@ type Artifact struct {
 	Target          string                   `json:"target,omitempty"`
 	DependencyGraph *DependencyGraphArtifact `json:"dependency_graph,omitempty"`
 	SlopScore       *SlopScoreArtifact       `json:"slop_score,omitempty"`
+	AIAnalysis      *AIAnalysisArtifact      `json:"ai_analysis,omitempty"`
+	AIFix           *AIFixArtifact           `json:"ai_fix,omitempty"`
 }
 
 type DependencyGraphArtifact struct {
@@ -38,4 +40,31 @@ type SlopScoreComponent struct {
 	Count        int    `json:"count"`
 	Weight       int    `json:"weight"`
 	Contribution int    `json:"contribution"`
+}
+
+type AIAnalysisArtifact struct {
+	Provider string              `json:"provider,omitempty"`
+	Mode     string              `json:"mode,omitempty"`
+	Verdicts []AIAnalysisVerdict `json:"verdicts,omitempty"`
+}
+
+type AIAnalysisVerdict struct {
+	ID          string `json:"id,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	RuleID      string `json:"rule_id,omitempty"`
+	Path        string `json:"path,omitempty"`
+	Fingerprint string `json:"fingerprint,omitempty"`
+	ContentHash string `json:"content_hash,omitempty"`
+	Status      string `json:"status,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+}
+
+type AIFixArtifact struct {
+	RuleID    string   `json:"rule_id,omitempty"`
+	Path      string   `json:"path,omitempty"`
+	Verified  bool     `json:"verified,omitempty"`
+	Patch     string   `json:"patch,omitempty"`
+	ChecksRun []string `json:"checks_run,omitempty"`
+	TestsRun  []string `json:"tests_run,omitempty"`
+	Summary   string   `json:"summary,omitempty"`
 }

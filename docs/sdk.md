@@ -45,6 +45,8 @@ func main() {
 - `codeguard.ValidateConfig(cfg)` validates config without running a scan.
 - `codeguard.Run(ctx, cfg)` runs a full scan.
 - `codeguard.RunWithOptions(ctx, cfg, opts)` runs a full or diff scan.
+- `codeguard.VerifyFix(ctx, cfg, finding, candidate, opts)` validates a proposed patch in a temp workspace, reruns `codeguard` against the diff, and executes verification tests before returning it.
+- `codeguard.GenerateVerifiedFix(ctx, cfg, finding, analysis, generator, opts)` asks a generator for a patch candidate and only returns it after the same verification flow passes.
 - `codeguard.WriteReport(w, report, format)` writes `text`, `json`, `sarif`, or `github` output.
 - `codeguard.WriteBaselineFile(path, entries)` writes a baseline file.
 - `codeguard.BaselineEntriesFromReport(report)` extracts baseline entries from a report.
@@ -74,3 +76,13 @@ if err := codeguard.WriteReport(os.Stdout, report, "json"); err != nil {
 	log.Fatal(err)
 }
 ```
+
+## Verified fix flow
+
+`VerifyFix` and `GenerateVerifiedFix` fail closed. They do not return a patch unless:
+
+- the unified diff applies cleanly in an isolated temporary workspace
+- a diff-scoped `codeguard` run returns no findings for the proposed change
+- verification test commands pass
+
+By default, the verifier infers nearest Go package tests from the changed files. Other languages should pass explicit `FixVerificationCommand` entries through `FixOptions.TestCommands` until broader test-command inference is added.

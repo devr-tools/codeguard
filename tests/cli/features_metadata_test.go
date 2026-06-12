@@ -73,6 +73,34 @@ func TestSDKRuleMetadataForCustomRulePack(t *testing.T) {
 	assertLanguageCoverage(t, customRule, codeguard.RuleLanguageCoverageConfigurable)
 }
 
+func TestSDKRuleMetadataForNaturalLanguageCustomRulePack(t *testing.T) {
+	cfg := codeguard.ExampleConfig()
+	cfg.RulePacks = []codeguard.RulePackConfig{{
+		Name: "repo-policy",
+		Rules: []codeguard.CustomRuleConfig{{
+			ID:              "custom.no-request-body-logs",
+			Title:           "Never log request bodies",
+			Severity:        "fail",
+			Message:         "request bodies must not be logged in handlers",
+			NaturalLanguage: "never log request bodies in handlers",
+			Paths:           []string{"handlers/**"},
+		}},
+	}}
+
+	var customRule codeguard.RuleMetadata
+	for _, meta := range codeguard.RulesForConfig(cfg) {
+		if meta.ID == "custom.no-request-body-logs" {
+			customRule = meta
+			break
+		}
+	}
+	if customRule.ID == "" {
+		t.Fatal("expected custom.no-request-body-logs metadata")
+	}
+	assertExecutionModel(t, customRule, codeguard.RuleExecutionModelCommandDriven)
+	assertLanguageCoverage(t, customRule, codeguard.RuleLanguageCoverageConfigurable)
+}
+
 func requireRuleMetadata(t *testing.T, ruleID string) codeguard.RuleMetadata {
 	t.Helper()
 	rule, ok := codeguard.ExplainRule(ruleID)

@@ -48,6 +48,10 @@ func (rule CompiledCustomRule) MatchesPath(rel string) bool {
 	return rule.matchesExclude(rel) && rule.matchesExtensions(rel) && rule.matchesIncludedPaths(rel) && rule.matchesRegex(rel)
 }
 
+func (rule CompiledCustomRule) UsesNaturalLanguage() bool {
+	return strings.TrimSpace(rule.Rule.NaturalLanguage) != ""
+}
+
 func (rule CompiledCustomRule) matchesExclude(rel string) bool {
 	for _, excluded := range rule.Rule.Exclude {
 		if MatchPattern(excluded, rel) {

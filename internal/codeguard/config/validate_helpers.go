@@ -18,13 +18,16 @@ func validateRuleSeverity(rule core.CustomRuleConfig) error {
 }
 
 func validateRuleMatchers(rule core.CustomRuleConfig) error {
-	if len(rule.Paths) > 0 || strings.TrimSpace(rule.PathRegex) != "" || strings.TrimSpace(rule.ContentRegex) != "" || len(rule.FileExtensions) > 0 {
+	if len(rule.Paths) > 0 || strings.TrimSpace(rule.PathRegex) != "" || strings.TrimSpace(rule.ContentRegex) != "" || strings.TrimSpace(rule.NaturalLanguage) != "" || len(rule.FileExtensions) > 0 {
 		return nil
 	}
 	return fmt.Errorf("custom rule %q must define at least one matcher", rule.ID)
 }
 
 func validateRuleRegexes(rule core.CustomRuleConfig) error {
+	if strings.TrimSpace(rule.NaturalLanguage) != "" && strings.TrimSpace(rule.ContentRegex) != "" {
+		return fmt.Errorf("custom rule %q cannot define both natural_language and content_regex", rule.ID)
+	}
 	if err := validateOptionalRegex(rule.ID, "path_regex", rule.PathRegex); err != nil {
 		return err
 	}

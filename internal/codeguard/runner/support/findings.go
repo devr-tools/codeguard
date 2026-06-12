@@ -18,6 +18,7 @@ type FindingInput struct {
 	Line    int
 	Column  int
 	Message string
+	Why     string
 }
 
 type fileScanInput struct {
@@ -81,13 +82,22 @@ func NewFinding(sc Context, input FindingInput) core.Finding {
 		Title:       meta.Title,
 		Section:     meta.Section,
 		Message:     input.Message,
-		Why:         input.Message,
+		Why:         firstNonEmpty(input.Why, input.Message),
 		HowToFix:    meta.HowToFix,
 		Path:        normalizedPath,
 		Line:        input.Line,
 		Column:      input.Column,
 		Fingerprint: hex.EncodeToString(sum[:]),
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func FinalizeSection(sc Context, id string, name string, findings []core.Finding) core.SectionResult {

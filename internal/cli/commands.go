@@ -73,6 +73,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		baseRef:    fs.String("base-ref", "main", "base branch/ref for diff mode"),
 	}
 	format := fs.String("format", "", "optional output format override: text, json, sarif, github")
+	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	interactive := fs.Bool("interactive", false, "prompt for scan inputs in the terminal")
 	profile := fs.String("profile", "", "optional policy profile override")
 	if err := fs.Parse(args); err != nil {
@@ -99,7 +100,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		cfg.Output.Format = trimmedFormat
 	}
 
-	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef)); err != nil {
+	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef), *enableAI); err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
 		return 1
 	}
@@ -111,6 +112,7 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", service.DefaultConfigPath(), "config file or directory path")
 	format := fs.String("format", "", "optional output format override: text, json, sarif, github")
+	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	profile := fs.String("profile", "", "optional policy profile override")
 	if err := fs.Parse(args); err != nil {
 		return 1
@@ -135,7 +137,12 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 		cfg.Output.Format = trimmedFormat
 	}
 
-	report, err := service.RunPatch(context.Background(), cfg, string(diffText))
+	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
+		Mode:     service.ScanModeDiff,
+		BaseRef:  "stdin",
+		DiffText: string(diffText),
+		EnableAI: *enableAI,
+	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "patch validation failed: %v\n", err)
 		return 1
@@ -232,10 +239,11 @@ func parseScanMode(mode string) (service.ScanMode, error) {
 	return scanMode, nil
 }
 
-func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string) error {
+func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string, enableAI bool) error {
 	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
-		Mode:    scanMode,
-		BaseRef: baseRef,
+		Mode:     scanMode,
+		BaseRef:  baseRef,
+		EnableAI: enableAI,
 	})
 	if err != nil {
 		return err
