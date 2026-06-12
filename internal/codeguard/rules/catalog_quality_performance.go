@@ -24,7 +24,7 @@ var qualityPerformanceCatalog = map[string]core.RuleMetadata{
 		DefaultLevel:   "warn",
 		ExecutionModel: core.RuleExecutionModelGoNative,
 		Title:          "Allocation-heavy loop",
-		Description:    "Warns when a loop grows a string by concatenation, accumulates fmt.Sprintf output, or appends to a slice without preallocated capacity despite a knowable bound.",
+		Description:    "Warns when a loop grows a string by concatenation or accumulates fmt.Sprintf output (quality_rules.detect_alloc_in_loop, on by default). When quality_rules.detect_prealloc_in_loop is enabled (off by default), also warns when a loop appends to a slice without preallocated capacity despite a knowable bound.",
 		HowToFix:       "Use strings.Builder for string accumulation and preallocate slice capacity with make(len 0, cap n) before the loop.",
 	},
 	"quality.typescript.sync-io-in-handler": {

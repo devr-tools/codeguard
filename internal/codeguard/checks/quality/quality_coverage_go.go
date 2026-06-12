@@ -47,7 +47,7 @@ func goCoverageProfile(ctx context.Context, env support.Context, target core.Tar
 	if err != nil {
 		return nil, err
 	}
-	return parseGoCoverProfile(string(data), goModulePath(target.Path)), nil
+	return parseGoCoverProfile(string(data), support.GoModulePath(target.Path)), nil
 }
 
 func changedGoPackages(scope map[string]core.ChangedLineRanges) []string {
@@ -129,18 +129,4 @@ func goProfileRelPath(file string, modulePath string) string {
 		return strings.TrimPrefix(file, modulePath+"/")
 	}
 	return file
-}
-
-func goModulePath(dir string) string {
-	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "module ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "module "))
-		}
-	}
-	return ""
 }

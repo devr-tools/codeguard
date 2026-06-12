@@ -38,11 +38,7 @@ func TestSlopScoreHistoryRecordsTrendAndDelta(t *testing.T) {
 	writeSlopFixture(t, dir)
 	cfg := slopHistoryTestConfig(dir, "quality-ai-history")
 
-	first, err := codeguard.Run(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("first run: %v", err)
-	}
-	firstArtifact := findSlopScoreArtifact(t, first)
+	firstArtifact := runSlopScan(t, cfg, "first")
 	if firstArtifact.PreviousScore != nil || firstArtifact.Delta != nil {
 		t.Fatalf("first scan should have no previous score, got %#v", firstArtifact)
 	}
@@ -52,22 +48,35 @@ func TestSlopScoreHistoryRecordsTrendAndDelta(t *testing.T) {
 		t.Fatalf("expected history file at %s: %v", historyPath, err)
 	}
 
-	second, err := codeguard.Run(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("second run: %v", err)
-	}
-	secondArtifact := findSlopScoreArtifact(t, second)
-	if secondArtifact.PreviousScore == nil || secondArtifact.Delta == nil {
-		t.Fatalf("second scan should report previous score and delta, got %#v", secondArtifact)
-	}
-	if *secondArtifact.PreviousScore != firstArtifact.Score {
-		t.Fatalf("previous score = %d, want %d", *secondArtifact.PreviousScore, firstArtifact.Score)
-	}
-	if *secondArtifact.Delta != secondArtifact.Score-firstArtifact.Score {
-		t.Fatalf("delta = %d, want %d", *secondArtifact.Delta, secondArtifact.Score-firstArtifact.Score)
-	}
+	secondArtifact := runSlopScan(t, cfg, "second")
+	assertSlopTrendDelta(t, firstArtifact, secondArtifact)
+	assertSlopHistoryComplete(t, codeguard.LoadSlopHistory(historyPath))
+}
 
-	history := codeguard.LoadSlopHistory(historyPath)
+func runSlopScan(t *testing.T, cfg codeguard.Config, label string) *codeguard.SlopScoreArtifact {
+	t.Helper()
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("%s run: %v", label, err)
+	}
+	return findSlopScoreArtifact(t, report)
+}
+
+func assertSlopTrendDelta(t *testing.T, first *codeguard.SlopScoreArtifact, second *codeguard.SlopScoreArtifact) {
+	t.Helper()
+	if second.PreviousScore == nil || second.Delta == nil {
+		t.Fatalf("second scan should report previous score and delta, got %#v", second)
+	}
+	if *second.PreviousScore != first.Score {
+		t.Fatalf("previous score = %d, want %d", *second.PreviousScore, first.Score)
+	}
+	if *second.Delta != second.Score-first.Score {
+		t.Fatalf("delta = %d, want %d", *second.Delta, second.Score-first.Score)
+	}
+}
+
+func assertSlopHistoryComplete(t *testing.T, history map[string][]codeguard.SlopHistoryEntry) {
+	t.Helper()
 	if len(history) == 0 {
 		t.Fatal("expected non-empty slop history")
 	}

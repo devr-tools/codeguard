@@ -34,7 +34,7 @@ func coverageDeltaFindings(ctx context.Context, env support.Context, target core
 		return []core.Finding{env.NewFinding(support.FindingInput{
 			RuleID:  coverageDeltaRuleID,
 			Level:   "warn",
-			Message: fmt.Sprintf("target %q coverage run failed: %s", target.Name, trimmedOutput(err.Error())),
+			Message: fmt.Sprintf("target %q coverage run failed: %s", target.Name, support.TrimmedOutput(err.Error())),
 		})}
 	}
 	return changedLineCoverageFindings(env, cfg, scope, profile)
@@ -135,16 +135,4 @@ func formatLineList(lines []int) string {
 		}
 	}
 	return strings.Join(segments, ", ")
-}
-
-func trimmedOutput(output string) string {
-	output = strings.TrimSpace(output)
-	if output == "" {
-		return ""
-	}
-	output = strings.Join(strings.Fields(output), " ")
-	if len(output) > 240 {
-		return output[:237] + "..."
-	}
-	return output
 }

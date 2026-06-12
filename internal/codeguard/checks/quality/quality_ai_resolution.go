@@ -8,8 +8,28 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
+
+// aiTargetSourceFiles walks a target and returns the files whose lowercased
+// path ends with one of the given suffixes, honoring configured excludes.
+func aiTargetSourceFiles(env support.Context, target core.TargetConfig, suffixes ...string) []string {
+	files, err := runnersupport.WalkFiles(target.Path, env.Config.Exclude, func(rel string) bool {
+		lower := strings.ToLower(rel)
+		for _, suffix := range suffixes {
+			if strings.HasSuffix(lower, suffix) {
+				return true
+			}
+		}
+		return false
+	})
+	if err != nil {
+		return nil
+	}
+	return files
+}
 
 type packageManifest struct {
 	Name             string            `json:"name"`

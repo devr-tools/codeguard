@@ -36,14 +36,7 @@ func pythonDeadCodeFindings(env support.Context, file string, source string) []c
 		indent := len(line) - len(strings.TrimLeft(line, " \t"))
 		if pendingIndent >= 0 {
 			if indent == pendingIndent && !pythonBlockResumePattern.MatchString(trimmed) {
-				findings = append(findings, env.NewFinding(support.FindingInput{
-					RuleID:  "quality.ai.dead-code",
-					Level:   "warn",
-					Path:    file,
-					Line:    idx + 1,
-					Column:  1,
-					Message: "statement is unreachable because the previous statement unconditionally exits the block",
-				}))
+				findings = append(findings, unreachableStatementFinding(env, file, idx+1))
 			}
 			pendingIndent = -1
 		}

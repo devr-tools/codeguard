@@ -26,8 +26,11 @@ func TestRunReportRequiresModeFlag(t *testing.T) {
 	}
 }
 
-func TestRunReportPrintsSlopHistoryTrend(t *testing.T) {
-	dir := t.TempDir()
+// setupSlopHistoryReportFixture writes a Go fixture repo plus config and
+// seeds two scans so the report command has a recorded trend. It returns the
+// config path.
+func setupSlopHistoryReportFixture(t *testing.T, dir string) string {
+	t.Helper()
 	repo := filepath.Join(dir, "repo")
 	if err := os.MkdirAll(repo, 0o755); err != nil {
 		t.Fatalf("mkdir repo: %v", err)
@@ -68,6 +71,11 @@ func doThing() error { return nil }
 			t.Fatalf("scan %d: %v", i, err)
 		}
 	}
+	return configPath
+}
+
+func TestRunReportPrintsSlopHistoryTrend(t *testing.T) {
+	configPath := setupSlopHistoryReportFixture(t, t.TempDir())
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

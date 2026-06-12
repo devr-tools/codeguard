@@ -1,16 +1,12 @@
 package runtime
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"strings"
 
-	"github.com/devr-tools/codeguard/internal/codeguard/ai/httpretry"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -62,30 +58,12 @@ func (p anthropicProvider) Evaluate(ctx context.Context, req Request) (Response,
 			{Role: "user", Content: openAIUserPrompt(req)},
 		},
 	}
-	data, err := json.Marshal(body)
+	respData, err := postProviderJSON(ctx, p.Name(), p.baseURL+"/messages", map[string]string{
+		"x-api-key":         p.apiKey,
+		"anthropic-version": anthropicVersion,
+	}, body)
 	if err != nil {
 		return Response{}, err
-	}
-	resp, err := httpretry.Do(ctx, providerHTTPClient(), httpretry.FromEnv(), func() (*http.Request, error) {
-		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/messages", bytes.NewReader(data))
-		if err != nil {
-			return nil, err
-		}
-		httpReq.Header.Set("x-api-key", p.apiKey)
-		httpReq.Header.Set("anthropic-version", anthropicVersion)
-		httpReq.Header.Set("Content-Type", "application/json")
-		return httpReq, nil
-	})
-	if err != nil {
-		return Response{}, err
-	}
-	defer resp.Body.Close()
-	respData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return Response{}, err
-	}
-	if resp.StatusCode >= 300 {
-		return Response{}, fmt.Errorf("ai provider %s returned %s: %s", p.Name(), resp.Status, strings.TrimSpace(string(respData)))
 	}
 	text, err := anthropicResponseText(respData)
 	if err != nil {

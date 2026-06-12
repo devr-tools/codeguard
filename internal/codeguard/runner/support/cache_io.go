@@ -1,11 +1,9 @@
 package support
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/cachefile"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -20,18 +18,8 @@ func LoadScanCache(path string) *ScanCache {
 		triageVerdict: map[string]core.AITriageCacheVerdict{},
 		nlRuleVerdict: map[string]core.AINLRuleCacheVerdict{},
 	}
-	if strings.TrimSpace(path) == "" {
-		return cache
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return cache
-	}
 	var file cacheFile
-	if err := json.Unmarshal(data, &file); err != nil {
-		return cache
-	}
-	if file.Version != scanCacheVersion {
+	if !cachefile.Load(path, &file) || file.Version != scanCacheVersion {
 		return cache
 	}
 	if file.Entries != nil {
@@ -56,14 +44,7 @@ func (cache *ScanCache) Save() error {
 		TriageVerdict: cache.triageVerdict,
 		NLRuleVerdict: cache.nlRuleVerdict,
 	}
-	data, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(cache.path), 0o755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(cache.path, append(data, '\n'), 0o644); err != nil {
+	if err := cachefile.Write(cache.path, payload); err != nil {
 		return err
 	}
 	cache.dirty = false

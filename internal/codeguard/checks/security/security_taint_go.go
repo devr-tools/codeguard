@@ -1,7 +1,6 @@
 package security
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -71,19 +70,14 @@ func (a *goTaintAnalyzer) line(pos token.Pos) int {
 
 // emitFinding records one deduplicated source-to-sink finding.
 func (a *goTaintAnalyzer) emitFinding(taint *goTaint, sink string, sinkLine int) {
-	key := fmt.Sprintf("%d:%s:%s", sinkLine, sink, taint.source)
-	if _, dup := a.seen[key]; dup {
-		return
-	}
-	a.seen[key] = struct{}{}
-	a.findings = append(a.findings, a.env.NewFinding(support.FindingInput{
-		RuleID:  "security.taint.go",
-		Level:   "fail",
-		Path:    a.file,
-		Line:    sinkLine,
-		Column:  1,
-		Message: taintChainMessage(taint.source, taint.sourceLine, sink, sinkLine, taint.chain),
-	}))
+	a.findings = appendTaintFinding(a.env, a.file, a.seen, a.findings, taintSinkInput{
+		ruleID:     "security.taint.go",
+		source:     taint.source,
+		sourceLine: taint.sourceLine,
+		chain:      taint.chain,
+		sink:       sink,
+		sinkLine:   sinkLine,
+	})
 }
 
 // goScope is the per-function taint state.

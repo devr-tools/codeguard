@@ -15,6 +15,12 @@ func CollectTargetFindings(ctx context.Context, env Context, collect func(contex
 	return findings
 }
 
+// RunTargetSection collects findings for every configured target through
+// perTarget and finalizes the section with the given id and title.
+func RunTargetSection(ctx context.Context, env Context, id string, title string, perTarget func(context.Context, Context, core.TargetConfig) []core.Finding) core.SectionResult {
+	return env.FinalizeSection(id, title, CollectTargetFindings(ctx, env, perTarget))
+}
+
 type SectionCommandSpec struct {
 	Checks  []core.CommandCheckConfig
 	RuleID  string

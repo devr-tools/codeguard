@@ -1,8 +1,6 @@
 package fix
 
 import (
-	"fmt"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -14,7 +12,7 @@ import (
 func changedFilesByTarget(targets []core.TargetConfig, diffText string) map[string][]string {
 	changed := make(map[string][]string, len(targets))
 	for _, target := range targets {
-		rebased := runnersupport.RebaseUnifiedDiff(diffText, diffPrefixForTarget(target.Path))
+		rebased := runnersupport.RebaseUnifiedDiff(diffText, runnersupport.DiffPrefixForTarget(target.Path))
 		if strings.TrimSpace(rebased) == "" {
 			continue
 		}
@@ -41,30 +39,6 @@ func flattenChangedFiles(changed map[string][]string) []string {
 	}
 	slices.Sort(files)
 	return files
-}
-
-func diffPrefixForTarget(dir string) string {
-	repoRoot, err := gitRepoRoot(dir)
-	if err != nil {
-		return ""
-	}
-	repoRoot, err = canonicalPath(repoRoot)
-	if err != nil {
-		return ""
-	}
-	dir, err = canonicalPath(dir)
-	if err != nil {
-		return ""
-	}
-	rel, err := filepath.Rel(repoRoot, dir)
-	if err != nil {
-		return ""
-	}
-	rel = filepath.ToSlash(rel)
-	if rel == "." {
-		return ""
-	}
-	return strings.Trim(rel, "/")
 }
 
 func pathDistance(a string, b string) int {
@@ -107,25 +81,4 @@ func verificationBaseRef(opts Options) string {
 		return strings.TrimSpace(opts.BaseRef)
 	}
 	return "stdin"
-}
-
-func canonicalPath(path string) (string, error) {
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return "", err
-	}
-	resolved, err := filepath.EvalSymlinks(path)
-	if err == nil {
-		return resolved, nil
-	}
-	return path, nil
-}
-
-func gitRepoRoot(dir string) (string, error) {
-	cmd := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("resolve git repo root for %q: %w: %s", dir, err, strings.TrimSpace(string(output)))
-	}
-	return strings.TrimSpace(string(output)), nil
 }

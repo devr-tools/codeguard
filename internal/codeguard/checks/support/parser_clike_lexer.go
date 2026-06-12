@@ -13,7 +13,7 @@ const (
 // Java, and Rust while preserving byte offsets and newlines exactly.
 // Template literal interpolations (`${expr}`) stay visible.
 func MaskCLikeSource(source string, lang CLikeLanguage) string {
-	masker := &clikeMasker{src: source, out: []byte(source), lang: lang}
+	masker := &clikeMasker{sourceMasker: newSourceMasker(source), lang: lang}
 	for masker.idx < len(masker.src) {
 		masker.step()
 	}
@@ -21,16 +21,14 @@ func MaskCLikeSource(source string, lang CLikeLanguage) string {
 }
 
 type clikeMasker struct {
-	src  string
-	out  []byte
-	idx  int
+	sourceMasker
 	lang CLikeLanguage
 }
 
 func (m *clikeMasker) step() {
 	switch {
 	case m.matches("//"):
-		m.maskLineComment()
+		m.maskUntilNewline()
 	case m.matches("/*"):
 		m.maskBlockComment()
 	case m.lang == CLikeJava && m.matches(`"""`):
@@ -44,17 +42,6 @@ func (m *clikeMasker) step() {
 	case m.lang == CLikeRust && m.rustRawStringAhead():
 		m.maskRustRawString()
 	default:
-		m.idx++
-	}
-}
-
-func (m *clikeMasker) matches(needle string) bool {
-	return m.idx+len(needle) <= len(m.src) && m.src[m.idx:m.idx+len(needle)] == needle
-}
-
-func (m *clikeMasker) maskLineComment() {
-	for m.idx < len(m.src) && m.src[m.idx] != '\n' {
-		m.out[m.idx] = ' '
 		m.idx++
 	}
 }
@@ -89,14 +76,5 @@ func (m *clikeMasker) maskJavaTextBlock() {
 			return
 		}
 		m.maskBytes(1)
-	}
-}
-
-func (m *clikeMasker) maskBytes(count int) {
-	for i := 0; i < count && m.idx < len(m.src); i++ {
-		if m.src[m.idx] != '\n' {
-			m.out[m.idx] = ' '
-		}
-		m.idx++
 	}
 }

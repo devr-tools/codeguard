@@ -1,7 +1,6 @@
 package quality
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -13,13 +12,6 @@ type typeScriptScanContext struct {
 	file   string
 	source string
 	code   string
-}
-
-type typeScriptPatternFinding struct {
-	pattern *regexp.Regexp
-	ruleID  string
-	level   string
-	message string
 }
 
 func typeScriptFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
@@ -58,23 +50,23 @@ func appendTypeScriptDirectiveFindings(ctx typeScriptScanContext) []core.Finding
 
 func typeScriptPatternFindings(ctx typeScriptScanContext) []core.Finding {
 	findings := make([]core.Finding, 0, 4)
-	findings = append(findings, regexTypeScriptFinding(ctx, typeScriptPatternFinding{
-		pattern: tsExplicitAnyPattern,
-		ruleID:  qualityRuleID(ctx.file, "explicit-any"),
-		level:   "warn",
-		message: "explicit any should be reviewed",
+	findings = append(findings, regexTypeScriptFinding(ctx, support.ScriptRegexSpec{
+		Pattern: tsExplicitAnyPattern,
+		RuleID:  qualityRuleID(ctx.file, "explicit-any"),
+		Level:   "warn",
+		Message: "explicit any should be reviewed",
 	})...)
-	findings = append(findings, regexTypeScriptFinding(ctx, typeScriptPatternFinding{
-		pattern: tsDoubleAssertPattern,
-		ruleID:  qualityRuleID(ctx.file, "double-assertion"),
-		level:   "warn",
-		message: "double type assertions should be reviewed",
+	findings = append(findings, regexTypeScriptFinding(ctx, support.ScriptRegexSpec{
+		Pattern: tsDoubleAssertPattern,
+		RuleID:  qualityRuleID(ctx.file, "double-assertion"),
+		Level:   "warn",
+		Message: "double type assertions should be reviewed",
 	})...)
-	findings = append(findings, regexTypeScriptFinding(ctx, typeScriptPatternFinding{
-		pattern: tsDebuggerPattern,
-		ruleID:  qualityRuleID(ctx.file, "debugger-statement"),
-		level:   "warn",
-		message: "debugger statements should not reach committed source",
+	findings = append(findings, regexTypeScriptFinding(ctx, support.ScriptRegexSpec{
+		Pattern: tsDebuggerPattern,
+		RuleID:  qualityRuleID(ctx.file, "debugger-statement"),
+		Level:   "warn",
+		Message: "debugger statements should not reach committed source",
 	})...)
 	for _, line := range typeScriptNonNullAssertionLines(ctx.code) {
 		findings = append(findings, newTypeScriptQualityFinding(ctx, qualityRuleID(ctx.file, "non-null-assertion"), line, "non-null assertions should be reviewed"))
@@ -104,11 +96,6 @@ func typeScriptNonNullAssertionLines(code string) []int {
 	return lines
 }
 
-func regexTypeScriptFinding(ctx typeScriptScanContext, spec typeScriptPatternFinding) []core.Finding {
-	return support.ScriptRegexFindings(ctx.env, ctx.file, support.ScriptScanContext{Source: ctx.source, Code: ctx.code}, support.ScriptRegexSpec{
-		Pattern: spec.pattern,
-		RuleID:  spec.ruleID,
-		Level:   spec.level,
-		Message: spec.message,
-	})
+func regexTypeScriptFinding(ctx typeScriptScanContext, spec support.ScriptRegexSpec) []core.Finding {
+	return support.ScriptRegexFindings(ctx.env, ctx.file, support.ScriptScanContext{Source: ctx.source, Code: ctx.code}, spec)
 }

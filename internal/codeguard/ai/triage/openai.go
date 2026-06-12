@@ -1,14 +1,11 @@
 package triage
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
-
-	"github.com/devr-tools/codeguard/internal/codeguard/ai/httpretry"
 )
 
 const triageSystemPrompt = "You adversarially verify static-analysis findings. Dismiss only when the finding is clearly a false positive from the provided local evidence. If uncertain, keep it. Respond with JSON only: {\"verdicts\":[{\"content_hash\":\"...\",\"decision\":\"keep|dismiss\",\"summary\":\"...\"}]}"
@@ -18,19 +15,7 @@ type openAIProvider struct {
 }
 
 func (provider openAIProvider) Triage(ctx context.Context, candidates []candidate) (map[string]providerVerdict, error) {
-	prompt, err := buildPrompt(candidates)
-	if err != nil {
-		return nil, err
-	}
-	body, err := provider.requestBody(prompt)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := provider.doRequest(ctx, body)
-	if err != nil {
-		return nil, err
-	}
-	return decodeVerdicts(resp)
+	return triageViaHTTP(ctx, candidates, provider.requestBody, provider.doRequest, decodeVerdicts)
 }
 
 func (provider openAIProvider) requestBody(prompt string) ([]byte, error) {
@@ -51,19 +36,11 @@ func (provider openAIProvider) requestBody(prompt string) ([]byte, error) {
 }
 
 func (provider openAIProvider) doRequest(ctx context.Context, body []byte) (*http.Response, error) {
-	baseURL := provider.baseURL()
-	httpClient := &http.Client{Timeout: provider.cfg.Timeout}
-	return httpretry.Do(ctx, httpClient, httpretry.FromEnv(), func() (*http.Request, error) {
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(body))
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("Content-Type", "application/json")
-		if provider.cfg.APIKey != "" {
-			req.Header.Set("Authorization", "Bearer "+provider.cfg.APIKey)
-		}
-		return req, nil
-	})
+	headers := map[string]string{}
+	if provider.cfg.APIKey != "" {
+		headers["Authorization"] = "Bearer " + provider.cfg.APIKey
+	}
+	return postTriageJSON(ctx, provider.cfg, provider.baseURL()+"/chat/completions", body, headers)
 }
 
 func (provider openAIProvider) baseURL() string {

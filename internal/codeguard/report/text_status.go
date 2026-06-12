@@ -13,10 +13,6 @@ func renderStatus(status string, includeIcon bool) string {
 	return colorize(label, statusColor(status))
 }
 
-func renderStatusBadge(status string) string {
-	return colorize("["+statusLabel(status)+"]", statusColor(status))
-}
-
 func statusLabel(status string) string {
 	return strings.ToUpper(strings.TrimSpace(status))
 }

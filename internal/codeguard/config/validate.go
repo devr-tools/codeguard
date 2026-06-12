@@ -11,40 +11,20 @@ import (
 )
 
 func Validate(cfg core.Config) error {
-	if err := validateNameAndProfile(cfg); err != nil {
-		return err
-	}
-	if err := validateTargets(cfg.Targets); err != nil {
-		return err
-	}
-	if err := validateOutput(cfg.Output); err != nil {
-		return err
-	}
-	if err := validateWaivers(cfg.Waivers); err != nil {
-		return err
-	}
-	if err := validateCommandChecks(cfg); err != nil {
-		return err
-	}
-	if err := validateAIConfig(cfg.AI); err != nil {
-		return err
-	}
-	if err := validateAIProvenance(cfg.Checks.QualityRules.AIProvenance); err != nil {
-		return err
-	}
-	if err := validateAIChecks(cfg.Checks.QualityRules.AIChecks); err != nil {
-		return err
-	}
-	if err := validateContractRules(cfg.Checks.ContractRules); err != nil {
-		return err
-	}
-	if err := validateCoverageDelta(cfg.Checks.QualityRules.CoverageDelta); err != nil {
-		return err
-	}
-	if err := validateGraphThresholds(cfg.Checks.DesignRules); err != nil {
-		return err
-	}
-	return validateRulePacks(cfg.RulePacks)
+	return firstError(
+		validateNameAndProfile(cfg),
+		validateTargets(cfg.Targets),
+		validateOutput(cfg.Output),
+		validateWaivers(cfg.Waivers),
+		validateCommandChecks(cfg),
+		validateAIConfig(cfg.AI),
+		validateAIProvenance(cfg.Checks.QualityRules.AIProvenance),
+		validateAIChecks(cfg.Checks.QualityRules.AIChecks),
+		validateContractRules(cfg.Checks.ContractRules),
+		validateCoverageDelta(cfg.Checks.QualityRules.CoverageDelta),
+		validateGraphThresholds(cfg.Checks.DesignRules),
+		validateRulePacks(cfg.RulePacks),
+	)
 }
 
 func validateNameAndProfile(cfg core.Config) error {

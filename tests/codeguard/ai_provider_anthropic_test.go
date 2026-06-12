@@ -29,21 +29,55 @@ func TestApplyDefaultsKeepsAnthropicProviderUnflavored(t *testing.T) {
 	}
 }
 
-func TestAnthropicRuntimeProviderSendsMessagesRequest(t *testing.T) {
-	t.Setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
+// recordedAnthropicRequest captures the request the fake Anthropic server saw.
+type recordedAnthropicRequest struct {
+	path    string
+	apiKey  string
+	version string
+	body    map[string]any
+}
 
-	var gotPath, gotAPIKey, gotVersion string
-	var gotBody map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
-		gotAPIKey = r.Header.Get("x-api-key")
-		gotVersion = r.Header.Get("anthropic-version")
-		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+func newAnthropicRecordingServer(t *testing.T, rec *recordedAnthropicRequest) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec.path = r.URL.Path
+		rec.apiKey = r.Header.Get("x-api-key")
+		rec.version = r.Header.Get("anthropic-version")
+		if err := json.NewDecoder(r.Body).Decode(&rec.body); err != nil {
 			t.Errorf("decode request body: %v", err)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"content":[{"type":"text","text":"  hello from claude  "}]}`))
 	}))
+}
+
+func assertAnthropicMessagesRequest(t *testing.T, rec recordedAnthropicRequest) {
+	t.Helper()
+	if rec.path != "/messages" {
+		t.Fatalf("request path = %q, want /messages", rec.path)
+	}
+	if rec.apiKey != "test-anthropic-key" {
+		t.Fatalf("x-api-key = %q", rec.apiKey)
+	}
+	if rec.version != "2023-06-01" {
+		t.Fatalf("anthropic-version = %q", rec.version)
+	}
+	if rec.body["model"] != "claude-sonnet-4-6" {
+		t.Fatalf("model = %v, want default claude-sonnet-4-6", rec.body["model"])
+	}
+	if tokens, ok := rec.body["max_tokens"].(float64); !ok || tokens <= 0 {
+		t.Fatalf("max_tokens = %v, want a positive value", rec.body["max_tokens"])
+	}
+	if rec.body["system"] != "system prompt" {
+		t.Fatalf("system = %v", rec.body["system"])
+	}
+}
+
+func TestAnthropicRuntimeProviderSendsMessagesRequest(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
+
+	var recorded recordedAnthropicRequest
+	server := newAnthropicRecordingServer(t, &recorded)
 	defer server.Close()
 
 	provider, ok, err := airuntime.BuildProvider(core.AIProviderConfig{
@@ -71,24 +105,7 @@ func TestAnthropicRuntimeProviderSendsMessagesRequest(t *testing.T) {
 	if resp.Raw != "hello from claude" {
 		t.Fatalf("response raw = %q, want trimmed content[0].text", resp.Raw)
 	}
-	if gotPath != "/messages" {
-		t.Fatalf("request path = %q, want /messages", gotPath)
-	}
-	if gotAPIKey != "test-anthropic-key" {
-		t.Fatalf("x-api-key = %q", gotAPIKey)
-	}
-	if gotVersion != "2023-06-01" {
-		t.Fatalf("anthropic-version = %q", gotVersion)
-	}
-	if gotBody["model"] != "claude-sonnet-4-6" {
-		t.Fatalf("model = %v, want default claude-sonnet-4-6", gotBody["model"])
-	}
-	if tokens, ok := gotBody["max_tokens"].(float64); !ok || tokens <= 0 {
-		t.Fatalf("max_tokens = %v, want a positive value", gotBody["max_tokens"])
-	}
-	if gotBody["system"] != "system prompt" {
-		t.Fatalf("system = %v", gotBody["system"])
-	}
+	assertAnthropicMessagesRequest(t, recorded)
 }
 
 func TestAnthropicRuntimeProviderUnavailableWithoutKey(t *testing.T) {

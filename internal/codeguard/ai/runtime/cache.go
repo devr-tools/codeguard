@@ -1,21 +1,15 @@
 package runtime
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/cachefile"
 )
 
 type Cache struct {
 	path    string
 	entries map[string]CachedVerdict
 	dirty   bool
-}
-
-type cacheFile struct {
-	Version int                      `json:"version"`
-	Entries map[string]CachedVerdict `json:"entries"`
 }
 
 const cacheVersion = 1
@@ -25,19 +19,8 @@ func LoadCache(path string) *Cache {
 		path:    path,
 		entries: map[string]CachedVerdict{},
 	}
-	if strings.TrimSpace(path) == "" {
-		return cache
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return cache
-	}
-	var file cacheFile
-	if err := json.Unmarshal(data, &file); err != nil || file.Version != cacheVersion {
-		return cache
-	}
-	if file.Entries != nil {
-		cache.entries = file.Entries
+	if entries := cachefile.LoadEntries[CachedVerdict](path, cacheVersion); entries != nil {
+		cache.entries = entries
 	}
 	return cache
 }
@@ -62,18 +45,7 @@ func (c *Cache) Save() error {
 	if c == nil || !c.dirty || strings.TrimSpace(c.path) == "" {
 		return nil
 	}
-	payload := cacheFile{
-		Version: cacheVersion,
-		Entries: c.entries,
-	}
-	data, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(c.path), 0o755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(c.path, append(data, '\n'), 0o644); err != nil {
+	if err := cachefile.WriteEntries(c.path, cacheVersion, c.entries); err != nil {
 		return err
 	}
 	c.dirty = false

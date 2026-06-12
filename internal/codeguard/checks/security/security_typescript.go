@@ -25,13 +25,6 @@ type typeScriptScanContext struct {
 	code   string
 }
 
-type typeScriptFindingSpec struct {
-	pattern *regexp.Regexp
-	ruleID  string
-	level   string
-	message string
-}
-
 func appendTypeScriptLineFindings(env support.Context, file string, lineNo int, line string) []core.Finding {
 	switch {
 	case typeScriptInsecureTLSPattern.MatchString(line):
@@ -51,10 +44,10 @@ func typeScriptFindingsForFile(env support.Context, file string, source string) 
 		code:   support.StripTypeScriptCommentsAndStrings(source),
 	}
 	findings := make([]core.Finding, 0, 8)
-	findings = append(findings, regexTypeScriptSecurityFindings(ctx, typeScriptFindingSpec{pattern: typeScriptExecPattern, ruleID: securityRuleID(ctx.file, "shell-execution"), level: "warn", message: "shell execution primitive should be reviewed"})...)
+	findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: typeScriptExecPattern, RuleID: securityRuleID(ctx.file, "shell-execution"), Level: "warn", Message: "shell execution primitive should be reviewed"})...)
 	findings = append(findings, typeScriptSpawnFindings(ctx)...)
-	findings = append(findings, regexTypeScriptSecurityFindings(ctx, typeScriptFindingSpec{pattern: typeScriptEvalPattern, ruleID: securityRuleID(ctx.file, "dynamic-code"), level: "warn", message: "dynamic code execution should be reviewed"})...)
-	findings = append(findings, regexTypeScriptSecurityFindings(ctx, typeScriptFindingSpec{pattern: typeScriptUnsafeHTMLPattern, ruleID: securityRuleID(ctx.file, "unsafe-html-sink"), level: "warn", message: "unsafe HTML injection sink should be reviewed"})...)
+	findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: typeScriptEvalPattern, RuleID: securityRuleID(ctx.file, "dynamic-code"), Level: "warn", Message: "dynamic code execution should be reviewed"})...)
+	findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: typeScriptUnsafeHTMLPattern, RuleID: securityRuleID(ctx.file, "unsafe-html-sink"), Level: "warn", Message: "unsafe HTML injection sink should be reviewed"})...)
 	findings = append(findings, typeScriptStringTimerFindings(ctx)...)
 	findings = append(findings, typeScriptPostMessageFindings(ctx)...)
 	findings = append(findings, typeScriptAliasedShellFindings(ctx)...)
@@ -72,7 +65,7 @@ func typeScriptAliasedShellFindings(ctx typeScriptScanContext) []core.Finding {
 
 	for alias := range execAliases {
 		pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(alias) + `\s*\(`)
-		findings = append(findings, regexTypeScriptSecurityFindings(ctx, typeScriptFindingSpec{pattern: pattern, ruleID: ruleID, level: "warn", message: "shell execution primitive should be reviewed"})...)
+		findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: pattern, RuleID: ruleID, Level: "warn", Message: "shell execution primitive should be reviewed"})...)
 	}
 	for alias := range spawnAliases {
 		for _, line := range typeScriptCallLinesWithShellOption(ctx, alias, false) {
@@ -81,7 +74,7 @@ func typeScriptAliasedShellFindings(ctx typeScriptScanContext) []core.Finding {
 	}
 	for namespace := range childProcessNamespaces {
 		pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(namespace) + `\s*\.\s*(?:exec|execSync)\s*\(`)
-		findings = append(findings, regexTypeScriptSecurityFindings(ctx, typeScriptFindingSpec{pattern: pattern, ruleID: ruleID, level: "warn", message: "shell execution primitive should be reviewed"})...)
+		findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: pattern, RuleID: ruleID, Level: "warn", Message: "shell execution primitive should be reviewed"})...)
 		for _, line := range typeScriptCallLinesWithShellOption(ctx, namespace, true) {
 			findings = append(findings, newTypeScriptSecurityFinding(ctx, ruleID, line, message))
 		}
@@ -100,13 +93,13 @@ func typeScriptVMFindings(ctx typeScriptScanContext) []core.Finding {
 		if original == "Script" {
 			pattern = regexp.MustCompile(`\bnew\s+` + regexp.QuoteMeta(alias) + `\s*\(`)
 		}
-		findings = append(findings, regexTypeScriptSecurityFindings(ctx, typeScriptFindingSpec{pattern: pattern, ruleID: securityRuleID(ctx.file, "vm-dynamic-code"), level: "warn", message: "Node vm dynamic code execution should be reviewed"})...)
+		findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: pattern, RuleID: securityRuleID(ctx.file, "vm-dynamic-code"), Level: "warn", Message: "Node vm dynamic code execution should be reviewed"})...)
 	}
 	for namespace := range vmNamespaces {
 		methodPattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(namespace) + `\s*\.\s*(?:runInContext|runInNewContext|runInThisContext|compileFunction)\s*\(`)
 		scriptPattern := regexp.MustCompile(`\bnew\s+` + regexp.QuoteMeta(namespace) + `\s*\.\s*Script\s*\(`)
-		findings = append(findings, regexTypeScriptSecurityFindings(ctx, typeScriptFindingSpec{pattern: methodPattern, ruleID: securityRuleID(ctx.file, "vm-dynamic-code"), level: "warn", message: "Node vm dynamic code execution should be reviewed"})...)
-		findings = append(findings, regexTypeScriptSecurityFindings(ctx, typeScriptFindingSpec{pattern: scriptPattern, ruleID: securityRuleID(ctx.file, "vm-dynamic-code"), level: "warn", message: "Node vm dynamic code execution should be reviewed"})...)
+		findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: methodPattern, RuleID: securityRuleID(ctx.file, "vm-dynamic-code"), Level: "warn", Message: "Node vm dynamic code execution should be reviewed"})...)
+		findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: scriptPattern, RuleID: securityRuleID(ctx.file, "vm-dynamic-code"), Level: "warn", Message: "Node vm dynamic code execution should be reviewed"})...)
 	}
 	return dedupeTypeScriptFindings(findings)
 }
@@ -146,11 +139,6 @@ func typeScriptPostMessageFindings(ctx typeScriptScanContext) []core.Finding {
 	return dedupeTypeScriptFindings(findings)
 }
 
-func regexTypeScriptSecurityFindings(ctx typeScriptScanContext, spec typeScriptFindingSpec) []core.Finding {
-	return support.ScriptRegexFindings(ctx.env, ctx.file, support.ScriptScanContext{Source: ctx.source, Code: ctx.code}, support.ScriptRegexSpec{
-		Pattern: spec.pattern,
-		RuleID:  spec.ruleID,
-		Level:   spec.level,
-		Message: spec.message,
-	})
+func regexTypeScriptSecurityFindings(ctx typeScriptScanContext, spec support.ScriptRegexSpec) []core.Finding {
+	return support.ScriptRegexFindings(ctx.env, ctx.file, support.ScriptScanContext{Source: ctx.source, Code: ctx.code}, spec)
 }

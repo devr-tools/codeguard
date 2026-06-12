@@ -12,23 +12,8 @@ var (
 	aiPythonPassExceptPattern = regexp.MustCompile(`(?m)^\s*except(?:\s+[^\n:]+)?\s*:\s*(?:#.*)?\n\s*(pass|\.\.\.)\b`)
 )
 
-var aiSlopRuleWeights = map[string]int{
-	"quality.ai.swallowed-error":        4,
-	"quality.ai.narrative-comment":      1,
-	"quality.ai.hallucinated-import":    5,
-	"quality.ai.dead-code":              3,
-	"quality.ai.over-mocked-test":       3,
-	"quality.ai.local-idiom-drift":      2,
-	"quality.ai.error-style-drift":      2,
-	"quality.ai.naming-drift":           1,
-	"quality.ai.provenance-policy":      2,
-	"quality.ai.semantic-doc-mismatch":  3,
-	"quality.ai.semantic-error-message": 4,
-	"quality.ai.semantic-test-coverage": 4,
-}
-
-// aiCheckEnabled treats a nil toggle as enabled so the AI-quality heuristics
-// run by default and can be opted out individually.
+// aiCheckEnabled treats a nil toggle as enabled because the AI-quality
+// heuristics must stay opt-out: an absent config key should not silence them.
 func aiCheckEnabled(flag *bool) bool {
 	return flag == nil || *flag
 }
@@ -113,12 +98,4 @@ func firstLineContaining(source string, needles []string) int {
 		}
 	}
 	return 1
-}
-
-func scoreFindings(findings []string) int {
-	total := 0
-	for _, ruleID := range findings {
-		total += aiSlopRuleWeights[ruleID]
-	}
-	return minInt(total*10, 100)
 }

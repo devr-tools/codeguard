@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"reflect"
 	"strings"
 	"testing"
 
@@ -133,31 +132,5 @@ func TestSDKRuleMetadataFixTemplateIncludesBeforeAfterSnippet(t *testing.T) {
 	rule := requireRuleMetadata(t, "quality.gofmt")
 	if !strings.Contains(rule.FixTemplate, "Before:") || !strings.Contains(rule.FixTemplate, "After:") {
 		t.Fatalf("expected before/after snippet in gofmt fix template, got %q", rule.FixTemplate)
-	}
-}
-
-func requireRuleMetadata(t *testing.T, ruleID string) codeguard.RuleMetadata {
-	t.Helper()
-	rule, ok := codeguard.ExplainRule(ruleID)
-	if !ok {
-		t.Fatalf("expected %s metadata", ruleID)
-	}
-	return rule
-}
-
-func assertExecutionModel(t *testing.T, rule codeguard.RuleMetadata, want codeguard.RuleExecutionModel) {
-	t.Helper()
-	if rule.ExecutionModel != want {
-		t.Fatalf("%s execution model = %q, want %q", rule.ID, rule.ExecutionModel, want)
-	}
-}
-
-func assertLanguageCoverage(t *testing.T, rule codeguard.RuleMetadata, mode codeguard.RuleLanguageCoverageMode, languages ...codeguard.RuleLanguage) {
-	t.Helper()
-	if rule.LanguageCoverage.Mode != mode {
-		t.Fatalf("%s language coverage mode = %q, want %q", rule.ID, rule.LanguageCoverage.Mode, mode)
-	}
-	if !reflect.DeepEqual(rule.LanguageCoverage.Languages, languages) {
-		t.Fatalf("%s language coverage languages = %#v, want %#v", rule.ID, rule.LanguageCoverage.Languages, languages)
 	}
 }

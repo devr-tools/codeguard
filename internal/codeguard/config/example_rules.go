@@ -9,6 +9,7 @@ func exampleQualityRules() core.QualityRulesConfig {
 		MaxParameters:           5,
 		MaxCyclomaticComplexity: 10,
 		CloneTokenThreshold:     60,
+		DetectPreallocInLoop:    boolPtr(false),
 		AIProvenance: core.AIProvenanceConfig{
 			Enabled:                boolPtr(true),
 			EnvVars:                []string{"CODEGUARD_AI_ASSISTED"},

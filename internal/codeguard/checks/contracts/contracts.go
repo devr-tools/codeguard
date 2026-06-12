@@ -14,15 +14,12 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func Run(_ context.Context, env support.Context) core.SectionResult {
-	findings := make([]core.Finding, 0)
-	for _, target := range env.Config.Targets {
-		findings = append(findings, findingsForTarget(env, target)...)
-	}
-	return env.FinalizeSection("contracts", "API Contracts", findings)
+// Run detects API contract drift between the diff base and the working tree.
+func Run(ctx context.Context, env support.Context) core.SectionResult {
+	return support.RunTargetSection(ctx, env, "contracts", "API Contracts", findingsForTarget)
 }
 
-func findingsForTarget(env support.Context, target core.TargetConfig) []core.Finding {
+func findingsForTarget(_ context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	changed := changedFilesForTarget(env, target)
 	findings := make([]core.Finding, 0)
 	findings = append(findings, goBreakingFindings(env, target, changed)...)

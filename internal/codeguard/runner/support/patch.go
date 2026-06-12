@@ -13,7 +13,7 @@ import (
 func LoadDiffScopeFromUnifiedDiff(targets []core.TargetConfig, diffText string) map[string]LineRanges {
 	out := map[string]LineRanges{}
 	for _, target := range targets {
-		scope := parseUnifiedDiff(RebaseUnifiedDiff(diffText, diffPrefixForTarget(target.Path)))
+		scope := parseUnifiedDiff(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(target.Path)))
 		for path, ranges := range scope {
 			out[path] = ranges
 		}
@@ -47,7 +47,7 @@ func MaterializePatchedTargets(cfg core.Config, diffText string) (core.Config, m
 			return core.Config{}, nil, func() {}, fmt.Errorf("copy head target %q: %w", target.Name, err)
 		}
 
-		targetDiff := strings.TrimSpace(RebaseUnifiedDiff(diffText, diffPrefixForTarget(target.Path)))
+		targetDiff := strings.TrimSpace(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(target.Path)))
 		if targetDiff != "" {
 			if err := applyUnifiedDiff(headDir, targetDiff+"\n"); err != nil {
 				cleanup()
@@ -79,7 +79,9 @@ func applyUnifiedDiff(dir string, diffText string) error {
 	return nil
 }
 
-func diffPrefixForTarget(dir string) string {
+// DiffPrefixForTarget resolves the repo-relative prefix of a target directory
+// so unified diffs can be rebased onto target-relative paths.
+func DiffPrefixForTarget(dir string) string {
 	repoRoot, err := gitRepoRoot(dir)
 	if err != nil {
 		return ""

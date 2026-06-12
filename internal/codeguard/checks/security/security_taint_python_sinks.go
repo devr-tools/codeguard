@@ -1,7 +1,6 @@
 package security
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -9,19 +8,14 @@ import (
 )
 
 func (a *pyTaintAnalyzer) emitFinding(taint *pyTaint, sink string, sinkLine int) {
-	key := fmt.Sprintf("%d:%s:%s", sinkLine, sink, taint.source)
-	if _, dup := a.seen[key]; dup {
-		return
-	}
-	a.seen[key] = struct{}{}
-	a.findings = append(a.findings, a.env.NewFinding(support.FindingInput{
-		RuleID:  "security.taint.python",
-		Level:   "fail",
-		Path:    a.file,
-		Line:    sinkLine,
-		Column:  1,
-		Message: taintChainMessage(taint.source, taint.sourceLine, sink, sinkLine, taint.chain),
-	}))
+	a.findings = appendTaintFinding(a.env, a.file, a.seen, a.findings, taintSinkInput{
+		ruleID:     "security.taint.python",
+		source:     taint.source,
+		sourceLine: taint.sourceLine,
+		chain:      taint.chain,
+		sink:       sink,
+		sinkLine:   sinkLine,
+	})
 }
 
 // reportSink emits concrete flows and records parameter-conditional flows

@@ -114,7 +114,7 @@ func TestGoTestQualityCustomAssertionHelpers(t *testing.T) {
 import "testing"
 
 func TestWithCustomHelper(t *testing.T) {
-	assertValid(t, compute())
+	ensureValid(t, compute())
 }
 `)
 
@@ -122,7 +122,7 @@ func TestWithCustomHelper(t *testing.T) {
 	report := runScan(t, cfg)
 	assertRuleCount(t, report, "ci.test-without-assertion", 1)
 
-	cfg.Checks.CIRules.TestQuality.AssertionHelpers = []string{"assertValid"}
+	cfg.Checks.CIRules.TestQuality.AssertionHelpers = []string{"ensureValid"}
 	report = runScan(t, cfg)
 	assertRuleCount(t, report, "ci.test-without-assertion", 0)
 	assertRuleCount(t, report, "ci.always-true-test-assertion", 0)

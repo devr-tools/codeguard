@@ -9,7 +9,6 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 var (
@@ -19,10 +18,8 @@ var (
 )
 
 func pythonAITargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
-	files, err := runnersupport.WalkFiles(target.Path, env.Config.Exclude, func(rel string) bool {
-		return strings.HasSuffix(strings.ToLower(rel), ".py")
-	})
-	if err != nil {
+	files := aiTargetSourceFiles(env, target, ".py")
+	if len(files) == 0 {
 		return nil
 	}
 	catalog := readPythonDependencyCatalog(target.Path)
@@ -56,7 +53,7 @@ func pythonFileAIQualityFindings(env support.Context, root string, rel string, i
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
 	findings := make([]core.Finding, 0)
 	if aiCheckEnabled(env.Config.Checks.QualityRules.AIChecks.HallucinatedImport) {
-		findings = append(findings, pythonImportFindings(env, root, rel, source, input.catalog, input.localModules)...)
+		findings = append(findings, pythonImportFindings(env, root, rel, source, input)...)
 	}
 	if aiCheckEnabled(env.Config.Checks.QualityRules.AIChecks.DeadCode) {
 		findings = append(findings, pythonDeadCodeFindings(env, rel, source)...)
@@ -93,11 +90,11 @@ func pythonLocalModuleNames(root string, files []string) map[string]struct{} {
 	return names
 }
 
-func pythonImportFindings(env support.Context, root string, file string, source string, catalog pythonDependencyCatalog, localModules map[string]struct{}) []core.Finding {
+func pythonImportFindings(env support.Context, root string, file string, source string, input pythonFileScanInput) []core.Finding {
 	findings := make([]core.Finding, 0)
 	for idx, line := range strings.Split(source, "\n") {
 		for _, module := range pythonImportedModules(line) {
-			if pythonImportResolvable(root, file, module, catalog, localModules) {
+			if pythonImportResolvable(root, file, module, input.catalog, input.localModules) {
 				continue
 			}
 			findings = append(findings, env.NewFinding(support.FindingInput{

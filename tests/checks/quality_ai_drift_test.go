@@ -59,6 +59,57 @@ func bad() bool { return false }
 	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.error-style-drift")
 }
 
+func TestQualityCheckAllowsGoWrapAdoptionInUnwrappedRepo(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "plain_one.go"), `package sample
+
+import "errors"
+
+func One() error {
+	if bad() {
+		return errors.New("first failure")
+	}
+	return errors.New("second failure")
+}
+
+func bad() bool { return false }
+`)
+	writeFile(t, filepath.Join(dir, "plain_two.go"), `package sample
+
+import "errors"
+
+func Two() error {
+	if bad() {
+		return errors.New("third failure")
+	}
+	return errors.New("fourth failure")
+}
+`)
+	writeFile(t, filepath.Join(dir, "adopter.go"), `package sample
+
+import "fmt"
+
+func Three() error {
+	if err := step(); err != nil {
+		return fmt.Errorf("three: %w", err)
+	}
+	if err := step(); err != nil {
+		return fmt.Errorf("again: %w", err)
+	}
+	return nil
+}
+
+func step() error { return nil }
+`)
+
+	report, err := codeguard.Run(context.Background(), qualityAITestConfig(dir, "quality-ai-go-wrap-adoption"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ai.error-style-drift")
+}
+
 func TestQualityCheckWarnsForPythonBareExceptDrift(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "typed.py"), `def first():

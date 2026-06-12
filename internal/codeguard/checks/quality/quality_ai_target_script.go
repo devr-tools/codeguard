@@ -9,7 +9,6 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 var (
@@ -24,11 +23,8 @@ type scriptImportCatalog struct {
 }
 
 func typeScriptAITargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
-	files, err := runnersupport.WalkFiles(target.Path, env.Config.Exclude, func(rel string) bool {
-		lower := strings.ToLower(rel)
-		return strings.HasSuffix(lower, ".ts") || strings.HasSuffix(lower, ".tsx") || strings.HasSuffix(lower, ".js") || strings.HasSuffix(lower, ".jsx")
-	})
-	if err != nil {
+	files := aiTargetSourceFiles(env, target, ".ts", ".tsx", ".js", ".jsx")
+	if len(files) == 0 {
 		return nil
 	}
 	manifest, hasManifest := readPackageManifest(target.Path)

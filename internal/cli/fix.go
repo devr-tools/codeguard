@@ -15,10 +15,7 @@ import (
 func runFix(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("fix", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	configPath := fs.String("config", service.DefaultConfigPath(), "config file or directory path")
-	mode := fs.String("mode", string(service.ScanModeFull), "scan mode: full or diff")
-	baseRef := fs.String("base-ref", "main", "base branch/ref for diff mode")
-	profile := fs.String("profile", "", "optional policy profile override")
+	flags := registerScanRunFlags(fs)
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis and fix generation")
 	ruleID := fs.String("rule", "", "optional rule id to target")
 	path := fs.String("path", "", "optional relative path to target")
@@ -31,19 +28,19 @@ func runFix(args []string, stdout io.Writer, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, "fix requires -ai so unverified AI patch generation is never implicit")
 		return 1
 	}
-	scanMode, err := parseScanMode(*mode)
+	scanMode, err := parseScanMode(*flags.mode)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}
-	cfg, err := loadConfigWithProfile(*configPath, *profile)
+	cfg, err := loadConfigWithProfile(*flags.configPath, *flags.profile)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return 1
 	}
 	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
 		Mode:     scanMode,
-		BaseRef:  strings.TrimSpace(*baseRef),
+		BaseRef:  strings.TrimSpace(*flags.baseRef),
 		EnableAI: true,
 	})
 	if err != nil {
@@ -70,7 +67,7 @@ func runFix(args []string, stdout io.Writer, stderr io.Writer) int {
 		Analysis:  firstNonEmpty(finding.Why, finding.Message),
 		Generator: generator,
 		Options: service.FixOptions{
-			BaseRef:      strings.TrimSpace(*baseRef),
+			BaseRef:      strings.TrimSpace(*flags.baseRef),
 			TestCommands: fixVerificationCommands(cfg),
 		},
 	})

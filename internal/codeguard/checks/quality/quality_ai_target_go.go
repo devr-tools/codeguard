@@ -11,7 +11,6 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 type goModuleMetadata struct {
@@ -20,10 +19,8 @@ type goModuleMetadata struct {
 }
 
 func goAITargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
-	files, err := runnersupport.WalkFiles(target.Path, env.Config.Exclude, func(rel string) bool {
-		return strings.HasSuffix(rel, ".go")
-	})
-	if err != nil {
+	files := aiTargetSourceFiles(env, target, ".go")
+	if len(files) == 0 {
 		return nil
 	}
 	metadata := readGoModuleMetadata(target.Path)

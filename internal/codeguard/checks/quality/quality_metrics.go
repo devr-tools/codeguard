@@ -16,6 +16,23 @@ type functionMetrics struct {
 	Complexity int
 }
 
+// parsedFunctionMetrics converts structured-parser functions into the shared
+// functionMetrics shape, computing complexity from each masked body.
+func parsedFunctionMetrics(file *support.ParsedFile, complexityFn func(string) int) []functionMetrics {
+	parsed := file.AllFunctions()
+	functions := make([]functionMetrics, 0, len(parsed))
+	for _, fn := range parsed {
+		functions = append(functions, functionMetrics{
+			Name:       fn.Name,
+			StartLine:  fn.StartLine,
+			Length:     fn.LineCount(),
+			Params:     len(fn.Params),
+			Complexity: complexityFn(maskedFunctionBody(fn)),
+		})
+	}
+	return functions
+}
+
 func fileLengthFindingWithSignals(env support.Context, file string, data []byte, findings []core.Finding) []core.Finding {
 	lineCount := env.CountLines(data)
 	if lineCount <= env.Config.Checks.QualityRules.MaxFileLines {
@@ -79,14 +96,6 @@ func maintainabilityFindings(env support.Context, file string, fn functionMetric
 		}))
 	}
 	return findings
-}
-
-func countParameters(signature string) int {
-	count := 0
-	for range splitTopLevelDelimited(signature) {
-		count++
-	}
-	return count
 }
 
 func splitTopLevelDelimited(signature string) []string {

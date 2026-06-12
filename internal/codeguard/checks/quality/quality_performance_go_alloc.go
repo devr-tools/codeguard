@@ -9,17 +9,37 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-// goAllocInLoopFindings flags allocation-heavy loop bodies: string += growth
-// (including fmt.Sprintf accumulation) and appends to non-preallocated slices
-// when the loop bound is knowable.
+// goAllocLoopScan carries the per-function context of the alloc-in-loop
+// inspection so the assignment classifier stays within the parameter budget.
+type goAllocLoopScan struct {
+	env            support.Context
+	file           string
+	fset           *token.FileSet
+	growable       map[string]struct{}
+	detectPrealloc bool
+}
+
+// goAllocInLoopFindings flags allocation-heavy loop bodies. String growth by
+// concatenation (including fmt.Sprintf accumulation) is reported whenever
+// detect_alloc_in_loop is on because the cost is quadratic. Append without
+// preallocation is gated separately behind detect_prealloc_in_loop (off by
+// default) because it is a micro-optimization that idiomatic accumulation
+// loops legitimately skip.
 func goAllocInLoopFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
 	findings := make([]core.Finding, 0)
+	detectPrealloc := preallocToggleEnabled(env.Config.Checks.QualityRules.DetectPreallocInLoop)
 	for _, decl := range parsed.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil {
 			continue
 		}
-		growable := goGrowableSliceNames(fn.Body)
+		scan := goAllocLoopScan{
+			env:            env,
+			file:           file,
+			fset:           fset,
+			growable:       goGrowableSliceNames(fn.Body),
+			detectPrealloc: detectPrealloc,
+		}
 		ast.Inspect(fn.Body, func(node ast.Node) bool {
 			body := goLoopBody(node)
 			if body == nil {
@@ -31,7 +51,7 @@ func goAllocInLoopFindings(env support.Context, file string, fset *token.FileSet
 				if !ok {
 					return true
 				}
-				findings = append(findings, goAllocAssignFindings(env, file, fset, assign, growable, knowable)...)
+				findings = append(findings, scan.assignFindings(assign, knowable)...)
 				return true
 			})
 			return true
@@ -40,30 +60,36 @@ func goAllocInLoopFindings(env support.Context, file string, fset *token.FileSet
 	return dedupeFindingsByLine(findings)
 }
 
-func goAllocAssignFindings(env support.Context, file string, fset *token.FileSet, assign *ast.AssignStmt, growable map[string]struct{}, knowableBound bool) []core.Finding {
+// preallocToggleEnabled treats a nil toggle as disabled because the prealloc
+// branch must stay opt-in, unlike the other quality toggles.
+func preallocToggleEnabled(value *bool) bool {
+	return value != nil && *value
+}
+
+func (scan goAllocLoopScan) assignFindings(assign *ast.AssignStmt, knowableBound bool) []core.Finding {
 	if message := goStringGrowthMessage(assign); message != "" {
-		return []core.Finding{goAllocFinding(env, file, fset, assign, message)}
+		return []core.Finding{scan.finding(assign, message)}
 	}
-	if !knowableBound {
+	if !scan.detectPrealloc || !knowableBound {
 		return nil
 	}
 	name, ok := goSelfAppendTarget(assign)
 	if !ok {
 		return nil
 	}
-	if _, candidate := growable[name]; !candidate {
+	if _, candidate := scan.growable[name]; !candidate {
 		return nil
 	}
 	message := fmt.Sprintf("append to slice %q inside a loop with a knowable bound; preallocate capacity with make before the loop", name)
-	return []core.Finding{goAllocFinding(env, file, fset, assign, message)}
+	return []core.Finding{scan.finding(assign, message)}
 }
 
-func goAllocFinding(env support.Context, file string, fset *token.FileSet, assign *ast.AssignStmt, message string) core.Finding {
-	pos := fset.Position(assign.Pos())
-	return env.NewFinding(support.FindingInput{
+func (scan goAllocLoopScan) finding(assign *ast.AssignStmt, message string) core.Finding {
+	pos := scan.fset.Position(assign.Pos())
+	return scan.env.NewFinding(support.FindingInput{
 		RuleID:  "quality.go.alloc-in-loop",
 		Level:   "warn",
-		Path:    file,
+		Path:    scan.file,
 		Line:    pos.Line,
 		Column:  pos.Column,
 		Message: message,
@@ -119,150 +145,6 @@ func goSelfAppendTarget(assign *ast.AssignStmt) (string, bool) {
 		return "", false
 	}
 	return target.Name, true
-}
-
-func goExprLooksLikeString(expr ast.Expr) bool {
-	found := false
-	ast.Inspect(expr, func(node ast.Node) bool {
-		if lit, ok := node.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-			found = true
-		}
-		return !found
-	})
-	return found || goExprUsesSprintf(expr)
-}
-
-func goExprUsesSprintf(expr ast.Expr) bool {
-	found := false
-	ast.Inspect(expr, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		base, ok := sel.X.(*ast.Ident)
-		if ok && base.Name == "fmt" && sel.Sel.Name == "Sprintf" {
-			found = true
-		}
-		return !found
-	})
-	return found
-}
-
-func goExprMentionsIdent(expr ast.Expr, name string) bool {
-	found := false
-	ast.Inspect(expr, func(node ast.Node) bool {
-		if ident, ok := node.(*ast.Ident); ok && ident.Name == name {
-			found = true
-		}
-		return !found
-	})
-	return found
-}
-
-// goGrowableSliceNames collects slice variables declared without preallocated
-// capacity, such as var x []T, x := []T{}, or x := make([]T, 0).
-func goGrowableSliceNames(body *ast.BlockStmt) map[string]struct{} {
-	names := make(map[string]struct{})
-	ast.Inspect(body, func(node ast.Node) bool {
-		switch stmt := node.(type) {
-		case *ast.DeclStmt:
-			collectGrowableVarDecl(stmt, names)
-		case *ast.AssignStmt:
-			collectGrowableDefine(stmt, names)
-		}
-		return true
-	})
-	return names
-}
-
-func collectGrowableVarDecl(stmt *ast.DeclStmt, names map[string]struct{}) {
-	decl, ok := stmt.Decl.(*ast.GenDecl)
-	if !ok || decl.Tok != token.VAR {
-		return
-	}
-	for _, spec := range decl.Specs {
-		value, ok := spec.(*ast.ValueSpec)
-		if !ok || len(value.Values) != 0 || !isSliceType(value.Type) {
-			continue
-		}
-		for _, name := range value.Names {
-			names[name.Name] = struct{}{}
-		}
-	}
-}
-
-func collectGrowableDefine(stmt *ast.AssignStmt, names map[string]struct{}) {
-	if stmt.Tok != token.DEFINE {
-		return
-	}
-	for idx, lhs := range stmt.Lhs {
-		ident, ok := lhs.(*ast.Ident)
-		if !ok || idx >= len(stmt.Rhs) {
-			continue
-		}
-		if isGrowableSliceValue(stmt.Rhs[idx]) {
-			names[ident.Name] = struct{}{}
-		}
-	}
-}
-
-func isGrowableSliceValue(expr ast.Expr) bool {
-	switch value := expr.(type) {
-	case *ast.CompositeLit:
-		return isSliceType(value.Type) && len(value.Elts) == 0
-	case *ast.CallExpr:
-		fun, ok := value.Fun.(*ast.Ident)
-		if !ok || fun.Name != "make" || len(value.Args) != 2 {
-			return false
-		}
-		length, ok := value.Args[1].(*ast.BasicLit)
-		return ok && isSliceType(value.Args[0]) && length.Value == "0"
-	default:
-		return false
-	}
-}
-
-func isSliceType(expr ast.Expr) bool {
-	arr, ok := expr.(*ast.ArrayType)
-	return ok && arr.Len == nil
-}
-
-func goLoopBoundKnowable(node ast.Node) bool {
-	switch loop := node.(type) {
-	case *ast.RangeStmt:
-		return true
-	case *ast.ForStmt:
-		cond, ok := loop.Cond.(*ast.BinaryExpr)
-		if !ok {
-			return false
-		}
-		switch cond.Op {
-		case token.LSS, token.LEQ, token.GTR, token.GEQ:
-			return goExprIsSimpleBound(cond.Y) || goExprIsSimpleBound(cond.X)
-		default:
-			return false
-		}
-	default:
-		return false
-	}
-}
-
-func goExprIsSimpleBound(expr ast.Expr) bool {
-	switch bound := expr.(type) {
-	case *ast.BasicLit:
-		return bound.Kind == token.INT
-	case *ast.Ident:
-		return true
-	case *ast.CallExpr:
-		fun, ok := bound.Fun.(*ast.Ident)
-		return ok && (fun.Name == "len" || fun.Name == "cap")
-	default:
-		return false
-	}
 }
 
 func dedupeFindingsByLine(findings []core.Finding) []core.Finding {

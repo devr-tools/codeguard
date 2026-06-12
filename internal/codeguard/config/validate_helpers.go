@@ -53,3 +53,14 @@ func validateOptionalRegex(ruleID string, field string, pattern string) error {
 	}
 	return nil
 }
+
+// firstError returns the first non-nil error, mirroring sequential validation
+// while keeping each rule group independently testable.
+func firstError(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

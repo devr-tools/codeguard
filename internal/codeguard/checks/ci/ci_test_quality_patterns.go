@@ -48,6 +48,12 @@ var (
 
 	braceConditionalOpener  = regexp.MustCompile(`^\s*\}?\s*(?:else\s+)?if\b`)
 	pythonConditionalOpener = regexp.MustCompile(`^\s*if\b.*:`)
+
+	// conventionalAssertionPattern credits calls to identifiers named with the
+	// assert/require/expect/verify/must/check prefixes. By convention such
+	// helpers fail the test internally, so a call to one is a real assertion
+	// even though the per-language patterns cannot see inside the helper.
+	conventionalAssertionPattern = regexp.MustCompile(`(?i)\b(?:assert|require|expect|verify|must|check)\w*\s*\(`)
 )
 
 func testQualityPatternsFor(language string) (testQualityPatterns, bool) {
@@ -83,7 +89,10 @@ func assertionLinesForBlock(patterns testQualityPatterns, helpers *regexp.Regexp
 	for idx, line := range block.lines {
 		isHelper := helpers != nil && helpers.MatchString(line)
 		if !isHelper && !patterns.assertion.MatchString(line) {
-			continue
+			if !conventionalAssertionPattern.MatchString(line) {
+				continue
+			}
+			isHelper = true
 		}
 		asserts = append(asserts, assertionLine{
 			line:        block.startLine + idx,

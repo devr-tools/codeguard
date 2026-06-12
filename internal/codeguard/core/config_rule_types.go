@@ -1,19 +1,23 @@
 package core
 
 type QualityRulesConfig struct {
-	MaxFileLines               int                             `json:"max_file_lines"`
-	MaxFunctionLines           int                             `json:"max_function_lines"`
-	MaxParameters              int                             `json:"max_parameters"`
-	MaxCyclomaticComplexity    int                             `json:"max_cyclomatic_complexity"`
-	CloneTokenThreshold        int                             `json:"clone_token_threshold,omitempty"`
-	LanguageCommands           map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
-	DetectNPlusOneQuery        *bool                           `json:"detect_n_plus_one_query,omitempty"`
-	DetectAllocInLoop          *bool                           `json:"detect_alloc_in_loop,omitempty"`
-	DetectSyncIOInHandlers     *bool                           `json:"detect_sync_io_in_handlers,omitempty"`
-	DetectUnboundedConcurrency *bool                           `json:"detect_unbounded_concurrency,omitempty"`
-	AIProvenance               AIProvenanceConfig              `json:"ai_provenance,omitempty"`
-	AIChecks                   AIChecksConfig                  `json:"ai_checks,omitempty"`
-	CoverageDelta              CoverageDeltaConfig             `json:"coverage_delta,omitempty"`
+	MaxFileLines            int                             `json:"max_file_lines"`
+	MaxFunctionLines        int                             `json:"max_function_lines"`
+	MaxParameters           int                             `json:"max_parameters"`
+	MaxCyclomaticComplexity int                             `json:"max_cyclomatic_complexity"`
+	CloneTokenThreshold     int                             `json:"clone_token_threshold,omitempty"`
+	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
+	DetectNPlusOneQuery     *bool                           `json:"detect_n_plus_one_query,omitempty"`
+	DetectAllocInLoop       *bool                           `json:"detect_alloc_in_loop,omitempty"`
+	// DetectPreallocInLoop gates the append-without-preallocation branch of
+	// quality.go.alloc-in-loop. Defaults to false: preallocating is a
+	// micro-optimization, and idiomatic accumulation loops legitimately skip it.
+	DetectPreallocInLoop       *bool               `json:"detect_prealloc_in_loop,omitempty"`
+	DetectSyncIOInHandlers     *bool               `json:"detect_sync_io_in_handlers,omitempty"`
+	DetectUnboundedConcurrency *bool               `json:"detect_unbounded_concurrency,omitempty"`
+	AIProvenance               AIProvenanceConfig  `json:"ai_provenance,omitempty"`
+	AIChecks                   AIChecksConfig      `json:"ai_checks,omitempty"`
+	CoverageDelta              CoverageDeltaConfig `json:"coverage_delta,omitempty"`
 }
 
 // AIChecksConfig toggles individual AI-quality heuristics. A nil pointer

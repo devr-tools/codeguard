@@ -3,7 +3,6 @@ package design
 import (
 	"go/parser"
 	"go/token"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -16,7 +15,7 @@ import (
 // Packages are identified by their directory relative to the target root and
 // imports are resolved through the go.mod module path.
 func buildGoImportGraph(env support.Context, target core.TargetConfig) *moduleGraph {
-	modulePrefix := goModulePrefix(target.Path)
+	modulePrefix := support.GoModulePath(target.Path)
 	if modulePrefix == "" {
 		return nil
 	}
@@ -61,20 +60,6 @@ func goLocalPackageDir(importPath string, modulePrefix string) string {
 	}
 	if strings.HasPrefix(importPath, modulePrefix+"/") {
 		return strings.TrimPrefix(importPath, modulePrefix+"/")
-	}
-	return ""
-}
-
-func goModulePrefix(targetPath string) string {
-	data, err := os.ReadFile(filepath.Join(targetPath, "go.mod"))
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "module ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "module "))
-		}
 	}
 	return ""
 }

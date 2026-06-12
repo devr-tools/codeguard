@@ -8,24 +8,27 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
+// Run is the security section entrypoint; govulncheck only applies to Go
+// targets, so non-Go languages rely on configured commands instead.
 func Run(ctx context.Context, env support.Context) core.SectionResult {
-	findings := support.CollectTargetFindings(ctx, env, func(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-		findings := make([]core.Finding, 0)
-		if isTypeScriptTarget(target) {
-			findings = append(findings, typeScriptTargetFindings(ctx, env, target)...)
-		} else {
-			findings = append(findings, env.ScanTargetFiles(target, "security", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
-				return findingsForFile(env, file, data)
-			})...)
-		}
-		findings = append(findings, commandFindings(ctx, env, target)...)
+	return support.RunTargetSection(ctx, env, "security", "Security", securityTargetFindings)
+}
 
-		if isGoTarget(target) {
-			findings = append(findings, govulncheckFindings(ctx, env, target)...)
-		}
-		return findings
-	})
-	return env.FinalizeSection("security", "Security", findings)
+func securityTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+	findings := make([]core.Finding, 0)
+	if isTypeScriptTarget(target) {
+		findings = append(findings, typeScriptTargetFindings(ctx, env, target)...)
+	} else {
+		findings = append(findings, env.ScanTargetFiles(target, "security", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
+			return findingsForFile(env, file, data)
+		})...)
+	}
+	findings = append(findings, commandFindings(ctx, env, target)...)
+
+	if isGoTarget(target) {
+		findings = append(findings, govulncheckFindings(ctx, env, target)...)
+	}
+	return findings
 }
 
 func commandFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {

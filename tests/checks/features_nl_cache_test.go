@@ -18,6 +18,39 @@ func TestNaturalLanguageRuleVerdictCacheSkipsRuntimeReinvocation(t *testing.T) {
 	runtimePath := writeCountingNLRuleRuntime(t, dir, countPath)
 	t.Setenv("CODEGUARD_AI_RUNTIME_COMMAND", runtimePath)
 
+	cfg := nlVerdictCacheTestConfig(dir)
+
+	runNLCacheScanExpectingInvocations(t, cfg, countPath, "first", 1)
+
+	// Second run with an unchanged file and unchanged rule must not
+	// re-invoke the runtime.
+	runNLCacheScanExpectingInvocations(t, cfg, countPath, "second", 1)
+
+	// A config change that does not touch the NL rule invalidates the
+	// file-level scan cache, but the per-verdict cache must still serve the
+	// stored verdict without re-invoking the runtime.
+	cfg.RulePacks[0].Rules = append(cfg.RulePacks[0].Rules, codeguard.CustomRuleConfig{
+		ID:           "custom.unrelated-regex-rule",
+		Title:        "Unrelated rule",
+		Severity:     "warn",
+		Message:      "unrelated",
+		ContentRegex: "string-that-never-appears-anywhere",
+		Paths:        []string{"handlers/**"},
+	})
+	runNLCacheScanExpectingInvocations(t, cfg, countPath, "third", 1)
+
+	data, err := os.ReadFile(cfg.Cache.Path)
+	if err != nil {
+		t.Fatalf("read cache file: %v", err)
+	}
+	if !strings.Contains(string(data), "\"nl_rule_verdicts\"") {
+		t.Fatalf("expected nl_rule_verdicts in cache file, got %s", string(data))
+	}
+}
+
+// nlVerdictCacheTestConfig builds a cache-enabled config with a single
+// natural-language custom rule scoped to handlers/**.
+func nlVerdictCacheTestConfig(dir string) codeguard.Config {
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "custom-nl-verdict-cache"
 	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
@@ -42,53 +75,20 @@ func TestNaturalLanguageRuleVerdictCacheSkipsRuntimeReinvocation(t *testing.T) {
 			Paths:           []string{"handlers/**"},
 		}},
 	}}
+	return cfg
+}
 
+// runNLCacheScanExpectingInvocations runs a scan, asserts the custom-rules
+// section fails, and asserts the runtime invocation count.
+func runNLCacheScanExpectingInvocations(t *testing.T, cfg codeguard.Config, countPath string, label string, want int) {
+	t.Helper()
 	report, err := codeguard.Run(context.Background(), cfg)
 	if err != nil {
-		t.Fatalf("first run: %v", err)
+		t.Fatalf("%s run: %v", label, err)
 	}
 	assertSectionStatus(t, report, "Custom Rules", "fail")
-	if got := countRuntimeInvocations(t, countPath); got != 1 {
-		t.Fatalf("expected 1 runtime invocation after first run, got %d", got)
-	}
-
-	// Second run with an unchanged file and unchanged rule must not
-	// re-invoke the runtime.
-	report, err = codeguard.Run(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("second run: %v", err)
-	}
-	assertSectionStatus(t, report, "Custom Rules", "fail")
-	if got := countRuntimeInvocations(t, countPath); got != 1 {
-		t.Fatalf("expected runtime to stay at 1 invocation across rerun, got %d", got)
-	}
-
-	// A config change that does not touch the NL rule invalidates the
-	// file-level scan cache, but the per-verdict cache must still serve the
-	// stored verdict without re-invoking the runtime.
-	cfg.RulePacks[0].Rules = append(cfg.RulePacks[0].Rules, codeguard.CustomRuleConfig{
-		ID:           "custom.unrelated-regex-rule",
-		Title:        "Unrelated rule",
-		Severity:     "warn",
-		Message:      "unrelated",
-		ContentRegex: "string-that-never-appears-anywhere",
-		Paths:        []string{"handlers/**"},
-	})
-	report, err = codeguard.Run(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("third run: %v", err)
-	}
-	assertSectionStatus(t, report, "Custom Rules", "fail")
-	if got := countRuntimeInvocations(t, countPath); got != 1 {
-		t.Fatalf("expected per-verdict cache hit after config change, got %d invocations", got)
-	}
-
-	data, err := os.ReadFile(cfg.Cache.Path)
-	if err != nil {
-		t.Fatalf("read cache file: %v", err)
-	}
-	if !strings.Contains(string(data), "\"nl_rule_verdicts\"") {
-		t.Fatalf("expected nl_rule_verdicts in cache file, got %s", string(data))
+	if got := countRuntimeInvocations(t, countPath); got != want {
+		t.Fatalf("%s run: expected %d runtime invocations, got %d", label, want, got)
 	}
 }
 

@@ -33,18 +33,7 @@ func javaFindingsForFile(env support.Context, file string, data []byte) []core.F
 // parser, so comments and string literals cannot produce phantom functions
 // or corrupt brace matching.
 func clikeQualityFunctions(source string, lang support.CLikeLanguage, complexityFn func(string) int) []functionMetrics {
-	file := support.ParseCLike(source, lang)
-	functions := make([]functionMetrics, 0)
-	for _, fn := range file.AllFunctions() {
-		functions = append(functions, functionMetrics{
-			Name:       fn.Name,
-			StartLine:  fn.StartLine,
-			Length:     fn.LineCount(),
-			Params:     len(fn.Params),
-			Complexity: complexityFn(maskedFunctionBody(fn)),
-		})
-	}
-	return functions
+	return parsedFunctionMetrics(support.ParseCLike(source, lang), complexityFn)
 }
 
 func csharpFindingsForFile(env support.Context, file string, data []byte) []core.Finding {

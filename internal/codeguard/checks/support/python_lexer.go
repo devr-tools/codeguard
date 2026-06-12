@@ -6,7 +6,7 @@ import "strings"
 // preserving byte offsets and line breaks exactly. Interpolated expressions
 // inside f-strings are kept so dataflow analysis can see identifiers.
 func MaskPythonSource(source string) string {
-	masker := &pythonMasker{src: source, out: []byte(source)}
+	masker := &pythonMasker{sourceMasker: newSourceMasker(source)}
 	for masker.idx < len(masker.src) {
 		masker.step()
 	}
@@ -14,9 +14,7 @@ func MaskPythonSource(source string) string {
 }
 
 type pythonMasker struct {
-	src string
-	out []byte
-	idx int
+	sourceMasker
 }
 
 func (m *pythonMasker) step() {
@@ -26,13 +24,6 @@ func (m *pythonMasker) step() {
 	case '\'', '"':
 		m.maskString()
 	default:
-		m.idx++
-	}
-}
-
-func (m *pythonMasker) maskUntilNewline() {
-	for m.idx < len(m.src) && m.src[m.idx] != '\n' {
-		m.out[m.idx] = ' '
 		m.idx++
 	}
 }
@@ -114,13 +105,4 @@ func (m *pythonMasker) stringEndsHere(spec pythonStringSpec) bool {
 	}
 	m.maskBytes(1)
 	return false
-}
-
-func (m *pythonMasker) maskBytes(count int) {
-	for i := 0; i < count && m.idx < len(m.src); i++ {
-		if m.src[m.idx] != '\n' {
-			m.out[m.idx] = ' '
-		}
-		m.idx++
-	}
 }

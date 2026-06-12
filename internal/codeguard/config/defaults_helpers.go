@@ -20,3 +20,34 @@ func applyDefaultBoolPtrs(values ...**bool) {
 		}
 	}
 }
+
+// defaultInt fills an int setting with its profile default when unset.
+func defaultInt(dst *int, def int) {
+	if *dst == 0 {
+		*dst = def
+	}
+}
+
+// defaultBoolPtr fills an optional bool setting with the given default when unset.
+func defaultBoolPtr(dst **bool, value bool) {
+	if *dst == nil {
+		*dst = boolPtr(value)
+	}
+}
+
+// defaultStringSlice fills a string-slice setting with a copy of its default
+// when unset. requireNonEmpty skips defaults that are empty.
+func defaultStringSlice(dst *[]string, def []string, requireNonEmpty bool) {
+	if *dst != nil || (requireNonEmpty && len(def) == 0) {
+		return
+	}
+	*dst = append([]string(nil), def...)
+}
+
+// defaultCommandMap fills a per-language command map with a cloned default
+// when unset.
+func defaultCommandMap(dst *map[string][]core.CommandCheckConfig, def map[string][]core.CommandCheckConfig) {
+	if *dst == nil && len(def) > 0 {
+		*dst = cloneCommandCheckMap(def)
+	}
+}

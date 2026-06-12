@@ -14,32 +14,39 @@ type EvaluatedFinding struct {
 	Why     string
 }
 
+// FileEvaluation bundles the rule and the file it is evaluated against.
+type FileEvaluation struct {
+	Rule core.CustomRuleConfig
+	Path string
+	Data []byte
+}
+
 func EvaluateFile(ctx context.Context, runtime Runtime, rule core.CustomRuleConfig, path string, data []byte) ([]EvaluatedFinding, error) {
-	return EvaluateFileCached(ctx, runtime, nil, rule, path, data)
+	return EvaluateFileCached(ctx, runtime, nil, FileEvaluation{Rule: rule, Path: path, Data: data})
 }
 
 // EvaluateFileCached evaluates one natural-language rule against one file,
 // serving the verdict from cache when the rule, runtime, and file contents
 // are unchanged so the runtime is not re-invoked.
-func EvaluateFileCached(ctx context.Context, runtime Runtime, cache VerdictCache, rule core.CustomRuleConfig, path string, data []byte) ([]EvaluatedFinding, error) {
-	if runtime == nil || !runtime.Enabled() || strings.TrimSpace(rule.NaturalLanguage) == "" {
+func EvaluateFileCached(ctx context.Context, runtime Runtime, cache VerdictCache, eval FileEvaluation) ([]EvaluatedFinding, error) {
+	if runtime == nil || !runtime.Enabled() || strings.TrimSpace(eval.Rule.NaturalLanguage) == "" {
 		return nil, nil
 	}
 	key := ""
 	if cache != nil {
-		key = VerdictCacheKey(runtime.Fingerprint(), rule, path, data)
+		key = VerdictCacheKey(runtime.Fingerprint(), eval.Rule, eval.Path, eval.Data)
 		if verdict, ok := cache.GetNLRuleVerdict(key); ok {
-			return findingsFromMatches(rule, matchesFromCachedVerdict(verdict)), nil
+			return findingsFromMatches(eval.Rule, matchesFromCachedVerdict(verdict)), nil
 		}
 	}
-	response, err := runtime.Evaluate(ctx, Compile(rule, path, data))
+	response, err := runtime.Evaluate(ctx, Compile(eval.Rule, eval.Path, eval.Data))
 	if err != nil {
 		return nil, err
 	}
 	if cache != nil {
 		cache.PutNLRuleVerdict(key, cachedVerdictFromMatches(response.Matches))
 	}
-	return findingsFromMatches(rule, response.Matches), nil
+	return findingsFromMatches(eval.Rule, response.Matches), nil
 }
 
 func findingsFromMatches(rule core.CustomRuleConfig, matches []Match) []EvaluatedFinding {

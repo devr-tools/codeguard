@@ -115,11 +115,54 @@ func TestQualityCheckWarnsForGoAllocInLoop(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "report.go"),
 		"package report\n\nimport \"fmt\"\n\nfunc Describe(items []string) string {\n\tout := \"\"\n\tfor _, item := range items {\n\t\tout += fmt.Sprintf(\"- %s\\n\", item)\n\t}\n\treturn out\n}\n\nfunc Gather(items []string) []string {\n\tvar values []string\n\tfor _, item := range items {\n\t\tvalues = append(values, item)\n\t}\n\treturn values\n}\n")
 
-	report, err := codeguard.Run(context.Background(), qualityPerfConfig("quality-go-alloc", dir, "go"))
+	on := true
+	cfg := qualityPerfConfig("quality-go-alloc", dir, "go")
+	cfg.Checks.QualityRules.DetectPreallocInLoop = &on
+
+	report, err := codeguard.Run(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
+	assertFindingRulePresent(t, report, "Code Quality", "quality.go.alloc-in-loop")
+}
+
+func TestQualityCheckWarnsForAppendWithoutPreallocWhenEnabled(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "report.go"),
+		"package report\n\nfunc Gather(items []string) []string {\n\tvar values []string\n\tfor _, item := range items {\n\t\tvalues = append(values, item)\n\t}\n\treturn values\n}\n")
+
+	on := true
+	cfg := qualityPerfConfig("quality-go-prealloc-on", dir, "go")
+	cfg.Checks.QualityRules.DetectPreallocInLoop = &on
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Code Quality", "quality.go.alloc-in-loop")
+}
+
+func TestQualityCheckPreallocInLoopDefaultOff(t *testing.T) {
+	appendDir := t.TempDir()
+	writeFile(t, filepath.Join(appendDir, "report.go"),
+		"package report\n\nfunc Gather(items []string) []string {\n\tvar values []string\n\tfor _, item := range items {\n\t\tvalues = append(values, item)\n\t}\n\treturn values\n}\n")
+
+	report, err := codeguard.Run(context.Background(), qualityPerfConfig("quality-go-prealloc-default", appendDir, "go"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.go.alloc-in-loop")
+
+	concatDir := t.TempDir()
+	writeFile(t, filepath.Join(concatDir, "report.go"),
+		"package report\n\nfunc Describe(items []string) string {\n\tout := \"\"\n\tfor _, item := range items {\n\t\tout += \"- \" + item\n\t}\n\treturn out\n}\n")
+
+	report, err = codeguard.Run(context.Background(), qualityPerfConfig("quality-go-concat-default", concatDir, "go"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
 	assertFindingRulePresent(t, report, "Code Quality", "quality.go.alloc-in-loop")
 }
 
@@ -128,7 +171,11 @@ func TestQualityCheckSkipsPreallocatedAppendInLoop(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "report.go"),
 		"package report\n\nfunc Gather(items []string) []string {\n\tvalues := make([]string, 0, len(items))\n\tfor _, item := range items {\n\t\tvalues = append(values, item)\n\t}\n\treturn values\n}\n")
 
-	report, err := codeguard.Run(context.Background(), qualityPerfConfig("quality-go-alloc-neg", dir, "go"))
+	on := true
+	cfg := qualityPerfConfig("quality-go-alloc-neg", dir, "go")
+	cfg.Checks.QualityRules.DetectPreallocInLoop = &on
+
+	report, err := codeguard.Run(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}

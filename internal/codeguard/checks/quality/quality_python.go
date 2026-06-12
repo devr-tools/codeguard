@@ -21,18 +21,7 @@ func pythonFindingsForFile(env support.Context, file string, data []byte) []core
 // parser, so strings or comments that merely look like code are ignored and
 // multiline signatures are handled.
 func pythonFunctions(source string) []functionMetrics {
-	file := support.ParsePython(source)
-	functions := make([]functionMetrics, 0)
-	for _, fn := range file.AllFunctions() {
-		functions = append(functions, functionMetrics{
-			Name:       fn.Name,
-			StartLine:  fn.StartLine,
-			Length:     fn.LineCount(),
-			Params:     len(fn.Params),
-			Complexity: pythonComplexity(maskedFunctionBody(fn)),
-		})
-	}
-	return functions
+	return parsedFunctionMetrics(support.ParsePython(source), pythonComplexity)
 }
 
 // maskedFunctionBody joins the masked statements of a function and its

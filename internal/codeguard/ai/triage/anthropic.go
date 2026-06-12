@@ -1,14 +1,11 @@
 package triage
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
-
-	"github.com/devr-tools/codeguard/internal/codeguard/ai/httpretry"
 )
 
 const (
@@ -23,19 +20,7 @@ type anthropicProvider struct {
 }
 
 func (provider anthropicProvider) Triage(ctx context.Context, candidates []candidate) (map[string]providerVerdict, error) {
-	prompt, err := buildPrompt(candidates)
-	if err != nil {
-		return nil, err
-	}
-	body, err := provider.requestBody(prompt)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := provider.doRequest(ctx, body)
-	if err != nil {
-		return nil, err
-	}
-	return decodeAnthropicVerdicts(resp)
+	return triageViaHTTP(ctx, candidates, provider.requestBody, provider.doRequest, decodeAnthropicVerdicts)
 }
 
 func (provider anthropicProvider) requestBody(prompt string) ([]byte, error) {
@@ -51,20 +36,11 @@ func (provider anthropicProvider) requestBody(prompt string) ([]byte, error) {
 }
 
 func (provider anthropicProvider) doRequest(ctx context.Context, body []byte) (*http.Response, error) {
-	baseURL := provider.baseURL()
-	httpClient := &http.Client{Timeout: provider.cfg.Timeout}
-	return httpretry.Do(ctx, httpClient, httpretry.FromEnv(), func() (*http.Request, error) {
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/messages", bytes.NewReader(body))
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("anthropic-version", anthropicVersion)
-		if provider.cfg.APIKey != "" {
-			req.Header.Set("x-api-key", provider.cfg.APIKey)
-		}
-		return req, nil
-	})
+	headers := map[string]string{"anthropic-version": anthropicVersion}
+	if provider.cfg.APIKey != "" {
+		headers["x-api-key"] = provider.cfg.APIKey
+	}
+	return postTriageJSON(ctx, provider.cfg, provider.baseURL()+"/messages", body, headers)
 }
 
 func (provider anthropicProvider) baseURL() string {

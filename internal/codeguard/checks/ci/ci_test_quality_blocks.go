@@ -21,7 +21,36 @@ var (
 	pythonTestDeclPattern = regexp.MustCompile(`^(\s*)def\s+(test_\w*)\s*\(`)
 	braceElsePattern      = regexp.MustCompile(`(?:^|\W)else(?:\W|$)`)
 	pythonElsePattern     = regexp.MustCompile(`^\s*(?:else\s*:|elif\b)`)
+	envVarGuardPattern    = regexp.MustCompile(`if\s+os\.Getenv\(\s*"[^"]*"\s*\)\s*[!=]=`)
 )
+
+// isHelperProcessBlock reports whether a test is a Go exec helper-process
+// re-entry point: it either references the conventional GO_WANT_HELPER_PROCESS
+// variable or opens with an environment-variable guard that returns
+// immediately. Such functions only run as a re-invoked subprocess, so the
+// assertion rules must not apply to them.
+func isHelperProcessBlock(block testBlock) bool {
+	for idx, line := range block.lines {
+		if strings.Contains(line, "GO_WANT_HELPER_PROCESS") {
+			return true
+		}
+		if envVarGuardPattern.MatchString(line) && nextNonBlankLineIsReturn(block.lines, idx+1) {
+			return true
+		}
+	}
+	return false
+}
+
+func nextNonBlankLineIsReturn(lines []string, start int) bool {
+	for idx := start; idx < len(lines); idx++ {
+		trimmed := strings.TrimSpace(lines[idx])
+		if trimmed == "" {
+			continue
+		}
+		return trimmed == "return"
+	}
+	return false
+}
 
 func extractTestBlocks(language string, text string) []testBlock {
 	lines := strings.Split(text, "\n")
