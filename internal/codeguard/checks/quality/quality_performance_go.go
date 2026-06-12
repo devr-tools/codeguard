@@ -31,7 +31,7 @@ var syncIOOperationsByImportPath = map[string]map[string]struct{}{
 	},
 }
 
-func goPerformanceFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
+func goCorePerformanceFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
 	findings := make([]core.Finding, 0)
 	httpAliases := importAliasesForPath(parsed, "net/http")
 	syncIOAliases := syncIOAliases(parsed)

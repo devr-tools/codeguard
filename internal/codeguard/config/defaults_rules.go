@@ -15,6 +15,18 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	if dst.MaxCyclomaticComplexity == 0 {
 		dst.MaxCyclomaticComplexity = def.MaxCyclomaticComplexity
 	}
+	if dst.DetectNPlusOneQuery == nil {
+		dst.DetectNPlusOneQuery = boolPtr(true)
+	}
+	if dst.DetectAllocInLoop == nil {
+		dst.DetectAllocInLoop = boolPtr(true)
+	}
+	if dst.DetectSyncIOInHandlers == nil {
+		dst.DetectSyncIOInHandlers = boolPtr(true)
+	}
+	if dst.DetectUnboundedConcurrency == nil {
+		dst.DetectUnboundedConcurrency = boolPtr(true)
+	}
 	if dst.CloneTokenThreshold == 0 {
 		dst.CloneTokenThreshold = def.CloneTokenThreshold
 	}
@@ -36,6 +48,21 @@ func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig
 	}
 	if dst.ForbiddenPackageNames == nil {
 		dst.ForbiddenPackageNames = append([]string(nil), def.ForbiddenPackageNames...)
+	}
+	if dst.GodModuleThreshold == 0 {
+		dst.GodModuleThreshold = def.GodModuleThreshold
+	}
+	if dst.HighImpactChangeThreshold == 0 {
+		dst.HighImpactChangeThreshold = def.HighImpactChangeThreshold
+	}
+	if dst.DetectImportCycles == nil {
+		dst.DetectImportCycles = boolPtr(true)
+	}
+	if dst.DetectGodModules == nil {
+		dst.DetectGodModules = boolPtr(true)
+	}
+	if dst.DetectHighImpactChanges == nil {
+		dst.DetectHighImpactChanges = boolPtr(true)
 	}
 	applyDefaultBoolPtrs(
 		&dst.RequireCmdThroughInternalCLI,

@@ -8,6 +8,16 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
+func validateGraphThresholds(rules core.DesignRulesConfig) error {
+	if rules.GodModuleThreshold < 0 {
+		return fmt.Errorf("design_rules.god_module_threshold must not be negative, got %d", rules.GodModuleThreshold)
+	}
+	if rules.HighImpactChangeThreshold < 0 {
+		return fmt.Errorf("design_rules.high_impact_change_threshold must not be negative, got %d", rules.HighImpactChangeThreshold)
+	}
+	return nil
+}
+
 func validateRuleSeverity(rule core.CustomRuleConfig) error {
 	switch strings.TrimSpace(strings.ToLower(rule.Severity)) {
 	case "", "warn", "fail":

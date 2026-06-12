@@ -26,6 +26,8 @@ func exampleDesignRules() core.DesignRulesConfig {
 		ForbidServiceImportInternal:  boolPtr(true),
 		ForbidServiceImportCmd:       boolPtr(true),
 		MaxDeclsPerFile:              12,
+		GodModuleThreshold:           25,
+		HighImpactChangeThreshold:    10,
 		MaxMethodsPerType:            8,
 		MaxInterfaceMethods:          5,
 		ForbiddenPackageNames:        []string{"util", "utils", "common", "helpers", "misc"},

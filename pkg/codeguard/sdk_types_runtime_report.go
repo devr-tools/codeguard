@@ -12,3 +12,6 @@ type AIAnalysisVerdict = core.AIAnalysisVerdict
 type AIFixArtifact = core.AIFixArtifact
 type SectionResult = core.SectionResult
 type Finding = core.Finding
+
+type ChangeImpactArtifact = core.ChangeImpactArtifact
+type ChangeImpactEntry = core.ChangeImpactEntry

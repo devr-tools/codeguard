@@ -1,0 +1,76 @@
+package rules
+
+import "github.com/devr-tools/codeguard/internal/codeguard/core"
+
+var designGraphCatalog = map[string]core.RuleMetadata{
+	"design.typescript.import-cycle": {
+		ID:             "design.typescript.import-cycle",
+		Section:        "Design Patterns",
+		DefaultLevel:   "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "TypeScript import cycle",
+		Description:    "Fails when TypeScript modules form an internal import cycle.",
+		HowToFix:       "Break the cycle by extracting shared behavior into a lower-level module or by inverting the dependency direction.",
+	},
+	"design.javascript.import-cycle": {
+		ID:             "design.javascript.import-cycle",
+		Section:        "Design Patterns",
+		DefaultLevel:   "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "JavaScript import cycle",
+		Description:    "Fails when JavaScript modules form an internal import cycle.",
+		HowToFix:       "Break the cycle by extracting shared behavior into a lower-level module or by inverting the dependency direction.",
+	},
+	"design.rust.import-cycle": {
+		ID:             "design.rust.import-cycle",
+		Section:        "Design Patterns",
+		DefaultLevel:   "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "Rust module cycle",
+		Description:    "Fails when Rust modules form an internal use/mod dependency cycle.",
+		HowToFix:       "Break the cycle by moving shared items into a lower-level module or by inverting the dependency direction.",
+	},
+	"design.java.import-cycle": {
+		ID:             "design.java.import-cycle",
+		Section:        "Design Patterns",
+		DefaultLevel:   "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "Java import cycle",
+		Description:    "Fails when Java classes form an internal import cycle.",
+		HowToFix:       "Break the cycle by introducing an interface or moving shared types into a lower-level package.",
+	},
+	"design.god-module": {
+		ID:             "design.god-module",
+		Section:        "Design Patterns",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.FixedRuleLanguageCoverage(
+			core.RuleLanguageGo,
+			core.RuleLanguagePython,
+			core.RuleLanguageTypeScript,
+			core.RuleLanguageJavaScript,
+			core.RuleLanguageRust,
+			core.RuleLanguageJava,
+		),
+		Title:       "God module",
+		Description: "Warns when a module's combined fan-in and fan-out exceeds the configured threshold, indicating it concentrates too much of the dependency graph.",
+		HowToFix:    "Split the module into smaller focused modules and route consumers through narrower interfaces.",
+	},
+	"design.high-impact-change": {
+		ID:             "design.high-impact-change",
+		Section:        "Design Patterns",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.FixedRuleLanguageCoverage(
+			core.RuleLanguageGo,
+			core.RuleLanguagePython,
+			core.RuleLanguageTypeScript,
+			core.RuleLanguageJavaScript,
+			core.RuleLanguageRust,
+			core.RuleLanguageJava,
+		),
+		Title:       "High impact change",
+		Description: "Warns in diff mode when a changed module has more transitive dependents than the configured threshold.",
+		HowToFix:    "Split the change into smaller steps, add coverage for dependent modules, or stage the rollout carefully.",
+	},
+}

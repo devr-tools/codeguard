@@ -41,6 +41,9 @@ func Validate(cfg core.Config) error {
 	if err := validateCoverageDelta(cfg.Checks.QualityRules.CoverageDelta); err != nil {
 		return err
 	}
+	if err := validateGraphThresholds(cfg.Checks.DesignRules); err != nil {
+		return err
+	}
 	return validateRulePacks(cfg.RulePacks)
 }
 
