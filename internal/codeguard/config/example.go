@@ -31,6 +31,8 @@ func baseExampleConfig() core.Config {
 				MaxDeclsPerFile:              12,
 				MaxMethodsPerType:            8,
 				MaxInterfaceMethods:          5,
+				GodModuleThreshold:           25,
+				HighImpactChangeThreshold:    10,
 				ForbiddenPackageNames:        []string{"util", "utils", "common", "helpers", "misc"},
 			},
 			PromptRules: core.PromptRulesConfig{

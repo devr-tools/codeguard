@@ -10,3 +10,6 @@ type Status = core.Status
 type Report = core.Report
 type SectionResult = core.SectionResult
 type Finding = core.Finding
+type ReportArtifact = core.ReportArtifact
+type ChangeImpactArtifact = core.ChangeImpactArtifact
+type ChangeImpactEntry = core.ChangeImpactEntry

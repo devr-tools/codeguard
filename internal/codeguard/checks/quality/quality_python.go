@@ -15,6 +15,7 @@ func pythonFindingsForFile(env support.Context, file string, data []byte) []core
 	for _, fn := range pythonFunctions(string(data)) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
+	findings = append(findings, pythonPerformanceFindings(env, file, data)...)
 	return findings
 }
 

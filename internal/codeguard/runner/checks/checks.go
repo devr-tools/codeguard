@@ -41,7 +41,14 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 
 func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 	return checkSupport.Context{
-		Config: sc.Cfg,
+		Config:            sc.Cfg,
+		DiffMode:          sc.Opts.Mode == core.ScanModeDiff,
+		DiffBaseRef:       sc.Opts.BaseRef,
+		ChangedFiles:      runnersupport.ChangedDiffFiles(sc),
+		AddReportArtifact: sc.Artifacts.Add,
+		VisitTargetFiles: func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
+			runnersupport.VisitTargetFiles(sc, target, include, visit)
+		},
 		ScanTargetFiles: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFiles(sc, target, sectionID, include, evaluator)
 		},

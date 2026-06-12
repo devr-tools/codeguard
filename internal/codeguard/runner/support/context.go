@@ -21,6 +21,7 @@ type Context struct {
 	CustomRules []CompiledCustomRule
 	Cache       *ScanCache
 	ConfigHash  string
+	Artifacts   *ArtifactSink
 }
 
 func NormalizeScanOptions(opts core.ScanOptions) core.ScanOptions {
@@ -49,6 +50,7 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 		RuleCatalog: ruleCatalog,
 		CustomRules: customRules,
 		ConfigHash:  ConfigFingerprint(cfg),
+		Artifacts:   NewArtifactSink(),
 	}
 	if cfg.Baseline.Path != "" {
 		baseline, err := loadBaselineFile(cfg.Baseline.Path)

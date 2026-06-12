@@ -18,6 +18,11 @@ type FindingInput struct {
 
 type Context struct {
 	Config               core.Config
+	DiffMode             bool
+	DiffBaseRef          string
+	ChangedFiles         []string
+	AddReportArtifact    func(core.ReportArtifact)
+	VisitTargetFiles     func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte))
 	ScanTargetFiles      func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding
 	NewFinding           func(FindingInput) core.Finding
 	FinalizeSection      func(id string, name string, findings []core.Finding) core.SectionResult

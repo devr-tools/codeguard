@@ -21,11 +21,12 @@ const (
 )
 
 type Report struct {
-	Name        string          `json:"name"`
-	Profile     string          `json:"profile,omitempty"`
-	GeneratedAt string          `json:"generated_at"`
-	Sections    []SectionResult `json:"sections"`
-	Summary     ReportSummary   `json:"summary"`
+	Name        string           `json:"name"`
+	Profile     string           `json:"profile,omitempty"`
+	GeneratedAt string           `json:"generated_at"`
+	Sections    []SectionResult  `json:"sections"`
+	Summary     ReportSummary    `json:"summary"`
+	Artifacts   []ReportArtifact `json:"artifacts,omitempty"`
 }
 
 type SectionResult struct {

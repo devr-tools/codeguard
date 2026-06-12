@@ -65,6 +65,18 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	if dst.MaxCyclomaticComplexity == 0 {
 		dst.MaxCyclomaticComplexity = def.MaxCyclomaticComplexity
 	}
+	if dst.DetectNPlusOneQuery == nil {
+		dst.DetectNPlusOneQuery = boolPtr(true)
+	}
+	if dst.DetectAllocInLoop == nil {
+		dst.DetectAllocInLoop = boolPtr(true)
+	}
+	if dst.DetectSyncIOInHandlers == nil {
+		dst.DetectSyncIOInHandlers = boolPtr(true)
+	}
+	if dst.DetectUnboundedConcurrency == nil {
+		dst.DetectUnboundedConcurrency = boolPtr(true)
+	}
 	if dst.LanguageCommands == nil && len(def.LanguageCommands) > 0 {
 		dst.LanguageCommands = cloneCommandCheckMap(def.LanguageCommands)
 	}
@@ -79,6 +91,21 @@ func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig
 	}
 	if dst.MaxInterfaceMethods == 0 {
 		dst.MaxInterfaceMethods = def.MaxInterfaceMethods
+	}
+	if dst.GodModuleThreshold == 0 {
+		dst.GodModuleThreshold = def.GodModuleThreshold
+	}
+	if dst.HighImpactChangeThreshold == 0 {
+		dst.HighImpactChangeThreshold = def.HighImpactChangeThreshold
+	}
+	if dst.DetectImportCycles == nil {
+		dst.DetectImportCycles = boolPtr(true)
+	}
+	if dst.DetectGodModules == nil {
+		dst.DetectGodModules = boolPtr(true)
+	}
+	if dst.DetectHighImpactChanges == nil {
+		dst.DetectHighImpactChanges = boolPtr(true)
 	}
 	if dst.ForbiddenPackageNames == nil {
 		dst.ForbiddenPackageNames = append([]string(nil), def.ForbiddenPackageNames...)

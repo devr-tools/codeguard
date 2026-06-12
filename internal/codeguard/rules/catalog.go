@@ -4,7 +4,9 @@ import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 var catalog = mergeRuleCatalogs(
 	qualityCatalog,
+	qualityPerformanceCatalog,
 	designCatalog,
+	designGraphCatalog,
 	securityCatalog,
 	miscCatalog,
 )

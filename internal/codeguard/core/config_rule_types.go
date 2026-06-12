@@ -1,11 +1,15 @@
 package core
 
 type QualityRulesConfig struct {
-	MaxFileLines            int                             `json:"max_file_lines"`
-	MaxFunctionLines        int                             `json:"max_function_lines"`
-	MaxParameters           int                             `json:"max_parameters"`
-	MaxCyclomaticComplexity int                             `json:"max_cyclomatic_complexity"`
-	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
+	MaxFileLines               int                             `json:"max_file_lines"`
+	MaxFunctionLines           int                             `json:"max_function_lines"`
+	MaxParameters              int                             `json:"max_parameters"`
+	MaxCyclomaticComplexity    int                             `json:"max_cyclomatic_complexity"`
+	DetectNPlusOneQuery        *bool                           `json:"detect_n_plus_one_query,omitempty"`
+	DetectAllocInLoop          *bool                           `json:"detect_alloc_in_loop,omitempty"`
+	DetectSyncIOInHandlers     *bool                           `json:"detect_sync_io_in_handlers,omitempty"`
+	DetectUnboundedConcurrency *bool                           `json:"detect_unbounded_concurrency,omitempty"`
+	LanguageCommands           map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
 }
 
 type DesignRulesConfig struct {
@@ -16,6 +20,11 @@ type DesignRulesConfig struct {
 	MaxDeclsPerFile              int                             `json:"max_decls_per_file"`
 	MaxMethodsPerType            int                             `json:"max_methods_per_type"`
 	MaxInterfaceMethods          int                             `json:"max_interface_methods"`
+	DetectImportCycles           *bool                           `json:"detect_import_cycles,omitempty"`
+	DetectGodModules             *bool                           `json:"detect_god_modules,omitempty"`
+	GodModuleThreshold           int                             `json:"god_module_threshold"`
+	DetectHighImpactChanges      *bool                           `json:"detect_high_impact_changes,omitempty"`
+	HighImpactChangeThreshold    int                             `json:"high_impact_change_threshold"`
 	ForbiddenPackageNames        []string                        `json:"forbidden_package_names,omitempty"`
 	LanguageCommands             map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
 }
