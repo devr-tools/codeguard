@@ -53,8 +53,9 @@ func baseExampleConfig() core.Config {
 				AllowedTestPaths:        []string{"tests/**"},
 			},
 			SecurityRules: core.SecurityRulesConfig{
-				GovulncheckMode:    "auto",
-				GovulncheckCommand: "govulncheck",
+				GovulncheckMode:         "auto",
+				GovulncheckCommand:      "govulncheck",
+				TypeScriptTaintMaxDepth: 8,
 			},
 		},
 		Output: core.OutputConfig{Format: "text"},
