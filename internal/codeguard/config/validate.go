@@ -32,6 +32,9 @@ func Validate(cfg core.Config) error {
 	if err := validateAIProvenance(cfg.Checks.QualityRules.AIProvenance); err != nil {
 		return err
 	}
+	if err := validateAIChecks(cfg.Checks.QualityRules.AIChecks); err != nil {
+		return err
+	}
 	return validateRulePacks(cfg.RulePacks)
 }
 

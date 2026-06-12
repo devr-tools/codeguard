@@ -3,6 +3,7 @@ package support
 import (
 	"context"
 	"go/ast"
+	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
@@ -22,6 +23,7 @@ type Context struct {
 	Mode                 core.ScanMode
 	BaseRef              string
 	DiffText             string
+	ScanTime             time.Time
 	ScanTargetFiles      func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding
 	NewFinding           func(FindingInput) core.Finding
 	FinalizeSection      func(id string, name string, findings []core.Finding) core.SectionResult

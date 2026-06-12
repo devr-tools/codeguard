@@ -124,6 +124,7 @@ func maybePutAISlopArtifact(env support.Context, target core.TargetConfig, findi
 	if !ok {
 		return
 	}
+	recordSlopHistory(env, &artifact)
 	env.PutArtifact(artifact)
 }
 

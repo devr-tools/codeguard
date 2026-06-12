@@ -6,6 +6,7 @@ type Report = core.Report
 type Artifact = core.Artifact
 type SlopScoreArtifact = core.SlopScoreArtifact
 type SlopScoreComponent = core.SlopScoreComponent
+type SlopHistoryEntry = core.SlopHistoryEntry
 type AIAnalysisArtifact = core.AIAnalysisArtifact
 type AIAnalysisVerdict = core.AIAnalysisVerdict
 type AIFixArtifact = core.AIFixArtifact

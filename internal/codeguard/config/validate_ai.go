@@ -31,6 +31,13 @@ func validateAIProvenance(cfg core.AIProvenanceConfig) error {
 	return nil
 }
 
+func validateAIChecks(cfg core.AIChecksConfig) error {
+	if cfg.SlopHistoryLimit < 0 {
+		return errors.New("quality_rules.ai_checks.slop_history_limit must be non-negative")
+	}
+	return nil
+}
+
 func validateAIConfig(cfg core.AIConfig) error {
 	if err := validateAIProvider(cfg.Provider); err != nil {
 		return err

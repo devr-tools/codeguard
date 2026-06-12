@@ -30,6 +30,17 @@ type DependencyGraphEdge struct {
 }
 
 type SlopScoreArtifact struct {
+	Score         int                  `json:"score"`
+	Signals       int                  `json:"signals"`
+	Components    []SlopScoreComponent `json:"components,omitempty"`
+	PreviousScore *int                 `json:"previous_score,omitempty"`
+	Delta         *int                 `json:"delta,omitempty"`
+}
+
+// SlopHistoryEntry is one persisted slop-score observation for a target,
+// recorded once per scan so trends can be reported over time.
+type SlopHistoryEntry struct {
+	Timestamp  string               `json:"timestamp"`
 	Score      int                  `json:"score"`
 	Signals    int                  `json:"signals"`
 	Components []SlopScoreComponent `json:"components,omitempty"`
