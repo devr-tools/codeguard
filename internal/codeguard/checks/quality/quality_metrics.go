@@ -16,20 +16,6 @@ type functionMetrics struct {
 	Complexity int
 }
 
-func parsedFunctionMetrics(functions []support.ParsedFunction, countParams func(string) int, complexityFn func(string) int) []functionMetrics {
-	metrics := make([]functionMetrics, 0, len(functions))
-	for _, fn := range functions {
-		metrics = append(metrics, functionMetrics{
-			Name:       fn.Name,
-			StartLine:  fn.StartLine,
-			Length:     max(1, fn.EndLine-fn.StartLine+1),
-			Params:     countParams(fn.Parameters),
-			Complexity: complexityFn(fn.Body),
-		})
-	}
-	return metrics
-}
-
 func fileLengthFindingWithSignals(env support.Context, file string, data []byte, findings []core.Finding) []core.Finding {
 	lineCount := env.CountLines(data)
 	if lineCount <= env.Config.Checks.QualityRules.MaxFileLines {

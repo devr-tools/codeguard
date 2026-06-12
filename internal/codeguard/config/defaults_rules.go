@@ -119,6 +119,12 @@ func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRules
 	if dst.GovulncheckMode == "" {
 		dst.GovulncheckMode = def.GovulncheckMode
 	}
+	if dst.TaintGo == nil {
+		dst.TaintGo = boolPtr(true)
+	}
+	if dst.TaintPython == nil {
+		dst.TaintPython = boolPtr(true)
+	}
 	if dst.GovulncheckCommand == "" {
 		dst.GovulncheckCommand = def.GovulncheckCommand
 	}

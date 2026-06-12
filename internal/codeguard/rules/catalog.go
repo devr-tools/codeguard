@@ -9,6 +9,7 @@ var catalog = mergeRuleCatalogs(
 	designGraphCatalog,
 	securityCatalog,
 	contractsCatalog,
+	securityTaintCatalog,
 	miscCatalog,
 	coverageCatalog,
 	testQualityCatalog,

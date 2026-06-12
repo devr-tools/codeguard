@@ -120,17 +120,6 @@ func rubyBlockStart(line string) bool {
 	}
 }
 
-func rustParameterCount(signature string) int {
-	count := 0
-	for _, part := range splitTopLevelDelimited(signature) {
-		if part == "self" || part == "&self" || part == "&mut self" || strings.HasSuffix(part, " self") {
-			continue
-		}
-		count++
-	}
-	return count
-}
-
 func typedParameterCount(signature string) int {
 	return len(splitTopLevelDelimited(signature))
 }

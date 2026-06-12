@@ -1,172 +1,150 @@
 package support
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
-func ParsePythonFunctions(source string) []ParsedFunction {
+var pythonDefPattern = regexp.MustCompile(`^(\s*)(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(`)
+
+// ParsePython builds a lightweight AST for one Python source file.
+func ParsePython(source string) *ParsedFile {
 	source = strings.ReplaceAll(source, "\r\n", "\n")
-	lines := strings.Split(source, "\n")
-	functions := make([]ParsedFunction, 0)
-	for idx := 0; idx < len(lines); idx++ {
-		name, params, ok := parsePythonFunctionHeader(lines, idx)
-		if !ok {
+	file := &ParsedFile{
+		Language: "python",
+		Source:   source,
+		Masked:   MaskPythonSource(source),
+		Module:   &ParsedFunction{Name: "<module>", StartLine: 1},
+	}
+	builder := &pythonBuilder{file: file}
+	for _, logical := range pythonLogicalLines(source, file.Masked) {
+		builder.consume(logical)
+	}
+	builder.closeFunctions(0, true)
+	file.Module.EndLine = builder.lastContentLine
+	return file
+}
+
+type logicalLine struct {
+	startLine int
+	indent    int
+	masked    string
+	raw       string
+}
+
+// pythonLogicalLines groups physical lines into logical statements by
+// tracking bracket depth and trailing backslash continuations on the masked
+// text, where string and comment contents cannot confuse the count.
+func pythonLogicalLines(source string, masked string) []logicalLine {
+	rawLines := strings.Split(source, "\n")
+	maskedLines := strings.Split(masked, "\n")
+	logical := make([]logicalLine, 0, len(rawLines))
+	current := logicalLine{}
+	depth := 0
+	open := false
+	for idx := range rawLines {
+		if !open {
+			current = logicalLine{startLine: idx + 1, indent: indentWidthOf(maskedLines[idx])}
+		} else {
+			current.masked += "\n"
+			current.raw += "\n"
+		}
+		current.masked += maskedLines[idx]
+		current.raw += rawLines[idx]
+		depth += bracketDelta(maskedLines[idx])
+		open = depth > 0 || strings.HasSuffix(strings.TrimRight(maskedLines[idx], " \t"), "\\")
+		if open {
 			continue
 		}
-		startIndent := pythonIndentationWidth(lines[idx])
-		headerEnd := idx
-		if strings.Count(strings.Join(lines[idx:], "\n"), "\n") > 0 {
-			headerEnd = pythonHeaderEnd(lines, idx)
-		}
-		endIdx := len(lines) - 1
-		for j := headerEnd + 1; j < len(lines); j++ {
-			trimmed := strings.TrimSpace(lines[j])
-			if trimmed == "" {
-				continue
-			}
-			if pythonIndentationWidth(lines[j]) <= startIndent {
-				endIdx = j - 1
-				break
-			}
-		}
-		bodyStart := min(headerEnd+1, len(lines))
-		bodyEnd := min(endIdx+1, len(lines))
-		functions = append(functions, ParsedFunction{
-			Name:       name,
-			StartLine:  idx + 1,
-			EndLine:    endIdx + 1,
-			Parameters: params,
-			Body:       strings.Join(lines[bodyStart:bodyEnd], "\n"),
-		})
-		idx = headerEnd
-	}
-	return functions
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func parsePythonFunctionHeader(lines []string, start int) (string, string, bool) {
-	headerEnd := pythonHeaderEnd(lines, start)
-	if headerEnd < start {
-		return "", "", false
-	}
-	header := strings.Join(lines[start:headerEnd+1], "\n")
-	trimmed := strings.TrimSpace(header)
-	switch {
-	case strings.HasPrefix(trimmed, "async def "):
-		trimmed = strings.TrimPrefix(trimmed, "async def ")
-	case strings.HasPrefix(trimmed, "def "):
-		trimmed = strings.TrimPrefix(trimmed, "def ")
-	default:
-		return "", "", false
-	}
-	openIdx := strings.Index(trimmed, "(")
-	if openIdx <= 0 {
-		return "", "", false
-	}
-	name := strings.TrimSpace(trimmed[:openIdx])
-	closeIdx := findBalancedPythonDelimiter(trimmed, openIdx, '(', ')')
-	if closeIdx < 0 {
-		return "", "", false
-	}
-	colonIdx := closeIdx + 1
-	for colonIdx < len(trimmed) && (trimmed[colonIdx] == ' ' || trimmed[colonIdx] == '\t') {
-		colonIdx++
-	}
-	if colonIdx >= len(trimmed) || trimmed[colonIdx] != ':' {
-		return "", "", false
-	}
-	return name, trimmed[openIdx+1 : closeIdx], name != ""
-}
-
-func pythonHeaderEnd(lines []string, start int) int {
-	parenDepth := 0
-	inString := byte(0)
-	for idx := start; idx < len(lines); idx++ {
-		line := lines[idx]
-		for pos := 0; pos < len(line); pos++ {
-			if inString != 0 {
-				pos = advancePythonString(line, pos, &inString)
-				continue
-			}
-			done, headerEnd := advancePythonHeader(line[pos], &parenDepth, &inString)
-			if headerEnd {
-				return idx
-			}
-			if done {
-				break
-			}
+		if strings.TrimSpace(current.masked) != "" {
+			logical = append(logical, current)
 		}
 	}
-	return -1
+	if open && strings.TrimSpace(current.masked) != "" {
+		logical = append(logical, current)
+	}
+	return logical
 }
 
-func advancePythonString(line string, pos int, inString *byte) int {
-	if line[pos] == '\\' && pos+1 < len(line) {
-		return pos + 1
-	}
-	if line[pos] == *inString {
-		*inString = 0
-	}
-	return pos
+type openPythonFunction struct {
+	fn        *ParsedFunction
+	defIndent int
 }
 
-func advancePythonHeader(ch byte, parenDepth *int, inString *byte) (done bool, headerEnd bool) {
-	switch ch {
-	case '\'', '"':
-		*inString = ch
-	case '#':
-		return true, false
-	case '(':
-		*parenDepth = *parenDepth + 1
-	case ')':
-		if *parenDepth > 0 {
-			*parenDepth = *parenDepth - 1
+type pythonBuilder struct {
+	file            *ParsedFile
+	stack           []openPythonFunction
+	lastContentLine int
+}
+
+func (b *pythonBuilder) consume(logical logicalLine) {
+	b.closeFunctions(logical.indent, false)
+	if match := pythonDefPattern.FindStringSubmatch(logical.masked); match != nil {
+		b.openFunction(logical, match[2])
+		b.lastContentLine = logical.startLine + strings.Count(logical.masked, "\n")
+		return
+	}
+	b.collectImports(logical)
+	scope := b.currentScope()
+	statement := ParsedStatement{Line: logical.startLine, Indent: logical.indent, Text: logical.masked, Raw: logical.raw}
+	scope.Statements = append(scope.Statements, statement)
+	scope.Assignments = append(scope.Assignments, pythonAssignments(statement)...)
+	scope.Calls = append(scope.Calls, maskedCalls(logical.masked, logical.startLine)...)
+	b.lastContentLine = logical.startLine + strings.Count(logical.masked, "\n")
+}
+
+func (b *pythonBuilder) openFunction(logical logicalLine, name string) {
+	signature := pythonSignatureText(logical.masked)
+	fn := &ParsedFunction{
+		Name:      name,
+		StartLine: logical.startLine,
+		Signature: strings.TrimSpace(signature),
+		Params:    parsePythonParams(signature),
+	}
+	if len(b.stack) > 0 {
+		parent := b.stack[len(b.stack)-1].fn
+		parent.Nested = append(parent.Nested, fn)
+	} else {
+		b.file.Functions = append(b.file.Functions, fn)
+	}
+	b.stack = append(b.stack, openPythonFunction{fn: fn, defIndent: logical.indent})
+}
+
+func (b *pythonBuilder) closeFunctions(indent int, all bool) {
+	for len(b.stack) > 0 {
+		top := b.stack[len(b.stack)-1]
+		if !all && indent > top.defIndent {
+			return
 		}
-	case ':':
-		return false, *parenDepth == 0
+		top.fn.EndLine = max(top.fn.StartLine, b.lastContentLine)
+		b.stack = b.stack[:len(b.stack)-1]
 	}
-	return false, false
 }
 
-func findBalancedPythonDelimiter(source string, start int, open rune, close rune) int {
+func (b *pythonBuilder) currentScope() *ParsedFunction {
+	if len(b.stack) == 0 {
+		return b.file.Module
+	}
+	return b.stack[len(b.stack)-1].fn
+}
+
+// pythonSignatureText extracts the parameter list between the def's parens.
+func pythonSignatureText(maskedDef string) string {
+	open := strings.IndexByte(maskedDef, '(')
+	if open < 0 {
+		return ""
+	}
 	depth := 0
-	inString := rune(0)
-	for idx, ch := range source[start:] {
-		switch {
-		case inString != 0:
-			if ch == inString {
-				inString = 0
-			}
-		case ch == '"' || ch == '\'':
-			inString = ch
-		case ch == open:
+	for i := open; i < len(maskedDef); i++ {
+		switch maskedDef[i] {
+		case '(', '[', '{':
 			depth++
-		case ch == close:
+		case ')', ']', '}':
 			depth--
 			if depth == 0 {
-				return start + idx
+				return maskedDef[open+1 : i]
 			}
 		}
 	}
-	return -1
-}
-
-func pythonIndentationWidth(line string) int {
-	width := 0
-	for _, ch := range line {
-		if ch == ' ' {
-			width++
-			continue
-		}
-		if ch == '\t' {
-			width += 4
-			continue
-		}
-		break
-	}
-	return width
+	return maskedDef[open+1:]
 }

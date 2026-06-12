@@ -15,7 +15,7 @@ var (
 
 func rustFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
 	findings := make([]core.Finding, 0)
-	for _, fn := range parsedFunctionMetrics(support.ParseRustFunctions(string(data)), rustParameterCount, rustComplexity) {
+	for _, fn := range clikeQualityFunctions(string(data), support.CLikeRust, rustComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
@@ -23,10 +23,28 @@ func rustFindingsForFile(env support.Context, file string, data []byte) []core.F
 
 func javaFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
 	findings := make([]core.Finding, 0)
-	for _, fn := range parsedFunctionMetrics(support.ParseJavaFunctions(string(data)), typedParameterCount, braceComplexity) {
+	for _, fn := range clikeQualityFunctions(string(data), support.CLikeJava, braceComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
+}
+
+// clikeQualityFunctions extracts function metrics from the structured C-like
+// parser, so comments and string literals cannot produce phantom functions
+// or corrupt brace matching.
+func clikeQualityFunctions(source string, lang support.CLikeLanguage, complexityFn func(string) int) []functionMetrics {
+	file := support.ParseCLike(source, lang)
+	functions := make([]functionMetrics, 0)
+	for _, fn := range file.AllFunctions() {
+		functions = append(functions, functionMetrics{
+			Name:       fn.Name,
+			StartLine:  fn.StartLine,
+			Length:     fn.LineCount(),
+			Params:     len(fn.Params),
+			Complexity: complexityFn(maskedFunctionBody(fn)),
+		})
+	}
+	return functions
 }
 
 func csharpFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
