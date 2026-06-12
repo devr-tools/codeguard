@@ -120,24 +120,6 @@ func rubyBlockStart(line string) bool {
 	}
 }
 
-func rustParameterCount(signature string) int {
-	if strings.TrimSpace(signature) == "" {
-		return 0
-	}
-	count := 0
-	for _, part := range strings.Split(signature, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		if part == "self" || part == "&self" || part == "&mut self" || strings.HasSuffix(part, " self") {
-			continue
-		}
-		count++
-	}
-	return count
-}
-
 func typedParameterCount(signature string) int {
 	if strings.TrimSpace(signature) == "" {
 		return 0

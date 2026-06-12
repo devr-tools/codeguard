@@ -143,6 +143,12 @@ func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRules
 	if dst.GovulncheckCommand == "" {
 		dst.GovulncheckCommand = def.GovulncheckCommand
 	}
+	if dst.TaintGo == nil {
+		dst.TaintGo = boolPtr(true)
+	}
+	if dst.TaintPython == nil {
+		dst.TaintPython = boolPtr(true)
+	}
 	if dst.LanguageCommands == nil && len(def.LanguageCommands) > 0 {
 		dst.LanguageCommands = cloneCommandCheckMap(def.LanguageCommands)
 	}

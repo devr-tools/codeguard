@@ -8,17 +8,14 @@ import (
 )
 
 var (
-	rustFunctionPattern   = regexp.MustCompile(`^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)\s*(?:<[^>]*>)?\s*\(([^)]*)\)`)
-	javaMethodPattern     = regexp.MustCompile(`^\s*(?:@\w+(?:\([^)]*\))?\s*)*(?:(?:public|protected|private|static|final|abstract|synchronized|native|default|strictfp)\s+)+[\w<>\[\],.?&\s]+\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:throws [^{]+)?\{`)
-	csharpMethodPattern   = regexp.MustCompile(`^\s*(?:\[[^\]]+\]\s*)*(?:(?:public|protected|private|internal|static|virtual|override|sealed|abstract|async|partial|unsafe|extern|new)\s+)+[\w<>\[\],.?&\s]+\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:where [^{]+)?\{`)
-	rubyFunctionPattern   = regexp.MustCompile(`^\s*def\s+(?:self\.)?([A-Za-z_]\w*[!?=]?)\s*(?:\(([^)]*)\)|\s+([^#]+))?`)
-	javaControlStatements = map[string]struct{}{"if": {}, "for": {}, "while": {}, "switch": {}, "catch": {}, "return": {}, "new": {}, "throw": {}, "else": {}, "do": {}, "try": {}, "synchronized": {}}
-	csharpControlWords    = map[string]struct{}{"if": {}, "for": {}, "foreach": {}, "while": {}, "switch": {}, "catch": {}, "return": {}, "new": {}, "throw": {}, "lock": {}, "using": {}}
+	csharpMethodPattern = regexp.MustCompile(`^\s*(?:\[[^\]]+\]\s*)*(?:(?:public|protected|private|internal|static|virtual|override|sealed|abstract|async|partial|unsafe|extern|new)\s+)+[\w<>\[\],.?&\s]+\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:where [^{]+)?\{`)
+	rubyFunctionPattern = regexp.MustCompile(`^\s*def\s+(?:self\.)?([A-Za-z_]\w*[!?=]?)\s*(?:\(([^)]*)\)|\s+([^#]+))?`)
+	csharpControlWords  = map[string]struct{}{"if": {}, "for": {}, "foreach": {}, "while": {}, "switch": {}, "catch": {}, "return": {}, "new": {}, "throw": {}, "lock": {}, "using": {}}
 )
 
 func rustFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
 	findings := fileLengthFinding(env, file, data)
-	for _, fn := range braceLanguageFunctions(string(data), rustFunctionPattern, rustParameterCount, rustComplexity, nil) {
+	for _, fn := range clikeQualityFunctions(string(data), support.CLikeRust, rustComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
 	return findings
@@ -26,10 +23,28 @@ func rustFindingsForFile(env support.Context, file string, data []byte) []core.F
 
 func javaFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
 	findings := fileLengthFinding(env, file, data)
-	for _, fn := range braceLanguageFunctions(string(data), javaMethodPattern, typedParameterCount, braceComplexity, javaControlStatements) {
+	for _, fn := range clikeQualityFunctions(string(data), support.CLikeJava, braceComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
 	return findings
+}
+
+// clikeQualityFunctions extracts function metrics from the structured C-like
+// parser, so comments and string literals cannot produce phantom functions
+// or corrupt brace matching.
+func clikeQualityFunctions(source string, lang support.CLikeLanguage, complexityFn func(string) int) []functionMetrics {
+	file := support.ParseCLike(source, lang)
+	functions := make([]functionMetrics, 0)
+	for _, fn := range file.AllFunctions() {
+		functions = append(functions, functionMetrics{
+			Name:       fn.Name,
+			StartLine:  fn.StartLine,
+			Length:     fn.LineCount(),
+			Params:     len(fn.Params),
+			Complexity: complexityFn(maskedFunctionBody(fn)),
+		})
+	}
+	return functions
 }
 
 func csharpFindingsForFile(env support.Context, file string, data []byte) []core.Finding {

@@ -44,6 +44,8 @@ type WorkflowRuleConfig struct {
 type SecurityRulesConfig struct {
 	GovulncheckMode    string                          `json:"govulncheck_mode,omitempty"`
 	GovulncheckCommand string                          `json:"govulncheck_command,omitempty"`
+	TaintGo            *bool                           `json:"taint_go,omitempty"`
+	TaintPython        *bool                           `json:"taint_python,omitempty"`
 	LanguageCommands   map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
 }
 
