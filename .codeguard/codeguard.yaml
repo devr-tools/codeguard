@@ -1,6 +1,8 @@
 name: codeguard-repo-ci
 exclude:
+  - .claude/**
   - .codeguard/cache.json
+  - .codeguard/cache.slop-history.json
   - .gomodcache/**
   - tests/**/.codeguard/cache.json
 waivers:
