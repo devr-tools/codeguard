@@ -15,7 +15,10 @@ func typeScriptTargetFindings(ctx context.Context, env support.Context, target c
 	results, ok, err := support.AnalyzeTypeScriptTarget(ctx, target, env.Config)
 	if err == nil && ok {
 		findings := support.FindingsFromInputs(env, qualityTypeScriptTargetExtract(results))
-		findings = append(findings, env.ScanTargetFiles(target, "quality", isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
+		findings = append(findings, env.ScanTargetFiles(target, "quality-typescript-file-length", isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
+			return fileLengthFindingWithSignals(env, file, data, findings)
+		})...)
+		findings = append(findings, env.ScanTargetFiles(target, "quality-typescript-ai", isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
 			return typeScriptAIOnlyFindingsForFile(env, file, data)
 		})...)
 		return findings

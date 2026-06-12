@@ -36,8 +36,8 @@ var qualityCatalog = map[string]core.RuleMetadata{
 			core.RuleLanguageRuby,
 		),
 		Title:       "File length",
-		Description: "Warns when a file exceeds the configured maximum line count.",
-		HowToFix:    "Split the file into smaller units or raise the configured threshold intentionally.",
+		Description: "Warns when a file exceeds the configured maximum line count and escalates to a failure when the same file also exceeds cyclomatic complexity limits.",
+		HowToFix:    "Split the file into smaller units, reduce branching in the file's functions, or raise the configured threshold intentionally.",
 	},
 	"quality.max-function-lines": {
 		ID:             "quality.max-function-lines",

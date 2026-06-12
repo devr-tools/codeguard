@@ -1,4 +1,15 @@
 name: codeguard-repo-ci
+exclude:
+  - .codeguard/cache.json
+  - .gomodcache/**
+  - tests/**/.codeguard/cache.json
+waivers:
+  - rule: quality.max-file-lines
+    path: internal/codeguard/rules/catalog_quality.go
+    reason: rule catalog is intentionally dense and should still be scanned by other checks
+  - rule: quality.max-file-lines
+    path: tests/checks/features_test.go
+    reason: consolidated feature coverage is intentionally broad and should still be scanned by other checks
 targets:
   - name: repository
     path: .

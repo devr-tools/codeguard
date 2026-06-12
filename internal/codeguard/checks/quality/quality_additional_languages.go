@@ -14,33 +14,33 @@ var (
 )
 
 func rustFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := fileLengthFinding(env, file, data)
+	findings := make([]core.Finding, 0)
 	for _, fn := range parsedFunctionMetrics(support.ParseRustFunctions(string(data)), rustParameterCount, rustComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
-	return findings
+	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 
 func javaFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := fileLengthFinding(env, file, data)
+	findings := make([]core.Finding, 0)
 	for _, fn := range parsedFunctionMetrics(support.ParseJavaFunctions(string(data)), typedParameterCount, braceComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
-	return findings
+	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 
 func csharpFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := fileLengthFinding(env, file, data)
+	findings := make([]core.Finding, 0)
 	for _, fn := range braceLanguageFunctions(string(data), csharpMethodPattern, typedParameterCount, braceComplexity, csharpControlWords) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
-	return findings
+	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 
 func rubyFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := fileLengthFinding(env, file, data)
+	findings := make([]core.Finding, 0)
 	for _, fn := range rubyFunctions(string(data)) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
-	return findings
+	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }

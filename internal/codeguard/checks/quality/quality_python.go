@@ -8,12 +8,12 @@ import (
 )
 
 func pythonFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := fileLengthFinding(env, file, data)
+	findings := make([]core.Finding, 0)
 	for _, fn := range parsedFunctionMetrics(support.ParsePythonFunctions(string(data)), pythonParameterCount, pythonComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
 	findings = append(findings, pythonAIQualityFindings(env, file, data)...)
-	return findings
+	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 
 func pythonComplexity(body string) int {

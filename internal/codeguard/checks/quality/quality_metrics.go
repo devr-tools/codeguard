@@ -30,19 +30,34 @@ func parsedFunctionMetrics(functions []support.ParsedFunction, countParams func(
 	return metrics
 }
 
-func fileLengthFinding(env support.Context, file string, data []byte) []core.Finding {
+func fileLengthFindingWithSignals(env support.Context, file string, data []byte, findings []core.Finding) []core.Finding {
 	lineCount := env.CountLines(data)
 	if lineCount <= env.Config.Checks.QualityRules.MaxFileLines {
 		return nil
 	}
+	level := "warn"
+	message := fmt.Sprintf("file has %d lines; max is %d", lineCount, env.Config.Checks.QualityRules.MaxFileLines)
+	if fileHasComplexityFinding(findings, file) {
+		level = "fail"
+		message = fmt.Sprintf("file has %d lines; max is %d, and the file also exceeds cyclomatic complexity limits", lineCount, env.Config.Checks.QualityRules.MaxFileLines)
+	}
 	return []core.Finding{env.NewFinding(support.FindingInput{
 		RuleID:  "quality.max-file-lines",
-		Level:   "warn",
+		Level:   level,
 		Path:    file,
 		Line:    lineCount,
 		Column:  1,
-		Message: fmt.Sprintf("file has %d lines; max is %d", lineCount, env.Config.Checks.QualityRules.MaxFileLines),
+		Message: message,
 	})}
+}
+
+func fileHasComplexityFinding(findings []core.Finding, file string) bool {
+	for _, finding := range findings {
+		if finding.Path == file && finding.RuleID == "quality.cyclomatic-complexity" {
+			return true
+		}
+	}
+	return false
 }
 
 func maintainabilityFindings(env support.Context, file string, fn functionMetrics) []core.Finding {

@@ -183,6 +183,7 @@ Current behavior:
 - fails on parse errors
 - fails on non-`gofmt` files
 - warns when maintainability thresholds are exceeded
+- warns when a file exceeds `max_file_lines` alone, and fails that rule when the same file also exceeds cyclomatic complexity limits
 - includes an AI-failure-mode pack for swallowed errors, narrative comments, hallucinated imports, plausible dead code, over-mocked tests, and codebase-idiom drift in Go, TypeScript, and JavaScript targets
 - publishes a `slop_score` artifact in the report when AI-failure-mode signals are present so CI systems can trend the metric over time
 - can apply a provenance-aware policy for AI-assisted changes through `quality_rules.ai_provenance` using environment hints or commit trailers

@@ -23,7 +23,7 @@ type typeScriptPatternFinding struct {
 }
 
 func typeScriptFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := fileLengthFinding(env, file, data)
+	findings := make([]core.Finding, 0)
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
 	ctx := typeScriptScanContext{
 		env:    env,
@@ -38,7 +38,7 @@ func typeScriptFindingsForFile(env support.Context, file string, data []byte) []
 	for _, fn := range typeScriptFunctions(source) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
-	return findings
+	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 
 func appendTypeScriptDirectiveFindings(ctx typeScriptScanContext) []core.Finding {
