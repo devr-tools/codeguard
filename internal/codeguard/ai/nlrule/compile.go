@@ -17,7 +17,7 @@ func Compile(rule core.CustomRuleConfig, path string, data []byte) EvaluationReq
 	}
 	numbered := lineNumberedContent(content)
 	return EvaluationRequest{
-		Version: "codeguard.nlrule.v1",
+		Version: promptVersion,
 		Rule: RuleSpec{
 			ID:          rule.ID,
 			Title:       rule.Title,

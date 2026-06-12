@@ -17,6 +17,8 @@ func newProvider(cfg runtimeConfig) provider {
 		return mockProvider{cfg: cfg}
 	case "openai":
 		return openAIProvider{cfg: cfg}
+	case "anthropic":
+		return anthropicProvider{cfg: cfg}
 	default:
 		return noopProvider{}
 	}

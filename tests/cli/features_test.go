@@ -97,6 +97,30 @@ func TestRunExplainAgentFormat(t *testing.T) {
 	}
 }
 
+func TestRunExplainAgentFormatIncludesFixTemplate(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run([]string{"explain", "-format", "agent", "quality.gofmt"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d, stderr=%s", code, stderr.String())
+	}
+
+	var payload struct {
+		ID          string `json:"id"`
+		FixTemplate string `json:"fix_template"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected valid json, got err=%v body=%s", err, stdout.String())
+	}
+	if payload.ID != "quality.gofmt" {
+		t.Fatalf("expected rule id, got %#v", payload)
+	}
+	if !strings.Contains(payload.FixTemplate, "gofmt") || !strings.Contains(payload.FixTemplate, "Before:") {
+		t.Fatalf("expected actionable fix_template, got %q", payload.FixTemplate)
+	}
+}
+
 func TestRunValidatePatchUsesPatchedContent(t *testing.T) {
 	configPath, promptPath := writePromptPolicyFixture(t, "patch-cli-test", "json", "Keep prompts generic.\n")
 	diff := promptSecretPatchDiff()

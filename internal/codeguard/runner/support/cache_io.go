@@ -18,6 +18,7 @@ func LoadScanCache(path string) *ScanCache {
 		path:          path,
 		entries:       map[string]cacheEntry{},
 		triageVerdict: map[string]core.AITriageCacheVerdict{},
+		nlRuleVerdict: map[string]core.AINLRuleCacheVerdict{},
 	}
 	if strings.TrimSpace(path) == "" {
 		return cache
@@ -39,6 +40,9 @@ func LoadScanCache(path string) *ScanCache {
 	if file.TriageVerdict != nil {
 		cache.triageVerdict = file.TriageVerdict
 	}
+	if file.NLRuleVerdict != nil {
+		cache.nlRuleVerdict = file.NLRuleVerdict
+	}
 	return cache
 }
 
@@ -50,6 +54,7 @@ func (cache *ScanCache) Save() error {
 		Version:       scanCacheVersion,
 		Entries:       cache.entries,
 		TriageVerdict: cache.triageVerdict,
+		NLRuleVerdict: cache.nlRuleVerdict,
 	}
 	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {

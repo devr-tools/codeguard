@@ -10,14 +10,24 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/ai/httpretry"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+)
+
+const (
+	providerTimeoutEnv     = "CODEGUARD_AI_TIMEOUT"
+	defaultProviderTimeout = 30 * time.Second
 )
 
 func BuildProvider(cfg core.AIProviderConfig) (Provider, bool, error) {
 	switch strings.TrimSpace(strings.ToLower(cfg.Type)) {
 	case "", "openai":
 		provider, ok := openAIProviderFromConfig(cfg)
+		return provider, ok, nil
+	case "anthropic":
+		provider, ok := anthropicProviderFromConfig(cfg)
 		return provider, ok, nil
 	case "command":
 		if strings.TrimSpace(cfg.Command) == "" {
@@ -69,13 +79,15 @@ func (p openAIProvider) Evaluate(ctx context.Context, req Request) (Response, er
 	if err != nil {
 		return Response{}, err
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(data))
-	if err != nil {
-		return Response{}, err
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-	httpReq.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := httpretry.Do(ctx, providerHTTPClient(), httpretry.FromEnv(), func() (*http.Request, error) {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(data))
+		if err != nil {
+			return nil, err
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+		httpReq.Header.Set("Content-Type", "application/json")
+		return httpReq, nil
+	})
 	if err != nil {
 		return Response{}, err
 	}
@@ -122,6 +134,16 @@ func (p commandProvider) Evaluate(ctx context.Context, req Request) (Response, e
 		return Response{}, err
 	}
 	return Response{Raw: strings.TrimSpace(string(out))}, nil
+}
+
+func providerHTTPClient() *http.Client {
+	timeout := defaultProviderTimeout
+	if raw := strings.TrimSpace(os.Getenv(providerTimeoutEnv)); raw != "" {
+		if parsed, err := time.ParseDuration(raw); err == nil && parsed > 0 {
+			timeout = parsed
+		}
+	}
+	return &http.Client{Timeout: timeout}
 }
 
 func openAIUserPrompt(req Request) string {

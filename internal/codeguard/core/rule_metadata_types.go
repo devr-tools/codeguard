@@ -43,4 +43,5 @@ type RuleMetadata struct {
 	Title            string               `json:"title"`
 	Description      string               `json:"description"`
 	HowToFix         string               `json:"how_to_fix,omitempty"`
+	FixTemplate      string               `json:"fix_template,omitempty"`
 }

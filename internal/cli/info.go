@@ -133,7 +133,7 @@ func buildExplainAgentOutput(rule service.RuleMetadata) explainAgentOutput {
 		Description: rule.Description,
 		Why:         rule.Description,
 		HowToFix:    rule.HowToFix,
-		FixTemplate: "",
+		FixTemplate: rule.FixTemplate,
 	}
 }
 
