@@ -21,6 +21,7 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	if dst.LanguageCommands == nil && len(def.LanguageCommands) > 0 {
 		dst.LanguageCommands = cloneCommandCheckMap(def.LanguageCommands)
 	}
+	applyCoverageDeltaDefaults(&dst.CoverageDelta)
 }
 
 func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig) {
@@ -84,6 +85,7 @@ func applyCIDefaults(dst *core.CIRulesConfig, def core.CIRulesConfig) {
 	if dst.AllowedTestPaths == nil && len(def.AllowedTestPaths) > 0 {
 		dst.AllowedTestPaths = append([]string(nil), def.AllowedTestPaths...)
 	}
+	applyTestQualityDefaults(&dst.TestQuality)
 }
 
 func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRulesConfig) {

@@ -66,6 +66,13 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		ReadBaseFile: func(target core.TargetConfig, rel string) ([]byte, error) {
 			return runnersupport.ReadBaseFile(sc, target, rel)
 		},
+		DiffScope: func() map[string]core.ChangedLineRanges {
+			out := make(map[string]core.ChangedLineRanges, len(sc.Diff))
+			for path, ranges := range sc.Diff {
+				out[path] = ranges.Export()
+			}
+			return out
+		},
 		ScanTargetFiles: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFiles(sc, target, sectionID, include, evaluator)
 		},

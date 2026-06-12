@@ -47,6 +47,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 		findings = append(findings, aiTargetFindings(env, target)...)
 		findings = append(findings, semanticFindings(ctx, env, target)...)
 		findings = append(findings, commandFindings(ctx, env, target)...)
+		findings = append(findings, coverageDeltaFindings(ctx, env, target)...)
 		maybePutAISlopArtifact(env, target, findings)
 		return findings
 	})

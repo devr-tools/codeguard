@@ -8,6 +8,8 @@ var catalog = mergeRuleCatalogs(
 	securityCatalog,
 	contractsCatalog,
 	miscCatalog,
+	coverageCatalog,
+	testQualityCatalog,
 )
 
 func Catalog() map[string]core.RuleMetadata {

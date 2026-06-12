@@ -9,6 +9,7 @@ type QualityRulesConfig struct {
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
 	AIProvenance            AIProvenanceConfig              `json:"ai_provenance,omitempty"`
 	AIChecks                AIChecksConfig                  `json:"ai_checks,omitempty"`
+	CoverageDelta           CoverageDeltaConfig             `json:"coverage_delta,omitempty"`
 }
 
 // AIChecksConfig toggles individual AI-quality heuristics. A nil pointer
@@ -51,12 +52,13 @@ type PromptRulesConfig struct {
 }
 
 type CIRulesConfig struct {
-	RequireWorkflowDir      *bool                `json:"require_workflow_dir,omitempty"`
-	RequiredWorkflowFiles   []string             `json:"required_workflow_files,omitempty"`
-	WorkflowContentRules    []WorkflowRuleConfig `json:"workflow_content_rules,omitempty"`
-	RequiredReleaseFiles    []string             `json:"required_release_files,omitempty"`
-	RequiredAutomationPaths []string             `json:"required_automation_paths,omitempty"`
-	AllowedTestPaths        []string             `json:"allowed_test_paths,omitempty"`
+	RequireWorkflowDir      *bool                  `json:"require_workflow_dir,omitempty"`
+	RequiredWorkflowFiles   []string               `json:"required_workflow_files,omitempty"`
+	WorkflowContentRules    []WorkflowRuleConfig   `json:"workflow_content_rules,omitempty"`
+	RequiredReleaseFiles    []string               `json:"required_release_files,omitempty"`
+	RequiredAutomationPaths []string               `json:"required_automation_paths,omitempty"`
+	AllowedTestPaths        []string               `json:"allowed_test_paths,omitempty"`
+	TestQuality             TestQualityRulesConfig `json:"test_quality,omitempty"`
 }
 
 type WorkflowRuleConfig struct {

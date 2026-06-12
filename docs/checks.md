@@ -237,6 +237,40 @@ Language command example:
 }
 ```
 
+### Coverage delta (diff mode)
+
+`quality.coverage-delta` gates the test coverage of changed lines during `scan -diff`. It is **opt-in and disabled by default** because it runs the target's test suite as part of the scan, which can be expensive. It only activates in diff mode.
+
+```json
+{
+  "checks": {
+    "quality": true,
+    "quality_rules": {
+      "coverage_delta": {
+        "enabled": true,
+        "min_changed_line_coverage": 60,
+        "fail_under": 30,
+        "language_commands": {
+          "typescript": {
+            "name": "jest-coverage",
+            "command": "npx",
+            "args": ["jest", "--coverage", "--coverageReporters=lcov"],
+            "report_path": "coverage/lcov.info"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Behavior:
+- Go targets run `go test -coverprofile` for the packages containing changed files, parse the cover profile, and intersect uncovered statements with the changed lines from the diff
+- other languages run the configured coverage command and parse the lcov report at `report_path` (relative to the target); `format` currently supports only `lcov`
+- one finding per file whose changed-line coverage is below `min_changed_line_coverage` (default 60), listing the coverage percentage and the uncovered changed lines
+- findings warn by default and escalate to fail below `fail_under` (unset by default)
+- changed lines that are not measurable (comments, declarations, files absent from the coverage report) are excluded from the percentage; a failed coverage run produces a warn finding instead of aborting the scan
+
 ## Design
 
 Purpose:
@@ -448,6 +482,29 @@ Current behavior:
 - fails when required workflow, release, or automation files are missing
 - fails when required workflow content markers are missing
 - fails when detected Go, Python, TypeScript, Rust, Java, C#, or Ruby test files live outside the configured test directories
+
+### Test quality
+
+Regex-based assertion checks run against Go, Python, TypeScript, and JavaScript test files. They are enabled by default and can be tuned via `ci_rules.test_quality`:
+
+```json
+{
+  "checks": {
+    "ci": true,
+    "ci_rules": {
+      "test_quality": {
+        "enabled": true,
+        "assertion_helpers": ["assertValid", "expectSnapshot"]
+      }
+    }
+  }
+}
+```
+
+Rules:
+- `ci.test-without-assertion` warns when a test function contains no recognizable assertion; names listed in `assertion_helpers` count as assertions
+- `ci.always-true-test-assertion` warns when every assertion in a test only compares constants (`expect(true).toBe(true)`, `assert 1 == 1`, `require.True(t, true)`), so the test can never fail
+- `ci.conditional-assertion` warns when every assertion in a test sits inside a conditional without an else branch, so the assertions may silently never run; idiomatic Go failure checks (`if got != want { t.Errorf(...) }`) are not flagged
 
 ## Output
 

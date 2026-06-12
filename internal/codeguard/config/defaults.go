@@ -61,6 +61,7 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	applySecurityDefaults(&cfg.Checks.SecurityRules, def.Checks.SecurityRules)
 	applyContractDefaults(&cfg.Checks.ContractRules, def.Checks.ContractRules)
 	applyAIDefaults(&cfg.AI, def.AI)
+
 }
 
 func applyRulePackDefaults(cfg *core.Config) {
