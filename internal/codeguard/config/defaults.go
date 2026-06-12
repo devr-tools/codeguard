@@ -45,11 +45,15 @@ func applyRootDefaults(cfg *core.Config, def core.Config) {
 }
 
 func applyCheckDefaults(cfg *core.Config, def core.Config) {
+	if cfg.Checks.Contracts == nil {
+		cfg.Checks.Contracts = def.Checks.Contracts
+	}
 	applyQualityDefaults(&cfg.Checks.QualityRules, def.Checks.QualityRules)
 	applyDesignDefaults(&cfg.Checks.DesignRules, def.Checks.DesignRules)
 	applyPromptDefaults(&cfg.Checks.PromptRules, def.Checks.PromptRules)
 	applyCIDefaults(&cfg.Checks.CIRules, def.Checks.CIRules)
 	applySecurityDefaults(&cfg.Checks.SecurityRules, def.Checks.SecurityRules)
+	applyContractDefaults(&cfg.Checks.ContractRules, def.Checks.ContractRules)
 }
 
 func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesConfig) {

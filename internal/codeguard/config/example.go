@@ -56,6 +56,13 @@ func baseExampleConfig() core.Config {
 				GovulncheckMode:    "auto",
 				GovulncheckCommand: "govulncheck",
 			},
+			ContractRules: core.ContractRulesConfig{
+				GoExportedBreaking:   boolPtr(true),
+				OpenAPIBreaking:      boolPtr(true),
+				ProtoBreaking:        boolPtr(true),
+				MigrationDestructive: boolPtr(true),
+				MigrationPaths:       []string{"migrations/", "db/migrate/", "alembic/"},
+			},
 		},
 		Output: core.OutputConfig{Format: "text"},
 		Cache: core.CacheConfig{

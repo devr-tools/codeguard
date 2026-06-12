@@ -26,6 +26,9 @@ func Validate(cfg core.Config) error {
 	if err := validateCommandChecks(cfg); err != nil {
 		return err
 	}
+	if err := validateContractRules(cfg.Checks.ContractRules); err != nil {
+		return err
+	}
 	return validateRulePacks(cfg.RulePacks)
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
+	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
 	designCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/design"
 	promptsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/prompts"
 	qualityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/quality"
@@ -33,15 +34,34 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 	if sc.Cfg.Checks.CI {
 		sections = append(sections, ciCheck.Run(ctx, checkEnv))
 	}
+	if contractsEnabled(sc) {
+		sections = append(sections, contractsCheck.Run(ctx, checkEnv))
+	}
 	if len(sc.CustomRules) > 0 {
 		sections = append(sections, customrunner.RunSection(sc))
 	}
 	return sections
 }
 
+// contractsEnabled resolves the contracts toggle: an explicit config value
+// wins, otherwise the family is enabled only for diff scans.
+func contractsEnabled(sc runnersupport.Context) bool {
+	if sc.Cfg.Checks.Contracts != nil {
+		return *sc.Cfg.Checks.Contracts
+	}
+	return sc.Opts.Mode == core.ScanModeDiff
+}
+
 func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 	return checkSupport.Context{
-		Config: sc.Cfg,
+		Config:   sc.Cfg,
+		ScanMode: sc.Opts.Mode,
+		ListChangedFiles: func(target core.TargetConfig) ([]core.ChangedFile, error) {
+			return runnersupport.ListChangedFiles(sc, target)
+		},
+		ReadBaseFile: func(target core.TargetConfig, rel string) ([]byte, error) {
+			return runnersupport.ReadBaseFile(sc, target, rel)
+		},
 		ScanTargetFiles: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFiles(sc, target, sectionID, include, evaluator)
 		},
