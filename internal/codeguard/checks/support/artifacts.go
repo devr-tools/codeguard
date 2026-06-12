@@ -3,6 +3,7 @@ package support
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 const ArtifactKindDependencyGraph = "dependency_graph"
+const ArtifactKindSlopScore = "slop_score"
 
 func NewDependencyGraphArtifact(id string, language string, target string, graph DependencyGraph) core.Artifact {
 	nodes := make([]core.DependencyGraphNode, 0, len(graph.Order))
@@ -31,6 +32,22 @@ func NewDependencyGraphArtifact(id string, language string, target string, graph
 		DependencyGraph: &core.DependencyGraphArtifact{
 			Order: append([]string(nil), graph.Order...),
 			Nodes: nodes,
+		},
+	}
+}
+
+func NewSlopScoreArtifact(id string, language string, target string, score core.SlopScoreArtifact) core.Artifact {
+	components := make([]core.SlopScoreComponent, 0, len(score.Components))
+	components = append(components, score.Components...)
+	return core.Artifact{
+		ID:       id,
+		Kind:     ArtifactKindSlopScore,
+		Language: language,
+		Target:   target,
+		SlopScore: &core.SlopScoreArtifact{
+			Score:      score.Score,
+			Signals:    score.Signals,
+			Components: components,
 		},
 	}
 }

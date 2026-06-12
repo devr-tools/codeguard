@@ -23,6 +23,13 @@ func baseExampleConfig() core.Config {
 				MaxParameters:           5,
 				MaxCyclomaticComplexity: 10,
 				CloneTokenThreshold:     60,
+				AIProvenance: core.AIProvenanceConfig{
+					Enabled:                boolPtr(true),
+					EnvVars:                []string{"CODEGUARD_AI_ASSISTED"},
+					CommitTrailers:         []string{"AI-Assisted", "AI-Generated"},
+					SlopScoreWarnThreshold: 20,
+					SlopScoreFailThreshold: 40,
+				},
 			},
 			DesignRules: core.DesignRulesConfig{
 				RequireCmdThroughInternalCLI: boolPtr(true),

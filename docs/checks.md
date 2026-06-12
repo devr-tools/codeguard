@@ -183,10 +183,32 @@ Current behavior:
 - fails on parse errors
 - fails on non-`gofmt` files
 - warns when maintainability thresholds are exceeded
+- includes an AI-failure-mode pack for swallowed errors, narrative comments, hallucinated imports, plausible dead code, over-mocked tests, and codebase-idiom drift in Go, TypeScript, and JavaScript targets
+- publishes a `slop_score` artifact in the report when AI-failure-mode signals are present so CI systems can trend the metric over time
+- can apply a provenance-aware policy for AI-assisted changes through `quality_rules.ai_provenance` using environment hints or commit trailers
 - TypeScript and JavaScript quality built-ins use AST-derived function metrics and compiler-parsed syntax when the semantic runtime is available
 - includes native maintainability heuristics for Python, TypeScript, JavaScript, Rust, Java, C#, and Ruby targets
 - TypeScript and JavaScript targets also warn on `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, explicit `any`, double assertions, non-null assertions, and committed `debugger` statements
 - can run language-specific quality commands based on `targets[].language`
+
+AI provenance example:
+
+```json
+{
+  "checks": {
+    "quality": true,
+    "quality_rules": {
+      "ai_provenance": {
+        "enabled": true,
+        "env_vars": ["CODEGUARD_AI_ASSISTED"],
+        "commit_trailers": ["AI-Assisted", "AI-Generated"],
+        "slop_score_warn_threshold": 20,
+        "slop_score_fail_threshold": 40
+      }
+    }
+  }
+}
+```
 
 Language command example:
 

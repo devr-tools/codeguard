@@ -7,6 +7,15 @@ type QualityRulesConfig struct {
 	MaxCyclomaticComplexity int                             `json:"max_cyclomatic_complexity"`
 	CloneTokenThreshold     int                             `json:"clone_token_threshold,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
+	AIProvenance            AIProvenanceConfig              `json:"ai_provenance,omitempty"`
+}
+
+type AIProvenanceConfig struct {
+	Enabled                *bool    `json:"enabled,omitempty"`
+	EnvVars                []string `json:"env_vars,omitempty"`
+	CommitTrailers         []string `json:"commit_trailers,omitempty"`
+	SlopScoreWarnThreshold int      `json:"slop_score_warn_threshold,omitempty"`
+	SlopScoreFailThreshold int      `json:"slop_score_fail_threshold,omitempty"`
 }
 
 type DesignRulesConfig struct {

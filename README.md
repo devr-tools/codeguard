@@ -7,6 +7,8 @@
 
 It now supports repository exclusions, baselines, waivers, changed-lines diff scans, SARIF output, GitHub annotations, custom rule packs, policy profiles, scan caching, doctor checks, rule discovery from the CLI, native TypeScript/Python quality, design, and security heuristics, and language-specific command checks.
 
+AI-generated-code quality coverage includes an AI-failure-mode rule pack, `slop_score` artifacts, provenance-aware review policy hooks, and local idiom drift checks.
+
 The public Go SDK lives at `github.com/devr-tools/codeguard/pkg/codeguard`.
 
 Rule discovery APIs expose per-check metadata, including `execution_model` (`go-native`, `language-agnostic`, or `command-driven`) and `language_coverage` (fixed target languages, `repository-wide`, or `configurable`).
@@ -96,6 +98,7 @@ func main() {
 ## Docs
 
 - [Getting started](/Users/alex/Documents/GitHub/codeguard/docs/getting-started.md:1)
+- [AI-generated code quality](/Users/alex/Documents/GitHub/codeguard/docs/ai-quality.md:1)
 - [Agent-native features](/Users/alex/Documents/GitHub/codeguard/docs/agent-native.md:1)
 - [Integrations](/Users/alex/Documents/GitHub/codeguard/docs/integrations.md:1)
 - [Hook-pack examples](/Users/alex/Documents/GitHub/codeguard/examples/hooks/README.md:1)

@@ -44,9 +44,12 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 			})...)
 		}
 		findings = append(findings, cloneFindingsForTarget(env, target)...)
+		findings = append(findings, aiTargetFindings(env, target)...)
 		findings = append(findings, commandFindings(ctx, env, target)...)
+		maybePutAISlopArtifact(env, target, findings)
 		return findings
 	})
+	findings = append(findings, provenancePolicyFindings(env, findings)...)
 	return env.FinalizeSection("quality", "Code Quality", findings)
 }
 

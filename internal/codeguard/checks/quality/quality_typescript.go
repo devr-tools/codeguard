@@ -8,15 +8,6 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-var (
-	tsExplicitAnyPattern     = regexp.MustCompile(`(?:[:<,(]\s*any\b|\bas\s+any\b)`)
-	tsDoubleAssertPattern    = regexp.MustCompile(`\bas\s+(?:unknown|any)\s+as\s+`)
-	tsDebuggerPattern        = regexp.MustCompile(`\bdebugger\s*;?`)
-	tsIgnoreCommentPattern   = regexp.MustCompile(`^\s*(?://|/\*+|\*)\s*@ts-ignore\b`)
-	tsNoCheckCommentPattern  = regexp.MustCompile(`^\s*(?://|/\*+|\*)\s*@ts-nocheck\b`)
-	tsExpectErrorCommentRule = regexp.MustCompile(`^\s*(?://|/\*+|\*)\s*@ts-expect-error\b`)
-)
-
 type typeScriptScanContext struct {
 	env    support.Context
 	file   string
@@ -43,6 +34,7 @@ func typeScriptFindingsForFile(env support.Context, file string, data []byte) []
 
 	findings = append(findings, appendTypeScriptDirectiveFindings(ctx)...)
 	findings = append(findings, typeScriptPatternFindings(ctx)...)
+	findings = append(findings, typeScriptAIQualityFindings(ctx)...)
 	for _, fn := range typeScriptFunctions(source) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
@@ -119,23 +111,4 @@ func regexTypeScriptFinding(ctx typeScriptScanContext, spec typeScriptPatternFin
 		Level:   spec.level,
 		Message: spec.message,
 	})
-}
-
-func qualityRuleID(path string, suffix string) string {
-	return support.RuleIDForScript(path, "quality.typescript."+suffix, "quality.javascript."+suffix)
-}
-
-func newTypeScriptQualityFinding(ctx typeScriptScanContext, ruleID string, line int, message string) core.Finding {
-	return ctx.env.NewFinding(support.FindingInput{
-		RuleID:  ruleID,
-		Level:   "warn",
-		Path:    ctx.file,
-		Line:    line,
-		Column:  1,
-		Message: support.ScriptLabelForPath(ctx.file) + " " + message,
-	})
-}
-
-func isTypeScriptLikeFile(rel string) bool {
-	return support.IsTypeScriptLikeFile(rel)
 }

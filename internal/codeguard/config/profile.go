@@ -70,6 +70,9 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.QualityRules.MaxFunctionLines = 70
 			cfg.Checks.QualityRules.MaxCyclomaticComplexity = 9
 			cfg.Checks.QualityRules.CloneTokenThreshold = 50
+			cfg.Checks.QualityRules.AIProvenance.Enabled = boolPtr(true)
+			cfg.Checks.QualityRules.AIProvenance.SlopScoreWarnThreshold = 10
+			cfg.Checks.QualityRules.AIProvenance.SlopScoreFailThreshold = 25
 		},
 	},
 }

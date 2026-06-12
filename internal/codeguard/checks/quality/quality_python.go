@@ -12,6 +12,7 @@ func pythonFindingsForFile(env support.Context, file string, data []byte) []core
 	for _, fn := range parsedFunctionMetrics(support.ParsePythonFunctions(string(data)), pythonParameterCount, pythonComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
+	findings = append(findings, pythonAIQualityFindings(env, file, data)...)
 	return findings
 }
 

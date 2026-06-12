@@ -59,6 +59,42 @@ func TestArtifactStoreListSortsAndReplaces(t *testing.T) {
 	}
 }
 
+func TestRunPublishesAISlopScoreArtifact(t *testing.T) {
+	root := t.TempDir()
+	writeArtifactFile(t, filepath.Join(root, "service.go"), `package sample
+
+// Initialize the client.
+func buildClient() error {
+	err := doThing()
+	_ = err
+	return nil
+}
+
+func doThing() error { return nil }
+`)
+
+	cacheEnabled := false
+	report, err := codeguard.Run(context.Background(), codeguard.Config{
+		Name: "slop-score-test",
+		Targets: []codeguard.TargetConfig{{
+			Name:     "go-target",
+			Path:     root,
+			Language: "go",
+		}},
+		Checks: codeguard.CheckConfig{
+			Quality: true,
+		},
+		Output: codeguard.OutputConfig{Format: "json"},
+		Cache: codeguard.CacheConfig{
+			Enabled: &cacheEnabled,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	assertSlopScoreArtifact(t, report, root)
+}
+
 func writeArtifactFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -109,4 +145,24 @@ func assertDependencyGraphPayload(t *testing.T, artifact core.Artifact) {
 	if artifact.DependencyGraph.Nodes[0].ID != "app" {
 		t.Fatalf("expected sorted first node app, got %q", artifact.DependencyGraph.Nodes[0].ID)
 	}
+}
+
+func assertSlopScoreArtifact(t *testing.T, report codeguard.Report, root string) {
+	t.Helper()
+	for _, artifact := range report.Artifacts {
+		if artifact.Kind != "slop_score" {
+			continue
+		}
+		if artifact.Target != root {
+			t.Fatalf("unexpected slop artifact target %q", artifact.Target)
+		}
+		if artifact.SlopScore == nil {
+			t.Fatal("expected slop score payload")
+		}
+		if artifact.SlopScore.Score <= 0 || artifact.SlopScore.Signals <= 0 {
+			t.Fatalf("unexpected slop score payload %#v", artifact.SlopScore)
+		}
+		return
+	}
+	t.Fatalf("expected slop_score artifact, got %#v", report.Artifacts)
 }
