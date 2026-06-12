@@ -34,6 +34,17 @@ func exampleChecks() core.CheckConfig {
 		PromptRules:   examplePromptRules(),
 		CIRules:       exampleCIRules(),
 		SecurityRules: exampleSecurityRules(),
+		ContractRules: exampleContractRules(),
+	}
+}
+
+func exampleContractRules() core.ContractRulesConfig {
+	return core.ContractRulesConfig{
+		GoExportedBreaking:   boolPtr(true),
+		OpenAPIBreaking:      boolPtr(true),
+		ProtoBreaking:        boolPtr(true),
+		MigrationDestructive: boolPtr(true),
+		MigrationPaths:       []string{"migrations/", "db/migrate/", "alembic/"},
 	}
 }
 

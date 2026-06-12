@@ -24,6 +24,8 @@ type Context struct {
 	BaseRef              string
 	DiffText             string
 	ScanTime             time.Time
+	ListChangedFiles     func(target core.TargetConfig) ([]core.ChangedFile, error)
+	ReadBaseFile         func(target core.TargetConfig, rel string) ([]byte, error)
 	ScanTargetFiles      func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding
 	NewFinding           func(FindingInput) core.Finding
 	FinalizeSection      func(id string, name string, findings []core.Finding) core.SectionResult

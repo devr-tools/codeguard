@@ -41,6 +41,7 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.DesignRules.MaxMethodsPerType = 6
 			cfg.Checks.DesignRules.MaxInterfaceMethods = 4
 			cfg.Checks.SecurityRules.GovulncheckMode = "required"
+			cfg.Checks.Contracts = boolPtr(true)
 		},
 	},
 	"enterprise": {
@@ -57,6 +58,7 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.SecurityRules.GovulncheckMode = "required"
 			cfg.Checks.CIRules.RequiredReleaseFiles = []string{".goreleaser.yaml"}
 			cfg.Checks.CIRules.RequiredAutomationPaths = []string{"Makefile", ".github/workflows/ci.yml"}
+			cfg.Checks.Contracts = boolPtr(true)
 		},
 	},
 	"ai-safe": {
