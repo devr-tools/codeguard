@@ -7,6 +7,8 @@ var catalog = mergeRuleCatalogs(
 	designCatalog,
 	securityCatalog,
 	miscCatalog,
+	coverageCatalog,
+	testQualityCatalog,
 )
 
 func Catalog() map[string]core.RuleMetadata {

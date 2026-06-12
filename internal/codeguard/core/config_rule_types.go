@@ -6,6 +6,7 @@ type QualityRulesConfig struct {
 	MaxParameters           int                             `json:"max_parameters"`
 	MaxCyclomaticComplexity int                             `json:"max_cyclomatic_complexity"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
+	CoverageDelta           CoverageDeltaConfig             `json:"coverage_delta,omitempty"`
 }
 
 type DesignRulesConfig struct {
@@ -28,12 +29,13 @@ type PromptRulesConfig struct {
 }
 
 type CIRulesConfig struct {
-	RequireWorkflowDir      *bool                `json:"require_workflow_dir,omitempty"`
-	RequiredWorkflowFiles   []string             `json:"required_workflow_files,omitempty"`
-	WorkflowContentRules    []WorkflowRuleConfig `json:"workflow_content_rules,omitempty"`
-	RequiredReleaseFiles    []string             `json:"required_release_files,omitempty"`
-	RequiredAutomationPaths []string             `json:"required_automation_paths,omitempty"`
-	AllowedTestPaths        []string             `json:"allowed_test_paths,omitempty"`
+	RequireWorkflowDir      *bool                  `json:"require_workflow_dir,omitempty"`
+	RequiredWorkflowFiles   []string               `json:"required_workflow_files,omitempty"`
+	WorkflowContentRules    []WorkflowRuleConfig   `json:"workflow_content_rules,omitempty"`
+	RequiredReleaseFiles    []string               `json:"required_release_files,omitempty"`
+	RequiredAutomationPaths []string               `json:"required_automation_paths,omitempty"`
+	AllowedTestPaths        []string               `json:"allowed_test_paths,omitempty"`
+	TestQuality             TestQualityRulesConfig `json:"test_quality,omitempty"`
 }
 
 type WorkflowRuleConfig struct {

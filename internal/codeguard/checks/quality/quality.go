@@ -45,6 +45,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 			})...)
 		}
 		findings = append(findings, commandFindings(ctx, env, target)...)
+		findings = append(findings, coverageDeltaFindings(ctx, env, target)...)
 	}
 	return env.FinalizeSection("quality", "Code Quality", findings)
 }

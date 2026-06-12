@@ -27,6 +27,7 @@ func findingsForTarget(env support.Context, target core.TargetConfig) []core.Fin
 	findings = append(findings, requiredPathFindings(env, target, env.Config.Checks.CIRules.RequiredAutomationPaths, "required automation path is missing")...)
 	findings = append(findings, workflowContentFindings(env, target)...)
 	findings = append(findings, testFileLocationFindings(env, target)...)
+	findings = append(findings, testQualityFindings(env, target)...)
 	return findings
 }
 
