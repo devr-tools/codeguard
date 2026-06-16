@@ -8,15 +8,10 @@
   <a href="https://github.com/devr-tools/codeguard/releases">
     <img src="https://img.shields.io/github/v/release/devr-tools/codeguard?display_name=tag&include_prereleases" alt="release version" />
   </a>
-  <a href="https://github.com/devr-tools/codeguard/actions/workflows/homebrew-validation.yml"><img src="https://github.com/devr-tools/codeguard/actions/workflows/homebrew-validation.yml/badge.svg" alt="Homebrew validation status"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributing-guide-brightgreen.svg" alt="Contributing guide"></a>
-    <a href="https://pkg.go.dev/github.com/devr-tools/codeguard/pkg/cleanr">
-    <img src="https://pkg.go.dev/badge/github.com/devr-tools/codeguard/pkg/cleanr.svg" alt="Go Reference" />
-  </a>
+
   <a href="https://goreportcard.com/report/github.com/devr-tools/codeguard">
     <img src="https://goreportcard.com/badge/github.com/devr-tools/codeguard" alt="Go Report Card" />
   </a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="Apache 2.0 license"></a>
     <a href="https://www.linkedin.com/in/alxjohn">
     <img src="https://img.shields.io/badge/LinkedIn-alxjohn-blue?logo=linkedin" alt="LinkedIn" />
   </a>
