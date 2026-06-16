@@ -14,6 +14,13 @@ Or from this repository:
 make build
 ```
 
+Or in GitHub Actions from GitHub Marketplace:
+
+```yaml
+- name: Devr Codeguard
+  uses: devr-tools/codeguard@v0.2.0
+```
+
 For SDK consumers:
 
 ```bash
