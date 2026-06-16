@@ -2,20 +2,18 @@
 <p align="center">
   <img src="./img/cg.png" alt="codeguard placeholder banner" width="420">
 </p>
-<p align="center">
   <a href="https://github.com/devr-tools/codeguard/actions/workflows/ci.yml"><img src="https://github.com/devr-tools/codeguard/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/devr-tools/codeguard/actions/workflows/cd.yml"><img src="https://github.com/devr-tools/codeguard/actions/workflows/cd.yml/badge.svg" alt="CD status"></a>
   <a href="https://github.com/devr-tools/codeguard/releases">
     <img src="https://img.shields.io/github/v/release/devr-tools/codeguard?display_name=tag&include_prereleases" alt="release version" />
   </a>
-
   <a href="https://goreportcard.com/report/github.com/devr-tools/codeguard">
     <img src="https://goreportcard.com/badge/github.com/devr-tools/codeguard" alt="Go Report Card" />
   </a>
     <a href="https://www.linkedin.com/in/alxjohn">
     <img src="https://img.shields.io/badge/LinkedIn-alxjohn-blue?logo=linkedin" alt="LinkedIn" />
   </a>
-</p>
+
 
 `codeguard` is a standalone Go service and CLI for repository checks across code quality, design boundaries, security, CI/CD hygiene, AI prompt governance, and repo-specific policy rules.
 
