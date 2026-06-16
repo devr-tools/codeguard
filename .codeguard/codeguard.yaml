@@ -14,7 +14,7 @@ waivers:
     reason: consolidated feature coverage is intentionally broad and should still be scanned by other checks
 targets:
   - name: repository
-    path: .
+    path: ..
     language: go
     entrypoints:
       - cmd/codeguard

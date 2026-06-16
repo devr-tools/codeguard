@@ -93,6 +93,31 @@ func TestYAMLConfigRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLoadConfigFileResolvesTargetPathsRelativeToConfig(t *testing.T) {
+	dir := t.TempDir()
+	configDir := filepath.Join(dir, ".codeguard")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	configPath := filepath.Join(configDir, "codeguard.json")
+	if err := os.WriteFile(configPath, []byte(`{
+  "name": "relative-targets",
+  "targets": [{"name": "repo", "path": "..", "language": "go"}],
+  "checks": {"quality": false, "design": false, "security": false, "prompts": false, "ci": false},
+  "output": {"format": "text"}
+}`), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	loaded, err := codeguard.LoadConfigFile(configPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if got, want := loaded.Targets[0].Path, dir; got != want {
+		t.Fatalf("target path = %q, want %q", got, want)
+	}
+}
+
 func TestDiffScanScopesFileBasedChecks(t *testing.T) {
 	dir := t.TempDir()
 	writeRepoFile(t, filepath.Join(dir, "go.mod"), "module example.com/diffscan\n\ngo 1.23.0\n")

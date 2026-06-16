@@ -37,11 +37,22 @@ func LoadFile(path string) (core.Config, error) {
 	if err := unmarshalConfig(data, resolvedPath, &cfg); err != nil {
 		return core.Config{}, err
 	}
+	resolveRelativePaths(&cfg, filepath.Dir(resolvedPath))
 	ApplyDefaults(&cfg)
 	if err := Validate(cfg); err != nil {
 		return core.Config{}, err
 	}
 	return cfg, nil
+}
+
+func resolveRelativePaths(cfg *core.Config, baseDir string) {
+	for i := range cfg.Targets {
+		targetPath := strings.TrimSpace(cfg.Targets[i].Path)
+		if targetPath == "" || filepath.IsAbs(targetPath) {
+			continue
+		}
+		cfg.Targets[i].Path = filepath.Join(baseDir, targetPath)
+	}
 }
 
 func WriteFile(path string, cfg core.Config) error {
