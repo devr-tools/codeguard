@@ -7,20 +7,17 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func typeScriptTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	results, ok, err := support.AnalyzeTypeScriptTarget(ctx, target, env.Config)
-	if err == nil && ok {
-		return semanticFindings(env, results.Security)
-	}
-	return env.ScanTargetFiles(target, "security", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
-		return findingsForFile(env, file, data)
-	})
+var securityTypeScriptTargetExtract = func(results support.TypeScriptSemanticResults) []support.FindingInput {
+	return results.Security
 }
 
-func semanticFindings(env support.Context, inputs []support.FindingInput) []core.Finding {
-	findings := make([]core.Finding, 0, len(inputs))
-	for _, input := range inputs {
-		findings = append(findings, env.NewFinding(input))
-	}
-	return findings
+func typeScriptTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+	return support.TypeScriptTargetFindings(ctx, env, target, support.TypeScriptTargetScan{
+		SectionID: "security",
+		Extract:   securityTypeScriptTargetExtract,
+		Include:   func(string) bool { return true },
+		Evaluator: func(file string, data []byte) []core.Finding {
+			return findingsForFile(env, file, data)
+		},
+	})
 }

@@ -111,6 +111,15 @@ var securityCatalog = map[string]core.RuleMetadata{
 		Description:    "Warns when TypeScript code uses string-based setTimeout or setInterval execution.",
 		HowToFix:       "Pass a function instead of source text to timer APIs.",
 	},
+	"security.typescript.taint-flow": {
+		ID:             "security.typescript.taint-flow",
+		Section:        "Security",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "TypeScript tainted data flow",
+		Description:    "Warns when untrusted input flows into a sensitive sink, including across module boundaries.",
+		HowToFix:       "Validate or sanitize the untrusted value, or use a parameterized API before it reaches the sink.",
+	},
 	"security.typescript.postmessage-wildcard": {
 		ID:             "security.typescript.postmessage-wildcard",
 		Section:        "Security",
@@ -119,6 +128,15 @@ var securityCatalog = map[string]core.RuleMetadata{
 		Title:          "TypeScript postMessage wildcard origin",
 		Description:    "Warns when TypeScript code sends postMessage calls to the wildcard origin.",
 		HowToFix:       "Use a specific trusted origin instead of * when sending cross-origin messages.",
+	},
+	"security.typescript.untrusted-input-flow": {
+		ID:             "security.typescript.untrusted-input-flow",
+		Section:        "Security",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "TypeScript untrusted input flow",
+		Description:    "Warns when TypeScript semantic analysis finds untrusted input flowing into a risky sink.",
+		HowToFix:       "Validate or sanitize the input before the sink, or replace the sink with a safer API.",
 	},
 	"security.javascript.insecure-tls": {
 		ID:             "security.javascript.insecure-tls",
@@ -174,6 +192,15 @@ var securityCatalog = map[string]core.RuleMetadata{
 		Description:    "Warns when JavaScript code uses string-based setTimeout or setInterval execution.",
 		HowToFix:       "Pass a function instead of source text to timer APIs.",
 	},
+	"security.javascript.taint-flow": {
+		ID:             "security.javascript.taint-flow",
+		Section:        "Security",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "JavaScript tainted data flow",
+		Description:    "Warns when untrusted input flows into a sensitive sink, including across module boundaries.",
+		HowToFix:       "Validate or sanitize the untrusted value, or use a parameterized API before it reaches the sink.",
+	},
 	"security.javascript.postmessage-wildcard": {
 		ID:             "security.javascript.postmessage-wildcard",
 		Section:        "Security",
@@ -182,6 +209,15 @@ var securityCatalog = map[string]core.RuleMetadata{
 		Title:          "JavaScript postMessage wildcard origin",
 		Description:    "Warns when JavaScript code sends postMessage calls to the wildcard origin.",
 		HowToFix:       "Use a specific trusted origin instead of * when sending cross-origin messages.",
+	},
+	"security.javascript.untrusted-input-flow": {
+		ID:             "security.javascript.untrusted-input-flow",
+		Section:        "Security",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "JavaScript untrusted input flow",
+		Description:    "Warns when JavaScript semantic analysis finds untrusted input flowing into a risky sink.",
+		HowToFix:       "Validate or sanitize the input before the sink, or replace the sink with a safer API.",
 	},
 	"security.python.insecure-tls": {
 		ID:             "security.python.insecure-tls",

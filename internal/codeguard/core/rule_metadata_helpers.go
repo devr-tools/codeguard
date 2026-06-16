@@ -59,13 +59,16 @@ func defaultRuleLanguageCoverage(ruleID string, executionModel RuleExecutionMode
 		"quality.cyclomatic-complexity",
 		"ci.test-file-location":
 		return FixedRuleLanguageCoverage(RuleLanguageGo, RuleLanguagePython, RuleLanguageTypeScript)
-	case "quality.command-check", "security.command-check":
+	case "quality.command-check", "security.command-check", "design.diff-command-check":
 		return ConfigurableRuleLanguageCoverage()
 	case
 		"security.hardcoded-secret",
 		"security.private-key",
 		"prompts.secret-interpolation",
 		"prompts.unsafe-instructions",
+		"prompts.agent-dangerous-instructions",
+		"prompts.agent-standing-permissions",
+		"prompts.mcp-config-risk",
 		"ci.required-workflow-dir",
 		"ci.required-file",
 		"ci.workflow-content":

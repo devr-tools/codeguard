@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "codeguard": {
+      "command": "codeguard",
+      "args": [
+        "serve",
+        "--mcp",
+        "-config",
+        "codeguard.yaml",
+        "-profile",
+        "ai-safe"
+      ]
+    }
+  }
+}

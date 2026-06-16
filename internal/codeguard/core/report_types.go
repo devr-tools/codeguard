@@ -25,6 +25,7 @@ type Report struct {
 	Profile     string          `json:"profile,omitempty"`
 	GeneratedAt string          `json:"generated_at"`
 	Sections    []SectionResult `json:"sections"`
+	Artifacts   []Artifact      `json:"artifacts,omitempty"`
 	Summary     ReportSummary   `json:"summary"`
 }
 

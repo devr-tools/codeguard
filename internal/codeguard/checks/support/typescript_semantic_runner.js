@@ -5,8 +5,16 @@ const input = JSON.parse(fs.readFileSync(0, "utf8"));
 const ts = require(input.typescript_lib_path);
 const targetPath = path.resolve(input.target_path);
 
-const results = { design: [], quality: [], security: [] };
+const results = { design: [], quality: [], security: [], debug: [] };
 const seen = new Set();
+const taintModel = normalizeTaintModel(input.taint_model);
+
+const TAINT_DEFAULT_MAX_DEPTH = 8;
+const TAINT_MAX_TAINTS_PER_EXPRESSION = 16;
+const TAINT_SOURCE_MEMBERS = ["query", "body", "params", "headers", "cookies"];
+const TAINT_SANITIZER_NAMES = new Set([
+  "sqlEscape", "shellQuote", "shellEscape", "htmlEncode", "htmlEscape", "encodeHTML",
+]);
 
 const directivePatterns = [
   { pattern: /^\s*(?:(?:\/\/)|(?:\/\*+)|\*)\s*@ts-ignore\b/, suffix: "ts-ignore", message: "suppression comment should be reviewed" },
@@ -35,8 +43,12 @@ function main() {
     analyzeDesign(sourceFile, relPath);
 
     const bindings = collectBindings(sourceFile);
+    sourceFile.bindings = bindings;
+    analyzeTaintFlows(sourceFile, relPath, flavor, bindings, checker);
     visit(sourceFile, sourceFile, relPath, flavor, bindings, checker);
   }
+
+  analyzeTaint(program, checker);
 
   process.stdout.write(JSON.stringify(results));
 }
@@ -91,7 +103,12 @@ function scriptExtensions() {
 function isAnalyzableSourceFile(sourceFile) {
   return !sourceFile.isDeclarationFile &&
     scriptFlavor(sourceFile.fileName) &&
-    isWithinTarget(sourceFile.fileName);
+    isWithinTarget(sourceFile.fileName) &&
+    !isNodeModulesPath(sourceFile.fileName);
+}
+
+function isNodeModulesPath(fileName) {
+  return normalizePath(path.resolve(fileName)).split("/").includes("node_modules");
 }
 
 function isWithinTarget(fileName) {
@@ -130,6 +147,16 @@ function scriptRuleId(flavor, tsRuleId, jsRuleId) {
 
 function lineNumber(sourceFile, pos) {
   return sourceFile.getLineAndCharacterOfPosition(pos).line + 1;
+}
+
+function normalizeTaintModel(model) {
+  const normalized = { sources: [], sinks: [] };
+  if (!model || typeof model !== "object") {
+    return normalized;
+  }
+  normalized.sources = Array.isArray(model.sources) ? model.sources : [];
+  normalized.sinks = Array.isArray(model.sinks) ? model.sinks : [];
+  return normalized;
 }
 
 function pushFinding(section, sourceFile, relPath, flavor, ruleId, level, message, pos) {
@@ -460,6 +487,360 @@ function isShortCircuitOperator(node) {
       node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken);
 }
 
+function analyzeTaintFlows(sourceFile, relPath, flavor, bindings, checker) {
+  if (taintModel.sources.length === 0 || taintModel.sinks.length === 0) {
+    return;
+  }
+  const symbolTaintCache = new Map();
+  const expressionTaintCache = new Map();
+  visitTaintNode(sourceFile);
+
+  function visitTaintNode(node) {
+    if (ts.isCallExpression(node)) {
+      const sink = taintSinkForCall(node, bindings, checker);
+      if (sink && callHasTaintedArgument(node, sink, checker, symbolTaintCache, expressionTaintCache)) {
+        pushFinding(
+          "security",
+          sourceFile,
+          relPath,
+          flavor,
+          scriptRuleId(flavor, "security.typescript.untrusted-input-flow", "security.javascript.untrusted-input-flow"),
+          "warn",
+          `${scriptLabel(flavor)} untrusted input flows to ${sink.label}`,
+          node.expression.getStart(sourceFile),
+        );
+      }
+    }
+
+    if (ts.isNewExpression(node)) {
+      const sink = taintSinkForNewExpression(node);
+      if (sink && callHasTaintedArgument(node, sink, checker, symbolTaintCache, expressionTaintCache)) {
+        pushFinding(
+          "security",
+          sourceFile,
+          relPath,
+          flavor,
+          scriptRuleId(flavor, "security.typescript.untrusted-input-flow", "security.javascript.untrusted-input-flow"),
+          "warn",
+          `${scriptLabel(flavor)} untrusted input flows to ${sink.label}`,
+          node.expression.getStart(sourceFile),
+        );
+      }
+    }
+
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      const sink = taintSinkForAssignment(node.left);
+      if (sink && expressionTaint(node.right, checker, symbolTaintCache, expressionTaintCache)) {
+        pushFinding(
+          "security",
+          sourceFile,
+          relPath,
+          flavor,
+          scriptRuleId(flavor, "security.typescript.untrusted-input-flow", "security.javascript.untrusted-input-flow"),
+          "warn",
+          `${scriptLabel(flavor)} untrusted input flows to ${sink.label}`,
+          node.left.getStart(sourceFile),
+        );
+      }
+    }
+
+    ts.forEachChild(node, visitTaintNode);
+  }
+}
+
+function callHasTaintedArgument(node, sink, checker, symbolTaintCache, expressionTaintCache) {
+  const args = Array.isArray(node.arguments) ? node.arguments : [];
+  for (const index of sink.argument_indexes || []) {
+    if (index < 0 || index >= args.length) {
+      continue;
+    }
+    if (expressionTaint(args[index], checker, symbolTaintCache, expressionTaintCache)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function expressionTaint(node, checker, symbolTaintCache, expressionTaintCache) {
+  if (!node) {
+    return null;
+  }
+  if (expressionTaintCache.has(node)) {
+    return expressionTaintCache.get(node);
+  }
+  expressionTaintCache.set(node, null);
+  const taint = computeExpressionTaint(node, checker, symbolTaintCache, expressionTaintCache);
+  expressionTaintCache.set(node, taint);
+  return taint;
+}
+
+function computeExpressionTaint(node, checker, symbolTaintCache, expressionTaintCache) {
+  const source = directTaintSource(node, checker, bindingsForNode(node));
+  if (source) {
+    return source;
+  }
+
+  if (ts.isIdentifier(node)) {
+    return symbolTaint(symbolForNode(node, checker), checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+    return expressionTaint(node.expression, checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isCallExpression(node)) {
+    return directTaintSource(node, checker, bindingsForNode(node));
+  }
+
+  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isNonNullExpression(node) || ts.isAwaitExpression(node)) {
+    return expressionTaint(node.expression, checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isConditionalExpression(node)) {
+    return expressionTaint(node.whenTrue, checker, symbolTaintCache, expressionTaintCache) ||
+      expressionTaint(node.whenFalse, checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isBinaryExpression(node)) {
+    return expressionTaint(node.left, checker, symbolTaintCache, expressionTaintCache) ||
+      expressionTaint(node.right, checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isTemplateExpression(node)) {
+    for (const span of node.templateSpans) {
+      const taint = expressionTaint(span.expression, checker, symbolTaintCache, expressionTaintCache);
+      if (taint) {
+        return taint;
+      }
+    }
+    return null;
+  }
+
+  if (ts.isTemplateSpan(node)) {
+    return expressionTaint(node.expression, checker, symbolTaintCache, expressionTaintCache);
+  }
+
+  if (ts.isArrayLiteralExpression(node)) {
+    for (const element of node.elements) {
+      const taint = expressionTaint(element, checker, symbolTaintCache, expressionTaintCache);
+      if (taint) {
+        return taint;
+      }
+    }
+    return null;
+  }
+
+  if (ts.isObjectLiteralExpression(node)) {
+    for (const property of node.properties) {
+      if (ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property)) {
+        const value = ts.isShorthandPropertyAssignment(property) ? property.name : property.initializer;
+        const taint = expressionTaint(value, checker, symbolTaintCache, expressionTaintCache);
+        if (taint) {
+          return taint;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function symbolTaint(symbol, checker, symbolTaintCache, expressionTaintCache) {
+  if (!symbol) {
+    return null;
+  }
+  if (symbolTaintCache.has(symbol)) {
+    return symbolTaintCache.get(symbol);
+  }
+  symbolTaintCache.set(symbol, null);
+  const aliased = checker.getAliasedSymbol && symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+  if (aliased !== symbol) {
+    const taint = symbolTaint(aliased, checker, symbolTaintCache, expressionTaintCache);
+    symbolTaintCache.set(symbol, taint);
+    return taint;
+  }
+  const declarations = symbol.declarations || [];
+  for (const declaration of declarations) {
+    const taint = taintFromDeclaration(declaration, checker, symbolTaintCache, expressionTaintCache);
+    if (taint) {
+      symbolTaintCache.set(symbol, taint);
+      return taint;
+    }
+  }
+  return null;
+}
+
+function taintFromDeclaration(declaration, checker, symbolTaintCache, expressionTaintCache) {
+  if (ts.isVariableDeclaration(declaration)) {
+    if (ts.isIdentifier(declaration.name)) {
+      return expressionTaint(declaration.initializer, checker, symbolTaintCache, expressionTaintCache);
+    }
+    if (ts.isObjectBindingPattern(declaration.name)) {
+      return expressionTaint(declaration.initializer, checker, symbolTaintCache, expressionTaintCache);
+    }
+  }
+
+  if (ts.isBindingElement(declaration)) {
+    const pattern = declaration.parent;
+    const variableDeclaration = pattern && pattern.parent && ts.isVariableDeclaration(pattern.parent) ? pattern.parent : null;
+    if (!variableDeclaration) {
+      return null;
+    }
+    const bindingSource = expressionTaint(variableDeclaration.initializer, checker, symbolTaintCache, expressionTaintCache);
+    if (bindingSource) {
+      return bindingSource;
+    }
+  }
+
+  if (ts.isParameter(declaration)) {
+    return directTaintSource(declaration.name, checker, bindingsForNode(declaration));
+  }
+
+  return null;
+}
+
+function directTaintSource(node, checker, bindings) {
+  for (const source of taintModel.sources) {
+    if (source.kind === "member-access" && isConfiguredMemberSource(node, source, checker)) {
+      return source;
+    }
+    if (source.kind === "call-result" && isConfiguredCallSource(node, source, checker, bindings)) {
+      return source;
+    }
+  }
+  return null;
+}
+
+function isConfiguredMemberSource(node, source, checker) {
+  if (!ts.isPropertyAccessExpression(node) && !ts.isElementAccessExpression(node)) {
+    return false;
+  }
+  const property = accessedPropertyName(node);
+  if (!property || !(source.base_property_names || []).includes(property)) {
+    return false;
+  }
+  const base = node.expression;
+  if (ts.isIdentifier(base) && (source.base_identifiers || []).includes(base.text)) {
+    return true;
+  }
+  return expressionTypeMatches(base, checker, source.receiver_type_names || source.base_type_names || []);
+}
+
+function isConfiguredCallSource(node, source, checker, bindings) {
+  if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) {
+    return false;
+  }
+  if (!(source.call_members || []).includes(node.expression.name.text)) {
+    return false;
+  }
+  const receiver = node.expression.expression;
+  const target = callTarget(node.expression, bindings || emptyBindings());
+  return expressionTypeMatches(receiver, checker, source.receiver_type_names || []) ||
+    (!!target && target.module === source.module);
+}
+
+function expressionTypeMatches(node, checker, expectedNames) {
+  if (!node || !checker || !Array.isArray(expectedNames) || expectedNames.length === 0) {
+    return false;
+  }
+  try {
+    const type = checker.getTypeAtLocation(node);
+    const text = checker.typeToString(type);
+    return expectedNames.some((name) => text === name || text.endsWith(`.${name}`) || text.includes(name));
+  } catch (error) {
+    return false;
+  }
+}
+
+function taintSinkForCall(node, bindings, checker) {
+  for (const sink of taintModel.sinks) {
+    if (sink.kind !== "call") {
+      continue;
+    }
+    if (matchesCallSink(node, sink, bindings, checker)) {
+      return sink;
+    }
+  }
+  return null;
+}
+
+function taintSinkForNewExpression(node) {
+  for (const sink of taintModel.sinks) {
+    if (sink.kind === "new" && ts.isIdentifier(node.expression) && node.expression.text === sink.member) {
+      return sink;
+    }
+  }
+  return null;
+}
+
+function taintSinkForAssignment(left) {
+  for (const sink of taintModel.sinks) {
+    if (sink.kind === "assignment" && propertyAccessMatches(left, sink.property_name)) {
+      return sink;
+    }
+  }
+  return null;
+}
+
+function matchesCallSink(node, sink, bindings, checker) {
+  if (sink.member === "document.write" || sink.member === "document.writeln") {
+    return isDocumentWriteMember(node.expression, sink.member);
+  }
+  if (sink.module) {
+    const target = callTarget(node.expression, bindings);
+    return !!target && target.module === sink.module && target.member === sink.member;
+  }
+  if (sink.member === "eval" || sink.member === "Function") {
+    return ts.isIdentifier(node.expression) && node.expression.text === sink.member;
+  }
+  return propertyAccessMatches(node.expression, sink.member);
+}
+
+function isDocumentWriteMember(expression, name) {
+  return ts.isPropertyAccessExpression(expression) &&
+    `${expression.expression.getText()}.${expression.name.text}` === name;
+}
+
+function propertyAccessMatches(node, propertyName) {
+  return ts.isPropertyAccessExpression(node) && node.name.text === propertyName;
+}
+
+function accessedPropertyName(node) {
+  if (ts.isPropertyAccessExpression(node)) {
+    return node.name.text;
+  }
+  if (ts.isElementAccessExpression(node) && isStringLiteralArgument(node.argumentExpression)) {
+    return literalText(node.argumentExpression);
+  }
+  return "";
+}
+
+function symbolForNode(node, checker) {
+  if (!node || !checker) {
+    return null;
+  }
+  try {
+    return checker.getSymbolAtLocation(node);
+  } catch (error) {
+    return null;
+  }
+}
+
+function bindingsForNode(node) {
+  let current = node;
+  while (current) {
+    if (current.bindings) {
+      return current.bindings;
+    }
+    current = current.parent;
+  }
+  return emptyBindings();
+}
+
+function emptyBindings() {
+  return { named: new Map(), namespaces: new Map() };
+}
+
 function analyzeSecurityNode(node, sourceFile, relPath, flavor, bindings, checker) {
   if (isRejectUnauthorizedFalse(node)) {
     pushFinding(
@@ -763,4 +1144,644 @@ function isWildcardString(node) {
 
 function literalText(node) {
   return node.text || "";
+}
+
+// ===== Cross-module taint analysis =====
+//
+// Function-summary based propagation: every analyzable function is analyzed
+// exactly once (memoized) and produces a summary with
+//   - paramSinks:    parameter index -> sink reached inside the function or its callees
+//   - paramReturns:  parameter index -> taint flows to the return value
+//   - sourceReturns: taint sources inside the function that flow to the return value
+// Call sites combine argument taint with callee summaries instead of inlining
+// bodies, which keeps the analysis linear in program size and cycle-safe.
+// Chain length is capped by taint_max_depth; truncation emits a debug note.
+
+function configuredTaintMaxDepth() {
+  const value = Number(input.taint_max_depth);
+  if (!Number.isFinite(value) || value === 0) {
+    return TAINT_DEFAULT_MAX_DEPTH;
+  }
+  return value;
+}
+
+function analyzeTaint(program, checker) {
+  const depthCap = configuredTaintMaxDepth();
+  if (depthCap < 0) {
+    return;
+  }
+  const ctx = {
+    checker,
+    depthCap,
+    summaries: new WeakMap(),
+    previous: null,
+    inProgress: new Set(),
+    sawCycle: false,
+    debugNotes: new Set(),
+  };
+  runTaintPass(program, ctx);
+  if (ctx.sawCycle) {
+    // Recursion cycles were cut with incomplete summaries. Re-run the sweep
+    // once, resolving cycle edges with the first-pass summaries, so flows
+    // through mutually recursive functions are still reported.
+    ctx.previous = ctx.summaries;
+    ctx.summaries = new WeakMap();
+    runTaintPass(program, ctx);
+  }
+  for (const note of ctx.debugNotes) {
+    results.debug.push(note);
+  }
+}
+
+function runTaintPass(program, ctx) {
+  for (const sourceFile of program.getSourceFiles()) {
+    if (!isAnalyzableSourceFile(sourceFile)) {
+      continue;
+    }
+    taintSummaryFor(sourceFile, ctx);
+    forEachTaintFunction(sourceFile, (fn) => taintSummaryFor(fn, ctx));
+  }
+}
+
+function forEachTaintFunction(root, callback) {
+  ts.forEachChild(root, function walk(node) {
+    if (isTaintAnalyzableFunction(node)) {
+      callback(node);
+    }
+    ts.forEachChild(node, walk);
+  });
+}
+
+function isTaintAnalyzableFunction(node) {
+  return !!node && ts.isFunctionLike(node) && !!node.body && (
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isConstructorDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node)
+  );
+}
+
+function taintSummaryFor(fn, ctx) {
+  if (ctx.summaries.has(fn)) {
+    return ctx.summaries.get(fn);
+  }
+  if (ctx.inProgress.has(fn)) {
+    // Recursive call cycle: cut the edge. The first pass falls back to an
+    // empty summary; the second pass reuses the first-pass summary.
+    ctx.sawCycle = true;
+    return (ctx.previous && ctx.previous.get(fn)) || emptyTaintSummary();
+  }
+  ctx.inProgress.add(fn);
+  const summary = emptyTaintSummary();
+  analyzeTaintBody(fn, summary, ctx);
+  ctx.inProgress.delete(fn);
+  ctx.summaries.set(fn, summary);
+  return summary;
+}
+
+function emptyTaintSummary() {
+  return { paramSinks: [], paramReturns: new Map(), sourceReturns: [] };
+}
+
+function analyzeTaintBody(fn, summary, ctx) {
+  const sourceFile = fn.getSourceFile();
+  const scope = {
+    fn,
+    sourceFile,
+    relPath: normalizePath(path.relative(targetPath, sourceFile.fileName)),
+    env: new Map(),
+    params: taintParameterIndexes(fn, ctx),
+    summary,
+    ctx,
+  };
+  const body = ts.isSourceFile(fn) ? fn : fn.body;
+  walkTaintNode(body, scope);
+  if (!ts.isSourceFile(fn) && !ts.isBlock(body)) {
+    recordReturnTaints(taintsOfExpression(body, scope), scope);
+  }
+}
+
+function taintParameterIndexes(fn, ctx) {
+  const params = new Map();
+  if (ts.isSourceFile(fn)) {
+    return params;
+  }
+  fn.parameters.forEach((parameter, index) => {
+    if (!ts.isIdentifier(parameter.name)) {
+      return;
+    }
+    const symbol = ctx.checker.getSymbolAtLocation(parameter.name);
+    if (symbol) {
+      params.set(symbol, index);
+    }
+  });
+  return params;
+}
+
+function walkTaintNode(node, scope) {
+  visitTaintNode(node, scope);
+  ts.forEachChild(node, (child) => {
+    if (ts.isFunctionLike(child)) {
+      return; // nested functions get their own summaries
+    }
+    walkTaintNode(child, scope);
+  });
+}
+
+function visitTaintNode(node, scope) {
+  if (ts.isVariableDeclaration(node) && node.initializer) {
+    assignTaintToBinding(node.name, taintsOfExpression(node.initializer, scope), scope);
+    return;
+  }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+    visitTaintAssignment(node, scope);
+    return;
+  }
+  if (ts.isCallExpression(node)) {
+    visitTaintCall(node, scope);
+    return;
+  }
+  if (ts.isNewExpression(node) && isDynamicFunctionConstructor(node)) {
+    checkTaintSinkArgument(node, 0, "code", "new Function", scope);
+    return;
+  }
+  if (ts.isReturnStatement(node) && node.expression) {
+    recordReturnTaints(taintsOfExpression(node.expression, scope), scope);
+  }
+}
+
+function visitTaintAssignment(node, scope) {
+  if (isUnsafeHTMLAssignment(node.left)) {
+    reportTaintsAtSink(taintsOfExpression(node.right, scope), "html", node.left.getText(scope.sourceFile), node.left, scope);
+    return;
+  }
+  if (ts.isIdentifier(node.left)) {
+    const symbol = scope.ctx.checker.getSymbolAtLocation(node.left);
+    if (symbol) {
+      scope.env.set(symbol, taintsOfExpression(node.right, scope));
+    }
+  }
+}
+
+function assignTaintToBinding(name, taints, scope) {
+  if (ts.isIdentifier(name)) {
+    const symbol = scope.ctx.checker.getSymbolAtLocation(name);
+    if (symbol) {
+      scope.env.set(symbol, taints);
+    }
+    return;
+  }
+  if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+    for (const element of name.elements) {
+      if (ts.isBindingElement(element)) {
+        assignTaintToBinding(element.name, taints, scope);
+      }
+    }
+  }
+}
+
+function visitTaintCall(node, scope) {
+  const target = resolveTaintCallee(node, scope.ctx);
+  if (target) {
+    applyCalleeSinkSummary(node, taintSummaryFor(target, scope.ctx), scope);
+    return;
+  }
+  const sink = directTaintSink(node, scope);
+  if (sink) {
+    checkTaintSinkArgument(node, sink.argIndex, sink.kind, sink.label, scope);
+  }
+}
+
+function directTaintSink(node, scope) {
+  const expression = node.expression;
+  if (ts.isIdentifier(expression)) {
+    return directIdentifierTaintSink(expression, scope);
+  }
+  if (ts.isPropertyAccessExpression(expression)) {
+    return directMemberTaintSink(expression, scope);
+  }
+  return null;
+}
+
+function directIdentifierTaintSink(expression, scope) {
+  const name = expression.text;
+  if (name === "eval" || name === "Function") {
+    return { argIndex: 0, kind: "code", label: name };
+  }
+  if (name === "fetch") {
+    return { argIndex: 0, kind: "url", label: "fetch" };
+  }
+  const binding = taintFileBindings(scope).named.get(name);
+  if (binding && binding.module === "child_process" && (binding.member === "exec" || binding.member === "execSync")) {
+    return { argIndex: 0, kind: "shell", label: name };
+  }
+  return null;
+}
+
+function directMemberTaintSink(expression, scope) {
+  const member = expression.name.text;
+  const label = expression.getText(scope.sourceFile);
+  if (member === "query" || member === "execute") {
+    return { argIndex: 0, kind: "sql", label };
+  }
+  if ((member === "exec" || member === "execSync") && isChildProcessNamespace(expression.expression, scope)) {
+    return { argIndex: 0, kind: "shell", label };
+  }
+  if ((member === "write" || member === "writeln") && ts.isIdentifier(expression.expression) && expression.expression.text === "document") {
+    return { argIndex: 0, kind: "html", label };
+  }
+  if (member === "insertAdjacentHTML") {
+    return { argIndex: 1, kind: "html", label };
+  }
+  return null;
+}
+
+function isChildProcessNamespace(expression, scope) {
+  return ts.isIdentifier(expression) &&
+    taintFileBindings(scope).namespaces.get(expression.text) === "child_process";
+}
+
+function taintFileBindings(scope) {
+  if (!scope.bindings) {
+    scope.bindings = collectBindings(scope.sourceFile);
+  }
+  return scope.bindings;
+}
+
+function checkTaintSinkArgument(node, argIndex, kind, label, scope) {
+  const args = node.arguments || [];
+  if (args.length <= argIndex) {
+    return;
+  }
+  reportTaintsAtSink(taintsOfExpression(args[argIndex], scope), kind, label, node, scope);
+}
+
+function reportTaintsAtSink(taints, kind, label, node, scope) {
+  const line = lineNumber(scope.sourceFile, node.getStart(scope.sourceFile));
+  const sinkStep = `${label} sink (${scope.relPath}:${line})`;
+  for (const taint of taints) {
+    if (taint.sanitized.includes(kind)) {
+      continue;
+    }
+    if (taint.kind === "source") {
+      pushTaintFinding(taint.steps.concat([sinkStep]), scope.relPath, line);
+    } else {
+      scope.summary.paramSinks.push({
+        param: taint.param,
+        kind,
+        hops: taint.hops,
+        steps: taint.steps.concat([sinkStep]),
+        path: scope.relPath,
+        line,
+      });
+    }
+  }
+}
+
+function applyCalleeSinkSummary(node, summary, scope) {
+  if (!summary.paramSinks.length) {
+    return;
+  }
+  const calleeName = taintCalleeName(node.expression) || "callee";
+  const line = lineNumber(scope.sourceFile, node.getStart(scope.sourceFile));
+  const callStep = `${calleeName} arg (${scope.relPath}:${line})`;
+  (node.arguments || []).forEach((argument, index) => {
+    const entries = summary.paramSinks.filter((entry) => entry.param === index);
+    if (!entries.length) {
+      return;
+    }
+    for (const taint of taintsOfExpression(argument, scope)) {
+      for (const entry of entries) {
+        applySinkSummaryEntry(taint, entry, callStep, calleeName, line, scope);
+      }
+    }
+  });
+}
+
+function applySinkSummaryEntry(taint, entry, callStep, calleeName, line, scope) {
+  if (taint.sanitized.includes(entry.kind)) {
+    return;
+  }
+  const hops = taint.hops + entry.hops + 1;
+  if (hops > scope.ctx.depthCap) {
+    noteTaintDepthCap(calleeName, line, scope);
+    return;
+  }
+  const steps = taint.steps.concat([callStep], entry.steps);
+  if (taint.kind === "source") {
+    pushTaintFinding(steps, entry.path, entry.line);
+    return;
+  }
+  scope.summary.paramSinks.push({
+    param: taint.param,
+    kind: entry.kind,
+    hops,
+    steps,
+    path: entry.path,
+    line: entry.line,
+  });
+}
+
+function noteTaintDepthCap(calleeName, line, scope) {
+  scope.ctx.debugNotes.add(
+    `taint analysis depth cap ${scope.ctx.depthCap} truncated the call chain at ${calleeName} (${scope.relPath}:${line})`,
+  );
+}
+
+function pushTaintFinding(steps, sinkPath, sinkLine) {
+  const flavor = scriptFlavor(sinkPath) || "typescript";
+  const ruleId = scriptRuleId(flavor, "security.typescript.taint-flow", "security.javascript.taint-flow");
+  const message = "tainted data flow: " + steps.join(" → ");
+  const key = ["security", ruleId, sinkPath, sinkLine, message].join("|");
+  if (seen.has(key)) {
+    return;
+  }
+  seen.add(key);
+  results.security.push({
+    rule_id: ruleId,
+    level: "warn",
+    path: sinkPath,
+    line: sinkLine,
+    column: 1,
+    message,
+  });
+}
+
+function recordReturnTaints(taints, scope) {
+  if (ts.isSourceFile(scope.fn)) {
+    return;
+  }
+  for (const taint of taints) {
+    if (taint.kind === "param") {
+      const existing = scope.summary.paramReturns.get(taint.param);
+      if (existing === undefined || taint.hops < existing) {
+        scope.summary.paramReturns.set(taint.param, taint.hops);
+      }
+    } else if (scope.summary.sourceReturns.length < TAINT_MAX_TAINTS_PER_EXPRESSION) {
+      scope.summary.sourceReturns.push(taint);
+    }
+  }
+}
+
+function taintsOfExpression(node, scope) {
+  if (!node) {
+    return [];
+  }
+  if (isTaintTransparentWrapper(node)) {
+    return taintsOfExpression(node.expression, scope);
+  }
+  const combined = taintsOfCombiningExpression(node, scope);
+  if (combined) {
+    return capTaintList(combined);
+  }
+  const sourceTaint = taintSourceFor(node, scope);
+  if (sourceTaint) {
+    return [sourceTaint];
+  }
+  if (ts.isIdentifier(node)) {
+    return taintsOfIdentifier(node, scope);
+  }
+  if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+    return taintsOfExpression(node.expression, scope);
+  }
+  if (ts.isCallExpression(node)) {
+    return capTaintList(taintsOfCallResult(node, scope));
+  }
+  if (ts.isSpreadElement(node)) {
+    return taintsOfExpression(node.expression, scope);
+  }
+  return [];
+}
+
+function isTaintTransparentWrapper(node) {
+  return ts.isParenthesizedExpression(node) ||
+    ts.isAsExpression(node) ||
+    ts.isTypeAssertionExpression(node) ||
+    ts.isNonNullExpression(node) ||
+    ts.isAwaitExpression(node);
+}
+
+function taintsOfCombiningExpression(node, scope) {
+  if (ts.isBinaryExpression(node)) {
+    return taintsOfBinaryExpression(node, scope);
+  }
+  if (ts.isTemplateExpression(node)) {
+    return node.templateSpans.reduce(
+      (taints, span) => taints.concat(taintsOfExpression(span.expression, scope)),
+      [],
+    );
+  }
+  if (ts.isConditionalExpression(node)) {
+    return taintsOfExpression(node.whenTrue, scope).concat(taintsOfExpression(node.whenFalse, scope));
+  }
+  if (ts.isArrayLiteralExpression(node)) {
+    return node.elements.reduce((taints, element) => taints.concat(taintsOfExpression(element, scope)), []);
+  }
+  if (ts.isObjectLiteralExpression(node)) {
+    return node.properties.reduce((taints, property) => {
+      if (ts.isPropertyAssignment(property)) {
+        return taints.concat(taintsOfExpression(property.initializer, scope));
+      }
+      if (ts.isShorthandPropertyAssignment(property)) {
+        return taints.concat(taintsOfExpression(property.name, scope));
+      }
+      return taints;
+    }, []);
+  }
+  return null;
+}
+
+function taintsOfBinaryExpression(node, scope) {
+  const kind = node.operatorToken.kind;
+  if (kind === ts.SyntaxKind.PlusToken ||
+    kind === ts.SyntaxKind.BarBarToken ||
+    kind === ts.SyntaxKind.QuestionQuestionToken ||
+    kind === ts.SyntaxKind.CommaToken) {
+    return taintsOfExpression(node.left, scope).concat(taintsOfExpression(node.right, scope));
+  }
+  if (kind === ts.SyntaxKind.EqualsToken || kind === ts.SyntaxKind.PlusEqualsToken) {
+    return taintsOfExpression(node.right, scope);
+  }
+  return [];
+}
+
+function taintSourceFor(node, scope) {
+  if (!ts.isPropertyAccessExpression(node) || !ts.isIdentifier(node.expression)) {
+    return null;
+  }
+  const base = node.expression.text;
+  const member = node.name.text;
+  if ((base === "req" || base === "request") && TAINT_SOURCE_MEMBERS.includes(member)) {
+    return newSourceTaint(`request ${member}`, node, scope);
+  }
+  if (base === "process" && member === "argv") {
+    return newSourceTaint("process.argv", node, scope);
+  }
+  return null;
+}
+
+function newSourceTaint(label, node, scope) {
+  const line = lineNumber(scope.sourceFile, node.getStart(scope.sourceFile));
+  return {
+    kind: "source",
+    steps: [`${label} (${scope.relPath}:${line})`],
+    hops: 0,
+    sanitized: [],
+  };
+}
+
+function taintsOfIdentifier(node, scope) {
+  const symbol = scope.ctx.checker.getSymbolAtLocation(node);
+  if (!symbol) {
+    return [];
+  }
+  if (scope.params.has(symbol)) {
+    return [{ kind: "param", param: scope.params.get(symbol), steps: [], hops: 0, sanitized: [] }];
+  }
+  return scope.env.get(symbol) || [];
+}
+
+function taintsOfCallResult(node, scope) {
+  const sanitizer = sanitizerKindsFor(taintCalleeName(node.expression));
+  if (sanitizer) {
+    return sanitizeTaints(taintArgumentUnion(node, scope), sanitizer);
+  }
+  const target = resolveTaintCallee(node, scope.ctx);
+  if (target) {
+    return taintsThroughSummary(node, target, scope);
+  }
+  return taintsThroughOpaqueCall(node, scope);
+}
+
+function sanitizerKindsFor(name) {
+  if (!name) {
+    return null;
+  }
+  if (name === "encodeURIComponent" || name === "encodeURI") {
+    return ["url"];
+  }
+  if (/^(escape|sanitize)/i.test(name) || TAINT_SANITIZER_NAMES.has(name)) {
+    return "all";
+  }
+  return null;
+}
+
+function sanitizeTaints(taints, kinds) {
+  if (kinds === "all") {
+    return [];
+  }
+  return taints.map((taint) => ({ ...taint, sanitized: taint.sanitized.concat(kinds) }));
+}
+
+function taintArgumentUnion(node, scope) {
+  return (node.arguments || []).reduce(
+    (taints, argument) => taints.concat(taintsOfExpression(argument, scope)),
+    [],
+  );
+}
+
+function taintsThroughSummary(node, target, scope) {
+  const summary = taintSummaryFor(target, scope.ctx);
+  const calleeName = taintCalleeName(node.expression) || "callee";
+  const line = lineNumber(scope.sourceFile, node.getStart(scope.sourceFile));
+  const returnStep = `${calleeName}() return (${scope.relPath}:${line})`;
+  const taints = [];
+  (node.arguments || []).forEach((argument, index) => {
+    if (!summary.paramReturns.has(index)) {
+      return;
+    }
+    const extraHops = summary.paramReturns.get(index);
+    for (const taint of taintsOfExpression(argument, scope)) {
+      const hops = taint.hops + extraHops + 1;
+      if (hops > scope.ctx.depthCap) {
+        noteTaintDepthCap(calleeName, line, scope);
+        continue;
+      }
+      taints.push({ ...taint, hops, steps: taint.steps.concat([returnStep]) });
+    }
+  });
+  for (const sourceTaint of summary.sourceReturns) {
+    const hops = sourceTaint.hops + 1;
+    if (hops > scope.ctx.depthCap) {
+      noteTaintDepthCap(calleeName, line, scope);
+      continue;
+    }
+    taints.push({ ...sourceTaint, hops, steps: sourceTaint.steps.concat([returnStep]) });
+  }
+  return taints;
+}
+
+function taintsThroughOpaqueCall(node, scope) {
+  const expression = node.expression;
+  if (ts.isPropertyAccessExpression(expression)) {
+    // String helpers such as value.trim() or value.toString() preserve taint.
+    return taintsOfExpression(expression.expression, scope);
+  }
+  if (ts.isIdentifier(expression) && expression.text === "String") {
+    return taintArgumentUnion(node, scope);
+  }
+  return [];
+}
+
+function capTaintList(taints) {
+  return taints.length > TAINT_MAX_TAINTS_PER_EXPRESSION
+    ? taints.slice(0, TAINT_MAX_TAINTS_PER_EXPRESSION)
+    : taints;
+}
+
+function taintCalleeName(expression) {
+  if (ts.isIdentifier(expression)) {
+    return expression.text;
+  }
+  if (ts.isPropertyAccessExpression(expression)) {
+    return expression.name.text;
+  }
+  return "";
+}
+
+function resolveTaintCallee(node, ctx) {
+  let nameNode = null;
+  if (ts.isIdentifier(node.expression)) {
+    nameNode = node.expression;
+  } else if (ts.isPropertyAccessExpression(node.expression)) {
+    nameNode = node.expression.name;
+  } else {
+    return null;
+  }
+  let symbol = ctx.checker.getSymbolAtLocation(nameNode);
+  if (!symbol) {
+    return null;
+  }
+  if (symbol.flags & ts.SymbolFlags.Alias) {
+    symbol = ctx.checker.getAliasedSymbol(symbol);
+  }
+  for (const declaration of symbol.declarations || []) {
+    const fn = taintFunctionFromDeclaration(declaration);
+    if (fn && isAnalyzableSourceFile(fn.getSourceFile())) {
+      return fn;
+    }
+  }
+  return null;
+}
+
+function taintFunctionFromDeclaration(declaration) {
+  if (isTaintAnalyzableFunction(declaration)) {
+    return declaration;
+  }
+  if (ts.isVariableDeclaration(declaration) && isTaintAnalyzableFunction(declaration.initializer)) {
+    return declaration.initializer;
+  }
+  if (ts.isPropertyAssignment(declaration) && isTaintAnalyzableFunction(declaration.initializer)) {
+    return declaration.initializer;
+  }
+  if (ts.isPropertyDeclaration(declaration) && isTaintAnalyzableFunction(declaration.initializer)) {
+    return declaration.initializer;
+  }
+  if (ts.isExportAssignment(declaration) && isTaintAnalyzableFunction(declaration.expression)) {
+    return declaration.expression;
+  }
+  return null;
 }

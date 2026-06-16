@@ -10,14 +10,18 @@ import (
 type commandRunner func(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int
 
 var commandCatalog = map[string]commandRunner{
-	"baseline": withoutStdin(runBaseline),
-	"doctor":   withoutStdin(runDoctor),
-	"explain":  withoutStdin(runExplain),
-	"init":     runInit,
-	"profiles": noArgs(runProfiles),
-	"rules":    withoutStdin(runRules),
-	"scan":     runScan,
-	"validate": withoutStdin(runValidate),
+	"baseline":       withoutStdin(runBaseline),
+	"doctor":         withoutStdin(runDoctor),
+	"explain":        withoutStdin(runExplain),
+	"fix":            withoutStdin(runFix),
+	"init":           runInit,
+	"profiles":       noArgs(runProfiles),
+	"report":         withoutStdin(runReport),
+	"rules":          withoutStdin(runRules),
+	"scan":           runScan,
+	"serve":          runServe,
+	"validate":       withoutStdin(runValidate),
+	"validate-patch": runValidatePatch,
 }
 
 func Run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {

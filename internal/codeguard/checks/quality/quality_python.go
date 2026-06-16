@@ -1,75 +1,47 @@
 package quality
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-var pythonFunctionPattern = regexp.MustCompile(`^\s*(?:async\s+def|def)\s+([A-Za-z_]\w*)\s*\((.*)\)\s*:`)
-
 func pythonFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := fileLengthFinding(env, file, data)
+	findings := make([]core.Finding, 0)
 	for _, fn := range pythonFunctions(string(data)) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
-	return findings
+	findings = append(findings, pythonAIQualityFindings(env, file, data)...)
+	findings = append(findings, pythonPerformanceFindings(env, file, data)...)
+	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 
+// pythonFunctions extracts function metrics from the structured Python
+// parser, so strings or comments that merely look like code are ignored and
+// multiline signatures are handled.
 func pythonFunctions(source string) []functionMetrics {
-	lines := strings.Split(source, "\n")
-	functions := make([]functionMetrics, 0)
-	for idx, line := range lines {
-		match := pythonFunctionPattern.FindStringSubmatch(line)
-		if match == nil {
-			continue
-		}
-		startIndent := indentationWidth(line)
-		endIdx := len(lines) - 1
-		for j := idx + 1; j < len(lines); j++ {
-			trimmed := strings.TrimSpace(lines[j])
-			if trimmed == "" {
-				continue
-			}
-			if indentationWidth(lines[j]) <= startIndent {
-				endIdx = j - 1
-				break
-			}
-		}
-		body := strings.Join(lines[min(idx+1, len(lines)):endIdx+1], "\n")
-		functions = append(functions, functionMetrics{
-			Name:       match[1],
-			StartLine:  idx + 1,
-			Length:     max(1, endIdx-idx+1),
-			Params:     countParameters(match[2]),
-			Complexity: pythonComplexity(body),
-		})
+	return parsedFunctionMetrics(support.ParsePython(source), pythonComplexity)
+}
+
+// maskedFunctionBody joins the masked statements of a function and its
+// nested functions, mirroring the full lexical body.
+func maskedFunctionBody(fn *support.ParsedFunction) string {
+	parts := make([]string, 0, len(fn.Statements))
+	for _, statement := range fn.Statements {
+		parts = append(parts, statement.Text)
 	}
-	return functions
+	for _, nested := range fn.Nested {
+		parts = append(parts, maskedFunctionBody(nested))
+	}
+	return strings.Join(parts, "\n")
 }
 
 func pythonComplexity(body string) int {
 	complexity := 1
+	normalized := " " + strings.ReplaceAll(body, "\n", " ") + " "
 	for _, pattern := range []string{" if ", " elif ", " for ", " while ", " except ", " case ", " and ", " or "} {
-		complexity += strings.Count(" "+body+" ", pattern)
+		complexity += strings.Count(normalized, pattern)
 	}
 	return complexity
-}
-
-func indentationWidth(line string) int {
-	width := 0
-	for _, ch := range line {
-		if ch == ' ' {
-			width++
-			continue
-		}
-		if ch == '\t' {
-			width += 4
-			continue
-		}
-		break
-	}
-	return width
 }

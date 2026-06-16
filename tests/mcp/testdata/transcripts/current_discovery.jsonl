@@ -1,0 +1,4 @@
+{"jsonrpc":"2.0","id":"init-1","method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{"experimental":{"host":"editor-current"}},"clientInfo":{"name":"Editor Current","version":"1.0.0"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":"tools-1","method":"tools/list"}
+{"jsonrpc":"2.0","id":"explain-1","method":"tools/call","params":{"name":"explain","arguments":{"rule_id":"security.hardcoded-secret"}}}

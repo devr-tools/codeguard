@@ -40,6 +40,17 @@ func TestWriteReportSupportsSARIFAndGitHub(t *testing.T) {
 	if !strings.Contains(github.String(), "::warning file=tests/checks/test_helpers_test.go,line=58,col=1::") {
 		t.Fatalf("expected GitHub annotation, got: %s", github.String())
 	}
+
+	var githubComment bytes.Buffer
+	if err := codeguard.WriteReport(&githubComment, report, "github-comment"); err != nil {
+		t.Fatalf("write github comment: %v", err)
+	}
+	if !strings.Contains(githubComment.String(), "## CodeGuard Fix Suggestions") {
+		t.Fatalf("expected GitHub comment heading, got: %s", githubComment.String())
+	}
+	if !strings.Contains(githubComment.String(), "Fix: Reduce branching in the function or refactor logic into smaller units.") {
+		t.Fatalf("expected concrete fix guidance, got: %s", githubComment.String())
+	}
 }
 
 func TestWriteReportUsesSameGroupedLayoutAcrossSections(t *testing.T) {

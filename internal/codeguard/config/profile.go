@@ -21,6 +21,7 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.QualityRules.MaxFunctionLines = 120
 			cfg.Checks.QualityRules.MaxParameters = 7
 			cfg.Checks.QualityRules.MaxCyclomaticComplexity = 15
+			cfg.Checks.QualityRules.CloneTokenThreshold = 90
 			cfg.Checks.DesignRules.MaxDeclsPerFile = 16
 			cfg.Checks.DesignRules.MaxMethodsPerType = 10
 			cfg.Checks.DesignRules.MaxInterfaceMethods = 8
@@ -35,10 +36,12 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.QualityRules.MaxFunctionLines = 60
 			cfg.Checks.QualityRules.MaxParameters = 4
 			cfg.Checks.QualityRules.MaxCyclomaticComplexity = 8
+			cfg.Checks.QualityRules.CloneTokenThreshold = 45
 			cfg.Checks.DesignRules.MaxDeclsPerFile = 10
 			cfg.Checks.DesignRules.MaxMethodsPerType = 6
 			cfg.Checks.DesignRules.MaxInterfaceMethods = 4
 			cfg.Checks.SecurityRules.GovulncheckMode = "required"
+			cfg.Checks.Contracts = boolPtr(true)
 		},
 	},
 	"enterprise": {
@@ -48,12 +51,14 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.QualityRules.MaxFunctionLines = 60
 			cfg.Checks.QualityRules.MaxParameters = 4
 			cfg.Checks.QualityRules.MaxCyclomaticComplexity = 8
+			cfg.Checks.QualityRules.CloneTokenThreshold = 45
 			cfg.Checks.DesignRules.MaxDeclsPerFile = 10
 			cfg.Checks.DesignRules.MaxMethodsPerType = 6
 			cfg.Checks.DesignRules.MaxInterfaceMethods = 4
 			cfg.Checks.SecurityRules.GovulncheckMode = "required"
 			cfg.Checks.CIRules.RequiredReleaseFiles = []string{".goreleaser.yaml"}
 			cfg.Checks.CIRules.RequiredAutomationPaths = []string{"Makefile", ".github/workflows/ci.yml"}
+			cfg.Checks.Contracts = boolPtr(true)
 		},
 	},
 	"ai-safe": {
@@ -66,6 +71,10 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.SecurityRules.GovulncheckMode = "required"
 			cfg.Checks.QualityRules.MaxFunctionLines = 70
 			cfg.Checks.QualityRules.MaxCyclomaticComplexity = 9
+			cfg.Checks.QualityRules.CloneTokenThreshold = 50
+			cfg.Checks.QualityRules.AIProvenance.Enabled = boolPtr(true)
+			cfg.Checks.QualityRules.AIProvenance.SlopScoreWarnThreshold = 10
+			cfg.Checks.QualityRules.AIProvenance.SlopScoreFailThreshold = 25
 		},
 	},
 }

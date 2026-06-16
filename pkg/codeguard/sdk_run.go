@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/config"
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	"github.com/devr-tools/codeguard/internal/codeguard/report"
 	"github.com/devr-tools/codeguard/internal/codeguard/runner"
 )
@@ -25,12 +26,12 @@ func RunWithOptions(ctx context.Context, cfg Config, opts ScanOptions) (Report, 
 	return runner.RunWithOptions(ctx, cfg, opts)
 }
 
-func WriteBaselineFile(path string, entries []BaselineEntry) error {
-	return runner.WriteBaselineFile(path, entries)
-}
-
-func BaselineEntriesFromReport(rep Report) []BaselineEntry {
-	return runner.BaselineEntriesFromReport(rep)
+func RunPatch(ctx context.Context, cfg Config, diffText string) (Report, error) {
+	return runner.RunWithOptions(ctx, cfg, core.ScanOptions{
+		Mode:     core.ScanModeDiff,
+		BaseRef:  "stdin",
+		DiffText: diffText,
+	})
 }
 
 func Profiles() []PolicyProfile {

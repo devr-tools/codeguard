@@ -14,6 +14,15 @@ type LineRanges struct {
 	ranges     [][2]int
 }
 
+// Export converts the internal representation into the core type shared with
+// checks that need to intersect findings with changed lines.
+func (r LineRanges) Export() core.ChangedLineRanges {
+	return core.ChangedLineRanges{
+		AllChanged: r.allChanged,
+		Ranges:     append([][2]int(nil), r.ranges...),
+	}
+}
+
 func LoadDiffScope(targets []core.TargetConfig, baseRef string) (map[string]LineRanges, error) {
 	out := map[string]LineRanges{}
 	for _, target := range targets {
@@ -48,14 +57,23 @@ func gitChangedLines(dir string, baseRef string) (map[string]LineRanges, error) 
 func parseUnifiedDiff(diff string) map[string]LineRanges {
 	out := map[string]LineRanges{}
 	currentFile := ""
+	deletedFrom := ""
 	lines := strings.Split(diff, "\n")
 	for _, line := range lines {
 		switch {
-		case strings.HasPrefix(line, "+++ b/"):
-			currentFile = strings.TrimPrefix(line, "+++ b/")
-			if currentFile == "/dev/null" {
-				currentFile = ""
+		case strings.HasPrefix(line, "--- a/"):
+			deletedFrom = strings.TrimPrefix(line, "--- a/")
+		case strings.HasPrefix(line, "+++ /dev/null"):
+			// Deleted file: keep the old path in scope so findings that
+			// reference removed files survive diff filtering.
+			currentFile = ""
+			if deletedFrom != "" {
+				out[deletedFrom] = LineRanges{allChanged: true}
+				deletedFrom = ""
 			}
+		case strings.HasPrefix(line, "+++ b/"):
+			deletedFrom = ""
+			currentFile = strings.TrimPrefix(line, "+++ b/")
 			if currentFile != "" {
 				if _, ok := out[currentFile]; !ok {
 					out[currentFile] = LineRanges{allChanged: true}

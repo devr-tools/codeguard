@@ -1,0 +1,75 @@
+package rules
+
+import "github.com/devr-tools/codeguard/internal/codeguard/core"
+
+var qualityPerformanceCatalog = map[string]core.RuleMetadata{
+	"quality.n-plus-one-query": {
+		ID:             "quality.n-plus-one-query",
+		Section:        "Code Quality",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.FixedRuleLanguageCoverage(
+			core.RuleLanguageGo,
+			core.RuleLanguagePython,
+			core.RuleLanguageTypeScript,
+			core.RuleLanguageJavaScript,
+		),
+		Title:       "N+1 query in loop",
+		Description: "Warns when a database query or remote fetch call runs inside a loop body, suggesting an N+1 access pattern.",
+		HowToFix:    "Batch the lookups into one query, prefetch the data before the loop, or use a bulk API.",
+	},
+	"quality.go.alloc-in-loop": {
+		ID:             "quality.go.alloc-in-loop",
+		Section:        "Code Quality",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelGoNative,
+		Title:          "Allocation-heavy loop",
+		Description:    "Warns when a loop grows a string by concatenation or accumulates fmt.Sprintf output (quality_rules.detect_alloc_in_loop, on by default). When quality_rules.detect_prealloc_in_loop is enabled (off by default), also warns when a loop appends to a slice without preallocated capacity despite a knowable bound.",
+		HowToFix:       "Use strings.Builder for string accumulation and preallocate slice capacity with make(len 0, cap n) before the loop.",
+	},
+	"quality.typescript.sync-io-in-handler": {
+		ID:             "quality.typescript.sync-io-in-handler",
+		Section:        "Code Quality",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "TypeScript sync I/O in handler",
+		Description:    "Warns when a synchronous *Sync call runs inside an HTTP request handler, blocking the event loop.",
+		HowToFix:       "Switch to the promise-based API (fs.promises, async exec) inside request handlers.",
+	},
+	"quality.javascript.sync-io-in-handler": {
+		ID:             "quality.javascript.sync-io-in-handler",
+		Section:        "Code Quality",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "JavaScript sync I/O in handler",
+		Description:    "Warns when a synchronous *Sync call runs inside an HTTP request handler, blocking the event loop.",
+		HowToFix:       "Switch to the promise-based API (fs.promises, async exec) inside request handlers.",
+	},
+	"quality.typescript.unbounded-concurrency": {
+		ID:             "quality.typescript.unbounded-concurrency",
+		Section:        "Code Quality",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "TypeScript unbounded concurrency",
+		Description:    "Warns when promises are created inside a loop without batching or a concurrency limiter.",
+		HowToFix:       "Process the work in chunks with Promise.all or wrap calls with a limiter such as p-limit.",
+	},
+	"quality.javascript.unbounded-concurrency": {
+		ID:             "quality.javascript.unbounded-concurrency",
+		Section:        "Code Quality",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "JavaScript unbounded concurrency",
+		Description:    "Warns when promises are created inside a loop without batching or a concurrency limiter.",
+		HowToFix:       "Process the work in chunks with Promise.all or wrap calls with a limiter such as p-limit.",
+	},
+	"quality.python.sync-io-in-async": {
+		ID:             "quality.python.sync-io-in-async",
+		Section:        "Code Quality",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "Python blocking call in async function",
+		Description:    "Warns when requests, urllib, or time.sleep calls run inside an async def body, blocking the event loop.",
+		HowToFix:       "Use an async HTTP client (httpx.AsyncClient, aiohttp) and asyncio.sleep inside async functions.",
+	},
+}

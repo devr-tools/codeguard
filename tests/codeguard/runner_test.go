@@ -65,6 +65,12 @@ func TestYAMLConfigRoundTrip(t *testing.T) {
 			Args:    []string{"--config", "importlinter.ini"},
 		}},
 	}
+	cfg.Checks.DesignRules.LanguageDiffCommands = map[string][]codeguard.CommandCheckConfig{
+		"go": {{
+			Name:    "api-diff",
+			Command: "./scripts/api-diff.sh",
+		}},
+	}
 	if err := codeguard.WriteConfigFile(path, cfg); err != nil {
 		t.Fatalf("write yaml: %v", err)
 	}
@@ -81,6 +87,34 @@ func TestYAMLConfigRoundTrip(t *testing.T) {
 	}
 	if got := loaded.Checks.DesignRules.LanguageCommands["python"][0].Command; got != "lint-imports" {
 		t.Fatalf("loaded design command = %q, want %q", got, "lint-imports")
+	}
+	if got := loaded.Checks.DesignRules.LanguageDiffCommands["go"][0].Name; got != "api-diff" {
+		t.Fatalf("loaded diff command = %q, want %q", got, "api-diff")
+	}
+}
+
+func TestLoadConfigFileResolvesTargetPathsRelativeToConfig(t *testing.T) {
+	dir := t.TempDir()
+	configDir := filepath.Join(dir, ".codeguard")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	configPath := filepath.Join(configDir, "codeguard.json")
+	if err := os.WriteFile(configPath, []byte(`{
+  "name": "relative-targets",
+  "targets": [{"name": "repo", "path": "..", "language": "go"}],
+  "checks": {"quality": false, "design": false, "security": false, "prompts": false, "ci": false},
+  "output": {"format": "text"}
+}`), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	loaded, err := codeguard.LoadConfigFile(configPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if got, want := loaded.Targets[0].Path, dir; got != want {
+		t.Fatalf("target path = %q, want %q", got, want)
 	}
 }
 

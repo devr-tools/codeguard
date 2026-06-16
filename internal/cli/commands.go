@@ -67,14 +67,11 @@ func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	inputs := scanInputs{
-		configPath: fs.String("config", service.DefaultConfigPath(), "config file or directory path"),
-		mode:       fs.String("mode", string(service.ScanModeFull), "scan mode: full or diff"),
-		baseRef:    fs.String("base-ref", "main", "base branch/ref for diff mode"),
-	}
+	flags := registerScanRunFlags(fs)
+	inputs := scanInputs{configPath: flags.configPath, mode: flags.mode, baseRef: flags.baseRef}
 	format := fs.String("format", "", "optional output format override: text, json, sarif, github")
+	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	interactive := fs.Bool("interactive", false, "prompt for scan inputs in the terminal")
-	profile := fs.String("profile", "", "optional policy profile override")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -90,7 +87,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		return 1
 	}
 
-	cfg, err := loadConfigWithProfile(*inputs.configPath, *profile)
+	cfg, err := loadConfigWithProfile(*inputs.configPath, *flags.profile)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return 1
@@ -99,22 +96,31 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		cfg.Output.Format = trimmedFormat
 	}
 
-	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef)); err != nil {
+	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef), *enableAI); err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
 		return 1
 	}
 	return 0
 }
 
-func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
-	fs := flag.NewFlagSet("baseline", flag.ContinueOnError)
+func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
+	fs := flag.NewFlagSet("validate-patch", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	configPath := fs.String("config", service.DefaultConfigPath(), "config path")
-	outputPath := fs.String("output", "codeguard-baseline.json", "baseline output path")
-	mode := fs.String("mode", string(service.ScanModeFull), "scan mode: full or diff")
-	baseRef := fs.String("base-ref", "main", "base branch/ref for diff mode")
+	configPath := fs.String("config", service.DefaultConfigPath(), "config file or directory path")
+	format := fs.String("format", "", "optional output format override: text, json, sarif, github")
+	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	profile := fs.String("profile", "", "optional policy profile override")
 	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+
+	diffText, err := io.ReadAll(stdin)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "read patch stdin: %v\n", err)
+		return 1
+	}
+	if strings.TrimSpace(string(diffText)) == "" {
+		_, _ = fmt.Fprintln(stderr, "validate-patch requires a unified diff on stdin")
 		return 1
 	}
 
@@ -123,11 +129,49 @@ func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return 1
 	}
+	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
+		cfg.Output.Format = trimmedFormat
+	}
+
+	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
+		Mode:     service.ScanModeDiff,
+		BaseRef:  "stdin",
+		DiffText: string(diffText),
+		EnableAI: *enableAI,
+	})
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "patch validation failed: %v\n", err)
+		return 1
+	}
+	if err := service.WriteReport(stdout, report, cfg.Output.Format); err != nil {
+		_, _ = fmt.Fprintf(stderr, "write report: %v\n", err)
+		return 1
+	}
+	if report.Summary.FailedSections > 0 {
+		return 1
+	}
+	return 0
+}
+
+func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
+	fs := flag.NewFlagSet("baseline", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	flags := registerScanRunFlags(fs)
+	outputPath := fs.String("output", "codeguard-baseline.json", "baseline output path")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+
+	cfg, err := loadConfigWithProfile(*flags.configPath, *flags.profile)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
+		return 1
+	}
 	cfg.Baseline.Path = ""
 
 	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
-		Mode:    service.ScanMode(strings.TrimSpace(*mode)),
-		BaseRef: strings.TrimSpace(*baseRef),
+		Mode:    service.ScanMode(strings.TrimSpace(*flags.mode)),
+		BaseRef: strings.TrimSpace(*flags.baseRef),
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "baseline scan failed: %v\n", err)
@@ -188,10 +232,11 @@ func parseScanMode(mode string) (service.ScanMode, error) {
 	return scanMode, nil
 }
 
-func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string) error {
+func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string, enableAI bool) error {
 	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
-		Mode:    scanMode,
-		BaseRef: baseRef,
+		Mode:     scanMode,
+		BaseRef:  baseRef,
+		EnableAI: enableAI,
 	})
 	if err != nil {
 		return err

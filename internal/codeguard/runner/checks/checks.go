@@ -4,6 +4,7 @@ import (
 	"context"
 
 	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
+	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
 	designCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/design"
 	promptsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/prompts"
 	qualityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/quality"
@@ -33,15 +34,49 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 	if sc.Cfg.Checks.CI {
 		sections = append(sections, ciCheck.Run(ctx, checkEnv))
 	}
+	if contractsEnabled(sc) {
+		sections = append(sections, contractsCheck.Run(ctx, checkEnv))
+	}
 	if len(sc.CustomRules) > 0 {
-		sections = append(sections, customrunner.RunSection(sc))
+		sections = append(sections, customrunner.RunSection(ctx, sc))
 	}
 	return sections
 }
 
+// contractsEnabled resolves the contracts toggle: an explicit config value
+// wins, otherwise the family is enabled only for diff scans.
+func contractsEnabled(sc runnersupport.Context) bool {
+	if sc.Cfg.Checks.Contracts != nil {
+		return *sc.Cfg.Checks.Contracts
+	}
+	return sc.Opts.Mode == core.ScanModeDiff
+}
+
 func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 	return checkSupport.Context{
-		Config: sc.Cfg,
+		Config:    sc.Cfg,
+		AIEnabled: sc.Opts.EnableAI || (sc.Cfg.AI.Enabled != nil && *sc.Cfg.AI.Enabled),
+		Mode:      sc.Opts.Mode,
+		BaseRef:   sc.Opts.BaseRef,
+		DiffText:  sc.Opts.DiffText,
+		ScanTime:  sc.Today,
+		ListChangedFiles: func(target core.TargetConfig) ([]core.ChangedFile, error) {
+			return runnersupport.ListChangedFiles(sc, target)
+		},
+		ReadBaseFile: func(target core.TargetConfig, rel string) ([]byte, error) {
+			return runnersupport.ReadBaseFile(sc, target, rel)
+		},
+		ChangedFiles: runnersupport.ChangedDiffFiles(sc),
+		VisitTargetFiles: func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
+			runnersupport.VisitTargetFiles(sc, target, include, visit)
+		},
+		DiffScope: func() map[string]core.ChangedLineRanges {
+			out := make(map[string]core.ChangedLineRanges, len(sc.Diff))
+			for path, ranges := range sc.Diff {
+				out[path] = ranges.Export()
+			}
+			return out
+		},
 		ScanTargetFiles: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFiles(sc, target, sectionID, include, evaluator)
 		},
@@ -58,6 +93,12 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		FinalizeSection: func(id string, name string, findings []core.Finding) core.SectionResult {
 			return runnersupport.FinalizeSection(sc, id, name, findings)
 		},
+		PutArtifact: func(artifact core.Artifact) {
+			sc.Artifacts.Put(artifact)
+		},
+		GetArtifact: func(id string) (core.Artifact, bool) {
+			return sc.Artifacts.Get(id)
+		},
 		CountLines:           runnersupport.CountLines,
 		CyclomaticComplexity: runnersupport.CyclomaticComplexity,
 		TypeName:             runnersupport.TypeName,
@@ -73,6 +114,9 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		},
 		RunCommandCheck: func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error) {
 			return runnersupport.RunCommandCheck(ctx, dir, check)
+		},
+		RunDiffCommandCheck: func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error) {
+			return runnersupport.RunDiffCommandCheckWithContext(ctx, sc, dir, baseRef, check)
 		},
 		NormalizedSeverity: runnersupport.NormalizedSeverity,
 	}

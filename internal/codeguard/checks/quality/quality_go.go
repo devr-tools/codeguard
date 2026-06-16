@@ -14,11 +14,11 @@ import (
 )
 
 func goFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := fileLengthFinding(env, file, data)
+	findings := make([]core.Finding, 0)
 
 	formatted, err := format.Source(data)
 	if err != nil {
-		return append(findings, env.NewFinding(support.FindingInput{
+		findings = append(findings, env.NewFinding(support.FindingInput{
 			RuleID:  "quality.parse-error",
 			Level:   "fail",
 			Path:    file,
@@ -26,6 +26,7 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 			Column:  1,
 			Message: fmt.Sprintf("Go parse error: %v", err),
 		}))
+		return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 	}
 	if string(formatted) != string(data) {
 		findings = append(findings, env.NewFinding(support.FindingInput{
@@ -41,7 +42,7 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 	fset := token.NewFileSet()
 	parsed, err := parser.ParseFile(fset, file, data, parser.ParseComments)
 	if err != nil {
-		return append(findings, env.NewFinding(support.FindingInput{
+		findings = append(findings, env.NewFinding(support.FindingInput{
 			RuleID:  "quality.parse-error",
 			Level:   "fail",
 			Path:    file,
@@ -49,6 +50,7 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 			Column:  1,
 			Message: fmt.Sprintf("Go parse error: %v", err),
 		}))
+		return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 	}
 	if len(parsed.Decls) > env.Config.Checks.DesignRules.MaxDeclsPerFile {
 		findings = append(findings, env.NewFinding(support.FindingInput{
@@ -62,7 +64,9 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 	}
 	findings = append(findings, importFindings(env, file, fset, parsed)...)
 	findings = append(findings, goFunctionFindings(env, file, fset, parsed)...)
-	return findings
+	findings = append(findings, goAIQualityFindings(env, file, fset, parsed, data)...)
+	findings = append(findings, goPerformanceFindings(env, file, fset, parsed)...)
+	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 
 func importFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {

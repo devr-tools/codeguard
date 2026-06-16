@@ -1,7 +1,7 @@
 package cli_test
 
 import (
-	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/pkg/codeguard"
@@ -73,28 +73,64 @@ func TestSDKRuleMetadataForCustomRulePack(t *testing.T) {
 	assertLanguageCoverage(t, customRule, codeguard.RuleLanguageCoverageConfigurable)
 }
 
-func requireRuleMetadata(t *testing.T, ruleID string) codeguard.RuleMetadata {
-	t.Helper()
-	rule, ok := codeguard.ExplainRule(ruleID)
-	if !ok {
-		t.Fatalf("expected %s metadata", ruleID)
+func TestSDKRuleMetadataForNaturalLanguageCustomRulePack(t *testing.T) {
+	cfg := codeguard.ExampleConfig()
+	cfg.RulePacks = []codeguard.RulePackConfig{{
+		Name: "repo-policy",
+		Rules: []codeguard.CustomRuleConfig{{
+			ID:              "custom.no-request-body-logs",
+			Title:           "Never log request bodies",
+			Severity:        "fail",
+			Message:         "request bodies must not be logged in handlers",
+			NaturalLanguage: "never log request bodies in handlers",
+			Paths:           []string{"handlers/**"},
+		}},
+	}}
+
+	var customRule codeguard.RuleMetadata
+	for _, meta := range codeguard.RulesForConfig(cfg) {
+		if meta.ID == "custom.no-request-body-logs" {
+			customRule = meta
+			break
+		}
 	}
-	return rule
+	if customRule.ID == "" {
+		t.Fatal("expected custom.no-request-body-logs metadata")
+	}
+	assertExecutionModel(t, customRule, codeguard.RuleExecutionModelCommandDriven)
+	assertLanguageCoverage(t, customRule, codeguard.RuleLanguageCoverageConfigurable)
 }
 
-func assertExecutionModel(t *testing.T, rule codeguard.RuleMetadata, want codeguard.RuleExecutionModel) {
-	t.Helper()
-	if rule.ExecutionModel != want {
-		t.Fatalf("%s execution model = %q, want %q", rule.ID, rule.ExecutionModel, want)
+func TestSDKRuleMetadataFixTemplatesPopulated(t *testing.T) {
+	ruleIDs := []string{
+		"quality.gofmt",
+		"quality.ai.swallowed-error",
+		"quality.ai.hallucinated-import",
+		"quality.ai.narrative-comment",
+		"quality.ai.dead-code",
+		"quality.ai.over-mocked-test",
+		"quality.javascript.explicit-any",
+		"quality.javascript.ts-ignore",
+		"quality.javascript.debugger-statement",
+		"quality.javascript.non-null-assertion",
+		"prompts.secret-interpolation",
+		"prompts.agent-standing-permissions",
+		"prompts.mcp-config-risk",
+		"ci.test-without-assertion",
+		"quality.max-function-lines",
+		"quality.cyclomatic-complexity",
+	}
+	for _, ruleID := range ruleIDs {
+		rule := requireRuleMetadata(t, ruleID)
+		if strings.TrimSpace(rule.FixTemplate) == "" {
+			t.Fatalf("%s fix template is empty, want a populated template", ruleID)
+		}
 	}
 }
 
-func assertLanguageCoverage(t *testing.T, rule codeguard.RuleMetadata, mode codeguard.RuleLanguageCoverageMode, languages ...codeguard.RuleLanguage) {
-	t.Helper()
-	if rule.LanguageCoverage.Mode != mode {
-		t.Fatalf("%s language coverage mode = %q, want %q", rule.ID, rule.LanguageCoverage.Mode, mode)
-	}
-	if !reflect.DeepEqual(rule.LanguageCoverage.Languages, languages) {
-		t.Fatalf("%s language coverage languages = %#v, want %#v", rule.ID, rule.LanguageCoverage.Languages, languages)
+func TestSDKRuleMetadataFixTemplateIncludesBeforeAfterSnippet(t *testing.T) {
+	rule := requireRuleMetadata(t, "quality.gofmt")
+	if !strings.Contains(rule.FixTemplate, "Before:") || !strings.Contains(rule.FixTemplate, "After:") {
+		t.Fatalf("expected before/after snippet in gofmt fix template, got %q", rule.FixTemplate)
 	}
 }

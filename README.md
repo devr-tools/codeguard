@@ -5,7 +5,9 @@
 
 `codeguard` is a standalone Go service and CLI for repository checks across code quality, design boundaries, security, CI/CD hygiene, AI prompt governance, and repo-specific policy rules.
 
-It now supports repository exclusions, baselines, waivers, changed-lines diff scans, SARIF output, GitHub annotations, custom rule packs, policy profiles, scan caching, doctor checks, rule discovery from the CLI, native TypeScript/Python quality, design, and security heuristics, and language-specific command checks.
+It now supports repository exclusions, baselines, waivers, changed-lines diff scans, SARIF output, GitHub annotations, custom rule packs, natural-language custom rules through an optional AI runtime, policy profiles, scan caching, doctor checks, rule discovery from the CLI, native TypeScript/Python quality, design, and security heuristics, and language-specific command checks.
+
+AI-generated-code quality coverage includes an AI-failure-mode rule pack, `slop_score` artifacts, provenance-aware review policy hooks, local idiom drift checks, optional provider-backed hybrid triage and semantic review passes, natural-language custom rules through an optional AI runtime, and a verified-fix flow that only returns patches after isolated patch validation plus test reruns succeed.
 
 The public Go SDK lives at `github.com/devr-tools/codeguard/pkg/codeguard`.
 
@@ -23,6 +25,11 @@ Or build from source:
 make build
 ```
 
+Other install paths:
+
+- GitHub Releases: tagged archives for direct download
+- Homebrew: `brew install devr-tools/tap/codeguard`
+
 Or run in Docker:
 
 ```bash
@@ -39,7 +46,7 @@ make release-check
 make deploy
 ```
 
-The GitHub release flow follows the same branch and release-please model as `cleanr`, using `.github/workflows/cd.yml`, `.github/workflows/release.yml`, `.github/release-please-config.json`, and `.release-please-manifest.json`.
+The GitHub release flow follows the same branch and release-please model as `cleanr`, using `.github/workflows/cd.yml`, `.github/workflows/release.yml`, `.github/workflows/homebrew-validation.yml`, `.github/release-please-config.json`, and `.release-please-manifest.json`.
 
 For SDK consumers:
 
@@ -96,7 +103,12 @@ func main() {
 ## Docs
 
 - [Getting started](/Users/alex/Documents/GitHub/codeguard/docs/getting-started.md:1)
+- [AI-generated code quality](/Users/alex/Documents/GitHub/codeguard/docs/ai-quality.md:1)
+- [Agent-native features](/Users/alex/Documents/GitHub/codeguard/docs/agent-native.md:1)
 - [Integrations](/Users/alex/Documents/GitHub/codeguard/docs/integrations.md:1)
+- [Hook-pack examples](/Users/alex/Documents/GitHub/codeguard/examples/hooks/README.md:1)
 - [SDK guide](/Users/alex/Documents/GitHub/codeguard/docs/sdk.md:1)
+- [Release automation](/Users/alex/Documents/GitHub/codeguard/docs/release-automation.md:1)
+- [Homebrew packaging](/Users/alex/Documents/GitHub/codeguard/docs/homebrew.md:1)
 - [Checks reference](/Users/alex/Documents/GitHub/codeguard/docs/checks.md:1)
 - [Architecture](/Users/alex/Documents/GitHub/codeguard/docs/architecture.md:1)

@@ -11,15 +11,13 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func Run(_ context.Context, env support.Context) core.SectionResult {
-	findings := make([]core.Finding, 0)
-	for _, target := range env.Config.Targets {
-		findings = append(findings, findingsForTarget(env, target)...)
-	}
-	return env.FinalizeSection("ci", "CI/CD", findings)
+// Run evaluates CI/CD pipeline policy: required workflows, release files,
+// automation paths, workflow content markers, and test hygiene.
+func Run(ctx context.Context, env support.Context) core.SectionResult {
+	return support.RunTargetSection(ctx, env, "ci", "CI/CD", findingsForTarget)
 }
 
-func findingsForTarget(env support.Context, target core.TargetConfig) []core.Finding {
+func findingsForTarget(_ context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	findings := make([]core.Finding, 0)
 	findings = append(findings, requiredWorkflowDirFindings(env, target)...)
 	findings = append(findings, requiredPathFindings(env, target, env.Config.Checks.CIRules.RequiredWorkflowFiles, "required workflow file is missing")...)
@@ -27,6 +25,7 @@ func findingsForTarget(env support.Context, target core.TargetConfig) []core.Fin
 	findings = append(findings, requiredPathFindings(env, target, env.Config.Checks.CIRules.RequiredAutomationPaths, "required automation path is missing")...)
 	findings = append(findings, workflowContentFindings(env, target)...)
 	findings = append(findings, testFileLocationFindings(env, target)...)
+	findings = append(findings, testQualityFindings(env, target)...)
 	return findings
 }
 
@@ -88,7 +87,7 @@ func testFileLocationFindings(env support.Context, target core.TargetConfig) []c
 	if len(allowed) == 0 {
 		return nil
 	}
-	return env.ScanTargetFiles(target, "ci", func(rel string) bool {
+	return env.ScanTargetFiles(target, "ci-test-file-location", func(rel string) bool {
 		return isTargetTestFile(target.Language, rel)
 	}, func(file string, _ []byte) []core.Finding {
 		for _, pattern := range allowed {

@@ -3,6 +3,7 @@ package support
 import (
 	"context"
 	"go/ast"
+	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
@@ -18,9 +19,21 @@ type FindingInput struct {
 
 type Context struct {
 	Config               core.Config
+	AIEnabled            bool
+	Mode                 core.ScanMode
+	BaseRef              string
+	DiffText             string
+	ScanTime             time.Time
+	ChangedFiles         []string
+	ListChangedFiles     func(target core.TargetConfig) ([]core.ChangedFile, error)
+	ReadBaseFile         func(target core.TargetConfig, rel string) ([]byte, error)
+	DiffScope            func() map[string]core.ChangedLineRanges
+	VisitTargetFiles     func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte))
 	ScanTargetFiles      func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding
 	NewFinding           func(FindingInput) core.Finding
 	FinalizeSection      func(id string, name string, findings []core.Finding) core.SectionResult
+	PutArtifact          func(core.Artifact)
+	GetArtifact          func(string) (core.Artifact, bool)
 	CountLines           func(data []byte) int
 	CyclomaticComplexity func(body *ast.BlockStmt) int
 	TypeName             func(expr ast.Expr) string
@@ -31,5 +44,6 @@ type Context struct {
 	IsPromptFile         func(rel string) bool
 	RunGovulncheck       func(ctx context.Context, dir string, cmdName string) ([]core.Finding, error)
 	RunCommandCheck      func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error)
+	RunDiffCommandCheck  func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error)
 	NormalizedSeverity   func(level string) string
 }

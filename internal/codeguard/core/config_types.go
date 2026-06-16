@@ -5,6 +5,7 @@ type Config struct {
 	Profile   string           `json:"profile,omitempty"`
 	Targets   []TargetConfig   `json:"targets"`
 	Checks    CheckConfig      `json:"checks"`
+	AI        AIConfig         `json:"ai,omitempty"`
 	RulePacks []RulePackConfig `json:"rule_packs,omitempty"`
 	Output    OutputConfig     `json:"output"`
 	Exclude   []string         `json:"exclude,omitempty"`
@@ -21,16 +22,21 @@ type TargetConfig struct {
 }
 
 type CheckConfig struct {
-	Quality       bool                `json:"quality"`
-	Design        bool                `json:"design"`
-	Security      bool                `json:"security"`
-	Prompts       bool                `json:"prompts"`
-	CI            bool                `json:"ci"`
+	Quality  bool `json:"quality"`
+	Design   bool `json:"design"`
+	Security bool `json:"security"`
+	Prompts  bool `json:"prompts"`
+	CI       bool `json:"ci"`
+	// Contracts toggles the API contract drift family. When nil it defaults
+	// to enabled in diff scans and disabled in full scans; the strict and
+	// enterprise profiles enable it unconditionally.
+	Contracts     *bool               `json:"contracts,omitempty"`
 	QualityRules  QualityRulesConfig  `json:"quality_rules"`
 	DesignRules   DesignRulesConfig   `json:"design_rules"`
 	PromptRules   PromptRulesConfig   `json:"prompt_rules"`
 	CIRules       CIRulesConfig       `json:"ci_rules"`
 	SecurityRules SecurityRulesConfig `json:"security_rules"`
+	ContractRules ContractRulesConfig `json:"contract_rules"`
 }
 
 type OutputConfig struct {

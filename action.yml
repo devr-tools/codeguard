@@ -1,9 +1,13 @@
-name: codeguard
-description: Run CodeGuard repository policy checks
+name: Devr Codeguard
+description: Run Devr CodeGuard repository policy checks for AI generated and human code
+branding:
+  icon: shield
+  color: gray-dark
+
 
 inputs:
   config:
-    description: Path to the CodeGuard config file
+    description: Path to the Devr CodeGuard config file
     required: false
     default: codeguard.yaml
   profile:
@@ -22,8 +26,16 @@ inputs:
     description: Output format
     required: false
     default: github
+  comment-fix-mode:
+    description: PR comment mode. Use sticky to create or update a fix-oriented PR comment.
+    required: false
+    default: "off"
+  comment-tag:
+    description: Sticky marker used to update an existing CodeGuard PR comment.
+    required: false
+    default: codeguard-action-comment
   version:
-    description: CodeGuard version to install
+    description: Devr CodeGuard version to install
     required: false
     default: latest
 
@@ -35,13 +47,15 @@ runs:
       with:
         go-version: "1.23"
 
-    - name: Install CodeGuard
+    - name: Install Devr CodeGuard
       shell: bash
       run: go install github.com/devr-tools/codeguard/cmd/codeguard@${{ inputs.version }}
 
-    - name: Run CodeGuard
+    - name: Run Devr CodeGuard
+      id: scan
       shell: bash
       run: |
+        set +e
         if [ -n "${{ inputs.profile }}" ]; then
           codeguard scan \
             -config "${{ inputs.config }}" \
@@ -49,10 +63,53 @@ runs:
             -base-ref "${{ inputs.base-ref }}" \
             -format "${{ inputs.format }}" \
             -profile "${{ inputs.profile }}"
+          status=$?
         else
           codeguard scan \
             -config "${{ inputs.config }}" \
             -mode "${{ inputs.mode }}" \
             -base-ref "${{ inputs.base-ref }}" \
             -format "${{ inputs.format }}"
+          status=$?
         fi
+        echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+        exit 0
+
+    - name: Post Devr CodeGuard fix comment
+      if: ${{ inputs.comment-fix-mode != 'off' && (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') }}
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        report_file="$(mktemp)"
+        set +e
+        if [ -n "${{ inputs.profile }}" ]; then
+          codeguard scan \
+            -config "${{ inputs.config }}" \
+            -mode "${{ inputs.mode }}" \
+            -base-ref "${{ inputs.base-ref }}" \
+            -format github-comment \
+            -profile "${{ inputs.profile }}" > "$report_file"
+        else
+          codeguard scan \
+            -config "${{ inputs.config }}" \
+            -mode "${{ inputs.mode }}" \
+            -base-ref "${{ inputs.base-ref }}" \
+            -format github-comment > "$report_file"
+        fi
+        set -e
+        if [ ! -s "$report_file" ]; then
+          echo "CodeGuard comment report was empty; skipping comment publish."
+          exit 0
+        fi
+        go run ./cmd/codeguard-action-comment \
+          -body-file "$report_file" \
+          -repository "${{ github.repository }}" \
+          -marker "${{ inputs.comment-tag }}" \
+          -mode "${{ inputs.comment-fix-mode }}"
+
+    - name: Fail workflow on Devr CodeGuard findings
+      if: ${{ steps.scan.outputs.exit_code != '0' }}
+      shell: bash
+      run: exit "${{ steps.scan.outputs.exit_code }}"

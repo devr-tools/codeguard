@@ -11,22 +11,20 @@ import (
 )
 
 func Validate(cfg core.Config) error {
-	if err := validateNameAndProfile(cfg); err != nil {
-		return err
-	}
-	if err := validateTargets(cfg.Targets); err != nil {
-		return err
-	}
-	if err := validateOutput(cfg.Output); err != nil {
-		return err
-	}
-	if err := validateWaivers(cfg.Waivers); err != nil {
-		return err
-	}
-	if err := validateCommandChecks(cfg); err != nil {
-		return err
-	}
-	return validateRulePacks(cfg.RulePacks)
+	return firstError(
+		validateNameAndProfile(cfg),
+		validateTargets(cfg.Targets),
+		validateOutput(cfg.Output),
+		validateWaivers(cfg.Waivers),
+		validateCommandChecks(cfg),
+		validateAIConfig(cfg.AI),
+		validateAIProvenance(cfg.Checks.QualityRules.AIProvenance),
+		validateAIChecks(cfg.Checks.QualityRules.AIChecks),
+		validateContractRules(cfg.Checks.ContractRules),
+		validateCoverageDelta(cfg.Checks.QualityRules.CoverageDelta),
+		validateGraphThresholds(cfg.Checks.DesignRules),
+		validateRulePacks(cfg.RulePacks),
+	)
 }
 
 func validateNameAndProfile(cfg core.Config) error {
@@ -85,6 +83,9 @@ func validateCommandChecks(cfg core.Config) error {
 		return err
 	}
 	if err := validateLanguageCommandMap("design_rules.language_commands", cfg.Checks.DesignRules.LanguageCommands); err != nil {
+		return err
+	}
+	if err := validateLanguageCommandMap("design_rules.language_diff_commands", cfg.Checks.DesignRules.LanguageDiffCommands); err != nil {
 		return err
 	}
 	return validateLanguageCommandMap("security_rules.language_commands", cfg.Checks.SecurityRules.LanguageCommands)
