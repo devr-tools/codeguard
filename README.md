@@ -18,8 +18,6 @@ It now supports repository exclusions, baselines, waivers, changed-lines diff sc
 
 AI-generated-code quality coverage includes an AI-failure-mode rule pack, `slop_score` artifacts, provenance-aware review policy hooks, local idiom drift checks, optional provider-backed hybrid triage and semantic review passes, natural-language custom rules through an optional AI runtime, and a verified-fix flow that only returns patches after isolated patch validation plus test reruns succeed.
 
-The public Go SDK lives at `github.com/devr-tools/codeguard/pkg/codeguard`.
-
 Rule discovery APIs expose per-check metadata, including `execution_model` (`go-native`, `language-agnostic`, or `command-driven`) and `language_coverage` (fixed target languages, `repository-wide`, or `configurable`).
 
 ## Installation
@@ -60,8 +58,6 @@ make release
 make release-check
 make deploy
 ```
-
-The GitHub release flow follows the same branch and release-please model as `cleanr`, using `.github/workflows/cd.yml`, `.github/workflows/release.yml`, `.github/workflows/homebrew-validation.yml`, `.github/release-please-config.json`, and `.release-please-manifest.json`.
 
 For SDK consumers:
 
