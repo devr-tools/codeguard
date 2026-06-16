@@ -1,0 +1,97 @@
+name: homebrew-validation.yml
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - master
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  formula-validation:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+
+      - name: Clone Homebrew tap
+        shell: bash
+        env:
+          TAP_REPOSITORY: devr-tools/homebrew-tap
+        run: |
+          set -euo pipefail
+          git clone --depth 1 "https://github.com/${TAP_REPOSITORY}.git" "$RUNNER_TEMP/homebrew-tap"
+
+      - name: Patch tap formula for current checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(awk -F'"' '/^const Number = / { print $2; exit }' internal/version/version.go)"
+          archive_path="$RUNNER_TEMP/codeguard-src.tar.gz"
+          tap_dir="$RUNNER_TEMP/homebrew-tap"
+          formula_path="$RUNNER_TEMP/homebrew-tap/Formula/codeguard.rb"
+          git archive --format=tar.gz --output "$archive_path" HEAD
+          sha256="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
+
+          if [ -z "$version" ]; then
+            echo "failed to extract codeguard version from internal/version/version.go"
+            exit 1
+          fi
+
+          cat > "$formula_path" <<EOF
+          class Codeguard < Formula
+            desc "Repository policy and AI code review CLI for CI"
+            homepage "https://github.com/devr-tools/codeguard"
+            url "file://$archive_path"
+            sha256 "$sha256"
+            version "$version"
+            license "Apache-2.0"
+            depends_on "go" => :build
+
+            def install
+              ldflags = "-s -w -X github.com/devr-tools/codeguard/internal/version.Number=v#{version}"
+              system "go", "build", *std_go_args(output: bin/"codeguard", ldflags: ldflags), "./cmd/codeguard"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/codeguard version")
+            end
+          end
+          EOF
+
+          git -C "$tap_dir" config user.name "github-actions[bot]"
+          git -C "$tap_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$tap_dir" add Formula/codeguard.rb
+          git -C "$tap_dir" commit -m "test: patch codeguard formula for validation"
+
+      - name: Tap current formula checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew tap devr-tools/tap "$RUNNER_TEMP/homebrew-tap"
+
+      - name: Build formula from source
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install --build-from-source devr-tools/tap/codeguard
+
+      - name: Run formula test
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew test devr-tools/tap/codeguard

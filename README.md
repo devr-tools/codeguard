@@ -25,6 +25,11 @@ Or build from source:
 make build
 ```
 
+Other install paths:
+
+- GitHub Releases: tagged archives for direct download
+- Homebrew: `brew install devr-tools/tap/codeguard`
+
 Or run in Docker:
 
 ```bash
@@ -41,7 +46,7 @@ make release-check
 make deploy
 ```
 
-The GitHub release flow follows the same branch and release-please model as `cleanr`, using `.github/workflows/cd.yml`, `.github/workflows/release.yml`, `.github/release-please-config.json`, and `.release-please-manifest.json`.
+The GitHub release flow follows the same branch and release-please model as `cleanr`, using `.github/workflows/cd.yml`, `.github/workflows/release.yml`, `.github/workflows/homebrew-validation.yml`, `.github/release-please-config.json`, and `.release-please-manifest.json`.
 
 For SDK consumers:
 
@@ -103,5 +108,7 @@ func main() {
 - [Integrations](/Users/alex/Documents/GitHub/codeguard/docs/integrations.md:1)
 - [Hook-pack examples](/Users/alex/Documents/GitHub/codeguard/examples/hooks/README.md:1)
 - [SDK guide](/Users/alex/Documents/GitHub/codeguard/docs/sdk.md:1)
+- [Release automation](/Users/alex/Documents/GitHub/codeguard/docs/release-automation.md:1)
+- [Homebrew packaging](/Users/alex/Documents/GitHub/codeguard/docs/homebrew.md:1)
 - [Checks reference](/Users/alex/Documents/GitHub/codeguard/docs/checks.md:1)
 - [Architecture](/Users/alex/Documents/GitHub/codeguard/docs/architecture.md:1)
