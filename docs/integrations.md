@@ -7,7 +7,7 @@
 ```yaml
 repos:
   - repo: https://github.com/devr-tools/codeguard
-    rev: v0.1.0
+    rev: v0.2.0
     hooks:
       - id: codeguard
         args: ["-config", "codeguard.yaml", "-profile", "startup"]
@@ -17,11 +17,11 @@ The packaged hook runs `codeguard scan -mode diff -base-ref HEAD` by default.
 
 ## GitHub Action
 
-This repository also ships a composite action at `action.yml`:
+This repository also ships the GitHub Marketplace action `Devr Codeguard` from `action.yml`:
 
 ```yaml
-- name: CodeGuard
-  uses: devr-tools/codeguard@v0.1.0
+- name: Devr Codeguard
+  uses: devr-tools/codeguard@v0.2.0
   with:
     config: codeguard.yaml
     profile: strict
@@ -35,8 +35,8 @@ The action installs `github.com/devr-tools/codeguard/cmd/codeguard` and runs `co
 For pull request workflows, the action can also publish a sticky fix-oriented comment:
 
 ```yaml
-- name: CodeGuard
-  uses: devr-tools/codeguard@v0.1.0
+- name: Devr Codeguard
+  uses: devr-tools/codeguard@v0.2.0
   with:
     config: codeguard.yaml
     mode: diff

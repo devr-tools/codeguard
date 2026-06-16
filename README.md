@@ -38,6 +38,12 @@ Other install paths:
 
 - GitHub Releases: tagged archives for direct download
 - Homebrew: `brew install devr-tools/tap/codeguard`
+- GitHub Marketplace Action: `Devr Codeguard`
+
+```yaml
+- name: Devr Codeguard
+  uses: devr-tools/codeguard@v0.2.0
+```
 
 Or run in Docker:
 
