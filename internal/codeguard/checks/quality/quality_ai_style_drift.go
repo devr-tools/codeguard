@@ -14,7 +14,7 @@ var (
 	goErrorfWrapPattern = regexp.MustCompile(`fmt\.Errorf\([^\n]*%w`)
 	goErrorfPattern     = regexp.MustCompile(`fmt\.Errorf\(`)
 	goErrorsNewPattern  = regexp.MustCompile(`errors\.New\(`)
-	goPkgErrorsPattern  = regexp.MustCompile(`errors\.(?:Wrap|Wrapf|WithStack|WithMessage)\(|github\.com/pkg/errors`)
+	goPkgErrorsPattern  = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])(errors\.(?:Wrap|Wrapf|WithStack|WithMessage)\(|github\.com/pkg/errors)(?:$|[^A-Za-z0-9_])`)
 
 	scriptThrowNewPattern = regexp.MustCompile(`throw\s+new\s+([A-Za-z_$][\w$]*)\s*\(`)
 )
