@@ -121,7 +121,7 @@ func copyDir(srcDir string, dstDir string) error {
 	})
 }
 
-func copyFile(srcPath string, dstPath string, mode os.FileMode) error {
+func copyFile(srcPath string, dstPath string, mode os.FileMode) (err error) {
 	src, err := os.Open(srcPath)
 	if err != nil {
 		return err
@@ -136,7 +136,11 @@ func copyFile(srcPath string, dstPath string, mode os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
+	defer func() {
+		if closeErr := dst.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	_, err = io.Copy(dst, src)
 	return err

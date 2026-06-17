@@ -920,7 +920,7 @@ function analyzeCallExpression(node, sourceFile, relPath, flavor, bindings, chec
     pushFinding("security", sourceFile, relPath, flavor, rule(flavor, "security.typescript.vm-dynamic-code", "security.javascript.vm-dynamic-code"), "warn", "Node vm dynamic code execution should be reviewed", node.expression.getStart(sourceFile));
   }
 
-  if (isInsertAdjacentHTML(node.expression) || isDocumentWrite(node.expression, checker)) {
+  if (isInsertAdjacentHTML(node.expression) || isDocumentWrite(node.expression)) {
     pushFinding("security", sourceFile, relPath, flavor, rule(flavor, "security.typescript.unsafe-html-sink", "security.javascript.unsafe-html-sink"), "warn", "unsafe HTML injection sink should be reviewed", node.expression.getStart(sourceFile));
   }
 
