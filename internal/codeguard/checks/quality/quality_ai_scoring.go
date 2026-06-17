@@ -9,10 +9,13 @@ var aiSlopRuleWeights = map[string]int{
 	"quality.ai.local-idiom-drift":      2,
 	"quality.ai.error-style-drift":      2,
 	"quality.ai.naming-drift":           1,
+	"quality.ai.change-risk":            4,
 	"quality.ai.provenance-policy":      2,
 	"quality.ai.semantic-doc-mismatch":  3,
+	"quality.ai.contract-drift":         4,
 	"quality.ai.semantic-error-message": 4,
 	"quality.ai.semantic-test-coverage": 4,
+	"quality.ai.semantic-test-adequacy": 4,
 }
 
 func scoreFindings(findings []string) int {

@@ -35,6 +35,13 @@ func defaultBoolPtr(dst **bool, value bool) {
 	}
 }
 
+func valueOrDefault(ptr *bool, def bool) bool {
+	if ptr == nil {
+		return def
+	}
+	return *ptr
+}
+
 // defaultStringSlice fills a string-slice setting with a copy of its default
 // when unset. requireNonEmpty skips defaults that are empty.
 func defaultStringSlice(dst *[]string, def []string, requireNonEmpty bool) {
@@ -49,5 +56,15 @@ func defaultStringSlice(dst *[]string, def []string, requireNonEmpty bool) {
 func defaultCommandMap(dst *map[string][]core.CommandCheckConfig, def map[string][]core.CommandCheckConfig) {
 	if *dst == nil && len(def) > 0 {
 		*dst = cloneCommandCheckMap(def)
+	}
+}
+
+func defaultSingleCommandMap(dst *map[string]core.CommandCheckConfig, def map[string]core.CommandCheckConfig) {
+	if *dst == nil && len(def) > 0 {
+		cloned := make(map[string]core.CommandCheckConfig, len(def))
+		for key, value := range def {
+			cloned[key] = value
+		}
+		*dst = cloned
 	}
 }

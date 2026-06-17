@@ -35,8 +35,10 @@ func exampleAISemanticConfig() core.AISemanticConfig {
 	return core.AISemanticConfig{
 		Enabled:                 boolPtr(true),
 		FunctionContract:        boolPtr(true),
+		ContractDrift:           boolPtr(true),
 		MisleadingErrorMessages: boolPtr(true),
 		TestBehaviorCoverage:    boolPtr(true),
+		TestAdequacy:            boolPtr(true),
 	}
 }
 

@@ -64,6 +64,10 @@ func defaultRuleLanguageCoverage(ruleID string, executionModel RuleExecutionMode
 	case
 		"security.hardcoded-secret",
 		"security.private-key",
+		"supply_chain.unpinned-dependency",
+		"supply_chain.missing-lockfile",
+		"supply_chain.lockfile-drift",
+		"supply_chain.denied-license",
 		"prompts.secret-interpolation",
 		"prompts.unsafe-instructions",
 		"prompts.agent-dangerous-instructions",

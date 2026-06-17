@@ -53,8 +53,10 @@ func semanticEnabled(env support.Context) bool {
 func semanticCheckSelection(cfg core.AISemanticConfig) semantic.CheckSelection {
 	return semantic.CheckSelection{
 		FunctionContract:        cfg.FunctionContract == nil || *cfg.FunctionContract,
+		ContractDrift:           cfg.ContractDrift == nil || *cfg.ContractDrift,
 		MisleadingErrorMessages: cfg.MisleadingErrorMessages == nil || *cfg.MisleadingErrorMessages,
 		TestBehaviorCoverage:    cfg.TestBehaviorCoverage == nil || *cfg.TestBehaviorCoverage,
+		TestAdequacy:            cfg.TestAdequacy == nil || *cfg.TestAdequacy,
 	}
 }
 

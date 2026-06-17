@@ -6,7 +6,9 @@ type Artifact struct {
 	Language        string                   `json:"language,omitempty"`
 	Target          string                   `json:"target,omitempty"`
 	DependencyGraph *DependencyGraphArtifact `json:"dependency_graph,omitempty"`
+	SupplyChain     *SupplyChainArtifact     `json:"supply_chain,omitempty"`
 	SlopScore       *SlopScoreArtifact       `json:"slop_score,omitempty"`
+	ChangeRisk      *ChangeRiskArtifact      `json:"change_risk,omitempty"`
 	AIAnalysis      *AIAnalysisArtifact      `json:"ai_analysis,omitempty"`
 	AIFix           *AIFixArtifact           `json:"ai_fix,omitempty"`
 	ChangeImpact    *ChangeImpactArtifact    `json:"change_impact,omitempty"`
@@ -28,6 +30,42 @@ type DependencyGraphEdge struct {
 	To    string   `json:"to"`
 	Line  int      `json:"line,omitempty"`
 	Names []string `json:"names,omitempty"`
+}
+
+type SupplyChainArtifact struct {
+	Manifests []SupplyChainManifest `json:"manifests"`
+}
+
+type SupplyChainManifest struct {
+	Ecosystem      string                  `json:"ecosystem"`
+	Path           string                  `json:"path"`
+	Name           string                  `json:"name,omitempty"`
+	License        string                  `json:"license,omitempty"`
+	LicenseLine    int                     `json:"license_line,omitempty"`
+	PackageManager string                  `json:"package_manager,omitempty"`
+	Lockfiles      []string                `json:"lockfiles,omitempty"`
+	Dependencies   []SupplyChainDependency `json:"dependencies,omitempty"`
+}
+
+type SupplyChainDependency struct {
+	Name              string                        `json:"name"`
+	Requirement       string                        `json:"requirement,omitempty"`
+	Version           string                        `json:"version,omitempty"`
+	Scope             string                        `json:"scope,omitempty"`
+	Groups            []string                      `json:"groups,omitempty"`
+	Indirect          bool                          `json:"indirect,omitempty"`
+	Pinned            bool                          `json:"pinned,omitempty"`
+	Line              int                           `json:"line,omitempty"`
+	License           string                        `json:"license,omitempty"`
+	LicenseSource     string                        `json:"license_source,omitempty"`
+	LicenseCandidates []SupplyChainLicenseCandidate `json:"license_candidates,omitempty"`
+}
+
+type SupplyChainLicenseCandidate struct {
+	License    string `json:"license"`
+	Confidence string `json:"confidence,omitempty"`
+	Provenance string `json:"provenance,omitempty"`
+	Source     string `json:"source,omitempty"`
 }
 
 const ReportArtifactKindChangeImpact = "change-impact"

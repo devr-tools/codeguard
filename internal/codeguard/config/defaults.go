@@ -59,6 +59,7 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	applyPromptDefaults(&cfg.Checks.PromptRules, def.Checks.PromptRules)
 	applyCIDefaults(&cfg.Checks.CIRules, def.Checks.CIRules)
 	applySecurityDefaults(&cfg.Checks.SecurityRules, def.Checks.SecurityRules)
+	applySupplyChainDefaults(&cfg.Checks.SupplyChainRules, def.Checks.SupplyChainRules)
 	applyContractDefaults(&cfg.Checks.ContractRules, def.Checks.ContractRules)
 	applyAIDefaults(&cfg.AI, def.AI)
 

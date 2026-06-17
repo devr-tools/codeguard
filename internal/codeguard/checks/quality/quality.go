@@ -22,6 +22,7 @@ func qualityTargetFindings(ctx context.Context, env support.Context, target core
 	findings = append(findings, commandFindings(ctx, env, target)...)
 	findings = append(findings, coverageDeltaFindings(ctx, env, target)...)
 	maybePutAISlopArtifact(env, target, findings)
+	findings = append(findings, changeRiskFindings(env, target, findings)...)
 	return findings
 }
 

@@ -7,6 +7,7 @@ Built-in checks live under `internal/codeguard/checks/` and are split by policy 
 - `security/`
 - `prompts/`
 - `ci/`
+- `supplychain/`
 
 `support/` contains the shared adapter surface each check package uses to talk to the runner without duplicating scan orchestration.
 

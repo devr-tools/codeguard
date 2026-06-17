@@ -9,6 +9,7 @@ import (
 	promptsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/prompts"
 	qualityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/quality"
 	securityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/security"
+	supplyChainCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/supplychain"
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	customrunner "github.com/devr-tools/codeguard/internal/codeguard/runner/custom"
@@ -17,7 +18,7 @@ import (
 )
 
 func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
-	sections := make([]core.SectionResult, 0, 6)
+	sections := make([]core.SectionResult, 0, 7)
 	checkEnv := buildCheckContext(sc)
 	if sc.Cfg.Checks.Quality {
 		sections = append(sections, qualityCheck.Run(ctx, checkEnv))
@@ -33,6 +34,9 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 	}
 	if sc.Cfg.Checks.CI {
 		sections = append(sections, ciCheck.Run(ctx, checkEnv))
+	}
+	if sc.Cfg.Checks.SupplyChain {
+		sections = append(sections, supplyChainCheck.Run(ctx, checkEnv))
 	}
 	if contractsEnabled(sc) {
 		sections = append(sections, contractsCheck.Run(ctx, checkEnv))
@@ -114,6 +118,9 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		},
 		RunCommandCheck: func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error) {
 			return runnersupport.RunCommandCheck(ctx, dir, check)
+		},
+		RunCommandCheckWithEnv: func(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error) {
+			return runnersupport.RunCommandCheckWithEnv(ctx, dir, check, env)
 		},
 		RunDiffCommandCheck: func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error) {
 			return runnersupport.RunDiffCommandCheckWithContext(ctx, sc, dir, baseRef, check)

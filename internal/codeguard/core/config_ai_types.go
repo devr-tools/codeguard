@@ -32,8 +32,10 @@ type AIHybridTriageConfig struct {
 type AISemanticConfig struct {
 	Enabled                 *bool `json:"enabled,omitempty"`
 	FunctionContract        *bool `json:"function_contract,omitempty"`
+	ContractDrift           *bool `json:"contract_drift,omitempty"`
 	MisleadingErrorMessages *bool `json:"misleading_error_messages,omitempty"`
 	TestBehaviorCoverage    *bool `json:"test_behavior_coverage,omitempty"`
+	TestAdequacy            *bool `json:"test_adequacy,omitempty"`
 }
 
 type AIAutoFixConfig struct {

@@ -16,6 +16,7 @@ type QualityRulesConfig struct {
 	DetectSyncIOInHandlers     *bool               `json:"detect_sync_io_in_handlers,omitempty"`
 	DetectUnboundedConcurrency *bool               `json:"detect_unbounded_concurrency,omitempty"`
 	AIProvenance               AIProvenanceConfig  `json:"ai_provenance,omitempty"`
+	AIChangeRisk               AIChangeRiskConfig  `json:"ai_change_risk,omitempty"`
 	AIChecks                   AIChecksConfig      `json:"ai_checks,omitempty"`
 	CoverageDelta              CoverageDeltaConfig `json:"coverage_delta,omitempty"`
 }
@@ -37,6 +38,12 @@ type AIProvenanceConfig struct {
 	CommitTrailers         []string `json:"commit_trailers,omitempty"`
 	SlopScoreWarnThreshold int      `json:"slop_score_warn_threshold,omitempty"`
 	SlopScoreFailThreshold int      `json:"slop_score_fail_threshold,omitempty"`
+}
+
+type AIChangeRiskConfig struct {
+	Enabled       *bool `json:"enabled,omitempty"`
+	WarnThreshold int   `json:"warn_threshold,omitempty"`
+	FailThreshold int   `json:"fail_threshold,omitempty"`
 }
 
 type DesignRulesConfig struct {
@@ -86,6 +93,15 @@ type SecurityRulesConfig struct {
 	TaintPython             *bool                           `json:"taint_python,omitempty"`
 	TypeScriptTaintMaxDepth int                             `json:"typescript_taint_max_depth,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty"`
+}
+
+type SupplyChainRulesConfig struct {
+	RequireLockfile     *bool                         `json:"require_lockfile,omitempty"`
+	DetectLockfileDrift *bool                         `json:"detect_lockfile_drift,omitempty"`
+	DetectUnpinned      *bool                         `json:"detect_unpinned,omitempty"`
+	AllowedLicenses     []string                      `json:"allowed_licenses,omitempty"`
+	DeniedLicenses      []string                      `json:"denied_licenses,omitempty"`
+	LicenseCommands     map[string]CommandCheckConfig `json:"license_commands,omitempty"`
 }
 
 type CommandCheckConfig struct {

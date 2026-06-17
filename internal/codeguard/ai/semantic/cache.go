@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	requestVersion = 1
+	requestVersion = 6
 	cacheVersion   = 1
 )
 
@@ -48,30 +48,7 @@ func (cache *verdictCache) save() error {
 }
 
 func requestHash(req Request) string {
-	payload := struct {
-		Version      int            `json:"version"`
-		Runtime      string         `json:"runtime"`
-		TargetName   string         `json:"target_name"`
-		Language     string         `json:"language"`
-		BaseRef      string         `json:"base_ref,omitempty"`
-		Diff         string         `json:"diff,omitempty"`
-		ChangedFiles []string       `json:"changed_files,omitempty"`
-		Checks       []CheckSpec    `json:"checks"`
-		SourceFiles  []FileSnapshot `json:"source_files,omitempty"`
-		TestFiles    []FileSnapshot `json:"test_files,omitempty"`
-	}{
-		Version:      req.Version,
-		Runtime:      req.Runtime,
-		TargetName:   req.TargetName,
-		Language:     req.Language,
-		BaseRef:      req.BaseRef,
-		Diff:         req.Diff,
-		ChangedFiles: req.ChangedFiles,
-		Checks:       req.Checks,
-		SourceFiles:  req.SourceFiles,
-		TestFiles:    req.TestFiles,
-	}
-	data, err := json.Marshal(payload)
+	data, err := json.Marshal(req.hashPayload())
 	if err != nil {
 		return ""
 	}

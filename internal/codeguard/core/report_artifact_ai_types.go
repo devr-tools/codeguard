@@ -10,6 +10,23 @@ type SlopScoreArtifact struct {
 	Delta         *int                 `json:"delta,omitempty"`
 }
 
+type ChangeRiskArtifact struct {
+	Score                int                   `json:"score"`
+	Level                string                `json:"level,omitempty"`
+	ProvenanceActive     bool                  `json:"provenance_active,omitempty"`
+	ChangedFiles         int                   `json:"changed_files,omitempty"`
+	HighImpactChange     bool                  `json:"high_impact_change,omitempty"`
+	AIFindingCount       int                   `json:"ai_finding_count,omitempty"`
+	SemanticFindingCount int                   `json:"semantic_finding_count,omitempty"`
+	Components           []ChangeRiskComponent `json:"components,omitempty"`
+}
+
+type ChangeRiskComponent struct {
+	Label        string `json:"label"`
+	Contribution int    `json:"contribution"`
+	Detail       string `json:"detail,omitempty"`
+}
+
 // SlopHistoryEntry is one persisted slop-score observation for a target,
 // recorded once per scan so trends can be reported over time.
 type SlopHistoryEntry struct {

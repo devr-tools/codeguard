@@ -134,3 +134,36 @@ func doThing() error { return nil }
 
 	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.provenance-policy")
 }
+
+func TestQualityCheckPublishesChangeRiskForAIHeavyChange(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "service.go"), `package sample
+
+// Initialize the client.
+func buildClient() error {
+	err := doThing()
+	_ = err
+	return nil
+}
+
+func doThing() error { return nil }
+`)
+	t.Setenv("CODEGUARD_AI_ASSISTED", "true")
+
+	report, err := codeguard.Run(context.Background(), qualityAITestConfig(dir, "quality-ai-change-risk"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.change-risk")
+	for _, artifact := range report.Artifacts {
+		if artifact.Kind != "change_risk" || artifact.ChangeRisk == nil {
+			continue
+		}
+		if artifact.ChangeRisk.Score <= 0 {
+			t.Fatalf("unexpected change risk artifact %#v", artifact.ChangeRisk)
+		}
+		return
+	}
+	t.Fatalf("expected change_risk artifact, got %#v", report.Artifacts)
+}
