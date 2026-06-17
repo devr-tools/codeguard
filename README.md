@@ -114,6 +114,7 @@ func main() {
 ## Docs
 
 - [Getting started](/Users/alex/Documents/GitHub/codeguard/docs/getting-started.md:1)
+- [Features](/Users/alex/Documents/GitHub/codeguard/docs/features.md:1)
 - [AI-generated code quality](/Users/alex/Documents/GitHub/codeguard/docs/ai-quality.md:1)
 - [Agent-native features](/Users/alex/Documents/GitHub/codeguard/docs/agent-native.md:1)
 - [Integrations](/Users/alex/Documents/GitHub/codeguard/docs/integrations.md:1)
@@ -123,3 +124,4 @@ func main() {
 - [Homebrew packaging](/Users/alex/Documents/GitHub/codeguard/docs/homebrew.md:1)
 - [Checks reference](/Users/alex/Documents/GitHub/codeguard/docs/checks.md:1)
 - [Architecture](/Users/alex/Documents/GitHub/codeguard/docs/architecture.md:1)
+- [Competitive roadmap](/Users/alex/Documents/GitHub/codeguard/docs/competitive-roadmap.md:1)

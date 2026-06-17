@@ -24,17 +24,27 @@ func exampleTargets() []core.TargetConfig {
 
 func exampleChecks() core.CheckConfig {
 	return core.CheckConfig{
-		Quality:       true,
-		Design:        true,
-		Security:      true,
-		Prompts:       true,
-		CI:            true,
-		QualityRules:  exampleQualityRules(),
-		DesignRules:   exampleDesignRules(),
-		PromptRules:   examplePromptRules(),
-		CIRules:       exampleCIRules(),
-		SecurityRules: exampleSecurityRules(),
-		ContractRules: exampleContractRules(),
+		Quality:          true,
+		Design:           true,
+		Security:         true,
+		Prompts:          true,
+		CI:               true,
+		SupplyChain:      false,
+		QualityRules:     exampleQualityRules(),
+		DesignRules:      exampleDesignRules(),
+		PromptRules:      examplePromptRules(),
+		CIRules:          exampleCIRules(),
+		SecurityRules:    exampleSecurityRules(),
+		SupplyChainRules: exampleSupplyChainRules(),
+		ContractRules:    exampleContractRules(),
+	}
+}
+
+func exampleSupplyChainRules() core.SupplyChainRulesConfig {
+	return core.SupplyChainRulesConfig{
+		RequireLockfile:     boolPtr(true),
+		DetectLockfileDrift: boolPtr(true),
+		DetectUnpinned:      boolPtr(true),
 	}
 }
 

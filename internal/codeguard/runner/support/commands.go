@@ -15,6 +15,10 @@ func RunCommandCheck(ctx context.Context, dir string, check core.CommandCheckCon
 	return runCommandCheck(ctx, dir, check, nil)
 }
 
+func RunCommandCheckWithEnv(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error) {
+	return runCommandCheck(ctx, dir, check, env)
+}
+
 func RunDiffCommandCheck(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error) {
 	diffEnv, cleanup, err := prepareDiffCommandEnv(dir, baseRef)
 	if err != nil {

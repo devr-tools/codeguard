@@ -24,6 +24,7 @@ The public SDK stays stable for consumers at `github.com/devr-tools/codeguard/pk
 - `internal/codeguard/checks/security/` holds heuristic and vulnerability checks
 - `internal/codeguard/checks/prompts/` holds prompt-safety checks
 - `internal/codeguard/checks/ci/` holds repository and workflow policy checks
+- `internal/codeguard/checks/supplychain/` holds dependency-policy and SBOM-oriented checks
 - `internal/codeguard/checks/support/` holds the shared adapter surface used by the check packages
 
 This split keeps a single implementation path while leaving room to add language-specific rules under each category as the scanner expands beyond Go.

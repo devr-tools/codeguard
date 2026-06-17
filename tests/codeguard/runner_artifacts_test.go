@@ -93,6 +93,7 @@ func doThing() error { return nil }
 		t.Fatalf("Run returned error: %v", err)
 	}
 	assertSlopScoreArtifact(t, report, root)
+	assertChangeRiskArtifact(t, report, root)
 }
 
 func writeArtifactFile(t *testing.T, path string, content string) {
@@ -165,4 +166,24 @@ func assertSlopScoreArtifact(t *testing.T, report codeguard.Report, root string)
 		return
 	}
 	t.Fatalf("expected slop_score artifact, got %#v", report.Artifacts)
+}
+
+func assertChangeRiskArtifact(t *testing.T, report codeguard.Report, root string) {
+	t.Helper()
+	for _, artifact := range report.Artifacts {
+		if artifact.Kind != "change_risk" {
+			continue
+		}
+		if artifact.Target != root {
+			t.Fatalf("unexpected change-risk artifact target %q", artifact.Target)
+		}
+		if artifact.ChangeRisk == nil {
+			t.Fatal("expected change risk payload")
+		}
+		if artifact.ChangeRisk.Score <= 0 {
+			t.Fatalf("unexpected change risk payload %#v", artifact.ChangeRisk)
+		}
+		return
+	}
+	t.Fatalf("expected change_risk artifact, got %#v", report.Artifacts)
 }

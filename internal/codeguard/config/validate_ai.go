@@ -31,6 +31,19 @@ func validateAIProvenance(cfg core.AIProvenanceConfig) error {
 	return nil
 }
 
+func validateAIChangeRisk(cfg core.AIChangeRiskConfig) error {
+	if cfg.WarnThreshold < 0 {
+		return errors.New("quality_rules.ai_change_risk.warn_threshold must be non-negative")
+	}
+	if cfg.FailThreshold < 0 {
+		return errors.New("quality_rules.ai_change_risk.fail_threshold must be non-negative")
+	}
+	if cfg.FailThreshold > 0 && cfg.WarnThreshold > 0 && cfg.FailThreshold < cfg.WarnThreshold {
+		return errors.New("quality_rules.ai_change_risk.fail_threshold must be greater than or equal to warn_threshold")
+	}
+	return nil
+}
+
 func validateAIChecks(cfg core.AIChecksConfig) error {
 	if cfg.SlopHistoryLimit < 0 {
 		return errors.New("quality_rules.ai_checks.slop_history_limit must be non-negative")

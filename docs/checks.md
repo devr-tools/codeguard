@@ -11,12 +11,77 @@ This file documents the current check categories in `codeguard` and the config k
     "design": true,
     "security": true,
     "prompts": true,
-    "ci": true
+    "ci": true,
+    "supply_chain": false
   }
 }
 ```
 
 Each top-level boolean enables or disables an entire check family.
+
+`supply_chain` is opt-in and currently covers normalized manifest parsing plus initial policy checks for missing lockfiles, content-based lockfile drift validation, unpinned dependencies, and dependency license policy resolved from local manifest and installed metadata where available.
+
+For ecosystems where local metadata is not present, `supply_chain_rules.license_commands` can provide an opt-in per-ecosystem command that prints JSON license mappings for unresolved dependencies.
+
+Each license command receives structured context through environment variables:
+- `CODEGUARD_SUPPLY_CHAIN_ECOSYSTEM`
+- `CODEGUARD_SUPPLY_CHAIN_MANIFEST_PATH`
+- `CODEGUARD_SUPPLY_CHAIN_TARGET_NAME`
+- `CODEGUARD_SUPPLY_CHAIN_TARGET_PATH`
+- `CODEGUARD_SUPPLY_CHAIN_UNRESOLVED_NAMES`
+- `CODEGUARD_SUPPLY_CHAIN_UNRESOLVED_COORDINATES`
+- `CODEGUARD_SUPPLY_CHAIN_CONTEXT_FILE`
+
+`CODEGUARD_SUPPLY_CHAIN_CONTEXT_FILE` points to a JSON payload containing the ecosystem, manifest path, target metadata, and unresolved dependency entries with:
+- `coordinate`
+- `name`
+- `requirement`
+- `version`
+- `scope`
+- `groups`
+- `indirect`
+- `pinned`
+- `line`
+
+License commands may return either `name`-keyed results for backward compatibility or `coordinate`-keyed results such as `left-pad@1.3.0` to disambiguate multiple versions of the same dependency.
+
+Supported result shapes:
+
+```json
+[
+  {
+    "coordinate": "left-pad@1.3.0",
+    "license": "MIT",
+    "source": "license-command"
+  }
+]
+```
+
+Or a richer candidate form:
+
+```json
+[
+  {
+    "coordinate": "left-pad@1.3.0",
+    "candidates": [
+      {
+        "license": "MIT",
+        "confidence": "high",
+        "provenance": "spdx-expression",
+        "source": "license-command"
+      },
+      {
+        "license": "GPL-3.0",
+        "confidence": "low",
+        "provenance": "heuristic-text-match",
+        "source": "license-command"
+      }
+    ]
+  }
+]
+```
+
+When multiple candidates are returned, CodeGuard prefers stronger evidence such as explicit SPDX provenance or high-confidence results. Heuristic-only matches still inform policy, but they are surfaced as weaker evidence rather than treated the same as definitive metadata.
 
 ## Exclusions
 
@@ -187,7 +252,13 @@ Current behavior:
 - includes an AI-failure-mode pack for swallowed errors, narrative comments, hallucinated imports, plausible dead code, over-mocked tests, and codebase-idiom drift in Go, TypeScript, and JavaScript targets
 - publishes a `slop_score` artifact in the report when AI-failure-mode signals are present so CI systems can trend the metric over time
 - can apply a provenance-aware policy for AI-assisted changes through `quality_rules.ai_provenance` using environment hints or commit trailers
-- can optionally run command-backed semantic review for changed files from diff/patch input, or from a git diff against the scan base ref during full scans, when a semantic runtime is enabled and `CODEGUARD_SEMANTIC_COMMAND` is set
+- can publish a `change_risk` artifact and emit `quality.ai.change-risk` when AI-style and review-risk signals accumulate past configured thresholds
+- can optionally run command-backed semantic review for changed files from diff/patch input, or from a git diff against the scan base ref during full scans, when a semantic runtime is enabled and a semantic command is configured either through `ai.provider.type=command` plus `ai.provider.command`/`args`, or through `CODEGUARD_SEMANTIC_COMMAND`
+- if semantic review is enabled but no semantic command is configured, or the command crashes or returns invalid JSON, the scan emits `quality.ai.semantic-runtime` at `fail` level instead of silently skipping semantic coverage
+- semantic review can also emit `quality.ai.contract-drift` when a changed function appears to silently drift from its prior behavior or nearby contract signals
+- semantic review can also emit `quality.ai.semantic-test-adequacy` when nearby tests appear too weak, too happy-path, or otherwise inadequate for the changed behavior
+- semantic review request payloads now include lightweight framework metadata plus contract hints for changed Express handlers and middleware, React components, and Next.js route/component files so external semantic runtimes can reason with handler-aware and component-aware context
+- semantic review request payloads also include a structured `prompt` template with per-rule focus and framework-specific reasoning guidance, so command-backed runtimes do not have to invent their own contract-drift or test-adequacy instructions from scratch
 - TypeScript and JavaScript quality built-ins use AST-derived function metrics and compiler-parsed syntax when the semantic runtime is available
 - includes native maintainability heuristics for Python, TypeScript, JavaScript, Rust, Java, C#, and Ruby targets
 - TypeScript and JavaScript targets also warn on `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, explicit `any`, double assertions, non-null assertions, and committed `debugger` statements
@@ -206,6 +277,23 @@ AI provenance example:
         "commit_trailers": ["AI-Assisted", "AI-Generated"],
         "slop_score_warn_threshold": 20,
         "slop_score_fail_threshold": 40
+      }
+    }
+  }
+}
+```
+
+AI change-risk example:
+
+```json
+{
+  "checks": {
+    "quality": true,
+    "quality_rules": {
+      "ai_change_risk": {
+        "enabled": true,
+        "warn_threshold": 30,
+        "fail_threshold": 60
       }
     }
   }

@@ -2,6 +2,7 @@ package quality
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/ai/semantic"
@@ -13,13 +14,17 @@ func semanticFindings(ctx context.Context, env support.Context, target core.Targ
 	if !semanticEligible(env) {
 		return nil
 	}
+	command := semanticCommand(env.Config.AI)
+	if strings.TrimSpace(command) == "" {
+		return []core.Finding{semanticRuntimeFinding(env, target, "semantic review is enabled but no semantic command is configured")}
+	}
 	findings, err := semantic.Analyze(ctx, semantic.Options{
 		Target:         target,
 		Language:       support.NormalizedLanguage(target.Language),
 		BaseRef:        env.BaseRef,
 		DiffText:       env.DiffText,
 		CachePath:      semanticCachePath(env.Config.Cache),
-		Command:        semanticCommand(env.Config.AI),
+		Command:        command,
 		Enabled:        semanticEnabled(env),
 		CheckSelection: semanticCheckSelection(env.Config.AI.Semantic),
 		NewFinding: func(ruleID string, level string, path string, line int, message string) core.Finding {
@@ -34,9 +39,20 @@ func semanticFindings(ctx context.Context, env support.Context, target core.Targ
 		},
 	})
 	if err != nil {
-		return nil
+		return []core.Finding{semanticRuntimeFinding(env, target, fmt.Sprintf("semantic review command failed for target %q: %v", target.Name, err))}
 	}
 	return findings
+}
+
+func semanticRuntimeFinding(env support.Context, target core.TargetConfig, message string) core.Finding {
+	return env.NewFinding(support.FindingInput{
+		RuleID:  "quality.ai.semantic-runtime",
+		Level:   "fail",
+		Path:    "",
+		Line:    0,
+		Column:  0,
+		Message: message,
+	})
 }
 
 func semanticEligible(env support.Context) bool {
@@ -53,8 +69,10 @@ func semanticEnabled(env support.Context) bool {
 func semanticCheckSelection(cfg core.AISemanticConfig) semantic.CheckSelection {
 	return semantic.CheckSelection{
 		FunctionContract:        cfg.FunctionContract == nil || *cfg.FunctionContract,
+		ContractDrift:           cfg.ContractDrift == nil || *cfg.ContractDrift,
 		MisleadingErrorMessages: cfg.MisleadingErrorMessages == nil || *cfg.MisleadingErrorMessages,
 		TestBehaviorCoverage:    cfg.TestBehaviorCoverage == nil || *cfg.TestBehaviorCoverage,
+		TestAdequacy:            cfg.TestAdequacy == nil || *cfg.TestAdequacy,
 	}
 }
 

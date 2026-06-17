@@ -16,16 +16,27 @@ This brief tracks the AI-generated-code quality features currently implemented i
   - `quality.ai.provenance-policy`
   - configurable through `checks.quality_rules.ai_provenance`
   - supports `CODEGUARD_AI_ASSISTED`-style environment hints and commit trailers such as `AI-Assisted: true`
+- Change-risk rollup
+  - `quality.ai.change-risk`
+  - `change_risk` report artifact
+  - configurable through `checks.quality_rules.ai_change_risk`
+  - aggregates slop-score signals, semantic findings, coverage gaps, diff breadth, and AI provenance into a review-priority score
 - Consistency-with-codebase checks
   - `quality.ai.local-idiom-drift`
   - currently compares test framework choices against the dominant local repository idiom for Go and TypeScript/JavaScript targets
 - Optional semantic review for AI-assisted diffs
   - `quality.ai.semantic-doc-mismatch`
+  - `quality.ai.contract-drift`
   - `quality.ai.semantic-error-message`
   - `quality.ai.semantic-test-coverage`
+  - `quality.ai.semantic-test-adequacy`
+  - `quality.ai.semantic-runtime`
+  - request enrichment now adds framework metadata and contract hints for changed Express handlers and middleware, React components, and Next.js route/component files, so semantic runtimes can reason about handlers, props, route segments, request/response semantics, and middleware ordering with better local context
   - runs for changed files from patch/diff input, or from a git diff against the scan base ref during full scans
   - requires the semantic runtime to be explicitly enabled either through `ai.enabled` / `--ai` with a command-backed provider, or through `CODEGUARD_SEMANTIC_CHECKS=1`
-  - shells out to the command in `CODEGUARD_SEMANTIC_COMMAND`, sends a bounded JSON payload on stdin, and expects JSON verdicts on stdout
+  - uses the command from `ai.provider.type=command` plus `ai.provider.command`/`args` when configured; otherwise it falls back to `CODEGUARD_SEMANTIC_COMMAND`
+  - sends a bounded JSON payload on stdin and expects JSON verdicts on stdout
+  - emits `quality.ai.semantic-runtime` at `fail` level when semantic review is enabled but no command is configured, or when the command crashes or returns invalid JSON
   - caches verdicts by request content hash in a sibling cache file next to the normal scan cache
 - Hybrid AI triage for static findings
   - optional provider-backed pass that tries to verify or dismiss existing findings conservatively
@@ -79,8 +90,50 @@ All HTTP providers (OpenAI-compatible and Anthropic, in triage and the shared ru
 - Semantic review is opt-in:
   - can be enabled through the normal AI runtime or through `CODEGUARD_SEMANTIC_CHECKS=1`
   - scopes itself to changed files from diff or patch input, or from a git diff against the configured base ref during full scans, plus a small set of nearby test files
-  - `ai.semantic.function_contract`, `ai.semantic.misleading_error_messages`, and `ai.semantic.test_behavior_coverage` control which semantic prompts are sent
+  - includes per-file `frameworks` metadata in the JSON request when changed source snapshots match known framework patterns
+  - includes a structured `prompt` template in the JSON request so command-backed semantic runtimes receive explicit review instructions, response requirements, per-rule focus areas, and framework-specific reasoning guidance
+  - each framework entry can now carry low-level `signals` plus higher-level `hints` that summarize likely contracts such as `middleware-next-chain`, `component-props-contract`, `client-component`, `route-segment-component`, and `route-handler-contract`
+  - the prompt template now teaches `quality.ai.contract-drift` and `quality.ai.semantic-test-adequacy` to explicitly reason about props contracts, route `params` or `searchParams`, request or response contract shifts, and Express middleware sequencing
+  - current framework coverage is still intentionally narrow but broader than the first slice: Express route and middleware modules, React component files, and Next.js route/component conventions (`app/**/route.*`, `pages/api/**`, `app/**/page.*`, `app/**/layout.*`, `app/**/loading.*`, `app/**/error.*`, and `next/server` request/response patterns)
+  - `ai.semantic.function_contract`, `ai.semantic.contract_drift`, `ai.semantic.misleading_error_messages`, `ai.semantic.test_behavior_coverage`, and `ai.semantic.test_adequacy` control which semantic prompts are sent
   - the external semantic command must read a JSON request from stdin and return `{"verdicts":[...]}` with `rule_id`, `path`, `line`, `level`, and `message`
+
+### Reference semantic runner
+
+The repo now ships a scaffold runner at `examples/semantic/reference_runner.py`.
+
+Example wiring:
+
+```bash
+export CODEGUARD_SEMANTIC_CHECKS=1
+export CODEGUARD_SEMANTIC_COMMAND="python3 examples/semantic/reference_runner.py"
+```
+
+What it does:
+- reads the semantic request JSON from stdin
+- renders the canonical prompt text from `prompt`, `frameworks`, `diff`, `source_files`, and `test_files`
+- prints that prompt to stderr when `CODEGUARD_SEMANTIC_REFERENCE_PRINT_PROMPT=1`
+- defaults to scaffold mode and returns `{"verdicts":[]}` so it is safe as a no-op
+
+Backend modes:
+
+- scaffold mode:
+  - `CODEGUARD_SEMANTIC_REFERENCE_MODE=scaffold`
+  - returns an empty `verdicts` array
+- local command mode:
+  - `CODEGUARD_SEMANTIC_REFERENCE_MODE=command`
+  - `CODEGUARD_SEMANTIC_REFERENCE_LOCAL_COMMAND="python3 my-semantic-backend.py"`
+  - sends `{"request":<original request>,"prompt_text":"..."}` to the backend command on stdin
+  - expects `{"verdicts":[...]}` on stdout
+- OpenAI-compatible mode:
+  - `CODEGUARD_SEMANTIC_REFERENCE_MODE=openai`
+  - `CODEGUARD_SEMANTIC_REFERENCE_OPENAI_BASE_URL=https://api.openai.com/v1`
+  - `CODEGUARD_SEMANTIC_REFERENCE_OPENAI_API_KEY=...`
+  - `CODEGUARD_SEMANTIC_REFERENCE_OPENAI_MODEL=gpt-5`
+  - posts the rendered prompt to `/chat/completions` and expects the model message content to be a JSON object with `verdicts`
+
+This is intended as the canonical starting point for custom semantic commands. The prompt assembly stays fixed in one place, and you can swap only the backend transport.
+
 - Verified auto-fix is fail-closed:
   - fix generation requires an explicit AI provider plus `-ai`
   - the proposed diff must apply cleanly, pass a diff-scoped `codeguard` rerun, and pass inferred or explicit verification tests

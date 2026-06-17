@@ -50,28 +50,24 @@ func TestYAMLConfigRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "codeguard.yaml")
 
-	cfg := codeguard.ExampleConfig()
-	cfg.Checks.QualityRules.LanguageCommands = map[string][]codeguard.CommandCheckConfig{
-		"typescript": {{
-			Name:    "tsc",
-			Command: "npx",
-			Args:    []string{"tsc", "--noEmit"},
-		}},
-	}
-	cfg.Checks.DesignRules.LanguageCommands = map[string][]codeguard.CommandCheckConfig{
-		"python": {{
-			Name:    "import-linter",
-			Command: "lint-imports",
-			Args:    []string{"--config", "importlinter.ini"},
-		}},
-	}
-	cfg.Checks.DesignRules.LanguageDiffCommands = map[string][]codeguard.CommandCheckConfig{
-		"go": {{
-			Name:    "api-diff",
-			Command: "./scripts/api-diff.sh",
-		}},
-	}
+	cfg := yamlRoundTripConfig()
 	if err := codeguard.WriteConfigFile(path, cfg); err != nil {
+		t.Fatalf("write yaml: %v", err)
+	}
+	assertYAMLSchemaMarkers(t, path)
+
+	loaded, err := codeguard.LoadConfigFile(path)
+	if err != nil {
+		t.Fatalf("load yaml: %v", err)
+	}
+	assertYAMLRoundTripConfig(t, loaded, cfg)
+}
+
+func TestLoadConfigFileAcceptsDocumentedSnakeCaseYAML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "codeguard.yaml")
+	config := snakeCaseYAMLFixture()
+	if err := os.WriteFile(path, []byte(config), 0o644); err != nil {
 		t.Fatalf("write yaml: %v", err)
 	}
 
@@ -79,18 +75,7 @@ func TestYAMLConfigRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load yaml: %v", err)
 	}
-	if loaded.Name != cfg.Name {
-		t.Fatalf("loaded name = %q, want %q", loaded.Name, cfg.Name)
-	}
-	if got := loaded.Checks.QualityRules.LanguageCommands["typescript"][0].Command; got != "npx" {
-		t.Fatalf("loaded command = %q, want %q", got, "npx")
-	}
-	if got := loaded.Checks.DesignRules.LanguageCommands["python"][0].Command; got != "lint-imports" {
-		t.Fatalf("loaded design command = %q, want %q", got, "lint-imports")
-	}
-	if got := loaded.Checks.DesignRules.LanguageDiffCommands["go"][0].Name; got != "api-diff" {
-		t.Fatalf("loaded diff command = %q, want %q", got, "api-diff")
-	}
+	assertSnakeCaseYAMLLoaded(t, loaded)
 }
 
 func TestLoadConfigFileResolvesTargetPathsRelativeToConfig(t *testing.T) {

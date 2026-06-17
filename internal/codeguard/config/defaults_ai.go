@@ -56,11 +56,17 @@ func applyAISemanticDefaults(dst *core.AISemanticConfig, def core.AISemanticConf
 	if dst.FunctionContract == nil {
 		dst.FunctionContract = boolPtr(true)
 	}
+	if dst.ContractDrift == nil {
+		dst.ContractDrift = boolPtr(true)
+	}
 	if dst.MisleadingErrorMessages == nil {
 		dst.MisleadingErrorMessages = boolPtr(true)
 	}
 	if dst.TestBehaviorCoverage == nil {
 		dst.TestBehaviorCoverage = boolPtr(true)
+	}
+	if dst.TestAdequacy == nil {
+		dst.TestAdequacy = boolPtr(true)
 	}
 }
 

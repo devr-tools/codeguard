@@ -16,6 +16,7 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	)
 	defaultBoolPtr(&dst.DetectPreallocInLoop, false)
 	defaultCommandMap(&dst.LanguageCommands, def.LanguageCommands)
+	applyAIChangeRiskDefaults(&dst.AIChangeRisk, def.AIChangeRisk)
 	applyCoverageDeltaDefaults(&dst.CoverageDelta)
 }
 
@@ -95,4 +96,23 @@ func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRules
 	if dst.LanguageCommands == nil && len(def.LanguageCommands) > 0 {
 		dst.LanguageCommands = cloneCommandCheckMap(def.LanguageCommands)
 	}
+}
+
+func applyAIChangeRiskDefaults(dst *core.AIChangeRiskConfig, def core.AIChangeRiskConfig) {
+	defaultBoolPtr(&dst.Enabled, valueOrDefault(def.Enabled, true))
+	if dst.WarnThreshold == 0 {
+		dst.WarnThreshold = def.WarnThreshold
+	}
+	if dst.FailThreshold == 0 {
+		dst.FailThreshold = def.FailThreshold
+	}
+}
+
+func applySupplyChainDefaults(dst *core.SupplyChainRulesConfig, def core.SupplyChainRulesConfig) {
+	defaultBoolPtr(&dst.RequireLockfile, valueOrDefault(def.RequireLockfile, true))
+	defaultBoolPtr(&dst.DetectLockfileDrift, valueOrDefault(def.DetectLockfileDrift, true))
+	defaultBoolPtr(&dst.DetectUnpinned, valueOrDefault(def.DetectUnpinned, true))
+	defaultStringSlice(&dst.AllowedLicenses, def.AllowedLicenses, false)
+	defaultStringSlice(&dst.DeniedLicenses, def.DeniedLicenses, false)
+	defaultSingleCommandMap(&dst.LicenseCommands, def.LicenseCommands)
 }

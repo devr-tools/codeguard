@@ -26,6 +26,35 @@ func TestValidateConfigRejectsBlankTargetPath(t *testing.T) {
 	}
 }
 
+func TestValidateConfigRejectsOverlappingSupplyChainLicensePolicy(t *testing.T) {
+	cfg := codeguard.ExampleConfig()
+	cfg.Checks.SupplyChainRules.AllowedLicenses = []string{"MIT"}
+	cfg.Checks.SupplyChainRules.DeniedLicenses = []string{"mit"}
+
+	err := codeguard.ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if !strings.Contains(err.Error(), "allowed_licenses and denied_licenses must not overlap") {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+}
+
+func TestValidateConfigRejectsSupplyChainLicenseCommandWithoutName(t *testing.T) {
+	cfg := codeguard.ExampleConfig()
+	cfg.Checks.SupplyChainRules.LicenseCommands = map[string]codeguard.CommandCheckConfig{
+		"npm": {Command: "./resolve-licenses.sh"},
+	}
+
+	err := codeguard.ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if !strings.Contains(err.Error(), "supply_chain_rules.license_commands[npm].name is required") {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+}
+
 func TestWriteReportTextIncludesSummary(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 

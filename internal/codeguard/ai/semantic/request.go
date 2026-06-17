@@ -9,8 +9,10 @@ import (
 
 var supportedRuleIDs = map[string]struct{}{
 	"quality.ai.semantic-doc-mismatch":  {},
+	"quality.ai.contract-drift":         {},
 	"quality.ai.semantic-error-message": {},
 	"quality.ai.semantic-test-coverage": {},
+	"quality.ai.semantic-test-adequacy": {},
 }
 
 func buildRequest(opts Options) (Request, bool) {
@@ -30,6 +32,8 @@ func buildRequest(opts Options) (Request, bool) {
 	if len(sourceFiles) == 0 {
 		return Request{}, false
 	}
+	frameworks := detectFrameworks(sourceFiles)
+	prompt := buildPromptTemplate(checks, frameworks)
 	return Request{
 		Version:      requestVersion,
 		Runtime:      "codeguard-semantic-v1",
@@ -42,16 +46,25 @@ func buildRequest(opts Options) (Request, bool) {
 		Checks:       checks,
 		SourceFiles:  sourceFiles,
 		TestFiles:    testFiles,
+		Frameworks:   frameworks,
+		Prompt:       prompt,
 	}, true
 }
 
 func semanticCheckSpecs(selection CheckSelection) []CheckSpec {
-	checks := make([]CheckSpec, 0, 3)
+	checks := make([]CheckSpec, 0, 5)
 	if selection.FunctionContract {
 		checks = append(checks, CheckSpec{
 			RuleID:      "quality.ai.semantic-doc-mismatch",
 			Title:       "Function and documentation mismatch",
 			Description: "Flag changed functions whose names or adjacent docs describe behavior that the implementation does not appear to perform.",
+		})
+	}
+	if selection.ContractDrift {
+		checks = append(checks, CheckSpec{
+			RuleID:      "quality.ai.contract-drift",
+			Title:       "Silent contract drift",
+			Description: "Flag changed functions whose observable behavior, nearby documentation, error semantics, or test assumptions appear to drift from the existing contract without an explicit caller-facing update.",
 		})
 	}
 	if selection.MisleadingErrorMessages {
@@ -66,6 +79,13 @@ func semanticCheckSpecs(selection CheckSelection) []CheckSpec {
 			RuleID:      "quality.ai.semantic-test-coverage",
 			Title:       "Behavior not exercised by tests",
 			Description: "Flag changed production behavior when nearby changed or local tests do not appear to exercise the new branch, output, or failure mode.",
+		})
+	}
+	if selection.TestAdequacy {
+		checks = append(checks, CheckSpec{
+			RuleID:      "quality.ai.semantic-test-adequacy",
+			Title:       "Tests appear inadequate for changed behavior",
+			Description: "Flag changed production behavior when nearby tests look weak or mismatched, including low-value assertions, over-mocking, happy-path-only coverage, missing negative-path checks, missing boundary checks, or risky changes without a matching test update.",
 		})
 	}
 	return checks

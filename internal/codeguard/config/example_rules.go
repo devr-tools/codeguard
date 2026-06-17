@@ -17,6 +17,11 @@ func exampleQualityRules() core.QualityRulesConfig {
 			SlopScoreWarnThreshold: 20,
 			SlopScoreFailThreshold: 40,
 		},
+		AIChangeRisk: core.AIChangeRiskConfig{
+			Enabled:       boolPtr(true),
+			WarnThreshold: 30,
+			FailThreshold: 60,
+		},
 	}
 }
 

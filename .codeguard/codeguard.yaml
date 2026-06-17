@@ -24,6 +24,7 @@ checks:
   security: false
   prompts: false
   ci: true
+  supply_chain: true
   quality_rules:
     max_file_lines: 400
     max_function_lines: 80

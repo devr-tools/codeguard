@@ -1,6 +1,7 @@
 # CodeGuard Docs
 
 - [Getting started](getting-started.md)
+- [Features](features.md)
 - [AI-generated code quality](ai-quality.md)
 - [Agent-native features](agent-native.md)
 - [Integrations](integrations.md)
@@ -10,3 +11,4 @@
 - [Homebrew packaging](homebrew.md)
 - [Architecture](architecture.md)
 - [Checks](checks.md)
+- [Competitive roadmap](competitive-roadmap.md)
