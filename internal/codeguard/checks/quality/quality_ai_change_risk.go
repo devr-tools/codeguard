@@ -112,7 +112,7 @@ func summarizeChangeRiskInputs(findings []core.Finding) ([]string, int, bool) {
 		if _, ok := aiSlopRuleWeights[finding.RuleID]; ok {
 			aiRuleIDs = append(aiRuleIDs, finding.RuleID)
 		}
-		if strings.HasPrefix(finding.RuleID, "quality.ai.semantic-") {
+		if strings.HasPrefix(finding.RuleID, "quality.ai.semantic-") && finding.RuleID != "quality.ai.semantic-runtime" {
 			semanticCount++
 		}
 		if finding.RuleID == "quality.coverage-delta" {

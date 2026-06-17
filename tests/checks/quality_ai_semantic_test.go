@@ -3,6 +3,7 @@ package checks_test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/pkg/codeguard"
@@ -202,4 +203,83 @@ func TestQualitySemanticChecksUseVerdictCache(t *testing.T) {
 	}
 
 	assertFileEquals(t, counterPath, "1")
+}
+
+func TestQualitySemanticChecksEmitFindingWhenSemanticCommandFails(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "service.go"), "package sample\n\nfunc BuildUser() error {\n\treturn nil\n}\n")
+	diff := stringsJoin(
+		"diff --git a/service.go b/service.go",
+		"--- a/service.go",
+		"+++ b/service.go",
+		"@@ -1,5 +1,7 @@",
+		" package sample",
+		"+",
+		" ",
+		"+// BuildUser removes a user.",
+		" func BuildUser() error {",
+		" \treturn nil",
+		" }",
+	)
+	scriptPath := filepath.Join(dir, "semantic.sh")
+	writeExecutableFile(t, scriptPath, "#!/bin/sh\ncat >/dev/null\necho 'semantic backend exploded' >&2\nexit 2\n")
+
+	t.Setenv("CODEGUARD_SEMANTIC_CHECKS", "1")
+	t.Setenv("CODEGUARD_SEMANTIC_COMMAND", scriptPath)
+
+	report, err := codeguard.RunPatch(context.Background(), qualityAISemanticConfig(dir, "quality-ai-semantic-runtime-failure"), diff)
+	if err != nil {
+		t.Fatalf("run patch: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.semantic-runtime")
+	assertFindingLevel(t, report, "Code Quality", "quality.ai.semantic-runtime", "fail")
+	assertSemanticRuntimeMessageContains(t, report, "semantic backend exploded")
+}
+
+func TestQualitySemanticChecksEmitFindingWhenSemanticCommandIsMissing(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "service.go"), "package sample\n\nfunc BuildUser() error {\n\treturn nil\n}\n")
+	diff := stringsJoin(
+		"diff --git a/service.go b/service.go",
+		"--- a/service.go",
+		"+++ b/service.go",
+		"@@ -1,5 +1,7 @@",
+		" package sample",
+		"+",
+		" ",
+		"+// BuildUser removes a user.",
+		" func BuildUser() error {",
+		" \treturn nil",
+		" }",
+	)
+
+	t.Setenv("CODEGUARD_SEMANTIC_CHECKS", "1")
+
+	report, err := codeguard.RunPatch(context.Background(), qualityAISemanticConfig(dir, "quality-ai-semantic-runtime-missing"), diff)
+	if err != nil {
+		t.Fatalf("run patch: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.semantic-runtime")
+	assertFindingLevel(t, report, "Code Quality", "quality.ai.semantic-runtime", "fail")
+	assertSemanticRuntimeMessageContains(t, report, "no semantic command is configured")
+}
+
+func assertSemanticRuntimeMessageContains(t *testing.T, report codeguard.Report, want string) {
+	t.Helper()
+	for _, section := range report.Sections {
+		if section.Name != "Code Quality" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID == "quality.ai.semantic-runtime" {
+				if !strings.Contains(finding.Message, want) {
+					t.Fatalf("semantic runtime message = %q, want substring %q", finding.Message, want)
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("quality.ai.semantic-runtime finding not found")
 }

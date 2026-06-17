@@ -360,6 +360,21 @@ var qualityCatalog = map[string]core.RuleMetadata{
 		Description: "Warns when optional LLM-assisted semantic review finds that nearby tests for a changed behavior look weak, overly happy-path, or otherwise inadequate for the risk introduced by the change.",
 		HowToFix:    "Strengthen the nearby tests so they exercise the changed behavior with meaningful assertions, negative paths, and relevant edge cases instead of only shallow or mock-heavy checks.",
 	},
+	"quality.ai.semantic-runtime": {
+		ID:             "quality.ai.semantic-runtime",
+		Section:        "Code Quality",
+		DefaultLevel:   "fail",
+		ExecutionModel: core.RuleExecutionModelCommandDriven,
+		LanguageCoverage: core.FixedRuleLanguageCoverage(
+			core.RuleLanguageGo,
+			core.RuleLanguagePython,
+			core.RuleLanguageTypeScript,
+			core.RuleLanguageJavaScript,
+		),
+		Title:       "Semantic review runtime failure",
+		Description: "Fails when semantic review was enabled but the configured command was missing, crashed, or returned invalid output, so the scan would otherwise lose semantic coverage silently.",
+		HowToFix:    "Configure a valid semantic command, then fix any runtime or JSON response errors so semantic review can run deterministically.",
+	},
 	"quality.typescript.ts-ignore": {
 		ID:             "quality.typescript.ts-ignore",
 		Section:        "Code Quality",

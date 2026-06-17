@@ -253,7 +253,8 @@ Current behavior:
 - publishes a `slop_score` artifact in the report when AI-failure-mode signals are present so CI systems can trend the metric over time
 - can apply a provenance-aware policy for AI-assisted changes through `quality_rules.ai_provenance` using environment hints or commit trailers
 - can publish a `change_risk` artifact and emit `quality.ai.change-risk` when AI-style and review-risk signals accumulate past configured thresholds
-- can optionally run command-backed semantic review for changed files from diff/patch input, or from a git diff against the scan base ref during full scans, when a semantic runtime is enabled and `CODEGUARD_SEMANTIC_COMMAND` is set
+- can optionally run command-backed semantic review for changed files from diff/patch input, or from a git diff against the scan base ref during full scans, when a semantic runtime is enabled and a semantic command is configured either through `ai.provider.type=command` plus `ai.provider.command`/`args`, or through `CODEGUARD_SEMANTIC_COMMAND`
+- if semantic review is enabled but no semantic command is configured, or the command crashes or returns invalid JSON, the scan emits `quality.ai.semantic-runtime` at `fail` level instead of silently skipping semantic coverage
 - semantic review can also emit `quality.ai.contract-drift` when a changed function appears to silently drift from its prior behavior or nearby contract signals
 - semantic review can also emit `quality.ai.semantic-test-adequacy` when nearby tests appear too weak, too happy-path, or otherwise inadequate for the changed behavior
 - semantic review request payloads now include lightweight framework metadata plus contract hints for changed Express handlers and middleware, React components, and Next.js route/component files so external semantic runtimes can reason with handler-aware and component-aware context

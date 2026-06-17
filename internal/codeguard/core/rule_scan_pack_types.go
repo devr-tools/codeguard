@@ -16,29 +16,29 @@ type ScanOptions struct {
 }
 
 type RulePackConfig struct {
-	Name        string             `json:"name"`
-	Description string             `json:"description,omitempty"`
-	Rules       []CustomRuleConfig `json:"rules"`
+	Name        string             `json:"name" yaml:"name"`
+	Description string             `json:"description,omitempty" yaml:"description,omitempty"`
+	Rules       []CustomRuleConfig `json:"rules" yaml:"rules"`
 }
 
 type CustomRuleConfig struct {
-	ID              string   `json:"id"`
-	Section         string   `json:"section,omitempty"`
-	Severity        string   `json:"severity,omitempty"`
-	Title           string   `json:"title"`
-	Description     string   `json:"description,omitempty"`
-	Message         string   `json:"message"`
-	HowToFix        string   `json:"how_to_fix,omitempty"`
-	NaturalLanguage string   `json:"natural_language,omitempty"`
-	Paths           []string `json:"paths,omitempty"`
-	Exclude         []string `json:"exclude,omitempty"`
-	FileExtensions  []string `json:"file_extensions,omitempty"`
-	PathRegex       string   `json:"path_regex,omitempty"`
-	ContentRegex    string   `json:"content_regex,omitempty"`
-	AIPrompt        string   `json:"ai_prompt,omitempty"`
+	ID              string   `json:"id" yaml:"id"`
+	Section         string   `json:"section,omitempty" yaml:"section,omitempty"`
+	Severity        string   `json:"severity,omitempty" yaml:"severity,omitempty"`
+	Title           string   `json:"title" yaml:"title"`
+	Description     string   `json:"description,omitempty" yaml:"description,omitempty"`
+	Message         string   `json:"message" yaml:"message"`
+	HowToFix        string   `json:"how_to_fix,omitempty" yaml:"how_to_fix,omitempty"`
+	NaturalLanguage string   `json:"natural_language,omitempty" yaml:"natural_language,omitempty"`
+	Paths           []string `json:"paths,omitempty" yaml:"paths,omitempty"`
+	Exclude         []string `json:"exclude,omitempty" yaml:"exclude,omitempty"`
+	FileExtensions  []string `json:"file_extensions,omitempty" yaml:"file_extensions,omitempty"`
+	PathRegex       string   `json:"path_regex,omitempty" yaml:"path_regex,omitempty"`
+	ContentRegex    string   `json:"content_regex,omitempty" yaml:"content_regex,omitempty"`
+	AIPrompt        string   `json:"ai_prompt,omitempty" yaml:"ai_prompt,omitempty"`
 }
 
 type PolicyProfile struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name        string `json:"name" yaml:"name"`
+	Description string `json:"description" yaml:"description"`
 }

@@ -30,10 +30,13 @@ This brief tracks the AI-generated-code quality features currently implemented i
   - `quality.ai.semantic-error-message`
   - `quality.ai.semantic-test-coverage`
   - `quality.ai.semantic-test-adequacy`
+  - `quality.ai.semantic-runtime`
   - request enrichment now adds framework metadata and contract hints for changed Express handlers and middleware, React components, and Next.js route/component files, so semantic runtimes can reason about handlers, props, route segments, request/response semantics, and middleware ordering with better local context
   - runs for changed files from patch/diff input, or from a git diff against the scan base ref during full scans
   - requires the semantic runtime to be explicitly enabled either through `ai.enabled` / `--ai` with a command-backed provider, or through `CODEGUARD_SEMANTIC_CHECKS=1`
-  - shells out to the command in `CODEGUARD_SEMANTIC_COMMAND`, sends a bounded JSON payload on stdin, and expects JSON verdicts on stdout
+  - uses the command from `ai.provider.type=command` plus `ai.provider.command`/`args` when configured; otherwise it falls back to `CODEGUARD_SEMANTIC_COMMAND`
+  - sends a bounded JSON payload on stdin and expects JSON verdicts on stdout
+  - emits `quality.ai.semantic-runtime` at `fail` level when semantic review is enabled but no command is configured, or when the command crashes or returns invalid JSON
   - caches verdicts by request content hash in a sibling cache file next to the normal scan cache
 - Hybrid AI triage for static findings
   - optional provider-backed pass that tries to verify or dismiss existing findings conservatively
