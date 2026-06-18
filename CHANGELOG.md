@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/devr-tools/codeguard/compare/v0.3.0...v0.4.0) (2026-06-18)
+
+
+### Features
+
+* add OWASP-aware security metadata, trust-policy enforcement ([#10](https://github.com/devr-tools/codeguard/issues/10)) ([358d4ba](https://github.com/devr-tools/codeguard/commit/358d4baf3d07eb87e5d1bce24dcd2384403a3db8))
+* feat: add OWASP-aware security metadata, trust-policy enforcement, and quality-check cleanup ([9111a58](https://github.com/devr-tools/codeguard/commit/9111a586c5f006ce8d80a0eccbdcc30fbc324ea4))
+* fix cd push security updates ([685a3ff](https://github.com/devr-tools/codeguard/commit/685a3ff4ecce755f25a5d9889ebfee277f8e39d0))
+
 ## [0.3.0](https://github.com/devr-tools/codeguard/compare/v0.2.0...v0.3.0) (2026-06-17)
 
 
