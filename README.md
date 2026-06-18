@@ -115,6 +115,7 @@ func main() {
 
 - [Getting started](/Users/alex/Documents/GitHub/codeguard/docs/getting-started.md:1)
 - [Features](/Users/alex/Documents/GitHub/codeguard/docs/features.md:1)
+- [Security & OWASP](/Users/alex/Documents/GitHub/codeguard/docs/security.md:1)
 - [AI-generated code quality](/Users/alex/Documents/GitHub/codeguard/docs/ai-quality.md:1)
 - [Agent-native features](/Users/alex/Documents/GitHub/codeguard/docs/agent-native.md:1)
 - [Integrations](/Users/alex/Documents/GitHub/codeguard/docs/integrations.md:1)

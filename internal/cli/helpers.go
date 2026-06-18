@@ -31,12 +31,13 @@ Usage:
   codeguard init [-output codeguard.yaml] [-interactive] [-profile startup|strict|enterprise|ai-safe]
   codeguard validate [-config codeguard.yaml] [-profile startup|strict|enterprise|ai-safe]
   codeguard validate-patch [-config codeguard.yaml] [-format text|json|sarif|github] [-profile startup|strict|enterprise|ai-safe] [-ai] < patch.diff
-  codeguard scan [-config codeguard.yaml] [-mode full|diff] [-base-ref main] [-format text|json|sarif|github] [-interactive] [-profile startup|strict|enterprise|ai-safe] [-ai]
+  codeguard scan [-config codeguard.yaml] [-mode full|diff] [-base-ref main] [-format text|json|sarif|github] [-interactive] [-profile startup|strict|enterprise|ai-safe] [-ai] [-allow-config-commands] [-allow-config-ai-endpoints]
   codeguard fix [-config codeguard.yaml] [-mode full|diff] [-base-ref main] [-profile startup|strict|enterprise|ai-safe] [-rule rule.id] [-path rel/path] [-line N] -ai
   codeguard baseline [-config codeguard.yaml] [-output codeguard-baseline.json] [-mode full|diff] [-base-ref main] [-profile startup|strict|enterprise|ai-safe]
   codeguard report -slop-history [-config codeguard.yaml] [-limit N] [-profile startup|strict|enterprise|ai-safe]
   codeguard rules [-config codeguard.yaml]
   codeguard explain [-config codeguard.yaml] [-format text|agent] <rule-id>
+  codeguard owasp [-config codeguard.yaml] [-format text|json] [-profile startup|strict|enterprise|ai-safe]
   codeguard serve --mcp [-config codeguard.yaml] [-profile startup|strict|enterprise|ai-safe]
   codeguard doctor [-config codeguard.yaml] [-profile startup|strict|enterprise|ai-safe]
   codeguard profiles

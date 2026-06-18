@@ -41,6 +41,23 @@ func isHelperProcessBlock(block testBlock) bool {
 	return false
 }
 
+func shouldSkipTestQualityBlock(language string, block testBlock) bool {
+	if isHelperProcessBlock(block) {
+		return true
+	}
+	return isGoTestMainBlock(language, block)
+}
+
+func isGoTestMainBlock(language string, block testBlock) bool {
+	if language != "" && language != "go" {
+		return false
+	}
+	if block.name != "TestMain" || len(block.lines) == 0 {
+		return false
+	}
+	return strings.Contains(block.lines[0], "*testing.M")
+}
+
 func nextNonBlankLineIsReturn(lines []string, start int) bool {
 	for idx := start; idx < len(lines); idx++ {
 		trimmed := strings.TrimSpace(lines[idx])

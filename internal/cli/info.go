@@ -29,7 +29,23 @@ func runRules(args []string, stdout io.Writer, stderr io.Writer) int {
 		rules = service.RulesForConfig(cfg)
 	}
 	for _, rule := range rules {
-		_, _ = fmt.Fprintf(stdout, "%s\t%s\t%s\t%s\t%s\t%s\n", rule.ID, rule.DefaultLevel, rule.ExecutionModel, rule.LanguageCoverage, rule.Section, rule.Title)
+		var line strings.Builder
+		line.WriteString(rule.ID)
+		line.WriteByte('\t')
+		line.WriteString(string(rule.DefaultLevel))
+		line.WriteByte('\t')
+		line.WriteString(string(rule.ExecutionModel))
+		line.WriteByte('\t')
+		line.WriteString(rule.LanguageCoverage.String())
+		line.WriteByte('\t')
+		line.WriteString(rule.Section)
+		line.WriteByte('\t')
+		line.WriteString(rule.Title)
+		if rule.OWASPCategory != "" {
+			line.WriteByte('\t')
+			line.WriteString(string(rule.OWASPCategory))
+		}
+		_, _ = fmt.Fprintln(stdout, line.String())
 	}
 	return 0
 }
@@ -90,6 +106,9 @@ func resolveExplainRule(configPath string, profile string, ruleID string) (servi
 
 func writeExplainText(stdout io.Writer, rule service.RuleMetadata) {
 	_, _ = fmt.Fprintf(stdout, "%s\ntitle: %s\nsection: %s\nlevel: %s\nexecution model: %s\nlanguage coverage: %s\n%s\n", rule.ID, rule.Title, rule.Section, rule.DefaultLevel, rule.ExecutionModel, rule.LanguageCoverage, rule.Description)
+	if rule.OWASPCategory != "" {
+		_, _ = fmt.Fprintf(stdout, "owasp: %s\n", rule.OWASPCategory)
+	}
 	if strings.TrimSpace(rule.HowToFix) != "" {
 		_, _ = fmt.Fprintf(stdout, "how to fix: %s\n", rule.HowToFix)
 	}
@@ -112,6 +131,7 @@ type explainAgentOutput struct {
 	Why              string                        `json:"why"`
 	HowToFix         string                        `json:"how_to_fix"`
 	FixTemplate      string                        `json:"fix_template"`
+	OWASPCategory    string                        `json:"owasp_category,omitempty"`
 }
 
 type explainLanguageCoverageOutput struct {
@@ -130,10 +150,11 @@ func buildExplainAgentOutput(rule service.RuleMetadata) explainAgentOutput {
 			Mode:      string(rule.LanguageCoverage.Mode),
 			Languages: explainLanguages(rule.LanguageCoverage.Languages),
 		},
-		Description: rule.Description,
-		Why:         rule.Description,
-		HowToFix:    rule.HowToFix,
-		FixTemplate: rule.FixTemplate,
+		Description:   rule.Description,
+		Why:           rule.Description,
+		HowToFix:      rule.HowToFix,
+		FixTemplate:   rule.FixTemplate,
+		OWASPCategory: string(rule.OWASPCategory),
 	}
 }
 

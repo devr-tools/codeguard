@@ -1,50 +1,6 @@
 package report
 
-import (
-	"github.com/devr-tools/codeguard/internal/codeguard/core"
-)
-
-type sarifRule struct {
-	ID               string `json:"id"`
-	ShortDescription struct {
-		Text string `json:"text"`
-	} `json:"shortDescription"`
-	FullDescription struct {
-		Text string `json:"text"`
-	} `json:"fullDescription"`
-	Help struct {
-		Text string `json:"text,omitempty"`
-	} `json:"help,omitempty"`
-}
-
-type sarifResult struct {
-	RuleID    string          `json:"ruleId"`
-	Level     string          `json:"level"`
-	Message   sarifMessage    `json:"message"`
-	Locations []sarifLocation `json:"locations,omitempty"`
-}
-
-type sarifMessage struct {
-	Text string `json:"text"`
-}
-
-type sarifLocation struct {
-	PhysicalLocation sarifPhysicalLocation `json:"physicalLocation"`
-}
-
-type sarifPhysicalLocation struct {
-	ArtifactLocation sarifArtifactLocation `json:"artifactLocation"`
-	Region           sarifRegion           `json:"region"`
-}
-
-type sarifArtifactLocation struct {
-	URI string `json:"uri"`
-}
-
-type sarifRegion struct {
-	StartLine   int `json:"startLine,omitempty"`
-	StartColumn int `json:"startColumn,omitempty"`
-}
+import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 func buildSARIFRule(catalog map[string]core.RuleMetadata, finding core.Finding) sarifRule {
 	meta := catalog[finding.RuleID]
@@ -58,6 +14,19 @@ func buildSARIFRule(catalog map[string]core.RuleMetadata, finding core.Finding) 
 	rule.ShortDescription.Text = meta.Title
 	rule.FullDescription.Text = meta.Description
 	rule.Help.Text = meta.HowToFix
+	if meta.OWASPCategory != "" {
+		rule.Properties = &sarifRuleProperties{
+			Tags:  []string{"security", "OWASP:" + meta.OWASPCategory.Code()},
+			OWASP: string(meta.OWASPCategory),
+		}
+		rule.Relationships = []sarifRelationship{{
+			Target: sarifReportingDescriptorReference{
+				ID:            meta.OWASPCategory.Code(),
+				ToolComponent: sarifToolComponent{Name: owaspTaxonomyName, GUID: owaspTaxonomyGUID},
+			},
+			Kinds: []string{"superset"},
+		}}
+	}
 	return rule
 }
 

@@ -7,9 +7,40 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 )
 
+// pyHTTPSinkArgIndex maps an outbound-HTTP callee to the argument index that
+// carries the request URL. Tainted input reaching that argument is SSRF.
+var pyHTTPSinkArgIndex = map[string]int{
+	"requests.get":           0,
+	"requests.post":          0,
+	"requests.put":           0,
+	"requests.delete":        0,
+	"requests.patch":         0,
+	"requests.head":          0,
+	"requests.options":       0,
+	"requests.request":       1,
+	"urllib.request.urlopen": 0,
+	"urllib.request.Request": 0,
+	"urllib.urlopen":         0,
+	"urllib2.urlopen":        0,
+	"httpx.get":              0,
+	"httpx.post":             0,
+}
+
+func isPyHTTPSink(callee string) bool {
+	_, ok := pyHTTPSinkArgIndex[callee]
+	return ok
+}
+
+func pyTaintRuleID(sink string) string {
+	if isPyHTTPSink(sink) {
+		return "security.ssrf.python"
+	}
+	return "security.taint.python"
+}
+
 func (a *pyTaintAnalyzer) emitFinding(taint *pyTaint, sink string, sinkLine int) {
 	a.findings = appendTaintFinding(a.env, a.file, a.seen, a.findings, taintSinkInput{
-		ruleID:     "security.taint.python",
+		ruleID:     pyTaintRuleID(sink),
 		source:     taint.source,
 		sourceLine: taint.sourceLine,
 		chain:      taint.chain,
@@ -59,6 +90,8 @@ func (s *pyScope) checkCallSink(call support.ParsedCall) {
 	case strings.HasSuffix(call.Callee, ".execute") || strings.HasSuffix(call.Callee, ".executemany"):
 		// only the query text is dangerous; parameterized args are safe
 		s.reportSink(s.argTaint(call, 0), call.Callee, call.Line)
+	case isPyHTTPSink(call.Callee):
+		s.reportSink(s.argTaint(call, pyHTTPSinkArgIndex[call.Callee]), call.Callee, call.Line)
 	}
 }
 

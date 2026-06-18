@@ -69,3 +69,24 @@ func TestCustomGuardHelperProcess(t *testing.T) {
 	assertRuleCount(t, report, "ci.always-true-test-assertion", 0)
 	assertRuleCount(t, report, "ci.conditional-assertion", 0)
 }
+
+func TestGoTestQualityExemptsTestMain(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "main_test.go"), `package demo
+
+import (
+	"os"
+	"testing"
+)
+
+func TestMain(m *testing.M) {
+	os.Exit(m.Run())
+}
+`)
+
+	report := runScan(t, testQualityConfig(t, dir, "go"))
+
+	assertRuleCount(t, report, "ci.test-without-assertion", 0)
+	assertRuleCount(t, report, "ci.always-true-test-assertion", 0)
+	assertRuleCount(t, report, "ci.conditional-assertion", 0)
+}

@@ -30,6 +30,37 @@ archives:
 checksum:
   name_template: SHA256SUMS
 
+# Generate a CycloneDX SBOM per archive (requires `syft` on PATH in CI).
+sboms:
+  - id: archive
+    artifacts: archive
+
+# Keyless cosign signing of the checksum file. Signing the checksums covers
+# every released artifact. Requires `cosign` on PATH and an OIDC token
+# (id-token: write) in CI; COSIGN_YES is set in the release workflow.
+signs:
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    signature: "${artifact}.sig"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+# Keyless cosign signing of the published container images.
+docker_signs:
+  - cmd: cosign
+    artifacts: images
+    args:
+      - sign
+      - "${artifact}"
+      - "--yes"
+    output: true
+
 dockers:
   - id: codeguard-amd64
     ids:

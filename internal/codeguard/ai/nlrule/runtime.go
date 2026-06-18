@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
 
 type disabledRuntime struct{}
@@ -55,6 +56,9 @@ func (runtime commandRuntime) Fingerprint() string {
 }
 
 func (runtime commandRuntime) Evaluate(ctx context.Context, request EvaluationRequest) (EvaluationResponse, error) {
+	if err := trust.GuardConfigCommand("nlrule runtime", runtime.command); err != nil {
+		return EvaluationResponse{}, err
+	}
 	payload, err := json.Marshal(request)
 	if err != nil {
 		return EvaluationResponse{}, err

@@ -75,6 +75,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
+	flags.applyTrustPolicy()
 
 	if err := promptScanInputs(*interactive, stdin, stdout, &inputs); err != nil {
 		_, _ = fmt.Fprintf(stderr, "interactive scan: %v\n", err)
@@ -161,6 +162,7 @@ func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
+	flags.applyTrustPolicy()
 
 	cfg, err := loadConfigWithProfile(*flags.configPath, *flags.profile)
 	if err != nil {

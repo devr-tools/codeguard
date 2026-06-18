@@ -3,9 +3,11 @@ package triage
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/ai/httpretry"
+	"github.com/devr-tools/codeguard/internal/codeguard/ai/safehttp"
 )
 
 // triageViaHTTP runs the shared triage flow: build the candidate prompt,
@@ -35,8 +37,8 @@ func triageViaHTTP(
 // postTriageJSON POSTs a JSON triage request with retry, applying the
 // provider-specific headers on top of the shared Content-Type.
 func postTriageJSON(ctx context.Context, cfg runtimeConfig, url string, body []byte, headers map[string]string) (*http.Response, error) {
-	httpClient := &http.Client{Timeout: cfg.Timeout}
-	return httpretry.Do(ctx, httpClient, httpretry.FromEnv(), func() (*http.Request, error) {
+	httpClient := safehttp.Client(cfg.Timeout)
+	resp, err := httpretry.Do(ctx, httpClient, httpretry.FromEnv(), func() (*http.Request, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 		if err != nil {
 			return nil, err
@@ -47,4 +49,13 @@ func postTriageJSON(ctx context.Context, cfg runtimeConfig, url string, body []b
 		}
 		return req, nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	// Bound the response body so a malicious endpoint cannot exhaust memory.
+	resp.Body = struct {
+		io.Reader
+		io.Closer
+	}{io.LimitReader(resp.Body, safehttp.MaxResponseBytes), resp.Body}
+	return resp, nil
 }

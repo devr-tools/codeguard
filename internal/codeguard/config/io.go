@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -9,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -17,10 +15,6 @@ var (
 	directoryConfigNames = []string{"codeguard.yaml", "codeguard.yml", "codeguard.json", "config.yaml", "config.yml", "config.json"}
 	defaultConfigDirs    = []string{".", ".codeguard"}
 )
-
-func DefaultConfigPath() string {
-	return defaultConfigNames[0]
-}
 
 func LoadFile(path string) (core.Config, error) {
 	resolvedPath, err := resolveConfigPath(path)
@@ -37,12 +31,67 @@ func LoadFile(path string) (core.Config, error) {
 	if err := unmarshalConfig(data, resolvedPath, &cfg); err != nil {
 		return core.Config{}, err
 	}
-	resolveRelativePaths(&cfg, filepath.Dir(resolvedPath))
+	baseDir := filepath.Dir(resolvedPath)
+	resolveRelativePaths(&cfg, baseDir)
 	ApplyDefaults(&cfg)
+	if err := containConfigArtifactPaths(&cfg, baseDir); err != nil {
+		return core.Config{}, err
+	}
 	if err := Validate(cfg); err != nil {
 		return core.Config{}, err
 	}
 	return cfg, nil
+}
+
+// containConfigArtifactPaths resolves codeguard's config-controlled output
+// paths (baseline, scan cache, AI cache) relative to the config directory and
+// rejects any path that escapes that directory tree. Because the config file is
+// checked into the repository and may be authored by an untrusted contributor,
+// this prevents a config from steering codeguard into reading or writing files
+// outside the repository (path traversal / arbitrary file write).
+func containConfigArtifactPaths(cfg *core.Config, baseDir string) error {
+	type artifact struct {
+		label string
+		path  *string
+	}
+	for _, a := range []artifact{
+		{"baseline.path", &cfg.Baseline.Path},
+		{"cache.path", &cfg.Cache.Path},
+		{"ai.cache.path", &cfg.AI.Cache.Path},
+	} {
+		resolved, err := containedPath(baseDir, *a.path)
+		if err != nil {
+			return fmt.Errorf("%s: %w", a.label, err)
+		}
+		*a.path = resolved
+	}
+	return nil
+}
+
+// containedPath resolves p (relative to baseDir if not absolute) and returns the
+// cleaned path, erroring if it escapes baseDir. An empty path is returned
+// unchanged.
+func containedPath(baseDir, p string) (string, error) {
+	if strings.TrimSpace(p) == "" {
+		return p, nil
+	}
+	absBase, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", err
+	}
+	resolved := p
+	if !filepath.IsAbs(resolved) {
+		resolved = filepath.Join(absBase, resolved)
+	}
+	resolved = filepath.Clean(resolved)
+	rel, err := filepath.Rel(absBase, resolved)
+	if err != nil {
+		return "", fmt.Errorf("path %q is not within the config directory", p)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q escapes the config directory %q", p, absBase)
+	}
+	return resolved, nil
 }
 
 func resolveRelativePaths(cfg *core.Config, baseDir string) {
@@ -122,22 +171,4 @@ func findConfigInDirs(dirs []string, names []string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func marshalConfig(path string, cfg core.Config) ([]byte, error) {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".yaml", ".yml":
-		return yaml.Marshal(cfg)
-	default:
-		return json.MarshalIndent(cfg, "", "  ")
-	}
-}
-
-func unmarshalConfig(data []byte, path string, cfg *core.Config) error {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".yaml", ".yml":
-		return yaml.Unmarshal(data, cfg)
-	default:
-		return json.Unmarshal(data, cfg)
-	}
 }
