@@ -2,19 +2,20 @@ package rules
 
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
-var catalog = mergeRuleCatalogs(
+var catalog = withSecurityOWASP(mergeRuleCatalogs(
 	qualityCatalog,
 	qualityPerformanceCatalog,
 	designCatalog,
 	designGraphCatalog,
 	securityCatalog,
+	securityExtraCatalog,
 	supplyChainCatalog,
 	contractsCatalog,
 	securityTaintCatalog,
 	miscCatalog,
 	coverageCatalog,
 	testQualityCatalog,
-)
+))
 
 func Catalog() map[string]core.RuleMetadata {
 	out := make(map[string]core.RuleMetadata, len(catalog))

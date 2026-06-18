@@ -6,17 +6,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/ai/safehttp"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
 type runtimeConfig struct {
-	Provider     string
-	Model        string
-	BaseURL      string
-	APIKey       string
-	Timeout      time.Duration
-	MockDecision string
-	MockSummary  string
+	Provider       string
+	Model          string
+	BaseURL        string
+	BaseURLFromEnv bool
+	APIKey         string
+	Timeout        time.Duration
+	MockDecision   string
+	MockSummary    string
 }
 
 func discoverRuntime(cfg core.AIConfig, opts core.ScanOptions) runtimeConfig {
@@ -45,8 +47,9 @@ func discoverRuntime(cfg core.AIConfig, opts core.ScanOptions) runtimeConfig {
 		os.Getenv("CODEGUARD_AI_TRIAGE_MODEL"),
 		configProvider.Model,
 	)
+	envBaseURL := strings.TrimSpace(os.Getenv("CODEGUARD_AI_TRIAGE_BASE_URL"))
 	baseURL := firstNonEmpty(
-		os.Getenv("CODEGUARD_AI_TRIAGE_BASE_URL"),
+		envBaseURL,
 		configProvider.BaseURL,
 	)
 	apiKey := firstNonEmpty(
@@ -62,13 +65,14 @@ func discoverRuntime(cfg core.AIConfig, opts core.ScanOptions) runtimeConfig {
 		}
 	}
 	return runtimeConfig{
-		Provider:     normalizedProvider,
-		Model:        model,
-		BaseURL:      baseURL,
-		APIKey:       apiKey,
-		Timeout:      timeout,
-		MockDecision: strings.ToLower(strings.TrimSpace(os.Getenv("CODEGUARD_AI_TRIAGE_DECISION"))),
-		MockSummary:  strings.TrimSpace(os.Getenv("CODEGUARD_AI_TRIAGE_SUMMARY")),
+		Provider:       normalizedProvider,
+		Model:          model,
+		BaseURL:        baseURL,
+		BaseURLFromEnv: envBaseURL != "",
+		APIKey:         apiKey,
+		Timeout:        timeout,
+		MockDecision:   strings.ToLower(strings.TrimSpace(os.Getenv("CODEGUARD_AI_TRIAGE_DECISION"))),
+		MockSummary:    strings.TrimSpace(os.Getenv("CODEGUARD_AI_TRIAGE_SUMMARY")),
 	}
 }
 
@@ -82,6 +86,9 @@ func (cfg runtimeConfig) validate() error {
 	}
 	if cfg.Provider != "mock" && cfg.Model == "" {
 		return fmt.Errorf("CODEGUARD_AI_TRIAGE_MODEL is required when CODEGUARD_AI_TRIAGE_PROVIDER is set")
+	}
+	if err := safehttp.ValidateProviderURL(cfg.BaseURL, cfg.BaseURLFromEnv); err != nil {
+		return err
 	}
 	switch cfg.Provider {
 	case "mock":

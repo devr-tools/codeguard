@@ -11,7 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/ai/safehttp"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
 
 const (
@@ -22,14 +24,24 @@ const (
 func BuildProvider(cfg core.AIProviderConfig) (Provider, bool, error) {
 	switch strings.TrimSpace(strings.ToLower(cfg.Type)) {
 	case "", "openai":
+		// cfg.BaseURL comes from repository config, so it is an untrusted source.
+		if err := safehttp.ValidateProviderURL(cfg.BaseURL, false); err != nil {
+			return nil, false, err
+		}
 		provider, ok := openAIProviderFromConfig(cfg)
 		return provider, ok, nil
 	case "anthropic":
+		if err := safehttp.ValidateProviderURL(cfg.BaseURL, false); err != nil {
+			return nil, false, err
+		}
 		provider, ok := anthropicProviderFromConfig(cfg)
 		return provider, ok, nil
 	case "command":
 		if strings.TrimSpace(cfg.Command) == "" {
 			return nil, false, nil
+		}
+		if err := trust.GuardConfigCommand("ai.provider", cfg.Command); err != nil {
+			return nil, false, err
 		}
 		return commandProvider{command: cfg.Command, args: append([]string(nil), cfg.Args...)}, true, nil
 	default:
@@ -123,7 +135,7 @@ func providerHTTPClient() *http.Client {
 			timeout = parsed
 		}
 	}
-	return &http.Client{Timeout: timeout}
+	return safehttp.Client(timeout)
 }
 
 func openAIUserPrompt(req Request) string {

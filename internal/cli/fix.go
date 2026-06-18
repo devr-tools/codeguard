@@ -24,6 +24,7 @@ func runFix(args []string, stdout io.Writer, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
+	flags.applyTrustPolicy()
 	if !*enableAI {
 		_, _ = fmt.Fprintln(stderr, "fix requires -ai so unverified AI patch generation is never implicit")
 		return 1

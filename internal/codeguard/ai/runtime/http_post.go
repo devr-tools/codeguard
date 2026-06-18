@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/ai/httpretry"
+	"github.com/devr-tools/codeguard/internal/codeguard/ai/safehttp"
 )
 
 // postProviderJSON marshals body, POSTs it to url with the provider-specific
@@ -34,7 +35,7 @@ func postProviderJSON(ctx context.Context, providerName string, url string, head
 		return nil, err
 	}
 	defer resp.Body.Close()
-	respData, err := io.ReadAll(resp.Body)
+	respData, err := io.ReadAll(io.LimitReader(resp.Body, safehttp.MaxResponseBytes))
 	if err != nil {
 		return nil, err
 	}

@@ -100,7 +100,8 @@ func writeSARIF(w io.Writer, report core.Report) error {
 					"rules": sarifRules,
 				},
 			},
-			"results": results,
+			"taxonomies": []any{owaspTaxonomy()},
+			"results":    results,
 		},
 	}
 	enc := json.NewEncoder(w)

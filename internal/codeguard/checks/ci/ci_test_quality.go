@@ -26,7 +26,7 @@ func testQualityFindings(env support.Context, target core.TargetConfig) []core.F
 	}, func(file string, data []byte) []core.Finding {
 		findings := make([]core.Finding, 0)
 		for _, block := range extractTestBlocks(language, string(data)) {
-			if isHelperProcessBlock(block) {
+			if shouldSkipTestQualityBlock(language, block) {
 				continue
 			}
 			findings = append(findings, evaluateTestBlock(env, patterns, helpers, file, block)...)

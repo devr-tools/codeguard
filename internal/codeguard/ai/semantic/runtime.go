@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
 
 const commandEnvKey = "CODEGUARD_SEMANTIC_COMMAND"
@@ -19,6 +21,9 @@ func runCommand(ctx context.Context, command string, req Request) (Response, err
 	parts := strings.Fields(strings.TrimSpace(command))
 	if len(parts) == 0 {
 		return Response{}, fmt.Errorf("semantic command is not configured")
+	}
+	if err := trust.GuardConfigCommand("semantic command", parts[0]); err != nil {
+		return Response{}, err
 	}
 	input, err := json.Marshal(req)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
 
 func RunCommandCheck(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error) {
@@ -48,6 +49,9 @@ func runDiffCommandCheck(ctx context.Context, diffEnv diffCommandEnv, baseRef st
 }
 
 func runCommandCheck(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error) {
+	if err := trust.GuardConfigCommand(check.Name, check.Command); err != nil {
+		return "", err
+	}
 	command := check.Command
 	if strings.Contains(command, string(filepath.Separator)) && !filepath.IsAbs(command) {
 		command = filepath.Join(dir, command)

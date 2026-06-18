@@ -6,19 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
 const MaxCommentBodyBytes = 65000
-
-type issueComment struct {
-	ID   int64  `json:"id"`
-	Body string `json:"body"`
-}
-
-type issueCommentRequest struct {
-	Body string `json:"body"`
-}
 
 type CommentPublisher struct {
 	BaseURL string
@@ -50,8 +42,18 @@ func (p CommentPublisher) publishSticky(repository string, prNumber int, body st
 	return p.createComment(repository, prNumber, body)
 }
 
+// escapeRepository percent-encodes each segment of an "owner/repo" identifier
+// so it cannot break out of or inject into the request path.
+func escapeRepository(repository string) string {
+	parts := strings.Split(repository, "/")
+	for i, part := range parts {
+		parts[i] = url.PathEscape(part)
+	}
+	return strings.Join(parts, "/")
+}
+
 func (p CommentPublisher) listComments(repository string, prNumber int) ([]issueComment, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/repos/%s/issues/%d/comments?per_page=100", p.BaseURL, repository, prNumber), nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/repos/%s/issues/%d/comments?per_page=100", p.BaseURL, escapeRepository(repository), prNumber), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -63,11 +65,11 @@ func (p CommentPublisher) listComments(repository string, prNumber int) ([]issue
 }
 
 func (p CommentPublisher) createComment(repository string, prNumber int, body string) error {
-	return p.sendCommentRequest(http.MethodPost, fmt.Sprintf("%s/repos/%s/issues/%d/comments", p.BaseURL, repository, prNumber), body, http.StatusCreated)
+	return p.sendCommentRequest(http.MethodPost, fmt.Sprintf("%s/repos/%s/issues/%d/comments", p.BaseURL, escapeRepository(repository), prNumber), body, http.StatusCreated)
 }
 
 func (p CommentPublisher) updateComment(repository string, commentID int64, body string) error {
-	return p.sendCommentRequest(http.MethodPatch, fmt.Sprintf("%s/repos/%s/issues/comments/%d", p.BaseURL, repository, commentID), body, http.StatusOK)
+	return p.sendCommentRequest(http.MethodPatch, fmt.Sprintf("%s/repos/%s/issues/comments/%d", p.BaseURL, escapeRepository(repository), commentID), body, http.StatusOK)
 }
 
 func (p CommentPublisher) sendCommentRequest(method string, url string, body string, wantStatus int) error {
@@ -94,7 +96,7 @@ func (p CommentPublisher) doJSON(req *http.Request, wantStatus int, out any) err
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
 		return err
 	}

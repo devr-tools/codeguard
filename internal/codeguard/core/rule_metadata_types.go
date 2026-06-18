@@ -44,4 +44,8 @@ type RuleMetadata struct {
 	Description      string               `json:"description"`
 	HowToFix         string               `json:"how_to_fix,omitempty"`
 	FixTemplate      string               `json:"fix_template,omitempty"`
+	// OWASPCategory maps the rule to an OWASP Top 10 (2021) category. Empty when
+	// the rule is not associated with a fixed category (e.g. command-driven
+	// rules whose category depends on the external tool).
+	OWASPCategory OWASPCategory `json:"owasp_category,omitempty"`
 }

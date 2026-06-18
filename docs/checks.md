@@ -176,7 +176,7 @@ codeguard scan -config codeguard.yaml -profile strict
 
 ## Rule metadata
 
-SDK and catalog discovery surfaces return both `execution_model` and `language_coverage` for each rule via `codeguard.Rules()`, `codeguard.RulesForConfig(...)`, `codeguard.ExplainRule(...)`, and `codeguard.ExplainRuleForConfig(...)`.
+SDK and catalog discovery surfaces return `execution_model`, `language_coverage`, and (for security rules) `owasp_category` for each rule via `codeguard.Rules()`, `codeguard.RulesForConfig(...)`, `codeguard.ExplainRule(...)`, and `codeguard.ExplainRuleForConfig(...)`. The OWASP Top 10 (2021) mapping and per-category coverage are documented in [Security & OWASP](/Users/alex/Documents/GitHub/codeguard/docs/security.md:1) and reported by `codeguard owasp`.
 
 `execution_model` values:
 - `go-native`: built-in logic that currently depends on Go-specific source structure or Go-only integrations

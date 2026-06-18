@@ -71,7 +71,7 @@ func (a *goTaintAnalyzer) line(pos token.Pos) int {
 // emitFinding records one deduplicated source-to-sink finding.
 func (a *goTaintAnalyzer) emitFinding(taint *goTaint, sink string, sinkLine int) {
 	a.findings = appendTaintFinding(a.env, a.file, a.seen, a.findings, taintSinkInput{
-		ruleID:     "security.taint.go",
+		ruleID:     goTaintRuleID(sink),
 		source:     taint.source,
 		sourceLine: taint.sourceLine,
 		chain:      taint.chain,

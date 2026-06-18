@@ -26,6 +26,17 @@ var goFileSinkCallees = map[string]bool{
 	"ioutil.ReadFile": true,
 }
 
+// goHTTPSinkArgIndex maps an outbound-HTTP callee to the argument index that
+// carries the request URL. Tainted input reaching that argument is SSRF.
+var goHTTPSinkArgIndex = map[string]int{
+	"http.Get":                   0,
+	"http.Head":                  0,
+	"http.Post":                  0,
+	"http.PostForm":              0,
+	"http.NewRequest":            1,
+	"http.NewRequestWithContext": 2,
+}
+
 // checkSinks inspects one call expression for taint sinks. Tainted values
 // derived from parameters are recorded in the function summary instead of
 // being reported, so callers decide whether the flow is dangerous.
@@ -38,9 +49,25 @@ func (s *goScope) checkSinks(call *ast.CallExpr, callee string, args []*goTaint)
 		s.reportFirstTainted(args[1:], callee, line)
 	case goFileSinkCallees[callee] && len(args) > 0:
 		s.reportTainted(args[0], callee, line)
+	case isGoHTTPSink(callee):
+		if idx := goHTTPSinkArgIndex[callee]; idx < len(args) {
+			s.reportTainted(args[idx], callee, line)
+		}
 	default:
 		s.checkMethodSinks(call, callee, args, line)
 	}
+}
+
+func isGoHTTPSink(callee string) bool {
+	_, ok := goHTTPSinkArgIndex[callee]
+	return ok
+}
+
+func goTaintRuleID(sink string) string {
+	if isGoHTTPSink(sink) {
+		return "security.ssrf.go"
+	}
+	return "security.taint.go"
 }
 
 func (s *goScope) checkMethodSinks(call *ast.CallExpr, callee string, args []*goTaint, line int) {
