@@ -8,7 +8,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /out/codeguard ./cmd/codeguard
 
-FROM alpine:3.22
+FROM alpine:3.24
 
 WORKDIR /workspace
 
