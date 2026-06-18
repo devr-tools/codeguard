@@ -107,7 +107,9 @@ jobs:
     if: needs.prepare-prerelease.result == 'success'
     uses: ./.github/workflows/release.yml
     permissions:
+      actions: read
       contents: write
+      id-token: write
       packages: write
     with:
       tag: ${{ needs.prepare-prerelease.outputs.tag }}
@@ -151,7 +153,9 @@ jobs:
     if: needs.release-please.outputs.release_created == 'true'
     uses: ./.github/workflows/release.yml
     permissions:
+      actions: read
       contents: write
+      id-token: write
       packages: write
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
