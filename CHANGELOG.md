@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/devr-tools/codeguard/compare/v0.4.0...v0.5.0) (2026-06-19)
+
+
+### Features
+
+* mcp server features ([2efd47c](https://github.com/devr-tools/codeguard/commit/2efd47c9bd701f5508bb53f33ce3e5af37d0b03d))
+* **mcp:** HTTP transport, Devin pack, verified fix, sampling/roots ([#15](https://github.com/devr-tools/codeguard/issues/15)) ([44de1bb](https://github.com/devr-tools/codeguard/commit/44de1bba2adfe040536f2178f6015bc744d4c72e))
+* **mcp:** HTTP transport, Devin pack, verified fix, sampling/roots, streaming ([0bfab1d](https://github.com/devr-tools/codeguard/commit/0bfab1d1955fb5010addcf4541b3c82f37c809d5))
+
 ## [0.4.0](https://github.com/devr-tools/codeguard/compare/v0.3.0...v0.4.0) (2026-06-18)
 
 
