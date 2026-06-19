@@ -138,17 +138,10 @@ func (s *mcpServer) handleLine(line string, stdout io.Writer) error {
 }
 
 func (s *mcpServer) handleRequestMethod(req mcpRequest, stdout io.Writer) error {
+	if handled, err := s.handleAsyncRequest(req, stdout); handled {
+		return err
+	}
 	switch req.Method {
-	case "initialize":
-		return s.handleInitializeResponse(req, stdout)
-	case "notifications/initialized":
-		return nil
-	case "notifications/cancelled":
-		s.handleCancelledNotification(req.Params)
-		return nil
-	case "notifications/roots/list_changed":
-		s.rootsCache.invalidate()
-		return nil
 	case "ping":
 		return s.responder.writeResult(stdout, req.ID, map[string]any{})
 	case "tools/list":
@@ -163,6 +156,23 @@ func (s *mcpServer) handleRequestMethod(req mcpRequest, stdout io.Writer) error 
 			return nil
 		}
 		return s.responder.writeError(stdout, req.idPtr(), -32601, "method not found")
+	}
+}
+
+func (s *mcpServer) handleAsyncRequest(req mcpRequest, stdout io.Writer) (bool, error) {
+	switch req.Method {
+	case "initialize":
+		return true, s.handleInitializeResponse(req, stdout)
+	case "notifications/initialized":
+		return true, nil
+	case "notifications/cancelled":
+		s.handleCancelledNotification(req.Params)
+		return true, nil
+	case "notifications/roots/list_changed":
+		s.rootsCache.invalidate()
+		return true, nil
+	default:
+		return false, nil
 	}
 }
 

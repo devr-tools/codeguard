@@ -70,7 +70,10 @@ func sourceExcerpt(cfg core.Config, finding core.Finding) string {
 		return ""
 	}
 	for _, target := range cfg.Targets {
-		fullPath := filepath.Join(target.Path, filepath.FromSlash(finding.Path))
+		fullPath, err := containedFindingPath(target.Path, finding.Path)
+		if err != nil {
+			continue
+		}
 		data, err := os.ReadFile(fullPath)
 		if err != nil {
 			continue
@@ -84,6 +87,22 @@ func sourceExcerpt(cfg core.Config, finding core.Finding) string {
 		return strings.Join(lines[start-1:end], "\n")
 	}
 	return ""
+}
+
+func containedFindingPath(targetPath string, findingPath string) (string, error) {
+	baseDir, err := filepath.Abs(targetPath)
+	if err != nil {
+		return "", err
+	}
+	fullPath := filepath.Clean(filepath.Join(baseDir, filepath.FromSlash(findingPath)))
+	rel, err := filepath.Rel(baseDir, fullPath)
+	if err != nil {
+		return "", err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("finding path %q escapes target path %q", findingPath, targetPath)
+	}
+	return fullPath, nil
 }
 
 func maxInt(a int, b int) int {

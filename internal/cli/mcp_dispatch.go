@@ -88,36 +88,32 @@ func buildInitializeResult(params json.RawMessage) map[string]any {
 // Notifications (notifications/initialized, notifications/cancelled) are not
 // handled here — they carry no id and are transport-specific.
 func (s *mcpToolService) dispatchSyncMethod(method string, id json.RawMessage, params json.RawMessage) (map[string]any, bool) {
-	switch method {
-	case "initialize":
-		return buildResultMessage(id, buildInitializeResult(params)), true
-	case "ping":
+	if msg, ok := staticSyncMethod(method, id, params); ok {
+		return msg, true
+	}
+	if msg, ok := s.dispatchResourceMethod(method, id, params); ok {
+		return msg, true
+	}
+	if msg, ok := dispatchPromptMethod(method, id, params); ok {
+		return msg, true
+	}
+	if method == "logging/setLevel" {
 		return buildResultMessage(id, map[string]any{}), true
-	case "tools/list":
-		return buildResultMessage(id, map[string]any{"tools": mcpTools()}), true
-	case "resources/list":
-		return buildResultMessage(id, map[string]any{"resources": s.resourcesList()}), true
-	case "resources/templates/list":
-		return buildResultMessage(id, map[string]any{"resourceTemplates": resourceTemplates()}), true
-	case "resources/read":
-		result, errMsg := s.readResource(params)
-		if errMsg != "" {
-			return buildErrorMessage(ptrID(id), -32602, errMsg), true
-		}
-		return buildResultMessage(id, result), true
-	case "prompts/list":
-		return buildResultMessage(id, map[string]any{"prompts": mcpPrompts()}), true
-	case "prompts/get":
-		result, errMsg := getPrompt(params)
-		if errMsg != "" {
-			return buildErrorMessage(ptrID(id), -32602, errMsg), true
-		}
-		return buildResultMessage(id, result), true
-	case "logging/setLevel":
-		return buildResultMessage(id, map[string]any{}), true
-	default:
+	}
+	return nil, false
+}
+
+func staticSyncMethod(method string, id json.RawMessage, params json.RawMessage) (map[string]any, bool) {
+	handlers := map[string]func() map[string]any{
+		"initialize": func() map[string]any { return buildResultMessage(id, buildInitializeResult(params)) },
+		"ping":       func() map[string]any { return buildResultMessage(id, map[string]any{}) },
+		"tools/list": func() map[string]any { return buildResultMessage(id, map[string]any{"tools": mcpTools()}) },
+	}
+	handler, ok := handlers[method]
+	if !ok {
 		return nil, false
 	}
+	return handler(), true
 }
 
 // ptrID returns a pointer to a copy of id, or nil when id is empty, for use with
