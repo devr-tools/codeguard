@@ -10,37 +10,15 @@ func (s *mcpResponder) writeResult(stdout io.Writer, id json.RawMessage, result 
 	if len(id) == 0 {
 		return nil
 	}
-	return s.writeMessage(stdout, map[string]any{
-		"jsonrpc": "2.0",
-		"id":      json.RawMessage(id),
-		"result":  result,
-	})
+	return s.writeMessage(stdout, buildResultMessage(id, result))
 }
 
 func (s *mcpResponder) writeError(stdout io.Writer, id *json.RawMessage, code int, message string) error {
-	payload := map[string]any{
-		"jsonrpc": "2.0",
-		"error":   mcpError{Code: code, Message: message},
-	}
-	if id != nil {
-		payload["id"] = json.RawMessage(*id)
-	} else {
-		payload["id"] = nil
-	}
-	return s.writeMessage(stdout, payload)
+	return s.writeMessage(stdout, buildErrorMessage(id, code, message))
 }
 
 func (s *mcpResponder) writeProgress(stdout io.Writer, token json.RawMessage, progress float64, total float64, message string) error {
-	return s.writeMessage(stdout, map[string]any{
-		"jsonrpc": "2.0",
-		"method":  "notifications/progress",
-		"params": map[string]any{
-			"progressToken": json.RawMessage(token),
-			"progress":      progress,
-			"total":         total,
-			"message":       message,
-		},
-	})
+	return s.writeMessage(stdout, buildProgressMessage(token, progress, total, message))
 }
 
 func (s *mcpResponder) writeMessage(stdout io.Writer, payload any) error {

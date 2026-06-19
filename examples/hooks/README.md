@@ -11,14 +11,19 @@ Current packs:
   - `before-apply.sh`
   - `after-edit.sh`
   - `mcp.json.example`
+- `devin/`
+  - `mcp-http.json.example`
+  - `mcp-stdio.json.example`
+  - `run-http.sh`
+  - `setup-snapshot.sh`
 - `lib/`
-  - shared shell helpers used by both packs
+  - shared shell helpers used by the packs
 
 Each script is designed to work with the existing `codeguard` CLI:
 
 - `codeguard validate-patch`
 - `codeguard scan -mode diff`
-- `codeguard serve --mcp`
+- `codeguard serve --mcp` (stdio) or `codeguard serve --mcp --http` (Streamable HTTP, e.g. for Devin)
 - `codeguard explain -format agent`
 
 See the per-pack READMEs for install examples and expected environment variables.

@@ -3,36 +3,18 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
-func (s *mcpToolService) callToolWithContext(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
-	var call struct {
-		Name      string          `json:"name"`
-		Arguments json.RawMessage `json:"arguments"`
-	}
-	if err := json.Unmarshal(raw, &call); err != nil {
-		return nil, fmt.Errorf("invalid tool call")
-	}
-
-	switch strings.TrimSpace(call.Name) {
-	case "scan":
-		return s.callScan(ctx, normalizeMCPArguments(call.Arguments))
-	case "validate_config":
-		return s.callValidateConfig(normalizeMCPArguments(call.Arguments))
-	case "validate_patch":
-		return s.callValidatePatch(ctx, normalizeMCPArguments(call.Arguments))
-	case "explain":
-		return s.callExplain(normalizeMCPArguments(call.Arguments))
-	case "list_rules":
-		return s.callListRules(normalizeMCPArguments(call.Arguments))
-	default:
-		return nil, fmt.Errorf("unknown tool: %s", call.Name)
-	}
-}
+// errConfigPathNotPermitted is returned when a caller-supplied config_path
+// resolves outside the allowed roots. The message is intentionally generic so
+// the HTTP transport does not become a filesystem oracle.
+var errConfigPathNotPermitted = errors.New("config_path is not within an allowed root")
 
 func (s *mcpToolService) callScan(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	var args struct {
@@ -45,7 +27,11 @@ func (s *mcpToolService) callScan(ctx context.Context, raw json.RawMessage) (map
 		return nil, fmt.Errorf("invalid scan arguments")
 	}
 
-	cfg, err := s.loadConfig(args.ConfigPath, args.Profile)
+	confinedPath, err := confineConfigArg(ctx, s, args.ConfigPath)
+	if err != nil {
+		return toolErrorResult(err.Error()), nil
+	}
+	cfg, err := s.loadConfig(confinedPath, args.Profile)
 	if err != nil {
 		return toolErrorResult(fmt.Sprintf("load config: %v", err)), nil
 	}
@@ -61,14 +47,28 @@ func (s *mcpToolService) callScan(ctx context.Context, raw json.RawMessage) (map
 		baseRef = "main"
 	}
 
-	report, err := service.RunWithOptions(ctx, cfg, service.ScanOptions{Mode: mode, BaseRef: baseRef})
+	opts := service.ScanOptions{Mode: mode, BaseRef: baseRef}
+	if emit := progressFrom(ctx); emit != nil {
+		total := countEnabledSections(cfg, mode)
+		var mu sync.Mutex
+		var done float64
+		opts.OnSectionComplete = func(section service.SectionResult) {
+			mu.Lock()
+			done++
+			progress := done
+			mu.Unlock()
+			emit(progress, total, fmt.Sprintf("%s: %s (%d findings)", section.Name, section.Status, len(section.Findings)))
+		}
+	}
+
+	report, err := service.RunWithOptions(ctx, cfg, opts)
 	if err != nil {
 		return toolErrorResult(fmt.Sprintf("scan failed: %v", err)), nil
 	}
 	return toolSuccessResult(report), nil
 }
 
-func (s *mcpToolService) callValidateConfig(raw json.RawMessage) (map[string]any, error) {
+func (s *mcpToolService) callValidateConfig(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	var args struct {
 		ConfigPath string `json:"config_path"`
 		Profile    string `json:"profile"`
@@ -77,7 +77,11 @@ func (s *mcpToolService) callValidateConfig(raw json.RawMessage) (map[string]any
 		return nil, fmt.Errorf("invalid validate_config arguments")
 	}
 
-	cfg, err := s.loadConfig(args.ConfigPath, args.Profile)
+	confinedPath, err := confineConfigArg(ctx, s, args.ConfigPath)
+	if err != nil {
+		return toolErrorResult(err.Error()), nil
+	}
+	cfg, err := s.loadConfig(confinedPath, args.Profile)
 	if err != nil {
 		return toolErrorResult(fmt.Sprintf("load config: %v", err)), nil
 	}
@@ -104,7 +108,11 @@ func (s *mcpToolService) callValidatePatch(ctx context.Context, raw json.RawMess
 		return toolErrorResult("validate_patch requires a unified diff"), nil
 	}
 
-	cfg, err := s.loadConfig(args.ConfigPath, args.Profile)
+	confinedPath, err := confineConfigArg(ctx, s, args.ConfigPath)
+	if err != nil {
+		return toolErrorResult(err.Error()), nil
+	}
+	cfg, err := s.loadConfig(confinedPath, args.Profile)
 	if err != nil {
 		return toolErrorResult(fmt.Sprintf("load config: %v", err)), nil
 	}
@@ -115,7 +123,7 @@ func (s *mcpToolService) callValidatePatch(ctx context.Context, raw json.RawMess
 	return toolSuccessResult(report), nil
 }
 
-func (s *mcpToolService) callExplain(raw json.RawMessage) (map[string]any, error) {
+func (s *mcpToolService) callExplain(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	var args struct {
 		ConfigPath string `json:"config_path"`
 		Profile    string `json:"profile"`
@@ -128,7 +136,11 @@ func (s *mcpToolService) callExplain(raw json.RawMessage) (map[string]any, error
 		return toolErrorResult("explain requires rule_id"), nil
 	}
 
-	rule, ok, err := s.resolveExplainRule(args.ConfigPath, args.Profile, args.RuleID)
+	confinedPath, err := confineConfigArg(ctx, s, args.ConfigPath)
+	if err != nil {
+		return toolErrorResult(err.Error()), nil
+	}
+	rule, ok, err := s.resolveExplainRule(confinedPath, args.Profile, args.RuleID)
 	if err != nil {
 		return toolErrorResult(fmt.Sprintf("load config: %v", err)), nil
 	}
@@ -138,7 +150,7 @@ func (s *mcpToolService) callExplain(raw json.RawMessage) (map[string]any, error
 	return toolSuccessResult(buildExplainAgentOutput(rule)), nil
 }
 
-func (s *mcpToolService) callListRules(raw json.RawMessage) (map[string]any, error) {
+func (s *mcpToolService) callListRules(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	var args struct {
 		ConfigPath string `json:"config_path"`
 		Profile    string `json:"profile"`
@@ -150,43 +162,13 @@ func (s *mcpToolService) callListRules(raw json.RawMessage) (map[string]any, err
 	if strings.TrimSpace(args.ConfigPath) == "" && strings.TrimSpace(args.Profile) == "" {
 		return toolSuccessResult(map[string]any{"rules": service.Rules()}), nil
 	}
-	cfg, err := s.loadConfig(args.ConfigPath, args.Profile)
+	confinedPath, err := confineConfigArg(ctx, s, args.ConfigPath)
+	if err != nil {
+		return toolErrorResult(err.Error()), nil
+	}
+	cfg, err := s.loadConfig(confinedPath, args.Profile)
 	if err != nil {
 		return toolErrorResult(fmt.Sprintf("load config: %v", err)), nil
 	}
 	return toolSuccessResult(map[string]any{"rules": service.RulesForConfig(cfg)}), nil
-}
-
-func (s *mcpToolService) loadConfig(configPath string, profile string) (service.Config, error) {
-	path := strings.TrimSpace(configPath)
-	if path == "" {
-		path = s.defaultConfigPath
-	}
-	overrideProfile := strings.TrimSpace(profile)
-	if overrideProfile == "" {
-		overrideProfile = strings.TrimSpace(s.defaultProfile)
-	}
-	return loadConfigWithProfile(path, overrideProfile)
-}
-
-func (s *mcpToolService) resolveExplainRule(configPath string, profile string, ruleID string) (service.RuleMetadata, bool, error) {
-	if strings.TrimSpace(configPath) != "" {
-		cfg, err := s.loadConfig(configPath, profile)
-		if err != nil {
-			return service.RuleMetadata{}, false, err
-		}
-		rule, ok := service.ExplainRuleForConfig(cfg, ruleID)
-		return rule, ok, nil
-	}
-
-	rule, ok := service.ExplainRule(ruleID)
-	if strings.TrimSpace(profile) == "" {
-		return rule, ok, nil
-	}
-	cfg, err := s.loadConfig("", profile)
-	if err != nil {
-		return service.RuleMetadata{}, false, err
-	}
-	rule, ok = service.ExplainRuleForConfig(cfg, ruleID)
-	return rule, ok, nil
 }

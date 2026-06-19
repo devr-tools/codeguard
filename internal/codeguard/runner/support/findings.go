@@ -122,6 +122,9 @@ func FinalizeSection(sc Context, id string, name string, findings []core.Finding
 		}
 	}
 	section.Findings = active
+	if sc.Opts.OnSectionComplete != nil {
+		sc.Opts.OnSectionComplete(section)
+	}
 	return section
 }
 

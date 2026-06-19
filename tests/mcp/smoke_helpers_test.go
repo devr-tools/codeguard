@@ -95,6 +95,20 @@ func setupCancelableScanConfig(t *testing.T, dir string) map[string]string {
 	return map[string]string{"__CONFIG_PATH__": configPath}
 }
 
+func setupStreamingConfig(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	configPath := filepath.Join(dir, "codeguard.json")
+	if err := os.WriteFile(configPath, []byte(`{
+  "name": "mcp-streaming-test",
+  "targets": [{"name": "repo", "path": "`+dir+`", "language": "go"}],
+  "checks": {"quality": true, "design": true, "security": false, "prompts": false, "ci": true},
+  "output": {"format": "json"}
+}`), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	return map[string]string{"__CONFIG_PATH__": configPath}
+}
+
 func loadTranscript(t *testing.T, rel string, replacements map[string]string) string {
 	t.Helper()
 	data, err := os.ReadFile(rel)
@@ -173,13 +187,28 @@ func findResponseLineByID(t *testing.T, lines []string, want string) string {
 	return ""
 }
 
-func containsTool(tools []struct {
-	Name string `json:"name"`
-}, name string) bool {
-	for _, tool := range tools {
-		if tool.Name == name {
+func containsTool(names []string, name string) bool {
+	for _, candidate := range names {
+		if candidate == name {
 			return true
 		}
 	}
 	return false
+}
+
+func toolNames[T any](tools []T) []string {
+	names := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		data, err := json.Marshal(tool)
+		if err != nil {
+			continue
+		}
+		var named struct {
+			Name string `json:"name"`
+		}
+		if json.Unmarshal(data, &named) == nil {
+			names = append(names, named.Name)
+		}
+	}
+	return names
 }

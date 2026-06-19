@@ -15,12 +15,15 @@ type mcpServer struct {
 	defaultConfigPath string
 	defaultProfile    string
 	initializeSeen    bool
+	clientCaps        map[string]any
 	mu                sync.Mutex
 	active            map[string]context.CancelFunc
 	cancelled         map[string]bool
 	wg                sync.WaitGroup
 	responder         *mcpResponder
 	tools             *mcpToolService
+	requester         *serverRequester
+	rootsCache        *rootsCache
 }
 
 type mcpResponder struct {
@@ -50,4 +53,5 @@ type mcpTool struct {
 	Description  string         `json:"description,omitempty"`
 	InputSchema  map[string]any `json:"inputSchema"`
 	OutputSchema map[string]any `json:"outputSchema,omitempty"`
+	Annotations  map[string]any `json:"annotations,omitempty"`
 }
