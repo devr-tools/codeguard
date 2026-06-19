@@ -13,6 +13,11 @@ type ScanOptions struct {
 	DiffText  string
 	EnableAI  bool
 	EnableFix bool
+	// OnSectionComplete, when set, is invoked once per section as soon as that
+	// section finishes, enabling callers (e.g. the MCP server) to stream
+	// partial results. It is never serialized — json.Marshal errors on a
+	// non-nil func field, so the json:"-" tag is required.
+	OnSectionComplete func(SectionResult) `json:"-"`
 }
 
 type RulePackConfig struct {

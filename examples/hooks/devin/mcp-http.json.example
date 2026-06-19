@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "codeguard": {
+      "type": "http",
+      "url": "https://codeguard.your-org.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer ${CODEGUARD_MCP_AUTH_TOKEN}"
+      }
+    }
+  }
+}

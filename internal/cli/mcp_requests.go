@@ -35,7 +35,18 @@ func (s *mcpServer) handleToolCall(req mcpRequest, stdout io.Writer) error {
 	s.mu.Lock()
 	s.active[key] = cancel
 	delete(s.cancelled, key)
+	caps := s.clientCaps
 	s.mu.Unlock()
+
+	bridge := &clientBridge{
+		caps:      caps,
+		requester: s.requester,
+		send: func(payload any) error {
+			return s.responder.writeMessage(stdout, payload)
+		},
+		roots: s.rootsCache,
+	}
+	ctx = withClientCaller(ctx, bridge)
 
 	s.wg.Add(1)
 	go func() {
@@ -43,6 +54,9 @@ func (s *mcpServer) handleToolCall(req mcpRequest, stdout io.Writer) error {
 		defer s.finishRequest(key)
 		if progressToken != nil {
 			_ = s.responder.writeProgress(stdout, *progressToken, 0, 1, "Started")
+			ctx = withProgress(ctx, func(progress float64, total float64, message string) {
+				_ = s.responder.writeProgress(stdout, *progressToken, progress, total, message)
+			})
 		}
 		result, err := s.tools.callToolWithContext(ctx, req.Params)
 		if progressToken != nil {

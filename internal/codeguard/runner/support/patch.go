@@ -64,6 +64,23 @@ func MaterializePatchedTargets(cfg core.Config, diffText string) (core.Config, m
 	return patched, diffCommand, cleanup, nil
 }
 
+// ApplyUnifiedDiff applies diffText to each configured target in place, rebasing
+// per target the same way MaterializePatchedTargets does for verification. It is
+// used to write a verified fix to the working tree. Targets whose rebased diff
+// is empty are skipped.
+func ApplyUnifiedDiff(cfg core.Config, diffText string) error {
+	for _, target := range cfg.Targets {
+		targetDiff := strings.TrimSpace(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(target.Path)))
+		if targetDiff == "" {
+			continue
+		}
+		if err := applyUnifiedDiff(target.Path, targetDiff+"\n"); err != nil {
+			return fmt.Errorf("apply patch for target %q: %w", target.Name, err)
+		}
+	}
+	return nil
+}
+
 func applyUnifiedDiff(dir string, diffText string) error {
 	cmd := exec.Command("git", "apply", "--recount", "--whitespace=nowarn")
 	cmd.Dir = dir

@@ -38,6 +38,36 @@ func TestMCPHostSmokeProfiles(t *testing.T) {
 			setup:      setupCancelableScanConfig,
 			assertion:  assertScanProgressCancel,
 		},
+		{
+			name:       "resource-agent",
+			transcript: "testdata/transcripts/resources_discovery.jsonl",
+			setup:      setupPromptConfig,
+			assertion:  assertResourcesDiscovery,
+		},
+		{
+			name:       "prompt-agent",
+			transcript: "testdata/transcripts/prompts_discovery.jsonl",
+			setup:      setupPromptConfig,
+			assertion:  assertPromptsDiscovery,
+		},
+		{
+			name:       "streaming-agent",
+			transcript: "testdata/transcripts/scan_streaming.jsonl",
+			setup:      setupStreamingConfig,
+			assertion:  assertScanStreaming,
+		},
+		{
+			name:       "verify-fix-agent",
+			transcript: "testdata/transcripts/verify_fix_failclosed.jsonl",
+			setup:      setupPromptConfig,
+			assertion:  assertVerifyFixFailsClosed,
+		},
+		{
+			name:       "apply-fix-agent",
+			transcript: "testdata/transcripts/apply_fix_failclosed.jsonl",
+			setup:      setupPromptConfig,
+			assertion:  assertApplyFixFailsClosed,
+		},
 	}
 
 	for _, profile := range profiles {
