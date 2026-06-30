@@ -8,8 +8,10 @@ import "github.com/devr-tools/codeguard/internal/codeguard/core"
 // intentionally omitted: their category cannot be known statically.
 var securityRuleOWASP = map[string]core.OWASPCategory{
 	// Secrets and key material.
-	"security.hardcoded-secret": core.OWASPA07AuthFailures,
-	"security.private-key":      core.OWASPA02CryptographicFailures,
+	"security.hardcoded-credential": core.OWASPA07AuthFailures,
+	"security.hardcoded-secret":     core.OWASPA07AuthFailures,
+	"security.high-entropy-string":  core.OWASPA07AuthFailures,
+	"security.private-key":          core.OWASPA02CryptographicFailures,
 
 	// Transport security.
 	"security.insecure-tls":            core.OWASPA02CryptographicFailures,

@@ -94,6 +94,25 @@
     "security_rules": {
       "govulncheck_mode": "auto",
       "govulncheck_command": "govulncheck",
+      "secrets": {
+        "enabled": true,
+        "allow_paths": ["testdata/**", "**/testdata/**"],
+        "allow_patterns": ["EXAMPLE"],
+        "entropy": {
+          "enabled": false,
+          "min_length": 20,
+          "threshold": 4.5,
+          "level": "warn"
+        },
+        "custom_patterns": [
+          {
+            "id": "security.acme-token",
+            "regex": "\\bacme_live_[0-9a-f]{16}\\b",
+            "message": "Acme live tokens must not be committed",
+            "level": "fail"
+          }
+        ]
+      },
       "language_commands": {
         "typescript": [
           {

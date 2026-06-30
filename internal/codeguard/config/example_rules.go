@@ -70,5 +70,9 @@ func exampleSecurityRules() core.SecurityRulesConfig {
 		GovulncheckMode:         "auto",
 		GovulncheckCommand:      "govulncheck",
 		TypeScriptTaintMaxDepth: 8,
+		Secrets: &core.SecretsRulesConfig{
+			Enabled:    boolPtr(true),
+			AllowPaths: []string{"testdata/**", "**/testdata/**"},
+		},
 	}
 }

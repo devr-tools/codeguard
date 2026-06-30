@@ -430,11 +430,102 @@ Language command example:
 ## Security
 
 Purpose:
-- Hardcoded secret detection
+- Hardcoded credential detection (known provider formats)
+- Hardcoded secret detection (name-based heuristic)
 - Private key detection
 - Insecure TLS detection
 - Shell execution review markers
 - Optional `govulncheck`
+
+### Secret & credential scanning
+
+The secret scan runs **repository-wide for every target language** (including
+TypeScript/JavaScript) and reports in both full scans and `-mode diff` scans, so a
+hardcoded credential introduced in a PR fails the changed-lines diff check as well as a
+full scan. It has two confidence tiers:
+
+- `security.hardcoded-credential` (**fail**) — a value matching a known provider format:
+  AWS access keys, GitHub/GitLab tokens, Slack tokens and webhook URLs, Stripe live keys,
+  Google API keys, npm/PyPI/Docker Hub tokens, SendGrid and Twilio keys, Azure storage
+  account keys, database connection strings with embedded passwords
+  (`postgres://user:pass@…`), `Authorization: Bearer …` tokens,
+  `aws_secret_access_key`/`client_secret`/`private_token` assignments, plus any configured
+  `custom_patterns`.
+- `security.hardcoded-secret` (**warn**) — the lower-confidence name-based heuristic: a
+  `secret`/`token`/`api_key`/`password` identifier assigned a quoted literal.
+- `security.high-entropy-string` (**warn**, opt-in) — a high-entropy string literal that
+  may be an unknown/random secret matching no known format. Enabled via
+  `secrets.entropy.enabled`.
+
+Findings report the value **masked** (`AKIA…CDEF`) so the message itself never reprints
+the secret. Obvious placeholders are skipped automatically (`REDACTED`, `xxxx…`,
+`example`, `your-…`, `${ENV}` / `{{ }}` / `<…>` interpolations, `$(...)` command
+substitutions, `op://` / `vault://` secret references, all-same-character fillers,
+`process.env.*` / `os.environ[...]` references).
+
+Config keys (under `checks.security_rules.secrets`):
+
+```json
+{
+  "checks": {
+    "security": true,
+    "security_rules": {
+      "secrets": {
+        "enabled": true,
+        "allow_paths": ["testdata/**", "**/testdata/**"],
+        "allow_patterns": ["EXAMPLE"],
+        "custom_patterns": [
+          {
+            "id": "security.acme-token",
+            "regex": "\\bacme_live_[0-9a-f]{16}\\b",
+            "message": "Acme live tokens must not be committed",
+            "level": "fail"
+          }
+        ],
+        "entropy": {
+          "enabled": false,
+          "min_length": 20,
+          "threshold": 4.5,
+          "level": "warn"
+        }
+      }
+    }
+  }
+}
+```
+
+- `enabled` toggles the whole scan (default `true`).
+- `allow_paths` are globs whose files are skipped (e.g. fixtures under `testdata/`).
+- `allow_patterns` are regexes; a line matching any of them is never reported.
+- `custom_patterns` add repo-specific credential formats; `level` defaults to `fail`.
+- `entropy` enables the high-entropy heuristic (off by default); tune `min_length`
+  (default 20), `threshold` in bits/char (default 4.5), and `level` (default `warn`).
+
+Existing `exclude`, `waivers`, `baseline`, and inline `codeguard:ignore` suppressions
+also apply to these findings.
+
+For performance and resistance to pathological/untrusted input, the scan skips binary
+files and files larger than 5 MiB, and scans only the first 64 KiB of any single line. A
+cheap literal pre-filter skips the per-pattern regexes on lines that contain no credential
+marker, keeping a full-repo scan fast.
+
+### Git-history secret scan
+
+Working-tree and `-mode diff` scans only see the current state. A secret that was
+committed and later removed is still leaked and must be **rotated**, not just deleted.
+`codeguard scan-history` walks added lines across git history and reports any that match
+the secret/credential patterns (using the same `secrets` config — allowlist, custom
+patterns, entropy):
+
+```bash
+codeguard scan-history                       # HEAD history, text output
+codeguard scan-history -all -format json     # every ref, machine-readable
+codeguard scan-history -max-commits 500       # bound the walk on large repos
+```
+
+Findings are deduplicated by rule, path, and masked value, reporting the most recent
+commit that introduced each. The command exits non-zero when any `fail`-level credential
+is found, so it can gate CI.
 
 Current behavior:
 - repository-wide secret and private-key scans apply regardless of target language

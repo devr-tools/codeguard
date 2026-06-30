@@ -96,6 +96,12 @@ func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRules
 	if dst.LanguageCommands == nil && len(def.LanguageCommands) > 0 {
 		dst.LanguageCommands = cloneCommandCheckMap(def.LanguageCommands)
 	}
+	if dst.Secrets == nil {
+		dst.Secrets = &core.SecretsRulesConfig{}
+	}
+	if dst.Secrets.Enabled == nil {
+		dst.Secrets.Enabled = boolPtr(true)
+	}
 }
 
 func applyAIChangeRiskDefaults(dst *core.AIChangeRiskConfig, def core.AIChangeRiskConfig) {

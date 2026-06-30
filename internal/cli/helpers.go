@@ -32,6 +32,7 @@ Usage:
   codeguard validate [-config codeguard.yaml] [-profile startup|strict|enterprise|ai-safe]
   codeguard validate-patch [-config codeguard.yaml] [-format text|json|sarif|github] [-profile startup|strict|enterprise|ai-safe] [-ai] < patch.diff
   codeguard scan [-config codeguard.yaml] [-mode full|diff] [-base-ref main] [-format text|json|sarif|github] [-interactive] [-profile startup|strict|enterprise|ai-safe] [-ai] [-allow-config-commands] [-allow-config-ai-endpoints]
+  codeguard scan-history [-config codeguard.yaml] [-path .] [-max-commits N] [-all] [-format text|json]   # scan git history for committed secrets
   codeguard fix [-config codeguard.yaml] [-mode full|diff] [-base-ref main] [-profile startup|strict|enterprise|ai-safe] [-rule rule.id] [-path rel/path] [-line N] -ai
   codeguard baseline [-config codeguard.yaml] [-output codeguard-baseline.json] [-mode full|diff] [-base-ref main] [-profile startup|strict|enterprise|ai-safe]
   codeguard report -slop-history [-config codeguard.yaml] [-limit N] [-profile startup|strict|enterprise|ai-safe]

@@ -71,9 +71,10 @@ codeguard init
 codeguard validate -config codeguard.yaml
 codeguard doctor -config codeguard.yaml
 codeguard scan -config codeguard.yaml
+codeguard scan-history
 codeguard rules
 codeguard profiles
-codeguard explain security.hardcoded-secret
+codeguard explain security.hardcoded-credential
 codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 ```
 

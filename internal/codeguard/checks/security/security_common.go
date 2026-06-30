@@ -9,9 +9,10 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
+// Hardcoded secret/credential and private-key detection lives in
+// security_secrets.go, which runs as a dedicated repository-wide pass so it also
+// covers TypeScript/JavaScript targets.
 var (
-	secretPattern            = regexp.MustCompile(`(?i)(secret|token|api[_-]?key|password)\s*[:=]\s*["'][^"']{8,}["']`)
-	privateKeyPattern        = regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`)
 	pythonShellPattern       = regexp.MustCompile(`\bsubprocess\.(?:run|Popen|call|check_call|check_output|getoutput|getstatusoutput)\s*\(.*shell\s*=\s*True`)
 	pythonSystemPattern      = regexp.MustCompile(`\bos\.system\s*\(`)
 	pythonEvalPattern        = regexp.MustCompile(`\b(?:eval|exec)\s*\(`)
@@ -55,10 +56,6 @@ func maskedSourceForFile(file string, source string) string {
 
 func appendCommonLineFindings(env support.Context, file string, lineNo int, line string) []core.Finding {
 	switch {
-	case secretPattern.MatchString(line):
-		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.hardcoded-secret", Level: "fail", Path: file, Line: lineNo, Column: 1, Message: "possible hardcoded secret detected"})}
-	case privateKeyPattern.MatchString(line):
-		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.private-key", Level: "fail", Path: file, Line: lineNo, Column: 1, Message: "private key material detected"})}
 	case strings.Contains(line, "InsecureSkipVerify: true"):
 		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.insecure-tls", Level: "fail", Path: file, Line: lineNo, Column: 1, Message: "InsecureSkipVerify is enabled"})}
 	case strings.Contains(line, "exec.Command(") || strings.Contains(line, "os/exec"):

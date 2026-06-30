@@ -3,13 +3,31 @@ package rules
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 var securityCatalog = map[string]core.RuleMetadata{
-	"security.hardcoded-secret": {
-		ID:             "security.hardcoded-secret",
+	"security.hardcoded-credential": {
+		ID:             "security.hardcoded-credential",
 		Section:        "Security",
 		DefaultLevel:   "fail",
 		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "Hardcoded credential",
+		Description:    "Fails when a value matching a known credential format (AWS, GitHub, GitLab, Slack, Stripe, Google, npm, SendGrid, or a configured custom pattern) is found in source text.",
+		HowToFix:       "Remove the credential, rotate it, and load it from a secret manager or environment at runtime.",
+	},
+	"security.high-entropy-string": {
+		ID:             "security.high-entropy-string",
+		Section:        "Security",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "High-entropy string",
+		Description:    "Warns on a high-entropy string literal that may be an unknown or random secret. Opt-in via security_rules.secrets.entropy.",
+		HowToFix:       "If the value is a secret, remove it and load it from a secret manager or environment at runtime; otherwise add it to security_rules.secrets.allow_patterns.",
+	},
+	"security.hardcoded-secret": {
+		ID:             "security.hardcoded-secret",
+		Section:        "Security",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
 		Title:          "Hardcoded secret",
-		Description:    "Fails when a likely hardcoded secret is detected in source text.",
+		Description:    "Warns on the lower-confidence name-based heuristic: a secret/token/api_key/password identifier assigned a quoted literal.",
 		HowToFix:       "Remove the secret from the repository and load it from a secret manager or environment at runtime.",
 	},
 	"security.private-key": {
