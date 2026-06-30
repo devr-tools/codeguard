@@ -89,12 +89,5 @@ func (s *tsPerformanceScan) checkLine(lineNo int, line string, inLoop bool, inHa
 }
 
 func (s *tsPerformanceScan) addFinding(tsRuleID string, jsRuleID string, lineNo int, message string) {
-	s.findings = append(s.findings, s.env.NewFinding(support.FindingInput{
-		RuleID:  support.RuleIDForScript(s.file, tsRuleID, jsRuleID),
-		Level:   "warn",
-		Path:    s.file,
-		Line:    lineNo,
-		Column:  1,
-		Message: message,
-	}))
+	s.findings = append(s.findings, warnFinding(s.env, support.RuleIDForScript(s.file, tsRuleID, jsRuleID), s.file, lineNo, 1, message))
 }

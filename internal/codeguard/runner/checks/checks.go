@@ -4,46 +4,22 @@ import (
 	"context"
 	"fmt"
 
-	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
-	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
-	designCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/design"
-	promptsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/prompts"
-	qualityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/quality"
-	securityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/security"
-	supplyChainCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/supplychain"
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	customrunner "github.com/devr-tools/codeguard/internal/codeguard/runner/custom"
 	govulncheckrunner "github.com/devr-tools/codeguard/internal/codeguard/runner/govulncheck"
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
-	sections := make([]core.SectionResult, 0, 7)
+	sections := make([]core.SectionResult, 0, len(sectionRegistry))
 	checkEnv := buildCheckContext(sc)
-	if sc.Cfg.Checks.Quality {
-		sections = append(sections, safeRun("quality", "Quality", func() core.SectionResult { return qualityCheck.Run(ctx, checkEnv) }))
-	}
-	if sc.Cfg.Checks.Design {
-		sections = append(sections, safeRun("design", "Design", func() core.SectionResult { return designCheck.Run(ctx, checkEnv) }))
-	}
-	if sc.Cfg.Checks.Security {
-		sections = append(sections, safeRun("security", "Security", func() core.SectionResult { return securityCheck.Run(ctx, checkEnv) }))
-	}
-	if sc.Cfg.Checks.Prompts {
-		sections = append(sections, safeRun("prompts", "Prompts", func() core.SectionResult { return promptsCheck.Run(ctx, checkEnv) }))
-	}
-	if sc.Cfg.Checks.CI {
-		sections = append(sections, safeRun("ci", "CI", func() core.SectionResult { return ciCheck.Run(ctx, checkEnv) }))
-	}
-	if sc.Cfg.Checks.SupplyChain {
-		sections = append(sections, safeRun("supply-chain", "Supply Chain", func() core.SectionResult { return supplyChainCheck.Run(ctx, checkEnv) }))
-	}
-	if contractsEnabled(sc) {
-		sections = append(sections, safeRun("contracts", "Contracts", func() core.SectionResult { return contractsCheck.Run(ctx, checkEnv) }))
-	}
-	if len(sc.CustomRules) > 0 {
-		sections = append(sections, safeRun("custom", "Custom Rules", func() core.SectionResult { return customrunner.RunSection(ctx, sc) }))
+	for _, def := range sectionRegistry {
+		if !def.enabled(sc) {
+			continue
+		}
+		sections = append(sections, safeRun(def.id, def.name, func() core.SectionResult {
+			return def.run(ctx, sc, checkEnv)
+		}))
 	}
 	return sections
 }

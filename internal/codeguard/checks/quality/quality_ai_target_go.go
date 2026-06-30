@@ -128,14 +128,8 @@ func goHallucinatedImportFindings(env support.Context, file string, fset *token.
 			continue
 		}
 		pos := fset.Position(imp.Pos())
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.ai.hallucinated-import",
-			Level:   "warn",
-			Path:    file,
-			Line:    pos.Line,
-			Column:  pos.Column,
-			Message: fmt.Sprintf("import %q does not resolve against go.mod or the local module path", importPath),
-		}))
+		findings = append(findings, warnFinding(env, "quality.ai.hallucinated-import", file, pos.Line, pos.Column,
+			fmt.Sprintf("import %q does not resolve against go.mod or the local module path", importPath)))
 	}
 	return findings
 }
@@ -170,14 +164,8 @@ func goDeadCodeFindings(env support.Context, file string, fset *token.FileSet, p
 			return true
 		}
 		pos := fset.Position(ifStmt.Pos())
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.ai.dead-code",
-			Level:   "warn",
-			Path:    file,
-			Line:    pos.Line,
-			Column:  pos.Column,
-			Message: "constant false branch leaves unreachable placeholder logic in the code path",
-		}))
+		findings = append(findings, warnFinding(env, "quality.ai.dead-code", file, pos.Line, pos.Column,
+			"constant false branch leaves unreachable placeholder logic in the code path"))
 		return true
 	})
 	return findings
@@ -191,12 +179,6 @@ func goOverMockedTestFinding(env support.Context, file string, source string) []
 	if mockCount < 4 || assertCount > 1 {
 		return nil
 	}
-	return []core.Finding{env.NewFinding(support.FindingInput{
-		RuleID:  "quality.ai.over-mocked-test",
-		Level:   "warn",
-		Path:    file,
-		Line:    firstLineContaining(source, mockMarkers),
-		Column:  1,
-		Message: "test is dominated by mock setup and expectations with very little direct behavior assertion",
-	})}
+	return []core.Finding{warnFinding(env, "quality.ai.over-mocked-test", file, firstLineContaining(source, mockMarkers), 1,
+		"test is dominated by mock setup and expectations with very little direct behavior assertion")}
 }

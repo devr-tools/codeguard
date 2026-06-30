@@ -32,14 +32,7 @@ func qualityRuleID(path string, suffix string) string {
 }
 
 func newTypeScriptQualityFinding(ctx typeScriptScanContext, ruleID string, line int, message string) core.Finding {
-	return ctx.env.NewFinding(support.FindingInput{
-		RuleID:  ruleID,
-		Level:   "warn",
-		Path:    ctx.file,
-		Line:    line,
-		Column:  1,
-		Message: support.ScriptLabelForPath(ctx.file) + " " + message,
-	})
+	return warnFinding(ctx.env, ruleID, ctx.file, line, 1, support.ScriptLabelForPath(ctx.file)+" "+message)
 }
 
 func isTypeScriptLikeFile(rel string) bool {

@@ -61,14 +61,7 @@ func (s *pythonPerformanceScan) checkLine(lineNo int, line string, inLoop bool, 
 }
 
 func (s *pythonPerformanceScan) addFinding(ruleID string, lineNo int, message string) {
-	s.findings = append(s.findings, s.env.NewFinding(support.FindingInput{
-		RuleID:  ruleID,
-		Level:   "warn",
-		Path:    s.file,
-		Line:    lineNo,
-		Column:  1,
-		Message: message,
-	}))
+	s.findings = append(s.findings, warnFinding(s.env, ruleID, s.file, lineNo, 1, message))
 }
 
 func popIndentRegions(regions []int, indent int) []int {
