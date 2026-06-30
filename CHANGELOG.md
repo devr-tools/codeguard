@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/devr-tools/codeguard/compare/v0.5.0...v0.6.0) (2026-06-30)
+
+
+### Features
+
+* **security:** hardcoded secret/credential detection + git-history scan ([f2f6c61](https://github.com/devr-tools/codeguard/commit/f2f6c61e171c46eb8af7b554e506c719a077aaf2))
+* **security:** hardcoded secret/credential detection + git-history scan ([#17](https://github.com/devr-tools/codeguard/issues/17)) ([c1afab7](https://github.com/devr-tools/codeguard/commit/c1afab751ac0d7d5270ae78bd6936c590fe4a2c5))
+
+
+### Bug Fixes
+
+* **security:** anchor Slack webhook regex to satisfy CodeQL ([52de05a](https://github.com/devr-tools/codeguard/commit/52de05aec540115392936e6b2caacf91fa4ee466))
+
 ## [0.5.0](https://github.com/devr-tools/codeguard/compare/v0.4.0...v0.5.0) (2026-06-19)
 
 
