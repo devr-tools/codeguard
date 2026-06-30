@@ -90,6 +90,8 @@ taint engine and default to `fail`.
 
 | Rule | OWASP | Detects |
 | --- | --- | --- |
+| `security.hardcoded-credential` | A07 | values matching known credential formats (AWS, GitHub, GitLab, Slack, Stripe, Google, npm, PyPI, Docker, SendGrid, Twilio, Azure, DB connection strings, Bearer tokens) or a configured custom pattern; **fail** |
+| `security.high-entropy-string` | A07 | opt-in Shannon-entropy heuristic for unknown/random secrets; **warn** |
 | `security.cors-wildcard` | A05 | `Access-Control-Allow-Origin: *` |
 | `security.debug-enabled` | A05 | framework debug flag enabled (`debug=True`) |
 | `security.bind-all-interfaces` | A05 | binding to `0.0.0.0` |

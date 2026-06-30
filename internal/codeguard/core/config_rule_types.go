@@ -93,6 +93,7 @@ type SecurityRulesConfig struct {
 	TaintPython             *bool                           `json:"taint_python,omitempty" yaml:"taint_python,omitempty"`
 	TypeScriptTaintMaxDepth int                             `json:"typescript_taint_max_depth,omitempty" yaml:"typescript_taint_max_depth,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
+	Secrets                 *SecretsRulesConfig             `json:"secrets,omitempty" yaml:"secrets,omitempty"`
 }
 
 type SupplyChainRulesConfig struct {

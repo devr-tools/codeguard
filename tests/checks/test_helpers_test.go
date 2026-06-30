@@ -10,6 +10,20 @@ import (
 	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
+// cred assembles a credential-shaped test fixture at runtime by joining a
+// provider prefix with its body. Keeping the two halves as separate source
+// literals means no full, contiguous secret ever appears in committed code —
+// which both trips GitHub push protection and is poor practice in a
+// secret-detection test suite. The reconstructed value still exercises the
+// scanner exactly as a real token would.
+func cred(prefix string, body string) string { return prefix + body }
+
+// goConst wraps a value as a minimal Go source file assigning it to a constant,
+// for use as a scanner fixture.
+func goConst(value string) string {
+	return "package main\nconst k = \"" + value + "\"\n"
+}
+
 func writeFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

@@ -20,6 +20,7 @@ var commandCatalog = map[string]commandRunner{
 	"report":         withoutStdin(runReport),
 	"rules":          withoutStdin(runRules),
 	"scan":           runScan,
+	"scan-history":   withoutStdin(runScanHistory),
 	"serve":          runServe,
 	"validate":       withoutStdin(runValidate),
 	"validate-patch": runValidatePatch,

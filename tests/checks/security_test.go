@@ -9,9 +9,9 @@ import (
 	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
-func TestSecurityCheckFailsForHardcodedSecret(t *testing.T) {
+func TestSecurityCheckFailsForHardcodedCredential(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "config.go"), "package main\nconst apiKey = \"super-secret-token\"\n")
+	writeFile(t, filepath.Join(dir, "config.go"), "package main\nconst awsKey = \""+cred("AKIA", "1234567890ABCDEF")+"\"\n")
 
 	report, err := codeguard.Run(context.Background(), codeguard.Config{
 		Name: "security-test",
@@ -30,6 +30,31 @@ func TestSecurityCheckFailsForHardcodedSecret(t *testing.T) {
 	}
 
 	assertSectionStatus(t, report, "Security", "fail")
+	assertFindingRulePresent(t, report, "Security", "security.hardcoded-credential")
+}
+
+func TestSecurityCheckWarnsForNameBasedSecret(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "config.go"), "package main\nconst apiKey = \"super-secret-token\"\n")
+
+	report, err := codeguard.Run(context.Background(), codeguard.Config{
+		Name: "security-name-based-secret",
+		Targets: []codeguard.TargetConfig{{
+			Name:     "repo",
+			Path:     dir,
+			Language: "go",
+		}},
+		Checks: codeguard.CheckConfig{
+			Security: true,
+		},
+		Output: codeguard.OutputConfig{Format: "text"},
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Security", "warn")
+	assertFindingRulePresent(t, report, "Security", "security.hardcoded-secret")
 }
 
 func TestSecurityCheckWarnsForShellExecution(t *testing.T) {
