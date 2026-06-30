@@ -31,7 +31,7 @@ func LoadFile(path string) (core.Config, error) {
 	if err != nil {
 		return core.Config{}, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(io.LimitReader(f, maxConfigFileBytes))
 	if err != nil {
 		return core.Config{}, err

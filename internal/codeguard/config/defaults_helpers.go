@@ -35,9 +35,10 @@ func defaultBoolPtr(dst **bool, value bool) {
 	}
 }
 
-func valueOrDefault(ptr *bool, def bool) bool {
+// boolValueOrTrue reads an optional bool, treating an unset (nil) pointer as true.
+func boolValueOrTrue(ptr *bool) bool {
 	if ptr == nil {
-		return def
+		return true
 	}
 	return *ptr
 }

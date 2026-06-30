@@ -8,7 +8,7 @@ import (
 )
 
 func pythonFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each function appends a variable number
 	for _, fn := range pythonFunctions(string(data)) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}

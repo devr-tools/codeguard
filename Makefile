@@ -31,7 +31,7 @@ help:
 	@printf "  make fmt        Format Go files\n"
 	@printf "  make fmt-check  Verify Go files are formatted\n"
 	@printf "  make lint       Run go vet\n"
-	@printf "  make lint-strict  Run golangci-lint (not yet enforced in CI)\n"
+	@printf "  make lint-strict  Run golangci-lint (enforced in CI)\n"
 	@printf "  make test       Run the Go test suite\n"
 	@printf "  make codeguard-ci  Validate and scan this repository with codeguard\n"
 	@printf "  make check      Run fmt-check, lint, test, and codeguard-ci\n"

@@ -28,10 +28,21 @@ linters:
         - fmt.Fprintf
         - fmt.Fprintln
         - fmt.Fprint
-issues:
-  exclude-rules:
-    - path: tests/
-      linters:
-        - errcheck
-        - gosec
-        - prealloc
+  exclusions:
+    rules:
+      # Test fixtures intentionally use fake "credentials", 0o755 helper
+      # scripts, unclosed test HTTP bodies, and unchecked cleanup errors.
+      - path: tests/
+        linters:
+          - errcheck
+          - gosec
+          - prealloc
+          - bodyclose
+      # revive's documentation/naming style rules are not enforced: exported-doc
+      # (a doc comment on every exported symbol), package-comments, and
+      # unused-parameter (e.g. the unused *http.Request in http.HandlerFunc
+      # callbacks). The correctness/safety linters above are what gate CI.
+      # Documenting the public pkg/codeguard API is tracked as a follow-up.
+      - linters:
+          - revive
+        text: "should have comment|should have a package comment|seems to be unused"

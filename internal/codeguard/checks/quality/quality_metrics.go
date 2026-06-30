@@ -105,17 +105,3 @@ func splitTopLevelDelimited(signature string) []string {
 	}
 	return appendDelimitedPart(parts, signature[start:])
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

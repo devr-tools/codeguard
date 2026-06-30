@@ -15,7 +15,7 @@ type typeScriptScanContext struct {
 }
 
 func typeScriptFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each scan stage appends a variable number
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
 	ctx := typeScriptScanContext{
 		env:    env,

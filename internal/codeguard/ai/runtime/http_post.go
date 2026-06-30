@@ -21,9 +21,9 @@ func postProviderJSON(ctx context.Context, providerName string, url string, head
 		return nil, err
 	}
 	resp, err := httpretry.Do(ctx, providerHTTPClient(), httpretry.FromEnv(), func() (*http.Request, error) {
-		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
-		if err != nil {
-			return nil, err
+		httpReq, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+		if reqErr != nil {
+			return nil, reqErr
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
 		for key, value := range headers {

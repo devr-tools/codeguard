@@ -50,7 +50,7 @@ func (s *mcpToolService) callScan(ctx context.Context, raw json.RawMessage) (map
 	// Validate the caller-supplied ref once at the trust boundary so a value
 	// beginning with "-" cannot be parsed by git as an option, and so only a
 	// conservative ref/SHA charset reaches the git invocations downstream.
-	if err := runnersupport.ValidateBaseRef(baseRef); err != nil {
+	if err = runnersupport.ValidateBaseRef(baseRef); err != nil {
 		return toolErrorResult(err.Error()), nil
 	}
 

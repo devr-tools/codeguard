@@ -73,7 +73,7 @@ func isMigrationFile(env support.Context, rel string) bool {
 // destructiveStatementFindings scans ";"-separated statements so multi-line
 // SQL statements are evaluated as a unit (for the NOT NULL/DEFAULT pairing).
 func destructiveStatementFindings(env support.Context, file string, content string) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each statement appends a variable number
 	line := 1
 	for _, statement := range strings.Split(content, ";") {
 		findings = append(findings, statementFindings(env, file, statement, line)...)

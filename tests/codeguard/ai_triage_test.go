@@ -152,8 +152,8 @@ func doThing() error { return nil }
 	if err != nil {
 		t.Fatalf("second Run returned error: %v", err)
 	}
-	if data, err := os.ReadFile(counterPath); err != nil {
-		t.Fatalf("read count file: %v", err)
+	if data, readErr := os.ReadFile(counterPath); readErr != nil {
+		t.Fatalf("read count file: %v", readErr)
 	} else if strings.TrimSpace(string(data)) != "1" {
 		t.Fatalf("expected 1 provider call across cached rerun, got %q", strings.TrimSpace(string(data)))
 	}
@@ -172,6 +172,7 @@ func doThing() error { return nil }
 	}
 }
 
+//nolint:unparam // general-purpose test helper; name is part of its API shape
 func findSection(t *testing.T, report codeguard.Report, name string) codeguard.SectionResult {
 	t.Helper()
 	for _, section := range report.Sections {

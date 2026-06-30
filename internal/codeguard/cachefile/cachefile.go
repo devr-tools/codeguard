@@ -25,7 +25,7 @@ func Load(path string, payload any) bool {
 	if err != nil {
 		return false
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(io.LimitReader(f, maxCacheFileBytes))
 	if err != nil {
 		return false

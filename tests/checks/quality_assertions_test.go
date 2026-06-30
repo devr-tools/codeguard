@@ -22,6 +22,7 @@ func assertFindingRulePresent(t *testing.T, report codeguard.Report, section str
 	t.Fatalf("section %q not found", section)
 }
 
+//nolint:unparam // general-purpose test helper; section is part of its API shape
 func assertFindingLevel(t *testing.T, report codeguard.Report, section string, ruleID string, level string) {
 	t.Helper()
 	for _, result := range report.Sections {

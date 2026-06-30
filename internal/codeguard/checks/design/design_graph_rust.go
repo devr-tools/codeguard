@@ -78,13 +78,13 @@ func expandRustUseClause(clause string) []string {
 	if open < 0 {
 		return []string{strings.TrimSpace(clause)}
 	}
-	close := strings.LastIndex(clause, "}")
-	if close < open {
+	closeIdx := strings.LastIndex(clause, "}")
+	if closeIdx < open {
 		return nil
 	}
 	prefix := strings.TrimSuffix(strings.TrimSpace(clause[:open]), "::")
 	expanded := make([]string, 0)
-	for _, part := range splitRustGroupItems(clause[open+1 : close]) {
+	for _, part := range splitRustGroupItems(clause[open+1 : closeIdx]) {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue

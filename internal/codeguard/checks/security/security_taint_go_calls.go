@@ -46,7 +46,7 @@ func (s *goScope) callSourceTaint(call *ast.CallExpr, callee string) *goTaint {
 }
 
 // localCallTaint applies same-file function summaries at call sites.
-func (s *goScope) localCallTaint(call *ast.CallExpr, callee string, args []*goTaint) *goTaint {
+func (s *goScope) localCallTaint(_ *ast.CallExpr, callee string, args []*goTaint) *goTaint {
 	summary, known := s.analyzer.summaries[callee]
 	if !known || summary == nil {
 		return nil

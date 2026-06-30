@@ -49,7 +49,7 @@ func applyAIHybridTriageDefaults(dst *core.AIHybridTriageConfig, def core.AIHybr
 	}
 }
 
-func applyAISemanticDefaults(dst *core.AISemanticConfig, def core.AISemanticConfig) {
+func applyAISemanticDefaults(dst *core.AISemanticConfig, _ core.AISemanticConfig) {
 	if dst.Enabled == nil {
 		dst.Enabled = boolPtr(true)
 	}

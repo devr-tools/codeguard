@@ -10,7 +10,7 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func goAIQualityFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, data []byte) []core.Finding {
+func goAIQualityFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, _ []byte) []core.Finding {
 	findings := make([]core.Finding, 0)
 	ast.Inspect(parsed, func(n ast.Node) bool {
 		assign, ok := n.(*ast.AssignStmt)

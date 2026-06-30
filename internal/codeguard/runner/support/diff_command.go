@@ -146,7 +146,7 @@ func copyFile(srcPath string, dstPath string, mode os.FileMode) (err error) {
 		}
 	}()
 
-	if err := os.MkdirAll(filepath.Dir(dstPath), 0o750); err != nil {
+	if err = os.MkdirAll(filepath.Dir(dstPath), 0o750); err != nil {
 		return err
 	}
 

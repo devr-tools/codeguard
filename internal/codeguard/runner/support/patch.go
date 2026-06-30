@@ -22,6 +22,11 @@ func LoadDiffScopeFromUnifiedDiff(targets []core.TargetConfig, diffText string) 
 	return out
 }
 
+// MaterializePatchedTargets writes diffText into a temporary worktree copy of
+// every configured target, returning a config rebased onto that copy, the
+// per-target diff command environments, a cleanup func, and any error.
+//
+//nolint:revive // unexported diffCommandEnv stays package-private; this is an internal-only helper
 func MaterializePatchedTargets(cfg core.Config, diffText string) (core.Config, map[string]diffCommandEnv, func(), error) {
 	tempRoot, err := os.MkdirTemp("", "codeguard-patch-*")
 	if err != nil {

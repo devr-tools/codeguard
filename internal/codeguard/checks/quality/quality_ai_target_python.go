@@ -70,7 +70,7 @@ func pythonFileAIQualityFindings(env support.Context, root string, rel string, i
 
 // pythonLocalModuleNames collects top-level module and package names that
 // exist on disk so that local imports resolve without manifests.
-func pythonLocalModuleNames(root string, files []string) map[string]struct{} {
+func pythonLocalModuleNames(_ string, files []string) map[string]struct{} {
 	names := map[string]struct{}{}
 	for _, rel := range files {
 		slash := filepath.ToSlash(rel)

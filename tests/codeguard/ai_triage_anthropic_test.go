@@ -155,7 +155,7 @@ func TestHybridTriageAnthropicProviderRetriesRateLimit(t *testing.T) {
 
 func TestHybridTriageProviderFailureKeepsFindings(t *testing.T) {
 	root := t.TempDir()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()

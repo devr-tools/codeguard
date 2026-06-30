@@ -26,7 +26,7 @@ func newProvider(cfg runtimeConfig) provider {
 
 type noopProvider struct{}
 
-func (noopProvider) Triage(ctx context.Context, candidates []candidate) (map[string]providerVerdict, error) {
+func (noopProvider) Triage(_ context.Context, _ []candidate) (map[string]providerVerdict, error) {
 	return map[string]providerVerdict{}, nil
 }
 
@@ -34,7 +34,7 @@ type mockProvider struct {
 	cfg runtimeConfig
 }
 
-func (provider mockProvider) Triage(ctx context.Context, candidates []candidate) (map[string]providerVerdict, error) {
+func (provider mockProvider) Triage(_ context.Context, candidates []candidate) (map[string]providerVerdict, error) {
 	verdicts := make(map[string]providerVerdict, len(candidates))
 	decision := provider.cfg.MockDecision
 	if decision == "" {

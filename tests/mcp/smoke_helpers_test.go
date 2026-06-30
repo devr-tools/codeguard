@@ -13,7 +13,7 @@ import (
 	"github.com/devr-tools/codeguard/internal/cli"
 )
 
-func TestMCPServeHelperProcess(t *testing.T) {
+func TestMCPServeHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_MCP_HELPER_PROCESS") != "1" {
 		return
 	}

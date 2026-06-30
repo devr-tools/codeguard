@@ -12,7 +12,7 @@ import (
 
 func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 	sections := make([]core.SectionResult, 0, len(sectionRegistry))
-	checkEnv := buildCheckContext(sc)
+	checkEnv := buildCheckContext(sc) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
 	for _, def := range sectionRegistry {
 		if !def.enabled(sc) {
 			continue
@@ -117,12 +117,8 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		RunGovulncheck: func(ctx context.Context, dir string, cmdName string) ([]core.Finding, error) {
 			return govulncheckrunner.Run(ctx, dir, cmdName, sc)
 		},
-		RunCommandCheck: func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error) {
-			return runnersupport.RunCommandCheck(ctx, dir, check)
-		},
-		RunCommandCheckWithEnv: func(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error) {
-			return runnersupport.RunCommandCheckWithEnv(ctx, dir, check, env)
-		},
+		RunCommandCheck:        runnersupport.RunCommandCheck,
+		RunCommandCheckWithEnv: runnersupport.RunCommandCheckWithEnv,
 		RunDiffCommandCheck: func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error) {
 			return runnersupport.RunDiffCommandCheckWithContext(ctx, sc, dir, baseRef, check)
 		},

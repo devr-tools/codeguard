@@ -26,6 +26,7 @@ func GenerateVerified(ctx context.Context, req GenerateRequest) (Result, error) 
 	return Verify(ctx, req.Config, req.Finding, candidate, req.Options)
 }
 
+//nolint:revive // finding is part of the exported Verify API shape even though this path does not read it
 func Verify(ctx context.Context, cfg core.Config, finding core.Finding, candidate Candidate, opts Options) (Result, error) {
 	diffText := strings.TrimSpace(candidate.Diff)
 	if diffText == "" {
@@ -44,13 +45,13 @@ func Verify(ctx context.Context, cfg core.Config, finding core.Finding, candidat
 		return Result{}, fmt.Errorf("patch did not verify cleanly: %d changed-line findings remain", report.Summary.TotalFindings)
 	}
 
-	patchedCfg, _, cleanup, err := runnersupport.MaterializePatchedTargets(cfg, diffText)
+	patchedCfg, _, cleanup, err := runnersupport.MaterializePatchedTargets(cfg, diffText) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
 	if err != nil {
 		return Result{}, fmt.Errorf("materialize patched targets: %w", err)
 	}
 	defer cleanup()
 
-	changedByTarget := changedFilesByTarget(cfg.Targets, diffText)
+	changedByTarget := changedFilesByTarget(cfg.Targets, diffText) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
 	testPlan, err := buildTestPlan(cfg, patchedCfg, changedByTarget, opts)
 	if err != nil {
 		return Result{}, err

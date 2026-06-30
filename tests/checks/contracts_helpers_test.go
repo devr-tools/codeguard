@@ -17,6 +17,7 @@ func initContractsRepo(t *testing.T) string {
 	return dir
 }
 
+//nolint:unparam // general-purpose test helper; message is part of its API shape
 func commitAll(t *testing.T, dir string, message string) {
 	t.Helper()
 	runGit(t, dir, "add", ".")

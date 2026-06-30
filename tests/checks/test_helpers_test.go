@@ -55,12 +55,12 @@ func assertSectionStatus(t *testing.T, report codeguard.Report, name string, wan
 	t.Fatalf("section %q not found", name)
 }
 
-func assertSectionFindingCountAtLeast(t *testing.T, report codeguard.Report, name string, min int) {
+func assertSectionFindingCountAtLeast(t *testing.T, report codeguard.Report, name string, minCount int) {
 	t.Helper()
 	for _, section := range report.Sections {
 		if section.Name == name {
-			if len(section.Findings) < min {
-				t.Fatalf("%s findings = %d, want at least %d", name, len(section.Findings), min)
+			if len(section.Findings) < minCount {
+				t.Fatalf("%s findings = %d, want at least %d", name, len(section.Findings), minCount)
 			}
 			return
 		}

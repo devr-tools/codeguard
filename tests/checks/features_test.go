@@ -51,8 +51,8 @@ func TestBaselineSuppressesExistingFinding(t *testing.T) {
 	assertSectionStatus(t, report, "AI Prompts", "fail")
 
 	baselinePath := filepath.Join(dir, "codeguard-baseline.json")
-	if err := codeguard.WriteBaselineFile(baselinePath, codeguard.BaselineEntriesFromReport(report)); err != nil {
-		t.Fatalf("write baseline: %v", err)
+	if writeErr := codeguard.WriteBaselineFile(baselinePath, codeguard.BaselineEntriesFromReport(report)); writeErr != nil {
+		t.Fatalf("write baseline: %v", writeErr)
 	}
 
 	cfg.Baseline.Path = baselinePath

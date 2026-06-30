@@ -40,7 +40,7 @@ var sectionRegistry = []sectionDef{
 		id:      "quality",
 		name:    "Quality",
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.Quality },
-		run: func(ctx context.Context, sc runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return qualityCheck.Run(ctx, checkEnv)
 		},
 	},
@@ -48,7 +48,7 @@ var sectionRegistry = []sectionDef{
 		id:      "design",
 		name:    "Design",
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.Design },
-		run: func(ctx context.Context, sc runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return designCheck.Run(ctx, checkEnv)
 		},
 	},
@@ -56,7 +56,7 @@ var sectionRegistry = []sectionDef{
 		id:      "security",
 		name:    "Security",
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.Security },
-		run: func(ctx context.Context, sc runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return securityCheck.Run(ctx, checkEnv)
 		},
 	},
@@ -64,7 +64,7 @@ var sectionRegistry = []sectionDef{
 		id:      "prompts",
 		name:    "Prompts",
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.Prompts },
-		run: func(ctx context.Context, sc runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return promptsCheck.Run(ctx, checkEnv)
 		},
 	},
@@ -72,7 +72,7 @@ var sectionRegistry = []sectionDef{
 		id:      "ci",
 		name:    "CI",
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.CI },
-		run: func(ctx context.Context, sc runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return ciCheck.Run(ctx, checkEnv)
 		},
 	},
@@ -80,7 +80,7 @@ var sectionRegistry = []sectionDef{
 		id:      "supply-chain",
 		name:    "Supply Chain",
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.SupplyChain },
-		run: func(ctx context.Context, sc runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return supplyChainCheck.Run(ctx, checkEnv)
 		},
 	},
@@ -88,7 +88,7 @@ var sectionRegistry = []sectionDef{
 		id:      "contracts",
 		name:    "Contracts",
 		enabled: contractsEnabled,
-		run: func(ctx context.Context, sc runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return contractsCheck.Run(ctx, checkEnv)
 		},
 	},
@@ -96,7 +96,7 @@ var sectionRegistry = []sectionDef{
 		id:      "custom",
 		name:    "Custom Rules",
 		enabled: func(sc runnersupport.Context) bool { return len(sc.CustomRules) > 0 },
-		run: func(ctx context.Context, sc runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+		run: func(ctx context.Context, sc runnersupport.Context, _ checkSupport.Context) core.SectionResult {
 			return customrunner.RunSection(ctx, sc)
 		},
 	},

@@ -49,6 +49,7 @@ func runSemanticGit(t *testing.T, dir string, args ...string) {
 	}
 }
 
+//nolint:unparam // general-purpose test helper; want is part of its API shape
 func assertFileEquals(t *testing.T, path string, want string) {
 	t.Helper()
 	data, err := os.ReadFile(path)

@@ -21,7 +21,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 
 func findingsForTarget(_ context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	changed := changedFilesForTarget(env, target)
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each rule appends a variable number
 	findings = append(findings, goBreakingFindings(env, target, changed)...)
 	findings = append(findings, openAPIBreakingFindings(env, target, changed)...)
 	findings = append(findings, protoBreakingFindings(env, target, changed)...)
