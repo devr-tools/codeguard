@@ -42,7 +42,10 @@ var credentialPatterns = []credentialPattern{
 	{regexp.MustCompile(`\bgithub_pat_[0-9A-Za-z_]{22,}\b`), "GitHub fine-grained token"},
 	{regexp.MustCompile(`\bglpat-[0-9A-Za-z_-]{20}\b`), "GitLab personal access token"},
 	{regexp.MustCompile(`\bxox[baprs]-[0-9A-Za-z-]{10,}\b`), "Slack token"},
-	{regexp.MustCompile(`https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]{16,}`), "Slack webhook URL"},
+	// Bounded with start/non-host-char on both sides so an arbitrary host cannot
+	// precede or follow the match (satisfies CodeQL go/regex/missing-regexp-anchor);
+	// the captured group is the webhook URL itself.
+	{regexp.MustCompile(`(?:^|[^A-Za-z0-9_])(https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]{16,})(?:$|[^A-Za-z0-9_])`), "Slack webhook URL"},
 	{regexp.MustCompile(`\b(?:sk|rk)_live_[0-9A-Za-z]{20,}\b`), "Stripe live secret key"},
 	{regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`), "Google API key"},
 	{regexp.MustCompile(`\bnpm_[0-9A-Za-z]{36}\b`), "npm access token"},
