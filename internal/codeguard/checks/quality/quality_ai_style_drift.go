@@ -89,7 +89,7 @@ func scriptErrorStyleDriftFinding(env support.Context, file string, source strin
 func dominantStyle(root string, files []string, counter func(string) map[string]int) string {
 	totals := map[string]int{}
 	for _, rel := range files {
-		data, err := os.ReadFile(filepath.Join(root, rel))
+		data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
 		if err != nil {
 			continue
 		}

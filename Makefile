@@ -24,13 +24,14 @@ export GOMODCACHE
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt fmt-check lint test codeguard-ci check ci build release release-snapshot release-check deploy commit table table-diff table-interactive clean
+.PHONY: help fmt fmt-check lint lint-strict test codeguard-ci check ci build release release-snapshot release-check deploy commit table table-diff table-interactive clean
 
 help:
 	@printf "\ncodeguard make targets\n\n"
 	@printf "  make fmt        Format Go files\n"
 	@printf "  make fmt-check  Verify Go files are formatted\n"
 	@printf "  make lint       Run go vet\n"
+	@printf "  make lint-strict  Run golangci-lint (not yet enforced in CI)\n"
 	@printf "  make test       Run the Go test suite\n"
 	@printf "  make codeguard-ci  Validate and scan this repository with codeguard\n"
 	@printf "  make check      Run fmt-check, lint, test, and codeguard-ci\n"
@@ -60,6 +61,9 @@ fmt-check:
 
 lint:
 	$(GO) vet ./...
+
+lint-strict:
+	golangci-lint run
 
 test:
 	@set -o pipefail; $(GO) test ./... 2>&1 | grep -v '\[no test files\]'

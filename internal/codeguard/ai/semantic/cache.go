@@ -1,7 +1,7 @@
 package semantic
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"path/filepath"
@@ -52,7 +52,7 @@ func requestHash(req Request) string {
 	if err != nil {
 		return ""
 	}
-	sum := sha1.Sum(append([]byte("semantic-request-v1|"), data...))
+	sum := sha256.Sum256(append([]byte("semantic-request-v1|"), data...))
 	return hex.EncodeToString(sum[:])
 }
 

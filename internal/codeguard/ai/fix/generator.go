@@ -74,7 +74,7 @@ func sourceExcerpt(cfg core.Config, finding core.Finding) string {
 		if err != nil {
 			continue
 		}
-		data, err := os.ReadFile(fullPath)
+		data, err := os.ReadFile(fullPath) //nolint:gosec // path containment-checked by containedFindingPath against the target root
 		if err != nil {
 			continue
 		}

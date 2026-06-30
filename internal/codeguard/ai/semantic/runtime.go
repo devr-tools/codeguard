@@ -29,7 +29,7 @@ func runCommand(ctx context.Context, command string, req Request) (Response, err
 	if err != nil {
 		return Response{}, err
 	}
-	cmd := exec.CommandContext(ctx, parts[0], parts[1:]...)
+	cmd := exec.CommandContext(ctx, parts[0], parts[1:]...) //nolint:gosec // command gated by trust.GuardConfigCommand above
 	cmd.Stdin = bytes.NewReader(input)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

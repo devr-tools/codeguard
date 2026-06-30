@@ -18,7 +18,7 @@ const mcpServerInstructions = "Use validate_patch before writing files to disk w
 func buildResultMessage(id json.RawMessage, result any) map[string]any {
 	return map[string]any{
 		"jsonrpc": "2.0",
-		"id":      json.RawMessage(id),
+		"id":      id,
 		"result":  result,
 	}
 }
@@ -31,7 +31,7 @@ func buildErrorMessage(id *json.RawMessage, code int, message string) map[string
 		"error":   mcpError{Code: code, Message: message},
 	}
 	if id != nil {
-		payload["id"] = json.RawMessage(*id)
+		payload["id"] = *id
 	} else {
 		payload["id"] = nil
 	}
@@ -44,7 +44,7 @@ func buildProgressMessage(token json.RawMessage, progress float64, total float64
 		"jsonrpc": "2.0",
 		"method":  "notifications/progress",
 		"params": map[string]any{
-			"progressToken": json.RawMessage(token),
+			"progressToken": token,
 			"progress":      progress,
 			"total":         total,
 			"message":       message,

@@ -51,6 +51,7 @@ func (s *mcpServer) handleToolCall(req mcpRequest, stdout io.Writer) error {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
+		defer cancel()
 		defer s.finishRequest(key)
 		if progressToken != nil {
 			_ = s.responder.writeProgress(stdout, *progressToken, 0, 1, "Started")

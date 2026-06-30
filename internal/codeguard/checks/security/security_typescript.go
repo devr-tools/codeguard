@@ -9,7 +9,6 @@ import (
 
 var (
 	typeScriptExecPattern        = regexp.MustCompile(`\b(?:child_process\.)?(?:exec|execSync)\s*\(`)
-	typeScriptSpawnShellPattern  = regexp.MustCompile(`\b(?:child_process\.)?(?:spawn|spawnSync)\s*\(`)
 	typeScriptEvalPattern        = regexp.MustCompile(`\beval\s*\(|\bnew\s+Function\s*\(`)
 	typeScriptInsecureTLSPattern = regexp.MustCompile(`\brejectUnauthorized\s*:\s*false\b`)
 	typeScriptNodeTLSPattern     = regexp.MustCompile(`NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*["']?0["']?`)

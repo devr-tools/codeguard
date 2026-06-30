@@ -49,6 +49,10 @@ jobs:
       - name: Run go vet
         run: make lint
 
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        continue-on-error: true # TODO(harden): remove continue-on-error after the lint backlog is burned down
+
   test:
     name: test
     needs: lint

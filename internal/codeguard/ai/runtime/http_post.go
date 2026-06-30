@@ -15,7 +15,7 @@ import (
 
 // postProviderJSON marshals body, POSTs it to url with the provider-specific
 // headers, and returns the raw response payload after status validation.
-func postProviderJSON(ctx context.Context, providerName string, url string, headers map[string]string, body any) ([]byte, error) {
+func postProviderJSON(ctx context.Context, providerName string, url string, headers map[string]string, body any) (_ []byte, err error) {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,11 @@ func postProviderJSON(ctx context.Context, providerName string, url string, head
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 	respData, err := io.ReadAll(io.LimitReader(resp.Body, safehttp.MaxResponseBytes))
 	if err != nil {
 		return nil, err

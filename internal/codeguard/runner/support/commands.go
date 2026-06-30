@@ -56,7 +56,7 @@ func runCommandCheck(ctx context.Context, dir string, check core.CommandCheckCon
 	if strings.Contains(command, string(filepath.Separator)) && !filepath.IsAbs(command) {
 		command = filepath.Join(dir, command)
 	}
-	cmd := exec.CommandContext(ctx, command, check.Args...)
+	cmd := exec.CommandContext(ctx, command, check.Args...) //nolint:gosec // command gated by trust.GuardConfigCommand above
 	cmd.Dir = dir
 	if len(env) > 0 {
 		cmd.Env = env

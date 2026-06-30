@@ -21,7 +21,7 @@ func SupplyChainLockfileIssues(root string, manifest core.SupplyChainManifest) [
 	var parsedAny bool
 	var firstIssues []string
 	for _, lockfile := range manifest.Lockfiles {
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(lockfile)))
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(lockfile))) //nolint:gosec // lockfile path joined under the scan-target root
 		if err != nil {
 			continue
 		}

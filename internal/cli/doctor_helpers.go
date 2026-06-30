@@ -37,7 +37,7 @@ func targetDoctorChecks(targets []service.TargetConfig) []doctorCheck {
 }
 
 func repoDoctorCheck(target service.TargetConfig) doctorCheck {
-	if err := exec.Command("git", "-C", target.Path, "rev-parse", "--show-toplevel").Run(); err != nil {
+	if err := exec.Command("git", "-C", target.Path, "rev-parse", "--show-toplevel").Run(); err != nil { //nolint:gosec // fixed git subcommand; target.Path is a config scan target
 		return warnDoctorCheck("repo:"+target.Name, fmt.Sprintf("%s is not a git worktree; diff scans will not work", target.Path))
 	}
 	return passDoctorCheck("repo:"+target.Name, "git worktree detected")

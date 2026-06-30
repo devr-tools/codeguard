@@ -1,6 +1,7 @@
 package support
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -82,7 +83,10 @@ func ApplyUnifiedDiff(cfg core.Config, diffText string) error {
 }
 
 func applyUnifiedDiff(dir string, diffText string) error {
-	cmd := exec.Command("git", "apply", "--recount", "--whitespace=nowarn")
+	// TODO(harden): thread caller ctx once applyUnifiedDiff accepts one.
+	ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "apply", "--recount", "--whitespace=nowarn")
 	cmd.Dir = dir
 	cmd.Stdin = strings.NewReader(diffText)
 	output, err := cmd.CombinedOutput()

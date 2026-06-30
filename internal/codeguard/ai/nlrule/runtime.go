@@ -63,7 +63,7 @@ func (runtime commandRuntime) Evaluate(ctx context.Context, request EvaluationRe
 	if err != nil {
 		return EvaluationResponse{}, err
 	}
-	cmd := exec.CommandContext(ctx, runtime.command)
+	cmd := exec.CommandContext(ctx, runtime.command) //nolint:gosec // command gated by trust.GuardConfigCommand above
 	cmd.Stdin = bytes.NewReader(payload)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

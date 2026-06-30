@@ -1,7 +1,7 @@
 package support
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -32,7 +32,7 @@ func ScanTargetFiles(sc Context, target core.TargetConfig, sectionID string, inc
 	files, _ := WalkFiles(target.Path, sc.Cfg.Exclude, include)
 	findings := make([]core.Finding, 0)
 	for _, file := range files {
-		data, err := os.ReadFile(filepath.Join(target.Path, file))
+		data, err := os.ReadFile(filepath.Join(target.Path, file)) //nolint:gosec // file enumerated by WalkFiles under target.Path
 		if err != nil {
 			continue
 		}
@@ -74,7 +74,7 @@ func NewFinding(sc Context, input FindingInput) core.Finding {
 		input.Level = meta.DefaultLevel
 	}
 	input.Level = NormalizedSeverity(input.Level)
-	sum := sha1.Sum([]byte(strings.Join([]string{input.RuleID, normalizedPath, strconv.Itoa(input.Line), input.Message}, "|")))
+	sum := sha256.Sum256([]byte(strings.Join([]string{input.RuleID, normalizedPath, strconv.Itoa(input.Line), input.Message}, "|")))
 	return core.Finding{
 		RuleID:      input.RuleID,
 		Level:       input.Level,

@@ -130,7 +130,7 @@ func WriteBaselineFile(path string, entries []core.BaselineEntry) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return os.WriteFile(path, append(data, '\n'), 0o600)
 }
 
 func BaselineEntriesFromReport(report core.Report) []core.BaselineEntry {
@@ -155,7 +155,7 @@ func BaselineEntriesFromReport(report core.Report) []core.BaselineEntry {
 }
 
 func loadBaselineFile(path string) (map[string]core.BaselineEntry, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // operator-supplied baseline file path from config
 	if err != nil {
 		return nil, err
 	}

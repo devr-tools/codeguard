@@ -29,7 +29,7 @@ func pythonErrorStyleCounts(source string) pythonErrorStyleSummary {
 func pythonRepoErrorStyle(root string, files []string) pythonErrorStyleSummary {
 	total := pythonErrorStyleSummary{}
 	for _, rel := range files {
-		data, err := os.ReadFile(filepath.Join(root, rel))
+		data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
 		if err != nil {
 			continue
 		}

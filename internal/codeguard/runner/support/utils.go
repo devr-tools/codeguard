@@ -6,9 +6,16 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
+
+// patternCache memoizes compiled glob patterns keyed by the raw glob string.
+// MatchPattern is the hottest compile site in the codebase (per file × per
+// pattern during the walk), so compiling once and reusing avoids recompiling
+// the same regex repeatedly. A nil value records a glob that failed to compile.
+var patternCache sync.Map // map[string]*regexp.Regexp
 
 func SummarizeSections(sections []core.SectionResult) core.ReportSummary {
 	var summary core.ReportSummary
@@ -96,7 +103,25 @@ func MatchPattern(pattern string, value string) bool {
 	if pattern == "" {
 		return false
 	}
+	re, ok := compilePattern(pattern)
+	if !ok {
+		// An untrusted glob (e.g. from repo config) that translates to an
+		// invalid regex matches nothing rather than panicking the scan.
+		return false
+	}
+	return re.MatchString(value)
+}
+
+// compilePattern translates a (trimmed, slash-normalized) glob into an anchored
+// regex, compiling it at most once per distinct glob. The second return value is
+// false when the glob does not yield a valid regex.
+func compilePattern(pattern string) (*regexp.Regexp, bool) {
+	if cached, ok := patternCache.Load(pattern); ok {
+		re, _ := cached.(*regexp.Regexp)
+		return re, re != nil
+	}
 	replacer := strings.NewReplacer(
+		`\`, `\\`,
 		`.`, `\.`,
 		`+`, `\+`,
 		`(`, `\(`,
@@ -113,8 +138,13 @@ func MatchPattern(pattern string, value string) bool {
 	expr = strings.ReplaceAll(expr, "*", `[^/]*`)
 	expr = strings.ReplaceAll(expr, "§§DOUBLESTAR§§", `.*`)
 	expr = strings.ReplaceAll(expr, "?", `[^/]`)
-	re := regexp.MustCompile("^" + expr + "$")
-	return re.MatchString(value)
+	re, err := regexp.Compile("^" + expr + "$")
+	if err != nil {
+		patternCache.Store(pattern, (*regexp.Regexp)(nil))
+		return nil, false
+	}
+	patternCache.Store(pattern, re)
+	return re, true
 }
 
 func CountLines(data []byte) int {

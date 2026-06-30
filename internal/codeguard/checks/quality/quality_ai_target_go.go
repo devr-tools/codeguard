@@ -59,7 +59,7 @@ type goFileScanInput struct {
 
 func goFileAIQualityFindings(env support.Context, root string, rel string, input goFileScanInput) ([]core.Finding, *goParsedFile) {
 	abs := filepath.Join(root, rel)
-	data, err := os.ReadFile(abs)
+	data, err := os.ReadFile(abs) //nolint:gosec // path resolved under the scan-target root
 	if err != nil {
 		return nil, nil
 	}
@@ -92,7 +92,7 @@ func goFileAIQualityFindings(env support.Context, root string, rel string, input
 }
 
 func readGoModuleMetadata(root string) goModuleMetadata {
-	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	data, err := os.ReadFile(filepath.Join(root, "go.mod")) //nolint:gosec // fixed filename under the scan-target root
 	if err != nil {
 		return goModuleMetadata{}
 	}

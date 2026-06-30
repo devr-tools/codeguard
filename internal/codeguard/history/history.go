@@ -63,7 +63,7 @@ func Scan(ctx context.Context, opts Options) (Report, error) {
 		args = append(args, fmt.Sprintf("-n%d", opts.MaxCommits))
 	}
 
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec // fixed git log subcommand; args are tool-controlled constants plus the scan repo path
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return Report{}, err

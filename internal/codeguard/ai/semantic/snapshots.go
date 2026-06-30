@@ -34,7 +34,7 @@ func collectSnapshots(root string, changedFiles []string) ([]FileSnapshot, []Fil
 func snapshotsForPaths(root string, paths []string, maxBytes int) []FileSnapshot {
 	snapshots := make([]FileSnapshot, 0, len(paths))
 	for _, rel := range paths {
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) //nolint:gosec // rel path joined under the scan-target root
 		if err != nil {
 			continue
 		}

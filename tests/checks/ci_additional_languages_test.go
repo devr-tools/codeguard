@@ -12,7 +12,6 @@ func TestCICheckHandlesAdditionalLanguageTestPaths(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range ciAdditionalLanguageCases() {
-		tc := tc
 		t.Run(tc.name+"-fail", func(t *testing.T) {
 			report := runCITestPathCase(t, tc, false)
 			assertSectionStatus(t, report, "CI/CD", "fail")

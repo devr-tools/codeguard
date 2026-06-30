@@ -2,7 +2,7 @@ package support
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
@@ -61,7 +61,7 @@ func typeScriptSemanticCacheKey(input typeScriptSemanticInput) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	sum := sha1.Sum(data)
+	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
 }
 
@@ -70,7 +70,7 @@ func runTypeScriptSemanticRunner(ctx context.Context, input typeScriptSemanticIn
 	if err != nil {
 		return TypeScriptSemanticResults{}, err
 	}
-	cmd := exec.CommandContext(ctx, "node", "-e", typeScriptSemanticRunner)
+	cmd := exec.CommandContext(ctx, "node", "-e", typeScriptSemanticRunner) //nolint:gosec // fixed node binary running an embedded constant script; input passed via stdin
 	cmd.Stdin = strings.NewReader(string(payload))
 	output, err := cmd.CombinedOutput()
 	if err != nil {

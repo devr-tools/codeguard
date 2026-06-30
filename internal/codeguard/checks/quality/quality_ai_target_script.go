@@ -56,7 +56,7 @@ type scriptFileScanInput struct {
 
 func scriptFileAIQualityFindings(env support.Context, root string, rel string, input scriptFileScanInput) []core.Finding {
 	abs := filepath.Join(root, rel)
-	data, err := os.ReadFile(abs)
+	data, err := os.ReadFile(abs) //nolint:gosec // path resolved under the scan-target root
 	if err != nil {
 		return nil
 	}
@@ -136,7 +136,7 @@ func resolveRelativeScriptImport(root string, dir string, specifier string) bool
 		filepath.Join(base, "index.js"), filepath.Join(base, "index.jsx"),
 	}
 	for _, candidate := range candidates {
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() { //nolint:gosec // stat-only existence check; candidate is joined under the scan root
 			return true
 		}
 	}

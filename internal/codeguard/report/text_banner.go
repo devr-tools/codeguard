@@ -45,7 +45,7 @@ func loadBannerAsset() ([]byte, error) {
 	}
 	var firstErr error
 	for _, path := range paths {
-		logo, err := os.ReadFile(path)
+		logo, err := os.ReadFile(path) //nolint:gosec // fixed banner asset path, not user input
 		if err == nil {
 			return logo, nil
 		}

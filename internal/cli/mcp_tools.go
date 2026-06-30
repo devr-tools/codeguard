@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
@@ -45,6 +46,12 @@ func (s *mcpToolService) callScan(ctx context.Context, raw json.RawMessage) (map
 	baseRef := strings.TrimSpace(args.BaseRef)
 	if baseRef == "" {
 		baseRef = "main"
+	}
+	// Validate the caller-supplied ref once at the trust boundary so a value
+	// beginning with "-" cannot be parsed by git as an option, and so only a
+	// conservative ref/SHA charset reaches the git invocations downstream.
+	if err := runnersupport.ValidateBaseRef(baseRef); err != nil {
+		return toolErrorResult(err.Error()), nil
 	}
 
 	opts := service.ScanOptions{Mode: mode, BaseRef: baseRef}

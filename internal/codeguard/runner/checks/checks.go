@@ -2,6 +2,7 @@ package checks
 
 import (
 	"context"
+	"fmt"
 
 	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
 	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
@@ -21,30 +22,54 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 	sections := make([]core.SectionResult, 0, 7)
 	checkEnv := buildCheckContext(sc)
 	if sc.Cfg.Checks.Quality {
-		sections = append(sections, qualityCheck.Run(ctx, checkEnv))
+		sections = append(sections, safeRun("quality", "Quality", func() core.SectionResult { return qualityCheck.Run(ctx, checkEnv) }))
 	}
 	if sc.Cfg.Checks.Design {
-		sections = append(sections, designCheck.Run(ctx, checkEnv))
+		sections = append(sections, safeRun("design", "Design", func() core.SectionResult { return designCheck.Run(ctx, checkEnv) }))
 	}
 	if sc.Cfg.Checks.Security {
-		sections = append(sections, securityCheck.Run(ctx, checkEnv))
+		sections = append(sections, safeRun("security", "Security", func() core.SectionResult { return securityCheck.Run(ctx, checkEnv) }))
 	}
 	if sc.Cfg.Checks.Prompts {
-		sections = append(sections, promptsCheck.Run(ctx, checkEnv))
+		sections = append(sections, safeRun("prompts", "Prompts", func() core.SectionResult { return promptsCheck.Run(ctx, checkEnv) }))
 	}
 	if sc.Cfg.Checks.CI {
-		sections = append(sections, ciCheck.Run(ctx, checkEnv))
+		sections = append(sections, safeRun("ci", "CI", func() core.SectionResult { return ciCheck.Run(ctx, checkEnv) }))
 	}
 	if sc.Cfg.Checks.SupplyChain {
-		sections = append(sections, supplyChainCheck.Run(ctx, checkEnv))
+		sections = append(sections, safeRun("supply-chain", "Supply Chain", func() core.SectionResult { return supplyChainCheck.Run(ctx, checkEnv) }))
 	}
 	if contractsEnabled(sc) {
-		sections = append(sections, contractsCheck.Run(ctx, checkEnv))
+		sections = append(sections, safeRun("contracts", "Contracts", func() core.SectionResult { return contractsCheck.Run(ctx, checkEnv) }))
 	}
 	if len(sc.CustomRules) > 0 {
-		sections = append(sections, customrunner.RunSection(ctx, sc))
+		sections = append(sections, safeRun("custom", "Custom Rules", func() core.SectionResult { return customrunner.RunSection(ctx, sc) }))
 	}
 	return sections
+}
+
+// safeRun executes one check section, recovering from any panic so that a single
+// failing check (e.g. an index-out-of-range while parsing an untrusted file)
+// degrades to a diagnostic warning for that section instead of aborting the
+// entire scan. On panic it returns a section bearing a single warning finding
+// and the remaining sections still run.
+func safeRun(id string, name string, fn func() core.SectionResult) (result core.SectionResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			result = core.SectionResult{
+				ID:     id,
+				Name:   name,
+				Status: core.StatusWarn,
+				Findings: []core.Finding{{
+					RuleID:  "checks.section.panic",
+					Level:   "warning",
+					Section: id,
+					Message: fmt.Sprintf("%s check did not complete: internal error (%v)", name, r),
+				}},
+			}
+		}
+	}()
+	return fn()
 }
 
 // contractsEnabled resolves the contracts toggle: an explicit config value

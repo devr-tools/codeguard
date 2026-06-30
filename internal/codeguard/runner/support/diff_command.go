@@ -1,6 +1,7 @@
 package support
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,10 @@ type diffCommandEnv struct {
 }
 
 func prepareDiffCommandEnv(dir string, baseRef string) (diffCommandEnv, func(), error) {
+	if err := ValidateBaseRef(baseRef); err != nil {
+		return diffCommandEnv{}, func() {}, err
+	}
+
 	repoRoot, err := gitRepoRoot(dir)
 	if err != nil {
 		return diffCommandEnv{}, func() {}, err
@@ -42,7 +47,10 @@ func prepareDiffCommandEnv(dir string, baseRef string) (diffCommandEnv, func(), 
 	headRoot := filepath.Join(tempRoot, "head")
 	baseWorktree := filepath.Join(tempRoot, "base-worktree")
 	cleanup := func() {
-		_ = exec.Command("git", "-C", repoRoot, "worktree", "remove", "--force", baseWorktree).Run()
+		// TODO(harden): thread caller ctx once prepareDiffCommandEnv accepts one.
+		ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+		defer cancel()
+		_ = exec.CommandContext(ctx, "git", "-C", repoRoot, "worktree", "remove", "--force", baseWorktree).Run() //nolint:gosec // fixed git subcommand; paths are tool-generated temp dirs
 		_ = os.RemoveAll(tempRoot)
 	}
 
@@ -51,7 +59,10 @@ func prepareDiffCommandEnv(dir string, baseRef string) (diffCommandEnv, func(), 
 		return diffCommandEnv{}, func() {}, fmt.Errorf("copy head target: %w", err)
 	}
 
-	cmd := exec.Command("git", "-C", repoRoot, "worktree", "add", "--detach", baseWorktree, baseRef)
+	// TODO(harden): thread caller ctx once prepareDiffCommandEnv accepts one.
+	addCtx, addCancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer addCancel()
+	cmd := exec.CommandContext(addCtx, "git", "-C", repoRoot, "worktree", "add", "--detach", "--end-of-options", baseWorktree, baseRef) //nolint:gosec // baseRef validated by ValidateBaseRef at function entry; --end-of-options blocks flag injection
 	if output, err := cmd.CombinedOutput(); err != nil {
 		cleanup()
 		return diffCommandEnv{}, func() {}, fmt.Errorf("prepare base worktree for %q: %w: %s", baseRef, err, strings.TrimSpace(string(output)))
@@ -59,7 +70,7 @@ func prepareDiffCommandEnv(dir string, baseRef string) (diffCommandEnv, func(), 
 
 	baseDir := filepath.Join(baseWorktree, relativeTarget)
 	if info, err := os.Stat(baseDir); err != nil || !info.IsDir() {
-		if err := os.MkdirAll(baseDir, 0o755); err != nil {
+		if err := os.MkdirAll(baseDir, 0o750); err != nil {
 			cleanup()
 			return diffCommandEnv{}, func() {}, fmt.Errorf("prepare base target dir: %w", err)
 		}
@@ -87,7 +98,10 @@ func canonicalPath(path string) (string, error) {
 }
 
 func gitRepoRoot(dir string) (string, error) {
-	cmd := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel")
+	// TODO(harden): thread caller ctx once gitRepoRoot accepts one.
+	ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--show-toplevel") //nolint:gosec // fixed git subcommand; dir is a config scan target path
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("resolve git repo root for %q: %w: %s", dir, err, strings.TrimSpace(string(output)))
@@ -122,17 +136,21 @@ func copyDir(srcDir string, dstDir string) error {
 }
 
 func copyFile(srcPath string, dstPath string, mode os.FileMode) (err error) {
-	src, err := os.Open(srcPath)
+	src, err := os.Open(srcPath) //nolint:gosec // tool-generated source path during diff worktree copy
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer func() {
+		if closeErr := src.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 
-	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dstPath), 0o750); err != nil {
 		return err
 	}
 
-	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode) //nolint:gosec // tool-generated destination path during diff worktree copy
 	if err != nil {
 		return err
 	}

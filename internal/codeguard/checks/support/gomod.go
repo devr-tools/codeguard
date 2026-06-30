@@ -9,7 +9,7 @@ import (
 // GoModulePath reads the module path declared in dir/go.mod, or returns ""
 // when the file is missing or has no module directive.
 func GoModulePath(dir string) string {
-	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod")) //nolint:gosec // fixed filename joined under the scan target dir
 	if err != nil {
 		return ""
 	}

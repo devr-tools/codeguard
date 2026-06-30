@@ -56,6 +56,6 @@ func isTypeScriptLibPath(path string) bool {
 	if strings.TrimSpace(path) == "" {
 		return false
 	}
-	info, err := os.Stat(path)
+	info, err := os.Stat(path) //nolint:gosec // stat-only existence check during source discovery
 	return err == nil && !info.IsDir()
 }

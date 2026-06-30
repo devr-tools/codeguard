@@ -53,7 +53,7 @@ func (store *ArtifactStore) List() []core.Artifact {
 func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
 	files, _ := WalkFiles(target.Path, sc.Cfg.Exclude, include)
 	for _, file := range files {
-		data, err := os.ReadFile(filepath.Join(target.Path, file))
+		data, err := os.ReadFile(filepath.Join(target.Path, file)) //nolint:gosec // file enumerated by WalkFiles under target.Path
 		if err != nil {
 			continue
 		}

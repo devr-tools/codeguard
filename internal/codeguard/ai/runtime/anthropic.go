@@ -14,7 +14,7 @@ const (
 	anthropicDefaultBaseURL = "https://api.anthropic.com/v1"
 	anthropicDefaultModel   = "claude-sonnet-4-6"
 	anthropicVersion        = "2023-06-01"
-	anthropicAPIKeyEnv      = "ANTHROPIC_API_KEY"
+	anthropicAPIKeyEnv      = "ANTHROPIC_API_KEY" //nolint:gosec // env var name, not a credential
 	anthropicMaxTokens      = 4096
 )
 

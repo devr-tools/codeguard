@@ -32,7 +32,7 @@ func runRules(args []string, stdout io.Writer, stderr io.Writer) int {
 		var line strings.Builder
 		line.WriteString(rule.ID)
 		line.WriteByte('\t')
-		line.WriteString(string(rule.DefaultLevel))
+		line.WriteString(rule.DefaultLevel)
 		line.WriteByte('\t')
 		line.WriteString(string(rule.ExecutionModel))
 		line.WriteByte('\t')

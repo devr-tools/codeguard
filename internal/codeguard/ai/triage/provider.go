@@ -57,10 +57,10 @@ func incrementMockCountFile() {
 		return
 	}
 	current := 0
-	if data, err := os.ReadFile(path); err == nil {
+	if data, err := os.ReadFile(path); err == nil { //nolint:gosec // mock instrumentation; path from CODEGUARD_AI_TRIAGE_COUNT_FILE env
 		if parsed, parseErr := strconv.Atoi(strings.TrimSpace(string(data))); parseErr == nil {
 			current = parsed
 		}
 	}
-	_ = os.WriteFile(path, []byte(strconv.Itoa(current+1)), 0o644)
+	_ = os.WriteFile(path, []byte(strconv.Itoa(current+1)), 0o600) //nolint:gosec // mock instrumentation; path from CODEGUARD_AI_TRIAGE_COUNT_FILE env
 }

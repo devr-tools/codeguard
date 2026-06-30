@@ -115,7 +115,7 @@ type commandProvider struct {
 func (p commandProvider) Name() string { return "command" }
 
 func (p commandProvider) Evaluate(ctx context.Context, req Request) (Response, error) {
-	cmd := exec.CommandContext(ctx, p.command, p.args...)
+	cmd := exec.CommandContext(ctx, p.command, p.args...) //nolint:gosec // command gated by trust.GuardConfigCommand in BuildProvider
 	data, err := json.Marshal(req)
 	if err != nil {
 		return Response{}, err

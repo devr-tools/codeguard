@@ -46,7 +46,7 @@ type pythonFileScanInput struct {
 }
 
 func pythonFileAIQualityFindings(env support.Context, root string, rel string, input pythonFileScanInput) []core.Finding {
-	data, err := os.ReadFile(filepath.Join(root, rel))
+	data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
 	if err != nil {
 		return nil
 	}

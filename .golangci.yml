@@ -1,7 +1,37 @@
 version: "2"
-
 run:
-  timeout: 3m
-
+  timeout: 5m
 linters:
-  default: standard
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - errorlint
+    - gocritic
+    - revive
+    - ineffassign
+    - unconvert
+    - prealloc
+    - copyloopvar
+    - unparam
+    - gosec
+    - bodyclose
+    - contextcheck
+    - misspell
+    - nakedret
+  settings:
+    govet:
+      enable:
+        - shadow
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+issues:
+  exclude-rules:
+    - path: tests/
+      linters:
+        - errcheck
+        - gosec
+        - prealloc

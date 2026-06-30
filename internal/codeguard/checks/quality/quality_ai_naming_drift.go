@@ -65,7 +65,7 @@ func namingCounts(source string, extract nameExtractor) map[string]int {
 func dominantNamingConvention(root string, files []string, extract nameExtractor) string {
 	totals := map[string]int{}
 	for _, rel := range files {
-		data, err := os.ReadFile(filepath.Join(root, rel))
+		data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
 		if err != nil {
 			continue
 		}
@@ -127,8 +127,9 @@ func scriptDeclaredNames(source string) []nameAt {
 }
 
 func extractNames(source string, pattern *regexp.Regexp) []nameAt {
-	out := make([]nameAt, 0)
-	for _, match := range pattern.FindAllStringSubmatchIndex(source, -1) {
+	matches := pattern.FindAllStringSubmatchIndex(source, -1)
+	out := make([]nameAt, 0, len(matches))
+	for _, match := range matches {
 		out = append(out, nameAt{
 			name: source[match[2]:match[3]],
 			line: 1 + strings.Count(source[:match[2]], "\n"),

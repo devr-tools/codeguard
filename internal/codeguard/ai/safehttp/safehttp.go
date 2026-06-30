@@ -79,7 +79,7 @@ func ValidateProviderURL(rawURL string, trustedSource bool) error {
 	}
 	return fmt.Errorf(
 		"AI provider base URL host %q is not on the allowlist (%s); it was set from repository "+
-			"configuration. Set %s=1 or pass --allow-config-ai-endpoints to use a custom endpoint.",
+			"configuration; set %s=1 or pass --allow-config-ai-endpoints to use a custom endpoint",
 		host, allowedHostList(), trust.AllowConfigAIEndpointsEnv)
 }
 

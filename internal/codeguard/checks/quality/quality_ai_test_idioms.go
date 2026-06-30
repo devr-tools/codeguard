@@ -60,7 +60,7 @@ func readFrameworkFile(root string, rel string, include func(string) bool, detec
 	if !include(rel) {
 		return "", false
 	}
-	data, err := os.ReadFile(filepath.Join(root, rel))
+	data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
 	if err != nil {
 		return "", false
 	}

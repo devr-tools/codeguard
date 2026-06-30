@@ -31,6 +31,7 @@ func triageViaHTTP(
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = resp.Body.Close() }()
 	return decode(resp)
 }
 
