@@ -5,6 +5,7 @@ package httpretry
 
 import (
 	"context"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -21,6 +22,10 @@ const (
 	defaultBaseDelay  = 250 * time.Millisecond
 	defaultMaxDelay   = 8 * time.Second
 	maxRetryAfter     = 30 * time.Second
+
+	// drainLimit caps how much of a discarded response body we read before a
+	// retry so keep-alive can reuse the connection without unbounded reads.
+	drainLimit = 4 << 20
 )
 
 // Config controls retry behavior for one logical provider request.
@@ -124,7 +129,7 @@ func backoffDelay(cfg Config, attempt int) time.Duration {
 	// Equal jitter: keep half the delay deterministic and randomize the rest
 	// so concurrent scans do not retry in lockstep.
 	half := delay / 2
-	return half + time.Duration(rand.Int63n(int64(half)+1))
+	return half + time.Duration(rand.Int63n(int64(half)+1)) //nolint:gosec // retry jitter only, not security-sensitive
 }
 
 func parseRetryAfter(value string) (time.Duration, bool) {
@@ -152,10 +157,13 @@ func capRetryAfter(delay time.Duration) time.Duration {
 	return delay
 }
 
+// drainAndClose reads and discards the remaining response body (up to a cap)
+// before closing it so the underlying connection can be reused on retry.
 func drainAndClose(resp *http.Response) {
 	if resp == nil || resp.Body == nil {
 		return
 	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, drainLimit))
 	_ = resp.Body.Close()
 }
 

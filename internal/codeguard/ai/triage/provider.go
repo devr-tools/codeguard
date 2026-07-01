@@ -26,7 +26,7 @@ func newProvider(cfg runtimeConfig) provider {
 
 type noopProvider struct{}
 
-func (noopProvider) Triage(ctx context.Context, candidates []candidate) (map[string]providerVerdict, error) {
+func (noopProvider) Triage(_ context.Context, _ []candidate) (map[string]providerVerdict, error) {
 	return map[string]providerVerdict{}, nil
 }
 
@@ -34,7 +34,7 @@ type mockProvider struct {
 	cfg runtimeConfig
 }
 
-func (provider mockProvider) Triage(ctx context.Context, candidates []candidate) (map[string]providerVerdict, error) {
+func (provider mockProvider) Triage(_ context.Context, candidates []candidate) (map[string]providerVerdict, error) {
 	verdicts := make(map[string]providerVerdict, len(candidates))
 	decision := provider.cfg.MockDecision
 	if decision == "" {
@@ -57,10 +57,10 @@ func incrementMockCountFile() {
 		return
 	}
 	current := 0
-	if data, err := os.ReadFile(path); err == nil {
+	if data, err := os.ReadFile(path); err == nil { //nolint:gosec // mock instrumentation; path from CODEGUARD_AI_TRIAGE_COUNT_FILE env
 		if parsed, parseErr := strconv.Atoi(strings.TrimSpace(string(data))); parseErr == nil {
 			current = parsed
 		}
 	}
-	_ = os.WriteFile(path, []byte(strconv.Itoa(current+1)), 0o644)
+	_ = os.WriteFile(path, []byte(strconv.Itoa(current+1)), 0o600) //nolint:gosec // mock instrumentation; path from CODEGUARD_AI_TRIAGE_COUNT_FILE env
 }

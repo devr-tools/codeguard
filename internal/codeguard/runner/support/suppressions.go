@@ -94,7 +94,7 @@ func suppressionExpired(expires string, today time.Time) bool {
 }
 
 func parseInlineSuppressions(path string) ([]inlineSuppression, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path resolved via findingFullPath against the scan context
 	if err != nil {
 		return nil, err
 	}

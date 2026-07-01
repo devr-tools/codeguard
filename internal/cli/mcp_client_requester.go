@@ -56,21 +56,19 @@ func (r *serverRequester) call(ctx context.Context, send func(id string) error) 
 	}
 }
 
-// deliver routes an inbound response to a waiting call. It returns false when no
-// server-initiated request is awaiting that id (so the caller can dispatch the
-// message normally).
-func (r *serverRequester) deliver(id string, raw json.RawMessage) bool {
+// deliver routes an inbound response to the call awaiting that id. It is a no-op
+// when no server-initiated request is pending for the id.
+func (r *serverRequester) deliver(id string, raw json.RawMessage) {
 	r.mu.Lock()
 	ch, ok := r.pending[id]
 	r.mu.Unlock()
 	if !ok {
-		return false
+		return
 	}
 	select {
 	case ch <- raw:
 	default:
 	}
-	return true
 }
 
 func parseServerResponse(raw json.RawMessage) (json.RawMessage, error) {

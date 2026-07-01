@@ -9,7 +9,7 @@ import (
 // pyproject.toml dependency extraction for the Python dependency catalog.
 
 func readPythonPyprojectDeps(root string, catalog *pythonDependencyCatalog) {
-	data, err := os.ReadFile(filepath.Join(root, "pyproject.toml"))
+	data, err := os.ReadFile(filepath.Join(root, "pyproject.toml")) //nolint:gosec // fixed filename under the scan-target root
 	if err != nil {
 		return
 	}

@@ -66,34 +66,16 @@ func fileHasComplexityFinding(findings []core.Finding, file string) bool {
 func maintainabilityFindings(env support.Context, file string, fn functionMetrics) []core.Finding {
 	findings := make([]core.Finding, 0, 3)
 	if fn.Length > env.Config.Checks.QualityRules.MaxFunctionLines {
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.max-function-lines",
-			Level:   "warn",
-			Path:    file,
-			Line:    fn.StartLine,
-			Column:  1,
-			Message: fmt.Sprintf("function %s has %d lines; max is %d", fn.Name, fn.Length, env.Config.Checks.QualityRules.MaxFunctionLines),
-		}))
+		findings = append(findings, warnFinding(env, "quality.max-function-lines", file, fn.StartLine, 1,
+			fmt.Sprintf("function %s has %d lines; max is %d", fn.Name, fn.Length, env.Config.Checks.QualityRules.MaxFunctionLines)))
 	}
 	if fn.Params > env.Config.Checks.QualityRules.MaxParameters {
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.max-parameters",
-			Level:   "warn",
-			Path:    file,
-			Line:    fn.StartLine,
-			Column:  1,
-			Message: fmt.Sprintf("function %s has %d parameters; max is %d", fn.Name, fn.Params, env.Config.Checks.QualityRules.MaxParameters),
-		}))
+		findings = append(findings, warnFinding(env, "quality.max-parameters", file, fn.StartLine, 1,
+			fmt.Sprintf("function %s has %d parameters; max is %d", fn.Name, fn.Params, env.Config.Checks.QualityRules.MaxParameters)))
 	}
 	if fn.Complexity > env.Config.Checks.QualityRules.MaxCyclomaticComplexity {
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.cyclomatic-complexity",
-			Level:   "warn",
-			Path:    file,
-			Line:    fn.StartLine,
-			Column:  1,
-			Message: fmt.Sprintf("function %s has cyclomatic complexity %d; max is %d", fn.Name, fn.Complexity, env.Config.Checks.QualityRules.MaxCyclomaticComplexity),
-		}))
+		findings = append(findings, warnFinding(env, "quality.cyclomatic-complexity", file, fn.StartLine, 1,
+			fmt.Sprintf("function %s has cyclomatic complexity %d; max is %d", fn.Name, fn.Complexity, env.Config.Checks.QualityRules.MaxCyclomaticComplexity)))
 	}
 	return findings
 }
@@ -122,18 +104,4 @@ func splitTopLevelDelimited(signature string) []string {
 		state.advance(ch)
 	}
 	return appendDelimitedPart(parts, signature[start:])
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

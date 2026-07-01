@@ -1,7 +1,7 @@
 package support
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"path/filepath"
@@ -15,7 +15,7 @@ func cacheKey(sectionID string, targetPath string, rel string) string {
 }
 
 func hashBytes(data []byte) string {
-	sum := sha1.Sum(data)
+	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
 

@@ -65,7 +65,7 @@ func namingCounts(source string, extract nameExtractor) map[string]int {
 func dominantNamingConvention(root string, files []string, extract nameExtractor) string {
 	totals := map[string]int{}
 	for _, rel := range files {
-		data, err := os.ReadFile(filepath.Join(root, rel))
+		data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
 		if err != nil {
 			continue
 		}
@@ -104,14 +104,8 @@ func namingDriftFinding(env support.Context, file string, source string, dominan
 	if divergent < 2 || divergent <= matching {
 		return nil
 	}
-	return []core.Finding{env.NewFinding(support.FindingInput{
-		RuleID:  "quality.ai.naming-drift",
-		Level:   "warn",
-		Path:    file,
-		Line:    firstDivergent.line,
-		Column:  1,
-		Message: fmt.Sprintf("identifier %q diverges from the repository's dominant %s naming convention", firstDivergent.name, dominant),
-	})}
+	return []core.Finding{warnFinding(env, "quality.ai.naming-drift", file, firstDivergent.line, 1,
+		fmt.Sprintf("identifier %q diverges from the repository's dominant %s naming convention", firstDivergent.name, dominant))}
 }
 
 func goDeclaredNames(source string) []nameAt {
@@ -127,8 +121,9 @@ func scriptDeclaredNames(source string) []nameAt {
 }
 
 func extractNames(source string, pattern *regexp.Regexp) []nameAt {
-	out := make([]nameAt, 0)
-	for _, match := range pattern.FindAllStringSubmatchIndex(source, -1) {
+	matches := pattern.FindAllStringSubmatchIndex(source, -1)
+	out := make([]nameAt, 0, len(matches))
+	for _, match := range matches {
 		out = append(out, nameAt{
 			name: source[match[2]:match[3]],
 			line: 1 + strings.Count(source[:match[2]], "\n"),

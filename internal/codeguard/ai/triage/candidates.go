@@ -1,7 +1,7 @@
 package triage
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -47,7 +47,7 @@ func contentHash(item candidate) string {
 		"snippet":    item.snippet,
 	}
 	data, _ := json.Marshal(payload)
-	sum := sha1.Sum(data)
+	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
 
@@ -85,7 +85,7 @@ func (resolver sourceResolver) snippetForFinding(finding core.Finding) string {
 	if !ok {
 		return ""
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path resolved from the scan-target file walk in newSourceResolver
 	if err != nil {
 		return ""
 	}

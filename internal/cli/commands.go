@@ -17,28 +17,28 @@ func runInit(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	output := fs.String("output", service.DefaultConfigPath(), "output config path")
 	interactive := fs.Bool("interactive", false, "prompt for config values in the terminal")
 	profile := fs.String("profile", "", "optional policy profile: startup, strict, enterprise, ai-safe")
-	if err := fs.Parse(args); err != nil {
-		return 1
+	if ok, code := parseFlags(fs, args, stderr); !ok {
+		return code
 	}
 
 	cfg, err := exampleConfigForProfile(strings.TrimSpace(*profile))
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "init profile: %v\n", err)
-		return 1
+		return exitError
 	}
 	if *interactive {
 		if err := promptInitValues(bufio.NewReader(stdin), stdout, output, &cfg.Name); err != nil {
 			_, _ = fmt.Fprintf(stderr, "interactive init: %v\n", err)
-			return 1
+			return exitError
 		}
 	}
 
 	if err := service.WriteConfigFile(*output, cfg); err != nil {
 		_, _ = fmt.Fprintf(stderr, "write config: %v\n", err)
-		return 1
+		return exitError
 	}
 	_, _ = fmt.Fprintf(stdout, "wrote %s\n", *output)
-	return 0
+	return exitOK
 }
 
 func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -46,22 +46,22 @@ func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", service.DefaultConfigPath(), "config file or directory path")
 	profile := fs.String("profile", "", "optional policy profile override")
-	if err := fs.Parse(args); err != nil {
-		return 1
+	if ok, code := parseFlags(fs, args, stderr); !ok {
+		return code
 	}
 
 	cfg, err := loadConfigWithProfile(*configPath, *profile)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
-		return 1
+		return exitError
 	}
 	if err := service.ValidateConfig(cfg); err != nil {
 		_, _ = fmt.Fprintf(stderr, "invalid config: %v\n", err)
-		return 1
+		return exitError
 	}
 
 	_, _ = fmt.Fprintln(stdout, "config valid")
-	return 0
+	return exitOK
 }
 
 func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
@@ -72,26 +72,26 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	format := fs.String("format", "", "optional output format override: text, json, sarif, github")
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	interactive := fs.Bool("interactive", false, "prompt for scan inputs in the terminal")
-	if err := fs.Parse(args); err != nil {
-		return 1
+	if ok, code := parseFlags(fs, args, stderr); !ok {
+		return code
 	}
 	flags.applyTrustPolicy()
 
 	if err := promptScanInputs(*interactive, stdin, stdout, &inputs); err != nil {
 		_, _ = fmt.Fprintf(stderr, "interactive scan: %v\n", err)
-		return 1
+		return exitError
 	}
 
 	scanMode, err := parseScanMode(*inputs.mode)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
-		return 1
+		return exitError
 	}
 
 	cfg, err := loadConfigWithProfile(*inputs.configPath, *flags.profile)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
-		return 1
+		return exitError
 	}
 	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
 		cfg.Output.Format = trimmedFormat
@@ -99,9 +99,9 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 
 	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef), *enableAI); err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
-		return 1
+		return exitError
 	}
-	return 0
+	return exitOK
 }
 
 func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
@@ -111,24 +111,24 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	format := fs.String("format", "", "optional output format override: text, json, sarif, github")
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	profile := fs.String("profile", "", "optional policy profile override")
-	if err := fs.Parse(args); err != nil {
-		return 1
+	if ok, code := parseFlags(fs, args, stderr); !ok {
+		return code
 	}
 
 	diffText, err := io.ReadAll(stdin)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "read patch stdin: %v\n", err)
-		return 1
+		return exitError
 	}
 	if strings.TrimSpace(string(diffText)) == "" {
 		_, _ = fmt.Fprintln(stderr, "validate-patch requires a unified diff on stdin")
-		return 1
+		return exitError
 	}
 
 	cfg, err := loadConfigWithProfile(*configPath, *profile)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
-		return 1
+		return exitError
 	}
 	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
 		cfg.Output.Format = trimmedFormat
@@ -142,16 +142,16 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "patch validation failed: %v\n", err)
-		return 1
+		return exitError
 	}
 	if err := service.WriteReport(stdout, report, cfg.Output.Format); err != nil {
 		_, _ = fmt.Fprintf(stderr, "write report: %v\n", err)
-		return 1
+		return exitError
 	}
 	if report.Summary.FailedSections > 0 {
-		return 1
+		return exitError
 	}
-	return 0
+	return exitOK
 }
 
 func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -159,15 +159,15 @@ func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	flags := registerScanRunFlags(fs)
 	outputPath := fs.String("output", "codeguard-baseline.json", "baseline output path")
-	if err := fs.Parse(args); err != nil {
-		return 1
+	if ok, code := parseFlags(fs, args, stderr); !ok {
+		return code
 	}
 	flags.applyTrustPolicy()
 
 	cfg, err := loadConfigWithProfile(*flags.configPath, *flags.profile)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
-		return 1
+		return exitError
 	}
 	cfg.Baseline.Path = ""
 
@@ -177,14 +177,14 @@ func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "baseline scan failed: %v\n", err)
-		return 1
+		return exitError
 	}
 	if err := service.WriteBaselineFile(*outputPath, service.BaselineEntriesFromReport(report)); err != nil {
 		_, _ = fmt.Fprintf(stderr, "write baseline: %v\n", err)
-		return 1
+		return exitError
 	}
 	_, _ = fmt.Fprintf(stdout, "wrote %s\n", *outputPath)
-	return 0
+	return exitOK
 }
 
 func promptInitValues(reader *bufio.Reader, stdout io.Writer, output *string, configName *string) error {

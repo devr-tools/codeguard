@@ -18,7 +18,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 }
 
 func findingsForTarget(_ context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each rule appends a variable number
 	findings = append(findings, requiredWorkflowDirFindings(env, target)...)
 	findings = append(findings, requiredPathFindings(env, target, env.Config.Checks.CIRules.RequiredWorkflowFiles, "required workflow file is missing")...)
 	findings = append(findings, requiredPathFindings(env, target, env.Config.Checks.CIRules.RequiredReleaseFiles, "required release file is missing")...)

@@ -44,7 +44,7 @@ func semanticFindings(ctx context.Context, env support.Context, target core.Targ
 	return findings
 }
 
-func semanticRuntimeFinding(env support.Context, target core.TargetConfig, message string) core.Finding {
+func semanticRuntimeFinding(env support.Context, _ core.TargetConfig, message string) core.Finding {
 	return env.NewFinding(support.FindingInput{
 		RuleID:  "quality.ai.semantic-runtime",
 		Level:   "fail",

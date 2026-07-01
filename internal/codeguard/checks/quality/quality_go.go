@@ -53,14 +53,8 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 		return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 	}
 	if len(parsed.Decls) > env.Config.Checks.DesignRules.MaxDeclsPerFile {
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "design.max-decls-per-file",
-			Level:   "warn",
-			Path:    file,
-			Line:    1,
-			Column:  1,
-			Message: fmt.Sprintf("file has %d declarations; max is %d", len(parsed.Decls), env.Config.Checks.DesignRules.MaxDeclsPerFile),
-		}))
+		findings = append(findings, warnFinding(env, "design.max-decls-per-file", file, 1, 1,
+			fmt.Sprintf("file has %d declarations; max is %d", len(parsed.Decls), env.Config.Checks.DesignRules.MaxDeclsPerFile)))
 	}
 	findings = append(findings, importFindings(env, file, fset, parsed)...)
 	findings = append(findings, goFunctionFindings(env, file, fset, parsed)...)
@@ -75,14 +69,8 @@ func importFindings(env support.Context, file string, fset *token.FileSet, parse
 		pathValue := strings.Trim(imp.Path.Value, `"`)
 		if strings.Contains(pathValue, "/internal/") && allowsInternalImport(env, file) {
 			pos := fset.Position(imp.Pos())
-			findings = append(findings, env.NewFinding(support.FindingInput{
-				RuleID:  "quality.dependency-direction",
-				Level:   "warn",
-				Path:    file,
-				Line:    pos.Line,
-				Column:  pos.Column,
-				Message: "non-CLI package imports internal implementation detail",
-			}))
+			findings = append(findings, warnFinding(env, "quality.dependency-direction", file, pos.Line, pos.Column,
+				"non-CLI package imports internal implementation detail"))
 		}
 	}
 	return findings

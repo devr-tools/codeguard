@@ -27,7 +27,7 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 		return nil
 	}
 
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each rule appends a variable number
 	findings = append(findings, forbiddenPackageFindings(env, file, parsed.Name.Name)...)
 	methodCounts, interfaceFindings := typeFindings(env, file, fset, parsed)
 	findings = append(findings, interfaceFindings...)
@@ -110,7 +110,7 @@ func methodFindings(env support.Context, file string, methodCounts map[string]in
 }
 
 func importFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each import appends a variable number
 	normalized := filepath.ToSlash(file)
 	for _, imp := range parsed.Imports {
 		pathValue := strings.Trim(imp.Path.Value, `"`)

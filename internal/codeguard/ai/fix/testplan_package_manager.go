@@ -10,7 +10,7 @@ import (
 )
 
 func inferPackageManagerTestCommand(root string) (core.CommandCheckConfig, bool) {
-	data, err := os.ReadFile(filepath.Join(root, "package.json"))
+	data, err := os.ReadFile(filepath.Join(root, "package.json")) //nolint:gosec // fixed filename joined under the scan root
 	if err != nil {
 		return core.CommandCheckConfig{}, false
 	}

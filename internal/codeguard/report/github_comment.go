@@ -106,10 +106,3 @@ func githubCommentSentence(value string, fallback string) string {
 	}
 	return trimmed
 }
-
-func min(a int, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

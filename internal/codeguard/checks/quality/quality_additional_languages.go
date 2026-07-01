@@ -14,7 +14,7 @@ var (
 )
 
 func rustFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each function appends a variable number
 	for _, fn := range clikeQualityFunctions(string(data), support.CLikeRust, rustComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
@@ -22,7 +22,7 @@ func rustFindingsForFile(env support.Context, file string, data []byte) []core.F
 }
 
 func javaFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each function appends a variable number
 	for _, fn := range clikeQualityFunctions(string(data), support.CLikeJava, braceComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
@@ -37,7 +37,7 @@ func clikeQualityFunctions(source string, lang support.CLikeLanguage, complexity
 }
 
 func csharpFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each function appends a variable number
 	for _, fn := range braceLanguageFunctions(string(data), csharpMethodPattern, typedParameterCount, braceComplexity, csharpControlWords) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
@@ -45,7 +45,7 @@ func csharpFindingsForFile(env support.Context, file string, data []byte) []core
 }
 
 func rubyFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each function appends a variable number
 	for _, fn := range rubyFunctions(string(data)) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}

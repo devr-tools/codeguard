@@ -1,6 +1,7 @@
 package support
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -21,6 +22,11 @@ func LoadDiffScopeFromUnifiedDiff(targets []core.TargetConfig, diffText string) 
 	return out
 }
 
+// MaterializePatchedTargets writes diffText into a temporary worktree copy of
+// every configured target, returning a config rebased onto that copy, the
+// per-target diff command environments, a cleanup func, and any error.
+//
+//nolint:revive // unexported diffCommandEnv stays package-private; this is an internal-only helper
 func MaterializePatchedTargets(cfg core.Config, diffText string) (core.Config, map[string]diffCommandEnv, func(), error) {
 	tempRoot, err := os.MkdirTemp("", "codeguard-patch-*")
 	if err != nil {
@@ -82,7 +88,10 @@ func ApplyUnifiedDiff(cfg core.Config, diffText string) error {
 }
 
 func applyUnifiedDiff(dir string, diffText string) error {
-	cmd := exec.Command("git", "apply", "--recount", "--whitespace=nowarn")
+	// TODO(harden): thread caller ctx once applyUnifiedDiff accepts one.
+	ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "apply", "--recount", "--whitespace=nowarn")
 	cmd.Dir = dir
 	cmd.Stdin = strings.NewReader(diffText)
 	output, err := cmd.CombinedOutput()

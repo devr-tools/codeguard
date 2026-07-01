@@ -2,7 +2,7 @@ package runtime
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"strings"
 
@@ -75,7 +75,7 @@ func (s *Session) EvaluateCached(ctx context.Context, req Request) (Response, st
 
 func CacheKey(req Request) (string, string) {
 	content := strings.Join([]string{req.Kind, req.System, req.Prompt, req.InputJSON}, "|")
-	sum := sha1.Sum([]byte(content))
+	sum := sha256.Sum256([]byte(content))
 	hash := hex.EncodeToString(sum[:])
 	return req.Kind + "|" + hash, hash
 }

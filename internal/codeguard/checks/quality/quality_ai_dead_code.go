@@ -16,14 +16,8 @@ func goUnreachableCodeFindings(env support.Context, file string, fset *token.Fil
 	findings := make([]core.Finding, 0)
 	flag := func(stmt ast.Stmt) {
 		pos := fset.Position(stmt.Pos())
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.ai.dead-code",
-			Level:   "warn",
-			Path:    file,
-			Line:    pos.Line,
-			Column:  pos.Column,
-			Message: "statement is unreachable because the previous statement unconditionally exits the block",
-		}))
+		findings = append(findings, warnFinding(env, "quality.ai.dead-code", file, pos.Line, pos.Column,
+			"statement is unreachable because the previous statement unconditionally exits the block"))
 	}
 	ast.Inspect(parsed, func(node ast.Node) bool {
 		switch block := node.(type) {
@@ -104,14 +98,8 @@ func goUnusedPrivateFunctionFindings(env support.Context, packageFiles []goParse
 		if _, ok := used[site.name]; ok {
 			continue
 		}
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.ai.dead-code",
-			Level:   "warn",
-			Path:    site.rel,
-			Line:    site.pos.Line,
-			Column:  site.pos.Column,
-			Message: fmt.Sprintf("private function %q is declared but never referenced within its package", site.name),
-		}))
+		findings = append(findings, warnFinding(env, "quality.ai.dead-code", site.rel, site.pos.Line, site.pos.Column,
+			fmt.Sprintf("private function %q is declared but never referenced within its package", site.name)))
 	}
 	return findings
 }

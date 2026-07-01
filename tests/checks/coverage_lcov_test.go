@@ -31,7 +31,7 @@ end_of_record
 	if app[1] != 3 || app[2] != 0 || app[4] != 1 {
 		t.Fatalf("unexpected hits for src/app.ts: %v", app)
 	}
-	if _, ok := app[3]; ok {
+	if _, hasLine3 := app[3]; hasLine3 {
 		t.Fatalf("line 3 has no DA record and must stay unmeasured: %v", app)
 	}
 	other, ok := profile["src/other.ts"]

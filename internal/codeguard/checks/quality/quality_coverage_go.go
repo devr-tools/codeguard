@@ -43,7 +43,7 @@ func goCoverageProfile(ctx context.Context, env support.Context, target core.Tar
 		return nil, fmt.Errorf("go test: %w", err)
 	}
 
-	data, err := os.ReadFile(profilePath)
+	data, err := os.ReadFile(profilePath) //nolint:gosec // config-supplied coverage profile path
 	if err != nil {
 		return nil, err
 	}

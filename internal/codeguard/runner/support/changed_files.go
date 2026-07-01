@@ -2,7 +2,6 @@ package support
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -16,16 +15,18 @@ func ListChangedFiles(sc Context, target core.TargetConfig) ([]core.ChangedFile,
 	if sc.Opts.Mode != core.ScanModeDiff {
 		return nil, nil
 	}
+	if err := ValidateBaseRef(sc.Opts.BaseRef); err != nil {
+		return nil, err
+	}
 	var lastErr error
 	for _, ref := range []string{sc.Opts.BaseRef, sc.Opts.BaseRef + "...HEAD"} {
-		cmd := exec.Command("git", "-C", target.Path, "diff", "--name-status", "--no-renames", "--no-color", ref, "--")
-		output, err := cmd.Output()
+		output, err := runGitCapture("-C", target.Path, "diff", "--name-status", "--no-renames", "--no-color", "--end-of-options", ref, "--")
 		if err == nil {
 			return parseNameStatus(string(output)), nil
 		}
 		lastErr = err
 	}
-	return nil, fmt.Errorf("diff mode requires git diff --name-status against %q: %v", sc.Opts.BaseRef, lastErr)
+	return nil, fmt.Errorf("diff mode requires git diff --name-status against %q: %w", sc.Opts.BaseRef, lastErr)
 }
 
 func parseNameStatus(output string) []core.ChangedFile {
@@ -46,6 +47,8 @@ func parseNameStatus(output string) []core.ChangedFile {
 // ReadBaseFile returns the contents of a target-relative file at the diff
 // base ref.
 func ReadBaseFile(sc Context, target core.TargetConfig, rel string) ([]byte, error) {
-	cmd := exec.Command("git", "-C", target.Path, "show", sc.Opts.BaseRef+":./"+filepath.ToSlash(rel))
-	return cmd.Output()
+	if err := ValidateBaseRef(sc.Opts.BaseRef); err != nil {
+		return nil, err
+	}
+	return runGitCapture("-C", target.Path, "show", "--end-of-options", sc.Opts.BaseRef+":./"+filepath.ToSlash(rel))
 }

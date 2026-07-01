@@ -19,7 +19,7 @@ import (
 
 const httpTestToken = "http-smoke-token"
 
-func TestMCPServeHTTPHelperProcess(t *testing.T) {
+func TestMCPServeHTTPHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_MCP_HTTP_HELPER_PROCESS") != "1" {
 		return
 	}

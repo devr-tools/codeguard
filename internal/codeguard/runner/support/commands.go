@@ -21,7 +21,7 @@ func RunCommandCheckWithEnv(ctx context.Context, dir string, check core.CommandC
 }
 
 func RunDiffCommandCheck(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error) {
-	diffEnv, cleanup, err := prepareDiffCommandEnv(dir, baseRef)
+	diffEnv, cleanup, err := prepareDiffCommandEnv(dir, baseRef) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
 	if err != nil {
 		return "", err
 	}
@@ -56,7 +56,7 @@ func runCommandCheck(ctx context.Context, dir string, check core.CommandCheckCon
 	if strings.Contains(command, string(filepath.Separator)) && !filepath.IsAbs(command) {
 		command = filepath.Join(dir, command)
 	}
-	cmd := exec.CommandContext(ctx, command, check.Args...)
+	cmd := exec.CommandContext(ctx, command, check.Args...) //nolint:gosec // command gated by trust.GuardConfigCommand above
 	cmd.Dir = dir
 	if len(env) > 0 {
 		cmd.Env = env

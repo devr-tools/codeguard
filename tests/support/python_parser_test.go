@@ -36,7 +36,7 @@ func TestParsePythonStructure(t *testing.T) {
 	file := support.ParsePython(trickyPython)
 
 	if len(file.Functions) != 2 {
-		names := make([]string, 0)
+		names := make([]string, 0, len(file.Functions))
 		for _, fn := range file.Functions {
 			names = append(names, fn.Name)
 		}

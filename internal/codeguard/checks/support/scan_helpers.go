@@ -8,7 +8,7 @@ import (
 )
 
 func CollectTargetFindings(ctx context.Context, env Context, collect func(context.Context, Context, core.TargetConfig) []core.Finding) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each target appends a variable number
 	for _, target := range env.Config.Targets {
 		findings = append(findings, collect(ctx, env, target)...)
 	}

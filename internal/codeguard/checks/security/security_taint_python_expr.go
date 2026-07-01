@@ -111,7 +111,7 @@ func (s *pyScope) localCallTaint(stripped string, line int) *pyTaint {
 
 // taintedIdentifier scans for identifiers bound to tainted values, skipping
 // attribute accesses like obj.name.
-func (s *pyScope) taintedIdentifier(stripped string, line int) *pyTaint {
+func (s *pyScope) taintedIdentifier(stripped string, _ int) *pyTaint {
 	var found *pyTaint
 	for _, match := range pyIdentScanPattern.FindAllStringIndex(stripped, -1) {
 		if match[0] > 0 && stripped[match[0]-1] == '.' {

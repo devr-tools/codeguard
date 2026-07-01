@@ -1,13 +1,108 @@
 package support
 
 import (
+	"bytes"
+	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
+
+// gitCommandTimeout bounds how long a single git invocation may run before it
+// is cancelled. It guards against a hung or pathological git process when no
+// caller context is available to thread through.
+const gitCommandTimeout = 2 * time.Minute
+
+// maxGitOutputBytes caps how much stdout codeguard will buffer from a git
+// subprocess. A diff against a far-back base ref can be hundreds of MB; reading
+// it unbounded risks exhausting memory, so output past this cap is an error.
+const maxGitOutputBytes = 64 << 20 // 64 MiB
+
+// errGitOutputTooLarge is returned when a git subprocess produces more output
+// than maxGitOutputBytes.
+var errGitOutputTooLarge = fmt.Errorf("git output exceeded %d bytes", maxGitOutputBytes)
+
+// validBaseRef reports whether ref is a safe value to pass to git as a
+// revision/ref:path argument. It rejects refs beginning with "-" (which git
+// would otherwise parse as an option even after "--") and restricts the value
+// to a conservative ref/SHA charset. The literal "stdin" sentinel (used when a
+// diff is supplied directly rather than read from git) is always allowed.
+func validBaseRef(ref string) bool {
+	if ref == "stdin" {
+		return true
+	}
+	if ref == "" || strings.HasPrefix(ref, "-") {
+		return false
+	}
+	for _, r := range ref {
+		switch {
+		case r >= 'a' && r <= 'z',
+			r >= 'A' && r <= 'Z',
+			r >= '0' && r <= '9':
+			continue
+		}
+		switch r {
+		case '.', '_', '/', '-', '~', '^', '@', '{', '}', ':':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// ValidateBaseRef validates a base ref at the trust boundary, returning a clear
+// error when the ref could be misinterpreted by git as an option or contains
+// unexpected characters.
+func ValidateBaseRef(ref string) error {
+	if !validBaseRef(ref) {
+		return fmt.Errorf("invalid base ref %q", ref)
+	}
+	return nil
+}
+
+// runGitCapture runs git with the given args, enforcing gitCommandTimeout and
+// capturing at most maxGitOutputBytes of stdout. stderr is captured separately
+// so it can be surfaced in errors without counting against the output cap.
+func runGitCapture(args ...string) ([]byte, error) {
+	// TODO(harden): thread caller ctx once the diff helpers accept one.
+	ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec // fixed git binary; args are tool-built (constants, validated baseRef, target paths)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	n, copyErr := io.Copy(&buf, io.LimitReader(stdout, maxGitOutputBytes+1))
+	if n > maxGitOutputBytes {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return nil, errGitOutputTooLarge
+	}
+	if waitErr := cmd.Wait(); waitErr != nil {
+		if stderr.Len() > 0 {
+			return buf.Bytes(), fmt.Errorf("%w: %s", waitErr, strings.TrimSpace(stderr.String()))
+		}
+		return buf.Bytes(), waitErr
+	}
+	if copyErr != nil {
+		return buf.Bytes(), copyErr
+	}
+	return buf.Bytes(), nil
+}
 
 type LineRanges struct {
 	allChanged bool
@@ -38,20 +133,22 @@ func LoadDiffScope(targets []core.TargetConfig, baseRef string) (map[string]Line
 }
 
 func gitChangedLines(dir string, baseRef string) (map[string]LineRanges, error) {
+	if err := ValidateBaseRef(baseRef); err != nil {
+		return nil, err
+	}
 	argsVariants := [][]string{
-		{"-C", dir, "diff", "--unified=0", "--no-color", baseRef, "--"},
-		{"-C", dir, "diff", "--unified=0", "--no-color", baseRef + "...HEAD", "--"},
+		{"-C", dir, "diff", "--unified=0", "--no-color", "--end-of-options", baseRef, "--"},
+		{"-C", dir, "diff", "--unified=0", "--no-color", "--end-of-options", baseRef + "...HEAD", "--"},
 	}
 	var output []byte
 	var err error
 	for _, args := range argsVariants {
-		cmd := exec.Command("git", args...)
-		output, err = cmd.CombinedOutput()
+		output, err = runGitCapture(args...)
 		if err == nil {
 			return parseUnifiedDiff(string(output)), nil
 		}
 	}
-	return nil, fmt.Errorf("diff mode requires git diff against %q: %v", baseRef, err)
+	return nil, fmt.Errorf("diff mode requires git diff against %q: %w", baseRef, err)
 }
 
 func parseUnifiedDiff(diff string) map[string]LineRanges {

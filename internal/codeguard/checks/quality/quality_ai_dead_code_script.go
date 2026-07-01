@@ -20,14 +20,8 @@ var (
 // unreachableStatementFinding builds the shared dead-code finding emitted when
 // a statement follows an unconditional block terminator.
 func unreachableStatementFinding(env support.Context, file string, line int) core.Finding {
-	return env.NewFinding(support.FindingInput{
-		RuleID:  "quality.ai.dead-code",
-		Level:   "warn",
-		Path:    file,
-		Line:    line,
-		Column:  1,
-		Message: "statement is unreachable because the previous statement unconditionally exits the block",
-	})
+	return warnFinding(env, "quality.ai.dead-code", file, line, 1,
+		"statement is unreachable because the previous statement unconditionally exits the block")
 }
 
 func scriptUnreachableFindings(env support.Context, file string, source string) []core.Finding {
@@ -75,14 +69,8 @@ func scriptUnusedFunctionFindings(env support.Context, file string, source strin
 			continue
 		}
 		line := 1 + strings.Count(sanitized[:match[2]], "\n")
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.ai.dead-code",
-			Level:   "warn",
-			Path:    file,
-			Line:    line,
-			Column:  1,
-			Message: fmt.Sprintf("file-local function %q is declared but never referenced in this file", name),
-		}))
+		findings = append(findings, warnFinding(env, "quality.ai.dead-code", file, line, 1,
+			fmt.Sprintf("file-local function %q is declared but never referenced in this file", name)))
 	}
 	return findings
 }

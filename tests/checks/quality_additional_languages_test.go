@@ -12,7 +12,6 @@ func TestQualityCheckWarnsForAdditionalLanguageMaintainability(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range additionalLanguageMaintainabilityCases() {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			report := runAdditionalLanguageQualityCase(t, tc)
 			assertSectionStatus(t, report, "Code Quality", "warn")

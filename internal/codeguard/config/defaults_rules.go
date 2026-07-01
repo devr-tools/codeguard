@@ -105,7 +105,7 @@ func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRules
 }
 
 func applyAIChangeRiskDefaults(dst *core.AIChangeRiskConfig, def core.AIChangeRiskConfig) {
-	defaultBoolPtr(&dst.Enabled, valueOrDefault(def.Enabled, true))
+	defaultBoolPtr(&dst.Enabled, boolValueOrTrue(def.Enabled))
 	if dst.WarnThreshold == 0 {
 		dst.WarnThreshold = def.WarnThreshold
 	}
@@ -115,9 +115,9 @@ func applyAIChangeRiskDefaults(dst *core.AIChangeRiskConfig, def core.AIChangeRi
 }
 
 func applySupplyChainDefaults(dst *core.SupplyChainRulesConfig, def core.SupplyChainRulesConfig) {
-	defaultBoolPtr(&dst.RequireLockfile, valueOrDefault(def.RequireLockfile, true))
-	defaultBoolPtr(&dst.DetectLockfileDrift, valueOrDefault(def.DetectLockfileDrift, true))
-	defaultBoolPtr(&dst.DetectUnpinned, valueOrDefault(def.DetectUnpinned, true))
+	defaultBoolPtr(&dst.RequireLockfile, boolValueOrTrue(def.RequireLockfile))
+	defaultBoolPtr(&dst.DetectLockfileDrift, boolValueOrTrue(def.DetectLockfileDrift))
+	defaultBoolPtr(&dst.DetectUnpinned, boolValueOrTrue(def.DetectUnpinned))
 	defaultStringSlice(&dst.AllowedLicenses, def.AllowedLicenses, false)
 	defaultStringSlice(&dst.DeniedLicenses, def.DeniedLicenses, false)
 	defaultSingleCommandMap(&dst.LicenseCommands, def.LicenseCommands)

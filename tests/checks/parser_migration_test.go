@@ -150,7 +150,6 @@ func TestSecurityIgnoresPrimitivesInCommentsAndStrings(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			writeFile(t, filepath.Join(dir, filepath.FromSlash(tc.path)), tc.source)

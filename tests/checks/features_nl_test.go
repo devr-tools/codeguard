@@ -121,8 +121,8 @@ func TestCacheFileCreatedAndInvalidatedOnContentChange(t *testing.T) {
 		t.Fatalf("run: %v", err)
 	}
 	assertSectionStatus(t, report, "AI Prompts", "fail")
-	if _, err := os.Stat(cfg.Cache.Path); err != nil {
-		t.Fatalf("expected cache file: %v", err)
+	if _, statErr := os.Stat(cfg.Cache.Path); statErr != nil {
+		t.Fatalf("expected cache file: %v", statErr)
 	}
 
 	writeFile(t, filepath.Join(dir, "prompts", "system.prompt"), "Safe prompt line.\n")

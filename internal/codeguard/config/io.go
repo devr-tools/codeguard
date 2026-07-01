@@ -3,12 +3,17 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
+
+// maxConfigFileBytes caps how much of a config file is read into memory,
+// guarding against an oversized file exhausting memory.
+const maxConfigFileBytes = 32 << 20
 
 var (
 	defaultConfigNames   = []string{"codeguard.yaml", "codeguard.yml", "codeguard.json"}
@@ -22,7 +27,12 @@ func LoadFile(path string) (core.Config, error) {
 		return core.Config{}, err
 	}
 
-	data, err := os.ReadFile(resolvedPath)
+	f, err := os.Open(resolvedPath) //nolint:gosec // operator-supplied config path; read is size-capped by LimitReader below
+	if err != nil {
+		return core.Config{}, err
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(io.LimitReader(f, maxConfigFileBytes))
 	if err != nil {
 		return core.Config{}, err
 	}
@@ -114,10 +124,10 @@ func WriteFile(path string, cfg core.Config) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil && !errors.Is(err, os.ErrExist) {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return os.WriteFile(path, append(data, '\n'), 0o600)
 }
 
 func resolveConfigPath(path string) (string, error) {

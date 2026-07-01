@@ -8,7 +8,7 @@ import (
 )
 
 func targetFindings(_ context.Context, env support.Context, target core.TargetConfig, manifests []core.SupplyChainManifest) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each manifest appends a variable number
 	changed := changedFilesSet(env.ChangedFiles)
 	for _, manifest := range manifests {
 		findings = append(findings, unpinnedDependencyFindings(env, manifest)...)

@@ -47,10 +47,10 @@ func requireFixFinding(ruleID string, message string) (map[string]any, bool) {
 	return nil, false
 }
 
-func verifyFixCandidate(ctx context.Context, cfg service.Config, args fixToolArgs) (service.VerifiedFix, map[string]any, error, bool) {
+func verifyFixCandidate(ctx context.Context, cfg service.Config, args fixToolArgs) (service.VerifiedFix, map[string]any, bool, error) {
 	result, err := service.VerifyFix(ctx, cfg, args.Finding, service.FixCandidate{Diff: args.Diff}, args.options())
 	if err == nil {
-		return result, nil, nil, true
+		return result, nil, true, nil
 	}
 	data := map[string]any{
 		"verified":       false,
@@ -60,7 +60,7 @@ func verifyFixCandidate(ctx context.Context, cfg service.Config, args fixToolArg
 	if report, perr := service.RunPatch(ctx, cfg, args.Diff); perr == nil {
 		data["remaining_findings"] = report
 	}
-	return service.VerifiedFix{}, data, err, false
+	return service.VerifiedFix{}, data, false, err
 }
 
 func toolResultFromError(err error) map[string]any {

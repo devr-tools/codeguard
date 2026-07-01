@@ -34,7 +34,7 @@ func commandCoverageProfile(ctx context.Context, env support.Context, target cor
 	if !filepath.IsAbs(reportPath) {
 		reportPath = filepath.Join(target.Path, reportPath)
 	}
-	data, err := os.ReadFile(reportPath)
+	data, err := os.ReadFile(reportPath) //nolint:gosec // config-supplied coverage report path
 	if err != nil {
 		return nil, fmt.Errorf("coverage report %q: %w", command.ReportPath, err)
 	}

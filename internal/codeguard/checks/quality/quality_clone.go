@@ -34,14 +34,7 @@ func cloneFindingsForTarget(env support.Context, target core.TargetConfig) []cor
 			rightLine,
 			threshold,
 		)
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.duplicate-code",
-			Level:   "warn",
-			Path:    left.Path,
-			Line:    leftLine,
-			Column:  1,
-			Message: message,
-		}))
+		findings = append(findings, warnFinding(env, "quality.duplicate-code", left.Path, leftLine, 1, message))
 		message = fmt.Sprintf(
 			"duplicate normalized token sequence of %d tokens also found in %s:%d (threshold %d)",
 			candidate.Length,
@@ -49,14 +42,7 @@ func cloneFindingsForTarget(env support.Context, target core.TargetConfig) []cor
 			leftLine,
 			threshold,
 		)
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.duplicate-code",
-			Level:   "warn",
-			Path:    right.Path,
-			Line:    rightLine,
-			Column:  1,
-			Message: message,
-		}))
+		findings = append(findings, warnFinding(env, "quality.duplicate-code", right.Path, rightLine, 1, message))
 	}
 	return findings
 }

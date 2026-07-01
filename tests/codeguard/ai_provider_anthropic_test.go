@@ -125,7 +125,7 @@ func TestAnthropicRuntimeProviderRetriesRateLimit(t *testing.T) {
 	t.Setenv("CODEGUARD_AI_RETRY_BASE_DELAY", "1ms")
 
 	var calls atomic.Int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if calls.Add(1) == 1 {
 			w.Header().Set("Retry-After", "0")
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -161,7 +161,7 @@ func TestOpenAIRuntimeProviderRetriesServerError(t *testing.T) {
 	t.Setenv("CODEGUARD_AI_RETRY_BASE_DELAY", "1ms")
 
 	var calls atomic.Int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if calls.Add(1) == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -198,7 +198,7 @@ func TestRuntimeProviderRetriesExhaustGracefully(t *testing.T) {
 	t.Setenv("CODEGUARD_AI_MAX_RETRIES", "1")
 
 	var calls atomic.Int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)
 		w.WriteHeader(http.StatusTooManyRequests)
 	}))

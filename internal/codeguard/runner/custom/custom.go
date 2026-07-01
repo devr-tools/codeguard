@@ -10,7 +10,7 @@ import (
 )
 
 func RunSection(ctx context.Context, sc runnersupport.Context) core.SectionResult {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each target appends a variable number
 	for _, target := range sc.Cfg.Targets {
 		findings = append(findings, runnersupport.ScanTargetFiles(sc, target, "custom", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
 			localFindings := make([]core.Finding, 0)

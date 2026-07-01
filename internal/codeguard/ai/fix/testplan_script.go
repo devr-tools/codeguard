@@ -10,9 +10,7 @@ import (
 )
 
 func inferPythonTestCommands(root string, changed []string, excludes []string, maxNearest int) []core.CommandCheckConfig {
-	testFiles, err := runnersupport.WalkFiles(root, excludes, func(rel string) bool {
-		return isPythonTestFile(rel)
-	})
+	testFiles, err := runnersupport.WalkFiles(root, excludes, isPythonTestFile)
 	if err != nil {
 		return nil
 	}
@@ -41,9 +39,7 @@ func inferScriptTestCommands(root string, changed []string, excludes []string, m
 }
 
 func inferNodeTestCommands(root string, changed []string, excludes []string, maxNearest int) []core.CommandCheckConfig {
-	testFiles, err := runnersupport.WalkFiles(root, excludes, func(rel string) bool {
-		return isNodeTestFile(rel)
-	})
+	testFiles, err := runnersupport.WalkFiles(root, excludes, isNodeTestFile)
 	if err != nil {
 		return nil
 	}

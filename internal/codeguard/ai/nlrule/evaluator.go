@@ -69,10 +69,3 @@ func findingsFromMatches(rule core.CustomRuleConfig, matches []Match) []Evaluate
 	}
 	return findings
 }
-
-func max(value int, minimum int) int {
-	if value < minimum {
-		return minimum
-	}
-	return value
-}

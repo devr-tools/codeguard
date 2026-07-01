@@ -72,7 +72,7 @@ func readPythonRequirementsFiles(root string, catalog *pythonDependencyCatalog) 
 		if entry.IsDir() || !strings.HasPrefix(name, "requirements") || !strings.HasSuffix(name, ".txt") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(root, entry.Name()))
+		data, err := os.ReadFile(filepath.Join(root, entry.Name())) //nolint:gosec // dir entry under the scan-target root
 		if err != nil {
 			continue
 		}
@@ -84,7 +84,7 @@ func readPythonRequirementsFiles(root string, catalog *pythonDependencyCatalog) 
 }
 
 func readPythonSetupPyDeps(root string, catalog *pythonDependencyCatalog) {
-	data, err := os.ReadFile(filepath.Join(root, "setup.py"))
+	data, err := os.ReadFile(filepath.Join(root, "setup.py")) //nolint:gosec // fixed filename under the scan-target root
 	if err != nil {
 		return
 	}
@@ -97,7 +97,7 @@ func readPythonSetupPyDeps(root string, catalog *pythonDependencyCatalog) {
 }
 
 func readPythonSetupCfgDeps(root string, catalog *pythonDependencyCatalog) {
-	data, err := os.ReadFile(filepath.Join(root, "setup.cfg"))
+	data, err := os.ReadFile(filepath.Join(root, "setup.cfg")) //nolint:gosec // fixed filename under the scan-target root
 	if err != nil {
 		return
 	}

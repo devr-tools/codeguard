@@ -76,6 +76,7 @@ func Apply(ctx context.Context, cfg core.Config, opts core.ScanOptions, sections
 	if len(pending) > 0 {
 		fresh, err := provider.Triage(ctx, pending)
 		if err != nil {
+			//nolint:gocritic // intentional: cached verdicts plus an error verdict, written to a different slice
 			artifact.AIAnalysis.Verdicts = append(verdicts, core.AIAnalysisVerdict{
 				ID:      "ai-triage-provider",
 				Kind:    "triage",

@@ -14,7 +14,7 @@ func exampleAIConfig() core.AIConfig {
 }
 
 func exampleAIProviderConfig() core.AIProviderConfig {
-	return core.AIProviderConfig{
+	return core.AIProviderConfig{ //nolint:gosec // APIKeyEnv is an env var name, not a credential
 		Type:      "openai",
 		Model:     "gpt-5",
 		BaseURL:   "https://api.openai.com/v1",

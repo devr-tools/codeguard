@@ -191,8 +191,9 @@ func TestParseJavaStructure(t *testing.T) {
 }
 
 func functionNames(file *support.ParsedFile) []string {
-	names := make([]string, 0)
-	for _, fn := range file.AllFunctions() {
+	allFns := file.AllFunctions()
+	names := make([]string, 0, len(allFns))
+	for _, fn := range allFns {
 		names = append(names, fn.Name)
 	}
 	return names

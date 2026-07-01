@@ -39,7 +39,7 @@ func LoadSlopHistory(path string) map[string][]core.SlopHistoryEntry {
 	if strings.TrimSpace(path) == "" {
 		return map[string][]core.SlopHistoryEntry{}
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // config-supplied slop-history cache path
 	if err != nil {
 		return map[string][]core.SlopHistoryEntry{}
 	}
@@ -82,8 +82,8 @@ func saveSlopHistory(path string, entries map[string][]core.SlopHistoryEntry) {
 	if err != nil {
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return
 	}
-	_ = os.WriteFile(path, append(data, '\n'), 0o644)
+	_ = os.WriteFile(path, append(data, '\n'), 0o600)
 }

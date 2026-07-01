@@ -2,49 +2,50 @@ package checks
 
 import (
 	"context"
+	"fmt"
 
-	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
-	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
-	designCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/design"
-	promptsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/prompts"
-	qualityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/quality"
-	securityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/security"
-	supplyChainCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/supplychain"
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	customrunner "github.com/devr-tools/codeguard/internal/codeguard/runner/custom"
 	govulncheckrunner "github.com/devr-tools/codeguard/internal/codeguard/runner/govulncheck"
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
-	sections := make([]core.SectionResult, 0, 7)
-	checkEnv := buildCheckContext(sc)
-	if sc.Cfg.Checks.Quality {
-		sections = append(sections, qualityCheck.Run(ctx, checkEnv))
-	}
-	if sc.Cfg.Checks.Design {
-		sections = append(sections, designCheck.Run(ctx, checkEnv))
-	}
-	if sc.Cfg.Checks.Security {
-		sections = append(sections, securityCheck.Run(ctx, checkEnv))
-	}
-	if sc.Cfg.Checks.Prompts {
-		sections = append(sections, promptsCheck.Run(ctx, checkEnv))
-	}
-	if sc.Cfg.Checks.CI {
-		sections = append(sections, ciCheck.Run(ctx, checkEnv))
-	}
-	if sc.Cfg.Checks.SupplyChain {
-		sections = append(sections, supplyChainCheck.Run(ctx, checkEnv))
-	}
-	if contractsEnabled(sc) {
-		sections = append(sections, contractsCheck.Run(ctx, checkEnv))
-	}
-	if len(sc.CustomRules) > 0 {
-		sections = append(sections, customrunner.RunSection(ctx, sc))
+	sections := make([]core.SectionResult, 0, len(sectionRegistry))
+	checkEnv := buildCheckContext(sc) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
+	for _, def := range sectionRegistry {
+		if !def.enabled(sc) {
+			continue
+		}
+		sections = append(sections, safeRun(def.id, def.name, func() core.SectionResult {
+			return def.run(ctx, sc, checkEnv)
+		}))
 	}
 	return sections
+}
+
+// safeRun executes one check section, recovering from any panic so that a single
+// failing check (e.g. an index-out-of-range while parsing an untrusted file)
+// degrades to a diagnostic warning for that section instead of aborting the
+// entire scan. On panic it returns a section bearing a single warning finding
+// and the remaining sections still run.
+func safeRun(id string, name string, fn func() core.SectionResult) (result core.SectionResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			result = core.SectionResult{
+				ID:     id,
+				Name:   name,
+				Status: core.StatusWarn,
+				Findings: []core.Finding{{
+					RuleID:  "checks.section.panic",
+					Level:   "warning",
+					Section: id,
+					Message: fmt.Sprintf("%s check did not complete: internal error (%v)", name, r),
+				}},
+			}
+		}
+	}()
+	return fn()
 }
 
 // contractsEnabled resolves the contracts toggle: an explicit config value
@@ -116,12 +117,8 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		RunGovulncheck: func(ctx context.Context, dir string, cmdName string) ([]core.Finding, error) {
 			return govulncheckrunner.Run(ctx, dir, cmdName, sc)
 		},
-		RunCommandCheck: func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error) {
-			return runnersupport.RunCommandCheck(ctx, dir, check)
-		},
-		RunCommandCheckWithEnv: func(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error) {
-			return runnersupport.RunCommandCheckWithEnv(ctx, dir, check, env)
-		},
+		RunCommandCheck:        runnersupport.RunCommandCheck,
+		RunCommandCheckWithEnv: runnersupport.RunCommandCheckWithEnv,
 		RunDiffCommandCheck: func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error) {
 			return runnersupport.RunDiffCommandCheckWithContext(ctx, sc, dir, baseRef, check)
 		},

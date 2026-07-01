@@ -69,14 +69,8 @@ func goNPlusOneFindings(env support.Context, file string, fset *token.FileSet, p
 				return true
 			}
 			seen[line] = struct{}{}
-			findings = append(findings, env.NewFinding(support.FindingInput{
-				RuleID:  "quality.n-plus-one-query",
-				Level:   "warn",
-				Path:    file,
-				Line:    line,
-				Column:  fset.Position(call.Pos()).Column,
-				Message: fmt.Sprintf("query call %s inside a loop suggests an N+1 query pattern; batch the query or hoist it out of the loop", sel.Sel.Name),
-			}))
+			findings = append(findings, warnFinding(env, "quality.n-plus-one-query", file, line, fset.Position(call.Pos()).Column,
+				fmt.Sprintf("query call %s inside a loop suggests an N+1 query pattern; batch the query or hoist it out of the loop", sel.Sel.Name)))
 			return true
 		})
 		return true

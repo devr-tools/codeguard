@@ -86,14 +86,7 @@ func (scan goAllocLoopScan) assignFindings(assign *ast.AssignStmt, knowableBound
 
 func (scan goAllocLoopScan) finding(assign *ast.AssignStmt, message string) core.Finding {
 	pos := scan.fset.Position(assign.Pos())
-	return scan.env.NewFinding(support.FindingInput{
-		RuleID:  "quality.go.alloc-in-loop",
-		Level:   "warn",
-		Path:    scan.file,
-		Line:    pos.Line,
-		Column:  pos.Column,
-		Message: message,
-	})
+	return warnFinding(scan.env, "quality.go.alloc-in-loop", scan.file, pos.Line, pos.Column, message)
 }
 
 func goStringGrowthMessage(assign *ast.AssignStmt) string {

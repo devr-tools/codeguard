@@ -9,7 +9,6 @@ import (
 
 var (
 	typeScriptExecPattern        = regexp.MustCompile(`\b(?:child_process\.)?(?:exec|execSync)\s*\(`)
-	typeScriptSpawnShellPattern  = regexp.MustCompile(`\b(?:child_process\.)?(?:spawn|spawnSync)\s*\(`)
 	typeScriptEvalPattern        = regexp.MustCompile(`\beval\s*\(|\bnew\s+Function\s*\(`)
 	typeScriptInsecureTLSPattern = regexp.MustCompile(`\brejectUnauthorized\s*:\s*false\b`)
 	typeScriptNodeTLSPattern     = regexp.MustCompile(`NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*["']?0["']?`)
@@ -83,7 +82,7 @@ func typeScriptAliasedShellFindings(ctx typeScriptScanContext) []core.Finding {
 }
 
 func typeScriptVMFindings(ctx typeScriptScanContext) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each alias appends a variable number
 	vmMethods := []string{"runInContext", "runInNewContext", "runInThisContext", "compileFunction"}
 	directAliases := collectTypeScriptNamedModuleBindings(ctx.source, "vm", append([]string{"Script"}, vmMethods...))
 	vmNamespaces := collectTypeScriptNamespaceBindings(ctx.source, "vm")

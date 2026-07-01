@@ -34,7 +34,7 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 		return core.Report{}, err
 	}
 
-	sc, err := runnersupport.NewContext(cfg, runnersupport.NormalizeScanOptions(opts))
+	sc, err := runnersupport.NewContext(cfg, runnersupport.NormalizeScanOptions(opts)) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
 	if err != nil {
 		return core.Report{}, err
 	}

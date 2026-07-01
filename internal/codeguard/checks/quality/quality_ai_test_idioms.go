@@ -60,7 +60,7 @@ func readFrameworkFile(root string, rel string, include func(string) bool, detec
 	if !include(rel) {
 		return "", false
 	}
-	data, err := os.ReadFile(filepath.Join(root, rel))
+	data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
 	if err != nil {
 		return "", false
 	}
@@ -83,12 +83,6 @@ func idiomDriftFinding(env support.Context, file string, dominant string, actual
 	if dominant == "" || actual == "" || actual == dominant {
 		return nil
 	}
-	return []core.Finding{env.NewFinding(support.FindingInput{
-		RuleID:  "quality.ai.local-idiom-drift",
-		Level:   "warn",
-		Path:    file,
-		Line:    1,
-		Column:  1,
-		Message: fmt.Sprintf("test uses %s while the repository primarily uses %s", actual, dominant),
-	})}
+	return []core.Finding{warnFinding(env, "quality.ai.local-idiom-drift", file, 1, 1,
+		fmt.Sprintf("test uses %s while the repository primarily uses %s", actual, dominant))}
 }

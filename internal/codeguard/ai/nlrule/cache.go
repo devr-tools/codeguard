@@ -1,7 +1,7 @@
 package nlrule
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"path/filepath"
 	"strings"
@@ -21,7 +21,7 @@ type VerdictCache interface {
 // from the rule fingerprint, runtime fingerprint, file path, file content
 // hash, and prompt version, matching the semantic-cache keying pattern.
 func VerdictCacheKey(runtimeFingerprint string, rule core.CustomRuleConfig, path string, data []byte) string {
-	contentSum := sha1.Sum(data)
+	contentSum := sha256.Sum256(data)
 	payload := strings.Join([]string{
 		promptVersion,
 		ruleFingerprint(rule),
@@ -29,7 +29,7 @@ func VerdictCacheKey(runtimeFingerprint string, rule core.CustomRuleConfig, path
 		filepath.ToSlash(path),
 		hex.EncodeToString(contentSum[:]),
 	}, "|")
-	sum := sha1.Sum([]byte("nlrule-verdict-v1|" + payload))
+	sum := sha256.Sum256([]byte("nlrule-verdict-v1|" + payload))
 	return hex.EncodeToString(sum[:])
 }
 

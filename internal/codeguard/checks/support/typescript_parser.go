@@ -56,7 +56,7 @@ func (parser *scriptCallArgumentParser) consumeNonCode(idx *int) bool {
 	case scriptParserBlockComment:
 		if parser.matchesAt(*idx, "*/") {
 			parser.state = scriptParserCode
-			*idx = *idx + 1
+			*idx++
 		}
 		return true
 	case scriptParserSingleQuote:
@@ -72,7 +72,7 @@ func (parser *scriptCallArgumentParser) consumeNonCode(idx *int) bool {
 
 func (parser *scriptCallArgumentParser) consumeQuotedState(idx *int, ch byte, quote byte) bool {
 	if ch == '\\' && *idx+1 < len(parser.source) {
-		*idx = *idx + 1
+		*idx++
 		return true
 	}
 	if ch == quote {
@@ -85,11 +85,11 @@ func (parser *scriptCallArgumentParser) beginComment(idx *int) bool {
 	switch {
 	case parser.matchesAt(*idx, "//"):
 		parser.state = scriptParserLineComment
-		*idx = *idx + 1
+		*idx++
 		return true
 	case parser.matchesAt(*idx, "/*"):
 		parser.state = scriptParserBlockComment
-		*idx = *idx + 1
+		*idx++
 		return true
 	default:
 		return false

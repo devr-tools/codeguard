@@ -53,7 +53,7 @@ func (s *mcpToolService) callVerifyFix(ctx context.Context, raw json.RawMessage)
 		return result, nil
 	}
 
-	result, failure, verifyErr, ok := verifyFixCandidate(ctx, fixCtx.cfg, fixCtx.args)
+	result, failure, ok, verifyErr := verifyFixCandidate(ctx, fixCtx.cfg, fixCtx.args)
 	if ok {
 		return toolSuccessResult(result), nil
 	}
@@ -108,14 +108,14 @@ func (s *mcpToolService) callApplyFix(ctx context.Context, raw json.RawMessage) 
 		return result, nil
 	}
 
-	verified, failure, verifyErr, ok := verifyFixCandidate(ctx, fixCtx.cfg, fixCtx.args)
+	verified, failure, ok, verifyErr := verifyFixCandidate(ctx, fixCtx.cfg, fixCtx.args)
 	if !ok {
 		return toolErrorResultData(fmt.Sprintf("fix did not verify, not applied: %v", verifyErr), failure), nil
 	}
 	if reply := confirmApplyResult(ctx, clientCallerFrom(ctx), verified.ChangedFiles, verified.Diff); reply != nil {
 		return reply, nil
 	}
-	if err := runnersupport.ApplyUnifiedDiff(fixCtx.cfg, verified.Diff); err != nil {
+	if err := runnersupport.ApplyUnifiedDiff(fixCtx.cfg, verified.Diff); err != nil { //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
 		return toolErrorResult(fmt.Sprintf("verified fix failed to apply to the working tree: %v", err)), nil
 	}
 	return toolSuccessResult(map[string]any{

@@ -4,10 +4,15 @@ package cachefile
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+// maxCacheFileBytes caps how much of a cache file is read into memory, guarding
+// against an oversized or malicious file exhausting memory.
+const maxCacheFileBytes = 32 << 20
 
 // Load reads a JSON cache file into payload and reports whether payload was
 // populated from disk. A blank path, missing file, or malformed payload is
@@ -16,7 +21,12 @@ func Load(path string, payload any) bool {
 	if strings.TrimSpace(path) == "" {
 		return false
 	}
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path) //nolint:gosec // config-supplied cache path; read is size-capped by LimitReader below
+	if err != nil {
+		return false
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(io.LimitReader(f, maxCacheFileBytes))
 	if err != nil {
 		return false
 	}
@@ -30,10 +40,10 @@ func Write(path string, payload any) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return os.WriteFile(path, append(data, '\n'), 0o600)
 }
 
 type entriesEnvelope[V any] struct {

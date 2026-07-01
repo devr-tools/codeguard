@@ -56,7 +56,7 @@ type scriptFileScanInput struct {
 
 func scriptFileAIQualityFindings(env support.Context, root string, rel string, input scriptFileScanInput) []core.Finding {
 	abs := filepath.Join(root, rel)
-	data, err := os.ReadFile(abs)
+	data, err := os.ReadFile(abs) //nolint:gosec // path resolved under the scan-target root
 	if err != nil {
 		return nil
 	}
@@ -93,14 +93,8 @@ func scriptImportFindings(env support.Context, root string, file string, source 
 			continue
 		}
 		line := 1 + strings.Count(source[:match[0]], "\n")
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.ai.hallucinated-import",
-			Level:   "warn",
-			Path:    file,
-			Line:    line,
-			Column:  1,
-			Message: fmt.Sprintf("import %q does not resolve against package manifests, workspace packages, or local files", specifier),
-		}))
+		findings = append(findings, warnFinding(env, "quality.ai.hallucinated-import", file, line, 1,
+			fmt.Sprintf("import %q does not resolve against package manifests, workspace packages, or local files", specifier)))
 	}
 	return findings
 }
@@ -136,7 +130,7 @@ func resolveRelativeScriptImport(root string, dir string, specifier string) bool
 		filepath.Join(base, "index.js"), filepath.Join(base, "index.jsx"),
 	}
 	for _, candidate := range candidates {
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() { //nolint:gosec // stat-only existence check; candidate is joined under the scan root
 			return true
 		}
 	}
@@ -147,14 +141,8 @@ func scriptDeadCodeFindings(env support.Context, file string, source string) []c
 	lines := regexLineMatches(scriptDeadBranchPattern, source)
 	findings := make([]core.Finding, 0, len(lines))
 	for _, line := range lines {
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "quality.ai.dead-code",
-			Level:   "warn",
-			Path:    file,
-			Line:    line,
-			Column:  1,
-			Message: "constant-condition branch leaves unreachable placeholder logic in the code path",
-		}))
+		findings = append(findings, warnFinding(env, "quality.ai.dead-code", file, line, 1,
+			"constant-condition branch leaves unreachable placeholder logic in the code path"))
 	}
 	return findings
 }
@@ -167,12 +155,6 @@ func scriptOverMockedTestFinding(env support.Context, file string, source string
 	if mockCount < 2 || assertCount > 1 {
 		return nil
 	}
-	return []core.Finding{env.NewFinding(support.FindingInput{
-		RuleID:  "quality.ai.over-mocked-test",
-		Level:   "warn",
-		Path:    file,
-		Line:    firstLineContaining(source, mockMarkers),
-		Column:  1,
-		Message: "test relies mostly on mocked collaborators with very little direct behavior assertion",
-	})}
+	return []core.Finding{warnFinding(env, "quality.ai.over-mocked-test", file, firstLineContaining(source, mockMarkers), 1,
+		"test relies mostly on mocked collaborators with very little direct behavior assertion")}
 }

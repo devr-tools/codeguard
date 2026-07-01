@@ -27,7 +27,7 @@ func Analyze(ctx context.Context, opts Options) ([]core.Finding, error) {
 	if !opts.Enabled || !commandConfigured(opts.Command) {
 		return nil, nil
 	}
-	req, ok := buildRequest(opts)
+	req, ok := buildRequest(opts) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
 	if !ok {
 		return nil, nil
 	}

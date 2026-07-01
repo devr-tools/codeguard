@@ -1,12 +1,14 @@
 package quality
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -39,7 +41,7 @@ type packageManifest struct {
 }
 
 func readPackageManifest(root string) (packageManifest, bool) {
-	data, err := os.ReadFile(filepath.Join(root, "package.json"))
+	data, err := os.ReadFile(filepath.Join(root, "package.json")) //nolint:gosec // fixed filename under the scan-target root
 	if err != nil {
 		return packageManifest{}, false
 	}
@@ -86,7 +88,10 @@ func readWorkspacePackageNames(root string, excludes []string) map[string]struct
 }
 
 func readGitHeadMessage(dir string) string {
-	cmd := exec.Command("git", "-C", dir, "log", "-1", "--format=%B")
+	// TODO(harden): thread caller ctx once readGitHeadMessage accepts one.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "-C", dir, "log", "-1", "--format=%B") //nolint:gosec // fixed git subcommand; dir is a config-supplied scan target path
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
