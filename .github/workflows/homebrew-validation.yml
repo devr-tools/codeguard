@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          version="$(awk -F'"' '/^const Number = / { print $2; exit }' internal/version/version.go)"
+          version="$(awk -F'"' '/^(const|var) Number = / { print $2; exit }' internal/version/version.go)"
           archive_path="$RUNNER_TEMP/codeguard-src.tar.gz"
           tap_dir="$RUNNER_TEMP/homebrew-tap"
           formula_path="$RUNNER_TEMP/homebrew-tap/Formula/codeguard.rb"
