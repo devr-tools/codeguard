@@ -63,7 +63,7 @@ func typeScriptAliasedShellFindings(ctx typeScriptScanContext) []core.Finding {
 	message := support.ScriptLabelForPath(ctx.file) + " shell execution primitive should be reviewed"
 
 	for alias := range execAliases {
-		pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(alias) + `\s*\(`)
+		pattern := compileDynamicPattern(`\b` + regexp.QuoteMeta(alias) + `\s*\(`)
 		findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: pattern, RuleID: ruleID, Level: "warn", Message: "shell execution primitive should be reviewed"})...)
 	}
 	for alias := range spawnAliases {
@@ -72,7 +72,7 @@ func typeScriptAliasedShellFindings(ctx typeScriptScanContext) []core.Finding {
 		}
 	}
 	for namespace := range childProcessNamespaces {
-		pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(namespace) + `\s*\.\s*(?:exec|execSync)\s*\(`)
+		pattern := compileDynamicPattern(`\b` + regexp.QuoteMeta(namespace) + `\s*\.\s*(?:exec|execSync)\s*\(`)
 		findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: pattern, RuleID: ruleID, Level: "warn", Message: "shell execution primitive should be reviewed"})...)
 		for _, line := range typeScriptCallLinesWithShellOption(ctx, namespace, true) {
 			findings = append(findings, newTypeScriptSecurityFinding(ctx, ruleID, line, message))
@@ -88,15 +88,15 @@ func typeScriptVMFindings(ctx typeScriptScanContext) []core.Finding {
 	vmNamespaces := collectTypeScriptNamespaceBindings(ctx.source, "vm")
 
 	for alias, original := range directAliases {
-		pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(alias) + `\s*\(`)
+		pattern := compileDynamicPattern(`\b` + regexp.QuoteMeta(alias) + `\s*\(`)
 		if original == "Script" {
-			pattern = regexp.MustCompile(`\bnew\s+` + regexp.QuoteMeta(alias) + `\s*\(`)
+			pattern = compileDynamicPattern(`\bnew\s+` + regexp.QuoteMeta(alias) + `\s*\(`)
 		}
 		findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: pattern, RuleID: securityRuleID(ctx.file, "vm-dynamic-code"), Level: "warn", Message: "Node vm dynamic code execution should be reviewed"})...)
 	}
 	for namespace := range vmNamespaces {
-		methodPattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(namespace) + `\s*\.\s*(?:runInContext|runInNewContext|runInThisContext|compileFunction)\s*\(`)
-		scriptPattern := regexp.MustCompile(`\bnew\s+` + regexp.QuoteMeta(namespace) + `\s*\.\s*Script\s*\(`)
+		methodPattern := compileDynamicPattern(`\b` + regexp.QuoteMeta(namespace) + `\s*\.\s*(?:runInContext|runInNewContext|runInThisContext|compileFunction)\s*\(`)
+		scriptPattern := compileDynamicPattern(`\bnew\s+` + regexp.QuoteMeta(namespace) + `\s*\.\s*Script\s*\(`)
 		findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: methodPattern, RuleID: securityRuleID(ctx.file, "vm-dynamic-code"), Level: "warn", Message: "Node vm dynamic code execution should be reviewed"})...)
 		findings = append(findings, regexTypeScriptSecurityFindings(ctx, support.ScriptRegexSpec{Pattern: scriptPattern, RuleID: securityRuleID(ctx.file, "vm-dynamic-code"), Level: "warn", Message: "Node vm dynamic code execution should be reviewed"})...)
 	}

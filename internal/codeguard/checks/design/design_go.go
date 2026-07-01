@@ -3,7 +3,6 @@ package design
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"path/filepath"
 	"strings"
@@ -21,8 +20,7 @@ func goTargetFindings(env support.Context, target core.TargetConfig) []core.Find
 }
 
 func goFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	fset := token.NewFileSet()
-	parsed, err := parser.ParseFile(fset, file, data, parser.ParseComments)
+	fset, parsed, err := support.ParseGoSource(env, file, data)
 	if err != nil {
 		return nil
 	}

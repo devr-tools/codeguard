@@ -3,7 +3,6 @@ package support
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -29,10 +28,13 @@ type fileScanInput struct {
 }
 
 func ScanTargetFiles(sc Context, target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
-	files, _ := WalkFiles(target.Path, sc.Cfg.Exclude, include)
+	files, _ := sc.corpusFiles(target.Path)
 	findings := make([]core.Finding, 0)
 	for _, file := range files {
-		data, err := os.ReadFile(filepath.Join(target.Path, file)) //nolint:gosec // file enumerated by WalkFiles under target.Path
+		if !include(file) {
+			continue
+		}
+		data, err := sc.corpusRead(target.Path, file)
 		if err != nil {
 			continue
 		}
@@ -52,18 +54,27 @@ func cachedFileFindings(sc Context, input fileScanInput, compute func() []core.F
 	if sc.Cache == nil {
 		return compute()
 	}
+	configHash := sc.sectionConfigHash(input.sectionID)
 	key := cacheKey(input.sectionID, input.target.Path, input.rel)
 	fileHash := hashBytes(input.data)
-	if entry, ok := sc.Cache.entries[key]; ok && entry.FileHash == fileHash && entry.ConfigHash == sc.ConfigHash {
+
+	sc.Cache.mu.Lock()
+	entry, ok := sc.Cache.entries[key]
+	sc.Cache.mu.Unlock()
+	if ok && entry.FileHash == fileHash && entry.ConfigHash == configHash {
 		return cloneFindings(entry.Findings)
 	}
+
 	findings := compute()
+
+	sc.Cache.mu.Lock()
 	sc.Cache.entries[key] = cacheEntry{
 		FileHash:   fileHash,
-		ConfigHash: sc.ConfigHash,
+		ConfigHash: configHash,
 		Findings:   cloneFindings(findings),
 	}
 	sc.Cache.dirty = true
+	sc.Cache.mu.Unlock()
 	return findings
 }
 

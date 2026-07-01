@@ -1,14 +1,16 @@
 package support
 
 import (
-	"os"
-	"path/filepath"
 	"sort"
+	"sync"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
+// ArtifactStore collects the artifacts produced across all sections. Its methods
+// are safe for concurrent use so that sections may run in parallel.
 type ArtifactStore struct {
+	mu    sync.Mutex
 	items map[string]core.Artifact
 }
 
@@ -20,6 +22,8 @@ func (store *ArtifactStore) Put(artifact core.Artifact) {
 	if store == nil || artifact.ID == "" {
 		return
 	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
 	store.items[artifact.ID] = artifact
 }
 
@@ -27,12 +31,19 @@ func (store *ArtifactStore) Get(id string) (core.Artifact, bool) {
 	if store == nil {
 		return core.Artifact{}, false
 	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
 	artifact, ok := store.items[id]
 	return artifact, ok
 }
 
 func (store *ArtifactStore) List() []core.Artifact {
-	if store == nil || len(store.items) == 0 {
+	if store == nil {
+		return nil
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.items) == 0 {
 		return nil
 	}
 	ids := make([]string, 0, len(store.items))
@@ -49,11 +60,15 @@ func (store *ArtifactStore) List() []core.Artifact {
 
 // VisitTargetFiles walks target files like ScanTargetFiles but bypasses the
 // findings cache, so callers that build cross-file state (such as import
-// graphs) always observe every file.
+// graphs) always observe every file. It reuses the shared per-scan corpus, so
+// files are still walked and read only once across the whole scan.
 func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
-	files, _ := WalkFiles(target.Path, sc.Cfg.Exclude, include)
+	files, _ := sc.corpusFiles(target.Path)
 	for _, file := range files {
-		data, err := os.ReadFile(filepath.Join(target.Path, file)) //nolint:gosec // file enumerated by WalkFiles under target.Path
+		if !include(file) {
+			continue
+		}
+		data, err := sc.corpusRead(target.Path, file)
 		if err != nil {
 			continue
 		}

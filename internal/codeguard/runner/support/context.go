@@ -24,9 +24,17 @@ type Context struct {
 	CustomRules []CompiledCustomRule
 	NLRuntime   nlrule.Runtime
 	Cache       *ScanCache
-	ConfigHash  string
-	DiffCommand map[string]diffCommandEnv
-	cleanup     func()
+	// ConfigHash is the conservative all-checks fingerprint used as a fallback
+	// when a section has no scoped entry in SectionConfigHash.
+	ConfigHash string
+	// SectionConfigHash maps a config "family" (see sectionConfigFamily) to a
+	// fingerprint of only the settings that can change that family's per-file
+	// findings, so editing one section's rules no longer invalidates cached
+	// findings for unrelated sections. The "" key holds the all-checks fallback.
+	SectionConfigHash map[string]string
+	DiffCommand       map[string]diffCommandEnv
+	corpus            *fileCorpus
+	cleanup           func()
 }
 
 func NormalizeScanOptions(opts core.ScanOptions) core.ScanOptions {
@@ -50,16 +58,18 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 	runtime := nlrule.NewRuntime(cfg.AI)
 
 	sc := Context{
-		Cfg:         cfg,
-		Opts:        opts,
-		Artifacts:   NewArtifactStore(),
-		Today:       time.Now(),
-		RuleCatalog: ruleCatalog,
-		CustomRules: customRules,
-		NLRuntime:   runtime,
-		ConfigHash:  ConfigFingerprint(cfg, runtime.Fingerprint()),
-		DiffCommand: map[string]diffCommandEnv{},
-		cleanup:     func() {},
+		Cfg:               cfg,
+		Opts:              opts,
+		Artifacts:         NewArtifactStore(),
+		Today:             time.Now(),
+		RuleCatalog:       ruleCatalog,
+		CustomRules:       customRules,
+		NLRuntime:         runtime,
+		ConfigHash:        ConfigFingerprint(cfg, runtime.Fingerprint()),
+		SectionConfigHash: SectionConfigHashes(cfg, ruleCatalog, runtime.Fingerprint()),
+		DiffCommand:       map[string]diffCommandEnv{},
+		corpus:            newFileCorpus(),
+		cleanup:           func() {},
 	}
 	if strings.TrimSpace(opts.DiffText) != "" {
 		patchedCfg, diffCommand, cleanup, err := MaterializePatchedTargets(cfg, opts.DiffText)
@@ -71,6 +81,7 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 		sc.DiffCommand = diffCommand
 		sc.cleanup = cleanup
 		sc.ConfigHash = ConfigFingerprint(patchedCfg, runtime.Fingerprint())
+		sc.SectionConfigHash = SectionConfigHashes(patchedCfg, ruleCatalog, runtime.Fingerprint())
 	}
 	if cfg.Baseline.Path != "" {
 		baseline, err := loadBaselineFile(cfg.Baseline.Path)

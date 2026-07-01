@@ -3,6 +3,10 @@ package checks
 import (
 	"context"
 	"fmt"
+	"go/ast"
+	"go/token"
+	"runtime"
+	"sync"
 
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -10,18 +14,71 @@ import (
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
+// Build runs every enabled section and returns their results in the fixed
+// registry order. Independent sections run concurrently on a worker pool bounded
+// by the CPU count; the shared scan cache, artifact store, and file corpus are
+// all concurrency-safe, and results are written into position-indexed slots so
+// the output order is deterministic regardless of completion order.
 func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
-	sections := make([]core.SectionResult, 0, len(sectionRegistry))
+	sc = withSynchronizedSectionCallback(sc)
 	checkEnv := buildCheckContext(sc) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
+
+	enabled := make([]sectionDef, 0, len(sectionRegistry))
 	for _, def := range sectionRegistry {
-		if !def.enabled(sc) {
-			continue
+		if def.enabled(sc) {
+			enabled = append(enabled, def)
 		}
-		sections = append(sections, safeRun(def.id, def.name, func() core.SectionResult {
-			return def.run(ctx, sc, checkEnv)
-		}))
 	}
-	return sections
+
+	results := make([]core.SectionResult, len(enabled))
+	sem := make(chan struct{}, sectionConcurrency(len(enabled)))
+	var wg sync.WaitGroup
+	for i, def := range enabled {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			results[i] = safeRun(def.id, def.name, func() core.SectionResult {
+				return def.run(ctx, sc, checkEnv)
+			})
+		}()
+	}
+	wg.Wait()
+	return results
+}
+
+// sectionConcurrency bounds the number of sections running at once to the CPU
+// count (and never more than there are sections to run).
+func sectionConcurrency(sections int) int {
+	if sections <= 1 {
+		return 1
+	}
+	limit := runtime.NumCPU()
+	if limit < 1 {
+		limit = 1
+	}
+	if limit > sections {
+		limit = sections
+	}
+	return limit
+}
+
+// withSynchronizedSectionCallback wraps the caller's OnSectionComplete streaming
+// callback in a mutex so concurrent sections never invoke it simultaneously,
+// preserving the single-threaded contract callers were written against.
+func withSynchronizedSectionCallback(sc runnersupport.Context) runnersupport.Context {
+	callback := sc.Opts.OnSectionComplete
+	if callback == nil {
+		return sc
+	}
+	var mu sync.Mutex
+	sc.Opts.OnSectionComplete = func(section core.SectionResult) {
+		mu.Lock()
+		defer mu.Unlock()
+		callback(section)
+	}
+	return sc
 }
 
 // safeRun executes one check section, recovering from any panic so that a single
@@ -84,6 +141,9 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		},
 		ScanTargetFiles: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFiles(sc, target, sectionID, include, evaluator)
+		},
+		ParseGoFile: func(path string, data []byte) (*token.FileSet, *ast.File, error) {
+			return runnersupport.ParseGoFile(sc, path, data)
 		},
 		NewFinding: func(input checkSupport.FindingInput) core.Finding {
 			return runnersupport.NewFinding(sc, runnersupport.FindingInput{

@@ -1,8 +1,16 @@
 package support
 
-import "github.com/devr-tools/codeguard/internal/codeguard/core"
+import (
+	"sync"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
+)
+
+// ScanCache holds the persisted per-file findings cache plus the AI triage and
+// natural-language rule verdict caches. Its maps are guarded by mu so sections
+// can read and write concurrently while running in parallel.
 type ScanCache struct {
+	mu            sync.Mutex
 	path          string
 	entries       map[string]cacheEntry
 	triageVerdict map[string]core.AITriageCacheVerdict
@@ -23,4 +31,8 @@ type cacheEntry struct {
 	Findings   []core.Finding `json:"findings"`
 }
 
-const scanCacheVersion = 6
+// scanCacheVersion is bumped whenever the on-disk cache layout or the meaning of
+// a stored fingerprint changes, so stale caches are discarded wholesale rather
+// than reused with mismatched semantics. v7 introduced per-section config
+// fingerprints (see SectionConfigHashes).
+const scanCacheVersion = 7

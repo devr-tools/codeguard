@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/format"
-	"go/parser"
 	"go/token"
 	"path/filepath"
 	"strings"
@@ -39,8 +38,7 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 		}))
 	}
 
-	fset := token.NewFileSet()
-	parsed, err := parser.ParseFile(fset, file, data, parser.ParseComments)
+	fset, parsed, err := support.ParseGoSource(env, file, data)
 	if err != nil {
 		findings = append(findings, env.NewFinding(support.FindingInput{
 			RuleID:  "quality.parse-error",

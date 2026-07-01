@@ -35,7 +35,12 @@ func LoadScanCache(path string) *ScanCache {
 }
 
 func (cache *ScanCache) Save() error {
-	if cache == nil || !cache.dirty || strings.TrimSpace(cache.path) == "" {
+	if cache == nil {
+		return nil
+	}
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	if !cache.dirty || strings.TrimSpace(cache.path) == "" {
 		return nil
 	}
 	payload := cacheFile{
