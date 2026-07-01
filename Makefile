@@ -18,13 +18,19 @@ CI_CONFIG ?= .codeguard/codeguard.yaml
 BASE_REF ?= main
 CODEGUARD_BIN ?= ./dist/codeguard
 GOFILES := $(shell find cmd internal pkg tests -type f -name '*.go' 2>/dev/null)
+# MENU_VERSION defaults to the current release-please version so `make menu`
+# previews the banner with the real version (like a release build) instead of
+# the source default; override with MENU_VERSION=x.y.z.
+MANIFEST_VERSION := $(shell grep -oE '[0-9]+\.[0-9]+\.[0-9]+' .release-please-manifest.json 2>/dev/null | head -1)
+MENU_VERSION ?= $(if $(MANIFEST_VERSION),$(MANIFEST_VERSION),$(VERSION))
+MENU_LDFLAGS := -X github.com/devr-tools/codeguard/internal/version.Number=v$(MENU_VERSION)
 
 export GOCACHE
 export GOMODCACHE
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt fmt-check lint lint-strict test codeguard-ci check ci build release release-snapshot release-check deploy commit table table-diff table-interactive clean
+.PHONY: help fmt fmt-check lint lint-strict test codeguard-ci check ci build release release-snapshot release-check deploy commit menu table table-diff table-interactive clean
 
 help:
 	@printf "\ncodeguard make targets\n\n"
@@ -42,6 +48,7 @@ help:
 	@printf "  make release-snapshot  Build local snapshot release artifacts\n"
 	@printf "  make deploy     Alias for make release\n"
 	@printf "  make commit     Create an interactive conventional commit\n"
+	@printf "  make menu       Preview the What's New banner and usage menu\n"
 	@printf "  make table      Run a full scan and print the terminal table\n"
 	@printf "  make table-diff Run a diff scan and print the terminal table\n"
 	@printf "  make table-interactive  Launch interactive terminal scanning\n"
@@ -92,6 +99,10 @@ deploy: release
 
 commit:
 	./scripts/commit.sh
+
+menu:
+	@printf "# codeguard menu preview (v%s); set CODEGUARD_NO_UPDATE_CHECK=1 to skip the update check\n\n" "$(MENU_VERSION)"
+	$(GO) run -ldflags "$(MENU_LDFLAGS)" ./cmd/codeguard
 
 table:
 	$(GO) run ./cmd/codeguard scan -config $(CONFIG)

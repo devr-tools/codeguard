@@ -28,13 +28,15 @@ var commandCatalog = map[string]commandRunner{
 
 func Run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
 	if len(args) == 0 {
-		writeUsage(stdout)
+		writeWhatsNew(stdout)
+		writeMenu(stdout)
 		return 0
 	}
 
 	command := args[0]
 	if isHelpCommand(command) {
-		writeUsage(stdout)
+		writeWhatsNew(stdout)
+		writeMenu(stdout)
 		return 0
 	}
 	if command == "version" {
@@ -46,7 +48,7 @@ func Run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int
 	}
 
 	_, _ = fmt.Fprintf(stderr, "unknown command %q\n\n", command)
-	writeUsage(stderr)
+	writeMenu(stderr)
 	return 1
 }
 
