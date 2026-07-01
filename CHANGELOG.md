@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.0](https://github.com/devr-tools/codeguard/compare/v0.6.1...v0.7.0) (2026-07-01)
+
+
+### Features
+
+* **cli:** add What's New banner and task-grouped menu ([c1df999](https://github.com/devr-tools/codeguard/commit/c1df9990f0255dcadc09aa459da1a7278a06e4df))
+* **cli:** What's New banner and task-grouped menu ([#21](https://github.com/devr-tools/codeguard/issues/21)) ([45e56f7](https://github.com/devr-tools/codeguard/commit/45e56f7bcecf1a9edd7d3dd02ca515df58482f1a))
+
+
+### Bug Fixes
+
+* **ci:** extract version from var Number in homebrew validation ([01d7a24](https://github.com/devr-tools/codeguard/commit/01d7a24593da880123f0a50a7c3868467a58b4e0))
+* **ci:** extract version from var Number in homebrew validation ([#23](https://github.com/devr-tools/codeguard/issues/23)) ([ec21f3b](https://github.com/devr-tools/codeguard/commit/ec21f3b60404e13647855b5837a53ae7778ec268))
+* **version:** make Number a var so ldflags injection works ([6b1ccad](https://github.com/devr-tools/codeguard/commit/6b1ccadbfb0e259d093a81900ccfd2603032e9e4))
+
 ## [0.6.1](https://github.com/devr-tools/codeguard/compare/v0.6.0...v0.6.1) (2026-07-01)
 
 
