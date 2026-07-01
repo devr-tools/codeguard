@@ -3,10 +3,27 @@ package support
 import (
 	"context"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
+
+// ParseGoSource returns a Go AST for the given source, reusing the shared
+// per-scan parse cache when the runner wired one in (ParseGoFile), and falling
+// back to a fresh parse otherwise (e.g. in unit tests that build a Context
+// directly). Callers must treat the result as read-only, since a cached tree is
+// shared across sections.
+func ParseGoSource(env Context, file string, data []byte) (*token.FileSet, *ast.File, error) {
+	if env.ParseGoFile != nil {
+		return env.ParseGoFile(file, data)
+	}
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, data, parser.ParseComments)
+	return fset, parsed, err
+}
 
 func NormalizedLanguage(language string) string {
 	return strings.ToLower(strings.TrimSpace(language))

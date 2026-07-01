@@ -33,7 +33,7 @@ func collectTypeScriptNamedModuleBindings(source string, module string, allowed 
 func collectTypeScriptNamespaceBindings(source string, module string) map[string]struct{} {
 	namespaces := make(map[string]struct{})
 	for _, pattern := range []*regexp.Regexp{tsNamespaceImportPattern, tsDefaultImportPattern, tsNamespaceRequirePattern} {
-		re := regexp.MustCompile(strings.ReplaceAll(pattern.String(), "%s", regexp.QuoteMeta(module)))
+		re := compileDynamicPattern(strings.ReplaceAll(pattern.String(), "%s", regexp.QuoteMeta(module)))
 		for _, match := range re.FindAllStringSubmatch(source, -1) {
 			if len(match) > 1 {
 				namespaces[match[1]] = struct{}{}
@@ -46,7 +46,7 @@ func collectTypeScriptNamespaceBindings(source string, module string) map[string
 func collectTypeScriptBindingSpecs(source string, module string, patterns ...*regexp.Regexp) []string {
 	specs := make([]string, 0)
 	for _, pattern := range patterns {
-		re := regexp.MustCompile(strings.ReplaceAll(pattern.String(), "%s", regexp.QuoteMeta(module)))
+		re := compileDynamicPattern(strings.ReplaceAll(pattern.String(), "%s", regexp.QuoteMeta(module)))
 		for _, match := range re.FindAllStringSubmatch(source, -1) {
 			if len(match) > 1 {
 				specs = append(specs, splitTypeScriptBindingSpecs(match[1])...)
@@ -88,7 +88,7 @@ func typeScriptCallLinesWithShellOption(ctx typeScriptScanContext, alias string,
 	} else {
 		patternText += `\s*\(`
 	}
-	pattern := regexp.MustCompile(patternText)
+	pattern := compileDynamicPattern(patternText)
 	for _, call := range support.FindScriptCalls(ctx.source, ctx.code, pattern) {
 		if !scriptCallHasShellTrue(call.Args) {
 			continue
