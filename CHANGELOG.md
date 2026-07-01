@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/devr-tools/codeguard/compare/v0.6.0...v0.6.1) (2026-07-01)
+
+
+### Bug Fixes
+
+* **security:** harden untrusted-input handling and wire lint cleanup ([34c7f87](https://github.com/devr-tools/codeguard/commit/34c7f87c8f6d0bf55917abcb3f5a05e81fcf3669))
+
 ## [0.6.0](https://github.com/devr-tools/codeguard/compare/v0.5.0...v0.6.0) (2026-06-30)
 
 
