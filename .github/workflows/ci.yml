@@ -50,7 +50,9 @@ jobs:
         run: make lint
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
 
   test:
     name: test
