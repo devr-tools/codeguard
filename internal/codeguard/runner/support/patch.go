@@ -11,10 +11,10 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func LoadDiffScopeFromUnifiedDiff(targets []core.TargetConfig, diffText string) map[string]LineRanges {
+func LoadDiffScopeFromUnifiedDiff(ctx context.Context, targets []core.TargetConfig, diffText string) map[string]LineRanges {
 	out := map[string]LineRanges{}
 	for _, target := range targets {
-		scope := parseUnifiedDiff(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(target.Path)))
+		scope := parseUnifiedDiff(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(ctx, target.Path)))
 		for path, ranges := range scope {
 			out[path] = ranges
 		}
@@ -27,7 +27,7 @@ func LoadDiffScopeFromUnifiedDiff(targets []core.TargetConfig, diffText string) 
 // per-target diff command environments, a cleanup func, and any error.
 //
 //nolint:revive // unexported diffCommandEnv stays package-private; this is an internal-only helper
-func MaterializePatchedTargets(cfg core.Config, diffText string) (core.Config, map[string]diffCommandEnv, func(), error) {
+func MaterializePatchedTargets(ctx context.Context, cfg core.Config, diffText string) (core.Config, map[string]diffCommandEnv, func(), error) {
 	tempRoot, err := os.MkdirTemp("", "codeguard-patch-*")
 	if err != nil {
 		return core.Config{}, nil, func() {}, err
@@ -53,9 +53,9 @@ func MaterializePatchedTargets(cfg core.Config, diffText string) (core.Config, m
 			return core.Config{}, nil, func() {}, fmt.Errorf("copy head target %q: %w", target.Name, err)
 		}
 
-		targetDiff := strings.TrimSpace(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(target.Path)))
+		targetDiff := strings.TrimSpace(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(ctx, target.Path)))
 		if targetDiff != "" {
-			if err := applyUnifiedDiff(headDir, targetDiff+"\n"); err != nil {
+			if err := applyUnifiedDiff(ctx, headDir, targetDiff+"\n"); err != nil {
 				cleanup()
 				return core.Config{}, nil, func() {}, fmt.Errorf("apply patch for target %q: %w", target.Name, err)
 			}
@@ -74,22 +74,21 @@ func MaterializePatchedTargets(cfg core.Config, diffText string) (core.Config, m
 // per target the same way MaterializePatchedTargets does for verification. It is
 // used to write a verified fix to the working tree. Targets whose rebased diff
 // is empty are skipped.
-func ApplyUnifiedDiff(cfg core.Config, diffText string) error {
+func ApplyUnifiedDiff(ctx context.Context, cfg core.Config, diffText string) error {
 	for _, target := range cfg.Targets {
-		targetDiff := strings.TrimSpace(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(target.Path)))
+		targetDiff := strings.TrimSpace(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(ctx, target.Path)))
 		if targetDiff == "" {
 			continue
 		}
-		if err := applyUnifiedDiff(target.Path, targetDiff+"\n"); err != nil {
+		if err := applyUnifiedDiff(ctx, target.Path, targetDiff+"\n"); err != nil {
 			return fmt.Errorf("apply patch for target %q: %w", target.Name, err)
 		}
 	}
 	return nil
 }
 
-func applyUnifiedDiff(dir string, diffText string) error {
-	// TODO(harden): thread caller ctx once applyUnifiedDiff accepts one.
-	ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+func applyUnifiedDiff(ctx context.Context, dir string, diffText string) error {
+	ctx, cancel := context.WithTimeout(ctx, gitCommandTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", "apply", "--recount", "--whitespace=nowarn")
 	cmd.Dir = dir
@@ -107,8 +106,8 @@ func applyUnifiedDiff(dir string, diffText string) error {
 
 // DiffPrefixForTarget resolves the repo-relative prefix of a target directory
 // so unified diffs can be rebased onto target-relative paths.
-func DiffPrefixForTarget(dir string) string {
-	repoRoot, err := gitRepoRoot(dir)
+func DiffPrefixForTarget(ctx context.Context, dir string) string {
+	repoRoot, err := gitRepoRoot(ctx, dir)
 	if err != nil {
 		return ""
 	}

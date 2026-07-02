@@ -189,6 +189,8 @@ func TestCustomRulePackFindingsAndGuidance(t *testing.T) {
 	cfg.Checks.Security = false
 	cfg.Checks.Prompts = false
 	cfg.Checks.CI = false
+	nlContextOff := false
+	cfg.Checks.Context = &nlContextOff
 	cfg.RulePacks = []codeguard.RulePackConfig{{
 		Name: "repo-policy",
 		Rules: []codeguard.CustomRuleConfig{
@@ -239,6 +241,8 @@ func TestNaturalLanguageCustomRuleSkipsWhenRuntimeDisabled(t *testing.T) {
 	cfg.Checks.Security = false
 	cfg.Checks.Prompts = false
 	cfg.Checks.CI = false
+	nlContextOff := false
+	cfg.Checks.Context = &nlContextOff
 	cfg.RulePacks = []codeguard.RulePackConfig{{
 		Name: "repo-policy",
 		Rules: []codeguard.CustomRuleConfig{{

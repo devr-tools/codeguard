@@ -115,7 +115,7 @@ func (s *mcpToolService) callApplyFix(ctx context.Context, raw json.RawMessage) 
 	if reply := confirmApplyResult(ctx, clientCallerFrom(ctx), verified.ChangedFiles, verified.Diff); reply != nil {
 		return reply, nil
 	}
-	if err := runnersupport.ApplyUnifiedDiff(fixCtx.cfg, verified.Diff); err != nil { //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
+	if err := runnersupport.ApplyUnifiedDiff(ctx, fixCtx.cfg, verified.Diff); err != nil {
 		return toolErrorResult(fmt.Sprintf("verified fix failed to apply to the working tree: %v", err)), nil
 	}
 	return toolSuccessResult(map[string]any{

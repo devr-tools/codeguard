@@ -87,6 +87,9 @@ func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRules
 	if dst.TaintPython == nil {
 		dst.TaintPython = boolPtr(true)
 	}
+	if dst.DemoteFixtureFindings == nil {
+		dst.DemoteFixtureFindings = boolPtr(true)
+	}
 	if dst.TypeScriptTaintMaxDepth == 0 {
 		dst.TypeScriptTaintMaxDepth = def.TypeScriptTaintMaxDepth
 	}
@@ -112,6 +115,18 @@ func applyAIChangeRiskDefaults(dst *core.AIChangeRiskConfig, def core.AIChangeRi
 	if dst.FailThreshold == 0 {
 		dst.FailThreshold = def.FailThreshold
 	}
+}
+
+func applyContextDefaults(dst *core.ContextRulesConfig, def core.ContextRulesConfig) {
+	applyDefaultBoolPtrs(
+		&dst.DetectMissingAgentDocs,
+		&dst.DetectAgentDocsDrift,
+		&dst.DetectReadmeDrift,
+		&dst.DetectOversizedFiles,
+		&dst.DetectAmbiguousSymbols,
+	)
+	defaultInt(&dst.MaxFileLines, def.MaxFileLines)
+	defaultInt(&dst.AmbiguousSymbolThreshold, def.AmbiguousSymbolThreshold)
 }
 
 func applySupplyChainDefaults(dst *core.SupplyChainRulesConfig, def core.SupplyChainRulesConfig) {

@@ -45,13 +45,13 @@ func Verify(ctx context.Context, cfg core.Config, finding core.Finding, candidat
 		return Result{}, fmt.Errorf("patch did not verify cleanly: %d changed-line findings remain", report.Summary.TotalFindings)
 	}
 
-	patchedCfg, _, cleanup, err := runnersupport.MaterializePatchedTargets(cfg, diffText) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
+	patchedCfg, _, cleanup, err := runnersupport.MaterializePatchedTargets(ctx, cfg, diffText)
 	if err != nil {
 		return Result{}, fmt.Errorf("materialize patched targets: %w", err)
 	}
 	defer cleanup()
 
-	changedByTarget := changedFilesByTarget(cfg.Targets, diffText) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
+	changedByTarget := changedFilesByTarget(ctx, cfg.Targets, diffText)
 	testPlan, err := buildTestPlan(cfg, patchedCfg, changedByTarget, opts)
 	if err != nil {
 		return Result{}, err

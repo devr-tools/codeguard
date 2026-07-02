@@ -1,0 +1,4 @@
+Mutation fixture: gofmt would normalize the colon spacing below, so this
+variant lives outside a .go file. The detector only matches the
+gofmt-formatted spelling and currently misses this line:
+client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify:true}}

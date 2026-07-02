@@ -24,7 +24,9 @@ func ConfigFingerprint(cfg core.Config, extras ...string) string {
 	if err != nil {
 		return ""
 	}
-	prefix := "scanner-version-7|" + strings.Join(extras, "|") + "|"
+	// version 8: findings gained ContextFingerprint, so entries cached by
+	// earlier scanners must be recomputed rather than replayed without it.
+	prefix := "scanner-version-8|" + strings.Join(extras, "|") + "|"
 	return hashBytes(append([]byte(prefix), data...))
 }
 
@@ -38,7 +40,8 @@ func ConfigFingerprint(cfg core.Config, extras ...string) string {
 // section id that sectionConfigFamily does not recognize, so a newly added
 // section can never silently serve stale cache entries.
 func SectionConfigHashes(cfg core.Config, catalog map[string]core.RuleMetadata, extras ...string) map[string]string {
-	prefix := "section-config-v1|" + strings.Join(extras, "|") + "|"
+	// v2: findings gained ContextFingerprint (see ConfigFingerprint).
+	prefix := "section-config-v2|" + strings.Join(extras, "|") + "|"
 	checks := cfg.Checks
 	return map[string]string{
 		// quality reads both QualityRules and DesignRules, and its AI-quality

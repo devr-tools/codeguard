@@ -12,8 +12,9 @@ func supplyChainTestConfig(dir string, name string) codeguard.Config {
 	cfg.Checks.Prompts = false
 	cfg.Checks.CI = false
 	cfg.Checks.SupplyChain = true
-	cacheOff := false
-	cfg.Cache.Enabled = &cacheOff
+	off := false
+	cfg.Checks.Context = &off
+	cfg.Cache.Enabled = &off
 	return cfg
 }
 

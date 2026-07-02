@@ -27,6 +27,9 @@ type Match struct {
 	Message string
 	Line    int
 	Column  int
+	// Confidence is "high", "medium", or "low"; empty means unspecified and is
+	// treated as medium.
+	Confidence string
 }
 
 // Scanner holds the per-scan compiled allowlist, custom patterns, and entropy
@@ -176,21 +179,27 @@ func (s Scanner) matchCustom(line string) *Match {
 }
 
 // secretFindingsForFile runs the scan over a single file and converts matches to
-// findings. It applies the path allowlist and skips binary/oversized files.
+// findings. It applies the path allowlist, skips binary/oversized files, and
+// demotes fixture-path matches when the demotion toggle is on.
 func secretFindingsForFile(env support.Context, file string, data []byte, scanner Scanner) []core.Finding {
 	if scanner.SkipPath(file) || len(data) > maxScanFileBytes || looksBinary(data) {
 		return nil
 	}
+	demote := fixtureDemotionEnabled(env.Config.Checks.SecurityRules) && isFixturePath(file)
 	matches := scanner.ScanContent(string(data))
 	findings := make([]core.Finding, 0, len(matches))
 	for _, match := range matches {
+		if demote {
+			match = demoteFixtureMatch(match)
+		}
 		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  match.RuleID,
-			Level:   match.Level,
-			Path:    file,
-			Line:    match.Line,
-			Column:  match.Column,
-			Message: match.Message,
+			RuleID:     match.RuleID,
+			Level:      match.Level,
+			Path:       file,
+			Line:       match.Line,
+			Column:     match.Column,
+			Message:    match.Message,
+			Confidence: match.Confidence,
 		}))
 	}
 	return findings

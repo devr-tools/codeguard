@@ -24,6 +24,7 @@ func run() {}
 	}
 
 	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.hallucinated-import")
+	assertFindingConfidence(t, report, "Code Quality", "quality.ai.hallucinated-import", "high")
 }
 
 func TestQualityCheckWarnsForHallucinatedTypeScriptImport(t *testing.T) {

@@ -34,7 +34,7 @@ func triageFixtureConfig(t *testing.T, root string) codeguard.Config {
 			Path:     root,
 			Language: "go",
 		}},
-		Checks: codeguard.CheckConfig{Quality: true},
+		Checks: codeguard.CheckConfig{Quality: true, Context: contextOff()},
 		Output: codeguard.OutputConfig{Format: "json"},
 		Cache: codeguard.CacheConfig{
 			Enabled: &cacheEnabled,

@@ -68,6 +68,7 @@ func TestSecurityDetectsKnownCredentialFormats(t *testing.T) {
 			report := secretsScanConfig(t, dir, nil, tc.language)
 			assertSectionStatus(t, report, "Security", "fail")
 			assertFindingRulePresent(t, report, "Security", "security.hardcoded-credential")
+			assertFindingConfidence(t, report, "Security", "security.hardcoded-credential", "high")
 		})
 	}
 }
@@ -96,9 +97,11 @@ func TestSecuritySecretsAllowPathsSkipsFixtures(t *testing.T) {
 	}, "go")
 	assertSectionStatus(t, allowed, "Security", "pass")
 
-	// Without the allowlist the same fixture fails.
+	// Without the allowlist the same fixture is still reported, but the
+	// default fixture-path demotion downgrades it from fail to warn.
 	blocked := secretsScanConfig(t, dir, nil, "go")
-	assertSectionStatus(t, blocked, "Security", "fail")
+	assertSectionStatus(t, blocked, "Security", "warn")
+	assertFindingRulePresent(t, blocked, "Security", "security.hardcoded-credential")
 }
 
 func TestSecuritySecretsAllowPatternsSkipsLine(t *testing.T) {
@@ -147,6 +150,7 @@ func TestSecurityEntropyDetectsUnknownSecret(t *testing.T) {
 	}, "go")
 	assertSectionStatus(t, on, "Security", "warn")
 	assertFindingRulePresent(t, on, "Security", "security.high-entropy-string")
+	assertFindingConfidence(t, on, "Security", "security.high-entropy-string", "low")
 }
 
 func TestSecurityCredentialFindingMasksValue(t *testing.T) {

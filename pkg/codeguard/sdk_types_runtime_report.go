@@ -14,6 +14,9 @@ type (
 	ChangeRiskArtifact          = core.ChangeRiskArtifact
 	ChangeRiskComponent         = core.ChangeRiskComponent
 	SlopHistoryEntry            = core.SlopHistoryEntry
+	RuleStatsArtifact           = core.RuleStatsArtifact
+	RuleStatsEntry              = core.RuleStatsEntry
+	RuleStatsHistoryEntry       = core.RuleStatsHistoryEntry
 	AIAnalysisArtifact          = core.AIAnalysisArtifact
 	AIAnalysisVerdict           = core.AIAnalysisVerdict
 	AIFixArtifact               = core.AIFixArtifact
@@ -22,4 +25,7 @@ type (
 
 	ChangeImpactArtifact = core.ChangeImpactArtifact
 	ChangeImpactEntry    = core.ChangeImpactEntry
+
+	RepoLegibilityArtifact  = core.RepoLegibilityArtifact
+	RepoLegibilityComponent = core.RepoLegibilityComponent
 )

@@ -1,6 +1,7 @@
 package support
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,7 @@ import (
 // ListChangedFiles returns the files that differ between the diff base ref and
 // the working tree for the given target. Outside diff mode it returns nil so
 // base-comparison checks can no-op gracefully.
-func ListChangedFiles(sc Context, target core.TargetConfig) ([]core.ChangedFile, error) {
+func ListChangedFiles(ctx context.Context, sc Context, target core.TargetConfig) ([]core.ChangedFile, error) {
 	if sc.Opts.Mode != core.ScanModeDiff {
 		return nil, nil
 	}
@@ -20,7 +21,7 @@ func ListChangedFiles(sc Context, target core.TargetConfig) ([]core.ChangedFile,
 	}
 	var lastErr error
 	for _, ref := range []string{sc.Opts.BaseRef, sc.Opts.BaseRef + "...HEAD"} {
-		output, err := runGitCapture("-C", target.Path, "diff", "--name-status", "--no-renames", "--no-color", "--end-of-options", ref, "--")
+		output, err := runGitCapture(ctx, "-C", target.Path, "diff", "--name-status", "--no-renames", "--no-color", "--end-of-options", ref, "--")
 		if err == nil {
 			return parseNameStatus(string(output)), nil
 		}
@@ -46,9 +47,9 @@ func parseNameStatus(output string) []core.ChangedFile {
 
 // ReadBaseFile returns the contents of a target-relative file at the diff
 // base ref.
-func ReadBaseFile(sc Context, target core.TargetConfig, rel string) ([]byte, error) {
+func ReadBaseFile(ctx context.Context, sc Context, target core.TargetConfig, rel string) ([]byte, error) {
 	if err := ValidateBaseRef(sc.Opts.BaseRef); err != nil {
 		return nil, err
 	}
-	return runGitCapture("-C", target.Path, "show", "--end-of-options", sc.Opts.BaseRef+":./"+filepath.ToSlash(rel))
+	return runGitCapture(ctx, "-C", target.Path, "show", "--end-of-options", sc.Opts.BaseRef+":./"+filepath.ToSlash(rel))
 }

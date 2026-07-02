@@ -3,6 +3,8 @@ package security
 import (
 	"regexp"
 	"strings"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
 const (
@@ -84,10 +86,12 @@ var (
 
 // matchPrivateKey, matchCredential, and matchNameBased are the built-in tiers,
 // kept beside the patterns they apply. Each returns a position-agnostic *Match
-// (scanLine stamps the line via located).
+// (scanLine stamps the line via located). Exact key/credential formats carry
+// high confidence; the name-based heuristic is the noisiest tier and carries
+// low confidence.
 func matchPrivateKey(line string) *Match {
 	if privateKeyPattern.MatchString(line) {
-		return &Match{RuleID: privateKeyRule, Level: "fail", Message: "private key material detected"}
+		return &Match{RuleID: privateKeyRule, Level: "fail", Message: "private key material detected", Confidence: core.ConfidenceHigh}
 	}
 	return nil
 }
@@ -101,7 +105,7 @@ func matchCredential(line string) *Match {
 		if len(match) > 1 && match[len(match)-1] != "" && isPlaceholderSecret(match[len(match)-1]) {
 			continue
 		}
-		return &Match{RuleID: hardcodedCredentialRule, Level: "fail", Message: "possible hardcoded credential detected (" + pattern.msg + "): " + maskSecret(credentialMatchValue(match))}
+		return &Match{RuleID: hardcodedCredentialRule, Level: "fail", Message: "possible hardcoded credential detected (" + pattern.msg + "): " + maskSecret(credentialMatchValue(match)), Confidence: core.ConfidenceHigh}
 	}
 	return nil
 }
@@ -111,7 +115,7 @@ func matchNameBased(line string) *Match {
 	if match == nil || isPlaceholderSecret(match[len(match)-1]) {
 		return nil
 	}
-	return &Match{RuleID: hardcodedSecretRule, Level: "warn", Message: "possible hardcoded secret detected: " + maskSecret(match[len(match)-1])}
+	return &Match{RuleID: hardcodedSecretRule, Level: "warn", Message: "possible hardcoded secret detected: " + maskSecret(match[len(match)-1]), Confidence: core.ConfidenceLow}
 }
 
 // builtinGatePasses reports whether a line could match any built-in pattern.

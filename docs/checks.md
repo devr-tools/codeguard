@@ -12,12 +12,15 @@ This file documents the current check categories in `codeguard` and the config k
     "security": true,
     "prompts": true,
     "ci": true,
-    "supply_chain": false
+    "supply_chain": false,
+    "context": true
   }
 }
 ```
 
 Each top-level boolean enables or disables an entire check family.
+
+`context` covers agent-context legibility: when the key is omitted the family defaults to enabled in full scans and disabled in diff scans; see [Agent Context](#agent-context).
 
 `supply_chain` is opt-in and currently covers normalized manifest parsing plus initial policy checks for missing lockfiles, content-based lockfile drift validation, unpinned dependencies, and dependency license policy resolved from local manifest and installed metadata where available.
 
@@ -146,6 +149,16 @@ codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 
 Current behavior:
 - baseline fingerprints are filtered before section status is computed
+- each entry stores two fingerprints: the legacy line-based one
+  (`fingerprint`) and a context fingerprint (`context_fingerprint`) hashed
+  from the rule, path, and the whitespace-normalized source lines around the
+  finding (2 lines either side), so unrelated edits that only shift line
+  numbers do not break suppression
+- a finding is suppressed when either fingerprint matches; two identical
+  findings in the same file (same rule and surrounding source) share a context
+  fingerprint, so baselining one also baselines its identical twins
+- baseline files written before context fingerprints existed keep working:
+  their legacy fingerprints still match unchanged findings
 - suppressed counts remain visible in the report summary
 
 ## Policy profiles
@@ -684,6 +697,62 @@ Rules:
 - `ci.test-without-assertion` warns when a test function contains no recognizable assertion; names listed in `assertion_helpers` count as assertions
 - `ci.always-true-test-assertion` warns when every assertion in a test only compares constants (`expect(true).toBe(true)`, `assert 1 == 1`, `require.True(t, true)`), so the test can never fail
 - `ci.conditional-assertion` warns when every assertion in a test sits inside a conditional without an else branch, so the assertions may silently never run; idiomatic Go failure checks (`if got != want { t.Errorf(...) }`) are not flagged
+
+## Agent Context
+
+Purpose:
+- Agent instruction file presence (CLAUDE.md, AGENTS.md, .cursorrules, .github/copilot-instructions.md)
+- Drift between agent docs / README commands and the actual repository
+- Agent context budget for individual source files
+- Basename ambiguity that defeats filename-based navigation
+- A `repo_legibility` artifact scoring how legible the repository is to AI agents
+
+Config keys:
+
+```json
+{
+  "checks": {
+    "context": true,
+    "context_rules": {
+      "detect_missing_agent_docs": true,
+      "detect_agent_docs_drift": true,
+      "detect_readme_drift": true,
+      "detect_oversized_files": true,
+      "detect_ambiguous_symbols": true,
+      "max_file_lines": 1500,
+      "ambiguous_symbol_threshold": 4
+    }
+  }
+}
+```
+
+When `checks.context` is omitted the family runs in full scans and is skipped in diff scans: its signature findings are repo-level (missing agent docs, duplicated basenames) and would repeat on every PR regardless of the change under review. Set `"context": true` to force it on in diff scans, or `false` to disable it entirely.
+
+Current behavior:
+- `context.agent-docs-missing` warns once at repo level when none of the recognized agent instruction files exist at the target root
+- `context.agent-docs-drift` warns when an agent instruction file references a file or directory path, a `make` target, or an npm/pnpm/yarn `run` script that provably does not exist
+- `context.readme-drift` applies the same resolution to fenced `bash`/`sh`/`shell` blocks in the root README.md: `./`-prefixed paths, make targets, and run scripts that resolve nowhere
+- `context.oversized-context-unit` warns when a source file exceeds `context_rules.max_file_lines` (default 1500); the message is framed as agent context cost, distinct from `quality.max-file-lines` maintainability thresholds; generated and vendored files are skipped
+- `context.ambiguous-symbol` warns once per source-file basename shared by at least `context_rules.ambiguous_symbol_threshold` files (default 4), listing up to five locations
+
+Drift resolution is deliberately conservative — precision over recall. It only flags references it can positively prove broken, and skips:
+- URLs, module/domain paths (`github.com/...`), absolute paths, and `..` traversals
+- placeholders and expansions (`<name>`, `$VAR`), globs, and template syntax
+- all fenced blocks except shell command fences (code samples and captured output are never treated as paths)
+- shell blocks after a `cd`/`pushd` or a heredoc, and `make -C`/`-f` invocations that select another makefile
+- make targets when no root Makefile exists or the Makefile uses `include` or pattern rules
+- npm scripts when there is no root package.json or it declares workspaces
+
+`repo_legibility` artifact:
+
+Every context run publishes one `repo_legibility` artifact per target with a 0-100 score (higher is more legible) and an explainable component breakdown:
+- `agent_docs` (25): any agent instruction file present
+- `readme` (10): root README.md present
+- `doc_accuracy` (20): minus 4 points per unresolvable doc/README reference
+- `context_economy` (25): scaled down by the share of source files over the context budget (10% oversized zeroes it)
+- `navigability` (20): scaled down by the share of source files caught in ambiguous basename groups (20% affected zeroes it)
+
+The artifact is emitted even when individual rules are toggled off, so the score always reports reality.
 
 ## Output
 

@@ -17,7 +17,9 @@ var (
 	dockerfileUserRoot  = regexp.MustCompile(`(?i)^\s*USER\s+root\b`)
 
 	// Code/identifier based: matched on the raw line so string algorithm names
-	// (e.g. getInstance("MD5")) are still visible.
+	// (e.g. getInstance("MD5")) and Go import paths (e.g. "crypto/md5"), which
+	// masking would blank, are still visible. Known trade-off: comments that
+	// mention these APIs can trigger the weak-hash/weak-cipher warns.
 	debugEnabledPattern = regexp.MustCompile(`\bdebug\s*=\s*True\b`)
 	weakHashPattern     = regexp.MustCompile(`(?i)\bhashlib\.(?:md5|sha1)\s*\(|\b(?:md5|sha1)\.New\s*\(|crypto/(?:md5|sha1)|messagedigest\.getinstance\s*\(\s*"(?:md5|sha-?1)"|createhash\s*\(\s*['"](?:md5|sha1)['"]|\bDigest::(?:MD5|SHA1)\b|\b(?:MD5|SHA1)(?:CryptoServiceProvider|Managed)\b`)
 	weakCipherPattern   = regexp.MustCompile(`(?i)crypto/(?:des|rc4)|cipher\.getinstance\s*\(\s*"(?:des|desede|rc4|[^"]*ecb[^"]*)"|createcipheriv\s*\(\s*['"](?:des|des-ede3|rc4|aes-\d+-ecb)|\bnew\s+(?:DESCryptoServiceProvider|RC2CryptoServiceProvider|TripleDESCryptoServiceProvider)\b|\bMODE_ECB\b`)

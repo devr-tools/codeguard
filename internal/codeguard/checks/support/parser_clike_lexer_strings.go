@@ -72,6 +72,19 @@ func (m *clikeMasker) scanInterpolation() {
 	}
 }
 
+// maskGoRawString blanks a Go backquoted raw string literal, which has no
+// escape sequences and may span multiple lines.
+func (m *clikeMasker) maskGoRawString() {
+	m.maskBytes(1) // opening backquote
+	for m.idx < len(m.src) {
+		if m.src[m.idx] == '`' {
+			m.maskBytes(1)
+			return
+		}
+		m.maskBytes(1)
+	}
+}
+
 func (m *clikeMasker) rustRawStringAhead() bool {
 	if m.src[m.idx] != 'r' && !m.matches("br") {
 		return false

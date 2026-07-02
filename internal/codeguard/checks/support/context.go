@@ -16,6 +16,9 @@ type FindingInput struct {
 	Line    int    `json:"line"`
 	Column  int    `json:"column"`
 	Message string `json:"message"`
+	// Confidence is "high", "medium", or "low"; empty means unspecified and is
+	// treated as medium by consumers.
+	Confidence string `json:"confidence,omitempty"`
 }
 
 type Context struct {

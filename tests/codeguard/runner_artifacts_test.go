@@ -28,7 +28,8 @@ func TestRunPublishesPythonDependencyGraphArtifact(t *testing.T) {
 			Entrypoints: []string{"main.py"},
 		}},
 		Checks: codeguard.CheckConfig{
-			Design: true,
+			Design:  true,
+			Context: contextOff(),
 		},
 		Output: codeguard.OutputConfig{Format: "json"},
 		Cache: codeguard.CacheConfig{
@@ -83,6 +84,7 @@ func doThing() error { return nil }
 		}},
 		Checks: codeguard.CheckConfig{
 			Quality: true,
+			Context: contextOff(),
 		},
 		Output: codeguard.OutputConfig{Format: "json"},
 		Cache: codeguard.CacheConfig{

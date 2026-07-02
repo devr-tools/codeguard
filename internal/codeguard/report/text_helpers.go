@@ -114,7 +114,11 @@ func writeTextFinding(w io.Writer, index int, finding core.Finding) error {
 	if _, err := fmt.Fprintf(w, "     rule: %s\n", finding.RuleID); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "     why: %s\n", firstNonEmpty(finding.Why, finding.Message)); err != nil {
+	why := firstNonEmpty(finding.Why, finding.Message)
+	if finding.Confidence == core.ConfidenceLow {
+		why += " (low confidence)"
+	}
+	if _, err := fmt.Fprintf(w, "     why: %s\n", why); err != nil {
 		return err
 	}
 	if finding.HowToFix != "" {

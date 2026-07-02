@@ -11,6 +11,8 @@ type RuleExecutionModel = core.RuleExecutionModel
 type RuleLanguage = core.RuleLanguage
 type RuleLanguageCoverage = core.RuleLanguageCoverage
 type RuleLanguageCoverageMode = core.RuleLanguageCoverageMode
+type FixTemplate = core.FixTemplate
+type FixTemplateKind = core.FixTemplateKind
 type PolicyProfile = core.PolicyProfile
 type Runner = runner.Runner
 
@@ -29,6 +31,8 @@ const (
 	RuleLanguageCoverageFixed          = core.RuleLanguageCoverageFixed
 	RuleLanguageCoverageRepositoryWide = core.RuleLanguageCoverageRepositoryWide
 	RuleLanguageCoverageConfigurable   = core.RuleLanguageCoverageConfigurable
+	FixTemplateKindDeterministic       = core.FixTemplateKindDeterministic
+	FixTemplateKindGuided              = core.FixTemplateKindGuided
 	ScanModeFull                       = core.ScanModeFull
 	ScanModeDiff                       = core.ScanModeDiff
 	StatusPass                         = core.StatusPass

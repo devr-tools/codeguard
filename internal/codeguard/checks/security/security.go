@@ -30,6 +30,15 @@ func securityTargetFindings(ctx context.Context, env support.Context, target cor
 		})...)
 	}
 
+	// The A09 heuristics (secrets in log calls, raw errors in HTTP responses)
+	// need their own repository pass because TypeScript/JavaScript targets
+	// bypass findingsForFile whenever the semantic engine claims them, which
+	// would silently skip these rules. A distinct cache section id ensures no
+	// collision with the per-file caches of the passes below.
+	findings = append(findings, env.ScanTargetFiles(target, "security-a09", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
+		return a09FindingsForFile(env, file, strings.ReplaceAll(string(data), "\r\n", "\n"))
+	})...)
+
 	if isTypeScriptTarget(target) {
 		findings = append(findings, typeScriptTargetFindings(ctx, env, target)...)
 	} else {

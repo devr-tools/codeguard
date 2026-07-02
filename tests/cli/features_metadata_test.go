@@ -54,7 +54,10 @@ func TestSDKRuleMetadataForSupplyChainRule(t *testing.T) {
 
 func TestSDKRuleMetadataFixTemplateIncludesBeforeAfterSnippet(t *testing.T) {
 	rule := requireRuleMetadata(t, "quality.gofmt")
-	if !strings.Contains(rule.FixTemplate, "Before:") || !strings.Contains(rule.FixTemplate, "After:") {
-		t.Fatalf("expected before/after snippet in gofmt fix template, got %q", rule.FixTemplate)
+	if !strings.Contains(rule.FixTemplate.Text, "Before:") || !strings.Contains(rule.FixTemplate.Text, "After:") {
+		t.Fatalf("expected before/after snippet in gofmt fix template, got %q", rule.FixTemplate.Text)
+	}
+	if rule.FixTemplate.Kind != codeguard.FixTemplateKindDeterministic {
+		t.Fatalf("expected deterministic gofmt fix template, got %q", rule.FixTemplate.Kind)
 	}
 }

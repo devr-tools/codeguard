@@ -33,7 +33,14 @@ type CheckConfig struct {
 	// Contracts toggles the API contract drift family. When nil it defaults
 	// to enabled in diff scans and disabled in full scans; the strict and
 	// enterprise profiles enable it unconditionally.
-	Contracts        *bool                  `json:"contracts,omitempty" yaml:"contracts,omitempty"`
+	Contracts *bool `json:"contracts,omitempty" yaml:"contracts,omitempty"`
+	// Context toggles the agent-context legibility family: checks for how
+	// navigable and trustworthy the repository is for AI coding agents (agent
+	// instruction docs, doc/README drift, context-budget file sizes, and
+	// basename ambiguity). When nil it defaults to enabled in full scans and
+	// disabled in diff scans, whose repo-level findings would repeat on every
+	// PR regardless of the change under review.
+	Context          *bool                  `json:"context,omitempty" yaml:"context,omitempty"`
 	QualityRules     QualityRulesConfig     `json:"quality_rules" yaml:"quality_rules"`
 	DesignRules      DesignRulesConfig      `json:"design_rules" yaml:"design_rules"`
 	PromptRules      PromptRulesConfig      `json:"prompt_rules" yaml:"prompt_rules"`
@@ -41,6 +48,7 @@ type CheckConfig struct {
 	SecurityRules    SecurityRulesConfig    `json:"security_rules" yaml:"security_rules"`
 	SupplyChainRules SupplyChainRulesConfig `json:"supply_chain_rules" yaml:"supply_chain_rules"`
 	ContractRules    ContractRulesConfig    `json:"contract_rules" yaml:"contract_rules"`
+	ContextRules     ContextRulesConfig     `json:"context_rules" yaml:"context_rules"`
 }
 
 type OutputConfig struct {
