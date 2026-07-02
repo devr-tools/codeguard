@@ -15,12 +15,12 @@ type diffCommandEnv struct {
 	headDir string
 }
 
-func prepareDiffCommandEnv(dir string, baseRef string) (diffCommandEnv, func(), error) {
+func prepareDiffCommandEnv(ctx context.Context, dir string, baseRef string) (diffCommandEnv, func(), error) {
 	if err := ValidateBaseRef(baseRef); err != nil {
 		return diffCommandEnv{}, func() {}, err
 	}
 
-	repoRoot, err := gitRepoRoot(dir)
+	repoRoot, err := gitRepoRoot(ctx, dir)
 	if err != nil {
 		return diffCommandEnv{}, func() {}, err
 	}
@@ -46,11 +46,12 @@ func prepareDiffCommandEnv(dir string, baseRef string) (diffCommandEnv, func(), 
 
 	headRoot := filepath.Join(tempRoot, "head")
 	baseWorktree := filepath.Join(tempRoot, "base-worktree")
-	cleanup := func() {
-		// TODO(harden): thread caller ctx once prepareDiffCommandEnv accepts one.
-		ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+	// Cleanup deliberately uses context.Background(): it runs via defer and
+	// must still remove the worktree after the caller's ctx is cancelled.
+	cleanup := func() { //nolint:contextcheck // see comment above
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
 		defer cancel()
-		_ = exec.CommandContext(ctx, "git", "-C", repoRoot, "worktree", "remove", "--force", baseWorktree).Run() //nolint:gosec // fixed git subcommand; paths are tool-generated temp dirs
+		_ = exec.CommandContext(cleanupCtx, "git", "-C", repoRoot, "worktree", "remove", "--force", baseWorktree).Run() //nolint:gosec // fixed git subcommand; paths are tool-generated temp dirs
 		_ = os.RemoveAll(tempRoot)
 	}
 
@@ -59,8 +60,7 @@ func prepareDiffCommandEnv(dir string, baseRef string) (diffCommandEnv, func(), 
 		return diffCommandEnv{}, func() {}, fmt.Errorf("copy head target: %w", err)
 	}
 
-	// TODO(harden): thread caller ctx once prepareDiffCommandEnv accepts one.
-	addCtx, addCancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+	addCtx, addCancel := context.WithTimeout(ctx, gitCommandTimeout)
 	defer addCancel()
 	cmd := exec.CommandContext(addCtx, "git", "-C", repoRoot, "worktree", "add", "--detach", "--end-of-options", baseWorktree, baseRef) //nolint:gosec // baseRef validated by ValidateBaseRef at function entry; --end-of-options blocks flag injection
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -97,9 +97,8 @@ func canonicalPath(path string) (string, error) {
 	return "", err
 }
 
-func gitRepoRoot(dir string) (string, error) {
-	// TODO(harden): thread caller ctx once gitRepoRoot accepts one.
-	ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+func gitRepoRoot(ctx context.Context, dir string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, gitCommandTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--show-toplevel") //nolint:gosec // fixed git subcommand; dir is a config scan target path
 	output, err := cmd.CombinedOutput()

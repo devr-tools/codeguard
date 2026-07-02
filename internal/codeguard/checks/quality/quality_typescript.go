@@ -49,28 +49,20 @@ func appendTypeScriptDirectiveFindings(ctx typeScriptScanContext) []core.Finding
 }
 
 func typeScriptPatternFindings(ctx typeScriptScanContext) []core.Finding {
+	// Tree-sitter path for the migrated rules (nil tree means regex fallback;
+	// see support.ScriptSyntaxTree). The tree is parsed once per file per scan
+	// by the runner's corpus cache.
+	tree := support.ScriptSyntaxTree(ctx.env, ctx.file, ctx.source)
 	findings := make([]core.Finding, 0, 4)
-	findings = append(findings, regexTypeScriptFinding(ctx, support.ScriptRegexSpec{
-		Pattern: tsExplicitAnyPattern,
-		RuleID:  qualityRuleID(ctx.file, "explicit-any"),
-		Level:   "warn",
-		Message: "explicit any should be reviewed",
-	})...)
-	findings = append(findings, regexTypeScriptFinding(ctx, support.ScriptRegexSpec{
-		Pattern: tsDoubleAssertPattern,
-		RuleID:  qualityRuleID(ctx.file, "double-assertion"),
-		Level:   "warn",
-		Message: "double type assertions should be reviewed",
-	})...)
+	findings = append(findings, typeScriptExplicitAnyFindings(ctx, tree)...)
+	findings = append(findings, typeScriptDoubleAssertionFindings(ctx, tree)...)
 	findings = append(findings, regexTypeScriptFinding(ctx, support.ScriptRegexSpec{
 		Pattern: tsDebuggerPattern,
 		RuleID:  qualityRuleID(ctx.file, "debugger-statement"),
 		Level:   "warn",
 		Message: "debugger statements should not reach committed source",
 	})...)
-	for _, line := range typeScriptNonNullAssertionLines(ctx.code) {
-		findings = append(findings, newTypeScriptQualityFinding(ctx, qualityRuleID(ctx.file, "non-null-assertion"), line, "non-null assertions should be reviewed"))
-	}
+	findings = append(findings, typeScriptNonNullAssertionFindings(ctx, tree)...)
 	return findings
 }
 

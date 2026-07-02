@@ -73,6 +73,10 @@ var securityRuleOWASP = map[string]core.OWASPCategory{
 	// Software and data integrity failures (A08).
 	"security.insecure-deserialization": core.OWASPA08IntegrityFailures,
 
+	// Security logging and monitoring failures (A09).
+	"security.log-secret-exposure":        core.OWASPA09LoggingFailures,
+	"security.unsanitized-error-response": core.OWASPA09LoggingFailures,
+
 	// Server-side request forgery (A10).
 	"security.ssrf.go":     core.OWASPA10SSRF,
 	"security.ssrf.python": core.OWASPA10SSRF,

@@ -5,6 +5,10 @@ exclude:
   - .codeguard/cache.slop-history.json
   - .gomodcache/**
   - tests/**/.codeguard/cache.json
+  # Detection-precision fixtures: intentionally vulnerable-looking sample
+  # files asserted by tests/corpus/corpus_test.go; keep them out of the
+  # repository self-scan.
+  - tests/corpus/testdata/**
 waivers:
   - rule: quality.max-file-lines
     path: internal/codeguard/rules/catalog_quality.go
@@ -18,6 +22,15 @@ waivers:
   - rule: quality.unbounded-goroutines-in-loop
     path: internal/codeguard/runner/checks/checks.go
     reason: section workers are bounded by a NumCPU-sized semaphore before each goroutine is launched
+  - rule: ci.test-file-location
+    path: internal/codeguard/checks/support/treesitter/*_test.go
+    reason: the tree-sitter design spike is an isolated Go module whose differential tests must live beside the prototype they validate (docs/treesitter-spike.md)
+  - rule: supply_chain.lockfile-drift
+    path: internal/codeguard/checks/support/treesitter/go.mod
+    reason: the spike module resolves the root module through a local replace directive, which never records a go.sum entry
+  - rule: quality.ai.hallucinated-import
+    path: internal/codeguard/checks/support/treesitter/*.go
+    reason: the spike directory is a nested Go module with its own go.mod; its imports resolve there, not against the root module
 targets:
   - name: repository
     path: ..

@@ -27,9 +27,12 @@ func buildPythonImportGraph(env support.Context, target core.TargetConfig) pytho
 		entrypoints: pythonEntrypointModules(target.Entrypoints),
 	}
 	nodes := make(map[string]pythonGraphNode)
-	env.ScanTargetFiles(target, "design", func(rel string) bool {
+	// VisitTargetFiles rather than ScanTargetFiles: the visitor builds
+	// cross-file state (the nodes map), so it must run sequentially and must
+	// observe every file even when the per-file findings cache is warm.
+	env.VisitTargetFiles(target, func(rel string) bool {
 		return strings.EqualFold(filepath.Ext(rel), ".py")
-	}, func(file string, data []byte) []core.Finding {
+	}, func(file string, data []byte) {
 		module := pythonModuleName(file)
 		pkg := pythonPackageName(file)
 		nodes[module] = pythonGraphNode{
@@ -38,7 +41,6 @@ func buildPythonImportGraph(env support.Context, target core.TargetConfig) pytho
 			isPublic:   isPublicPythonModule(file, target),
 			statements: pythonImportStatements(module, pkg, data),
 		}
-		return nil
 	})
 	dependencyNodes := make(map[string]support.DependencyNode, len(nodes))
 	for module, node := range nodes {

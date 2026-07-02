@@ -32,12 +32,13 @@ type Options struct {
 
 // Finding is a single secret detected at a path/line in a specific commit.
 type Finding struct {
-	RuleID  string `json:"rule_id"`
-	Level   string `json:"level"`
-	Message string `json:"message"`
-	Path    string `json:"path"`
-	Line    int    `json:"line"`
-	Commit  string `json:"commit"`
+	RuleID     string `json:"rule_id"`
+	Level      string `json:"level"`
+	Confidence string `json:"confidence,omitempty"`
+	Message    string `json:"message"`
+	Path       string `json:"path"`
+	Line       int    `json:"line"`
+	Commit     string `json:"commit"`
 }
 
 // Report is the result of a history scan.
@@ -167,12 +168,13 @@ func (p *logParser) recordAdded(content string) {
 		}
 		p.seen[key] = struct{}{}
 		p.report.Findings = append(p.report.Findings, Finding{
-			RuleID:  match.RuleID,
-			Level:   match.Level,
-			Message: match.Message,
-			Path:    p.file,
-			Line:    p.newLine,
-			Commit:  p.commit,
+			RuleID:     match.RuleID,
+			Level:      match.Level,
+			Confidence: match.Confidence,
+			Message:    match.Message,
+			Path:       p.file,
+			Line:       p.newLine,
+			Commit:     p.commit,
 		})
 	}
 }

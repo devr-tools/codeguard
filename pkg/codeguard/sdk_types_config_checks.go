@@ -8,5 +8,6 @@ type PromptRulesConfig = core.PromptRulesConfig
 type CIRulesConfig = core.CIRulesConfig
 type SupplyChainRulesConfig = core.SupplyChainRulesConfig
 type ContractRulesConfig = core.ContractRulesConfig
+type ContextRulesConfig = core.ContextRulesConfig
 type WorkflowRuleConfig = core.WorkflowRuleConfig
 type CommandCheckConfig = core.CommandCheckConfig

@@ -1,6 +1,7 @@
 package support
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -19,6 +20,7 @@ type Context struct {
 	Baseline    map[string]core.BaselineEntry
 	Diff        map[string]LineRanges
 	Artifacts   *ArtifactStore
+	RuleStats   *RuleStatsCollector
 	Today       time.Time
 	RuleCatalog map[string]core.RuleMetadata
 	CustomRules []CompiledCustomRule
@@ -47,7 +49,7 @@ func NormalizeScanOptions(opts core.ScanOptions) core.ScanOptions {
 	return opts
 }
 
-func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
+func NewContext(ctx context.Context, cfg core.Config, opts core.ScanOptions) (Context, error) {
 	customRules, err := compileCustomRules(cfg)
 	if err != nil {
 		return Context{}, err
@@ -61,6 +63,7 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 		Cfg:               cfg,
 		Opts:              opts,
 		Artifacts:         NewArtifactStore(),
+		RuleStats:         NewRuleStatsCollector(),
 		Today:             time.Now(),
 		RuleCatalog:       ruleCatalog,
 		CustomRules:       customRules,
@@ -72,7 +75,7 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 		cleanup:           func() {},
 	}
 	if strings.TrimSpace(opts.DiffText) != "" {
-		patchedCfg, diffCommand, cleanup, err := MaterializePatchedTargets(cfg, opts.DiffText)
+		patchedCfg, diffCommand, cleanup, err := MaterializePatchedTargets(ctx, cfg, opts.DiffText)
 		if err != nil {
 			return Context{}, err
 		}
@@ -99,9 +102,9 @@ func NewContext(cfg core.Config, opts core.ScanOptions) (Context, error) {
 			err  error
 		)
 		if strings.TrimSpace(opts.DiffText) != "" {
-			diff = LoadDiffScopeFromUnifiedDiff(cfg.Targets, opts.DiffText)
+			diff = LoadDiffScopeFromUnifiedDiff(ctx, cfg.Targets, opts.DiffText)
 		} else {
-			diff, err = LoadDiffScope(cfg.Targets, opts.BaseRef)
+			diff, err = LoadDiffScope(ctx, cfg.Targets, opts.BaseRef)
 		}
 		if err != nil {
 			sc.cleanup()
@@ -153,11 +156,19 @@ func BaselineEntriesFromReport(report core.Report) []core.BaselineEntry {
 				continue
 			}
 			seen[finding.Fingerprint] = struct{}{}
+			// When no source context was available the finding's context
+			// fingerprint fell back to the legacy value; drop the duplicate so
+			// the entry reads as legacy-only.
+			contextFP := finding.ContextFingerprint
+			if contextFP == finding.Fingerprint {
+				contextFP = ""
+			}
 			entries = append(entries, core.BaselineEntry{
-				Fingerprint: finding.Fingerprint,
-				RuleID:      finding.RuleID,
-				Path:        finding.Path,
-				Message:     finding.Message,
+				Fingerprint:        finding.Fingerprint,
+				ContextFingerprint: contextFP,
+				RuleID:             finding.RuleID,
+				Path:               finding.Path,
+				Message:            finding.Message,
 			})
 		}
 	}
@@ -174,9 +185,17 @@ func loadBaselineFile(path string) (map[string]core.BaselineEntry, error) {
 	if err := json.Unmarshal(data, &file); err != nil {
 		return nil, err
 	}
+	// Index entries by both fingerprints so IsSuppressed can match either with
+	// a single lookup. Legacy-only entries (baseline files written before
+	// context fingerprints existed) simply contribute one key.
 	out := make(map[string]core.BaselineEntry, len(file.Entries))
 	for _, entry := range file.Entries {
-		out[entry.Fingerprint] = entry
+		if entry.Fingerprint != "" {
+			out[entry.Fingerprint] = entry
+		}
+		if entry.ContextFingerprint != "" {
+			out[entry.ContextFingerprint] = entry
+		}
 	}
 	return out, nil
 }

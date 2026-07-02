@@ -79,6 +79,7 @@ func TestGoTaintEnvToExecCommand(t *testing.T) {
 	assertSectionStatus(t, report, "Security", "fail")
 	messages := taintMessages(t, report, "security.taint.go")
 	assertChainMessage(t, messages, "os.Getenv", "exec.Command", "userCmd -> alias")
+	assertFindingConfidence(t, report, "Security", "security.taint.go", "high")
 }
 
 func TestGoTaintRequestToSQLViaSprintfAndHelper(t *testing.T) {

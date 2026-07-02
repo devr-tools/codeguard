@@ -25,6 +25,8 @@ func TestNaturalLanguageCustomRuleFindingsWhenRuntimeEnabled(t *testing.T) {
 	cfg.Checks.Security = false
 	cfg.Checks.Prompts = false
 	cfg.Checks.CI = false
+	nlContextOff := false
+	cfg.Checks.Context = &nlContextOff
 	cfg.RulePacks = []codeguard.RulePackConfig{{
 		Name: "repo-policy",
 		Rules: []codeguard.CustomRuleConfig{{
@@ -71,6 +73,8 @@ func TestNaturalLanguageCustomRuleCacheInvalidatesWhenRuntimeEnables(t *testing.
 	cfg.Checks.Security = false
 	cfg.Checks.Prompts = false
 	cfg.Checks.CI = false
+	nlContextOff := false
+	cfg.Checks.Context = &nlContextOff
 	cfg.RulePacks = []codeguard.RulePackConfig{{
 		Name: "repo-policy",
 		Rules: []codeguard.CustomRuleConfig{{

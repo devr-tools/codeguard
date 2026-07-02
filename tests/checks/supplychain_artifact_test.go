@@ -13,6 +13,7 @@ func TestSupplyChainPublishesNormalizedManifestArtifact(t *testing.T) {
 	writeSupplyChainArtifactFixtures(t, dir)
 
 	cacheEnabled := false
+	contextOff := false
 	cfg := codeguard.Config{
 		Name: "supply-chain-artifact",
 		Targets: []codeguard.TargetConfig{{
@@ -22,6 +23,7 @@ func TestSupplyChainPublishesNormalizedManifestArtifact(t *testing.T) {
 		}},
 		Checks: codeguard.CheckConfig{
 			SupplyChain: true,
+			Context:     &contextOff,
 		},
 		Output: codeguard.OutputConfig{Format: "json"},
 		Cache:  codeguard.CacheConfig{Enabled: &cacheEnabled},
@@ -79,12 +81,16 @@ tokio = { version = "=1.38.0" }
 
 func requireSupplyChainArtifact(t *testing.T, report codeguard.Report, manifestCount int) codeguard.Artifact {
 	t.Helper()
-	if len(report.Artifacts) != 1 {
-		t.Fatalf("artifacts = %d, want 1", len(report.Artifacts))
+	var artifact codeguard.Artifact
+	found := 0
+	for _, candidate := range report.Artifacts {
+		if candidate.Kind == "supply_chain" {
+			artifact = candidate
+			found++
+		}
 	}
-	artifact := report.Artifacts[0]
-	if artifact.Kind != "supply_chain" {
-		t.Fatalf("artifact kind = %q, want supply_chain", artifact.Kind)
+	if found != 1 {
+		t.Fatalf("supply_chain artifacts = %d, want 1 (all artifacts: %#v)", found, report.Artifacts)
 	}
 	if artifact.SupplyChain == nil {
 		t.Fatal("expected supply_chain payload")

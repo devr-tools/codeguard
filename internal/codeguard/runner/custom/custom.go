@@ -12,7 +12,9 @@ import (
 func RunSection(ctx context.Context, sc runnersupport.Context) core.SectionResult {
 	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each target appends a variable number
 	for _, target := range sc.Cfg.Targets {
-		findings = append(findings, runnersupport.ScanTargetFiles(sc, target, "custom", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
+		// Sequential on purpose: natural-language rules can spawn an external
+		// evaluator subprocess per file, which must not fan out in parallel.
+		findings = append(findings, runnersupport.ScanTargetFilesSequential(sc, target, "custom", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
 			localFindings := make([]core.Finding, 0)
 			lines := strings.Split(string(data), "\n")
 			for _, rule := range sc.CustomRules {

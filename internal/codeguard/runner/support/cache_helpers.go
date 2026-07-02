@@ -24,7 +24,9 @@ func ConfigFingerprint(cfg core.Config, extras ...string) string {
 	if err != nil {
 		return ""
 	}
-	prefix := "scanner-version-7|" + strings.Join(extras, "|") + "|"
+	// version 8: findings gained ContextFingerprint, so entries cached by
+	// earlier scanners must be recomputed rather than replayed without it.
+	prefix := "scanner-version-8|" + strings.Join(extras, "|") + "|"
 	return hashBytes(append([]byte(prefix), data...))
 }
 
@@ -38,18 +40,22 @@ func ConfigFingerprint(cfg core.Config, extras ...string) string {
 // section id that sectionConfigFamily does not recognize, so a newly added
 // section can never silently serve stale cache entries.
 func SectionConfigHashes(cfg core.Config, catalog map[string]core.RuleMetadata, extras ...string) map[string]string {
-	prefix := "section-config-v1|" + strings.Join(extras, "|") + "|"
+	// v3: quality/security findings can now come from the tree-sitter path, so
+	// the parser selection (cfg.Parsers) is part of their fingerprints.
+	prefix := "section-config-v3|" + strings.Join(extras, "|") + "|"
 	checks := cfg.Checks
 	return map[string]string{
 		// quality reads both QualityRules and DesignRules, and its AI-quality
-		// findings depend on the AI config.
-		"quality":   sectionFingerprint(prefix, "quality", catalog, cfg.AI, checks.QualityRules, checks.DesignRules),
+		// findings depend on the AI config. quality and security both include
+		// cfg.Parsers because toggling parsers.treesitter changes their
+		// per-file script findings.
+		"quality":   sectionFingerprint(prefix, "quality", catalog, cfg.AI, checks.QualityRules, checks.DesignRules, cfg.Parsers),
 		"design":    sectionFingerprint(prefix, "design", catalog, checks.DesignRules),
-		"security":  sectionFingerprint(prefix, "security", catalog, checks.SecurityRules),
+		"security":  sectionFingerprint(prefix, "security", catalog, checks.SecurityRules, cfg.Parsers),
 		"prompts":   sectionFingerprint(prefix, "prompts", catalog, checks.PromptRules),
 		"ci":        sectionFingerprint(prefix, "ci", catalog, checks.CIRules),
 		"contracts": sectionFingerprint(prefix, "contracts", catalog, checks.ContractRules),
-		"":          sectionFingerprint(prefix, "all", catalog, cfg.AI, checks),
+		"":          sectionFingerprint(prefix, "all", catalog, cfg.AI, checks, cfg.Parsers),
 	}
 }
 

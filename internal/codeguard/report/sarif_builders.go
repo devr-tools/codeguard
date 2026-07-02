@@ -39,7 +39,30 @@ func buildSARIFResult(finding core.Finding) sarifResult {
 	if finding.Path != "" {
 		result.Locations = append(result.Locations, newSARIFLocation(finding))
 	}
+	result.PartialFingerprints = sarifPartialFingerprints(finding)
+	if finding.Confidence != "" {
+		result.Properties = &sarifResultProperties{Confidence: finding.Confidence}
+	}
 	return result
+}
+
+// sarifPartialFingerprints exposes both codeguard fingerprints to SARIF
+// consumers. GitHub code scanning deduplicates alerts across commits by
+// partialFingerprints, so the line-shift-resilient context fingerprint keeps
+// an alert stable when unrelated edits move the finding within its file, while
+// the legacy line-based fingerprint preserves continuity with older uploads.
+func sarifPartialFingerprints(finding core.Finding) map[string]string {
+	fingerprints := map[string]string{}
+	if finding.ContextFingerprint != "" {
+		fingerprints["codeguardContext/v1"] = finding.ContextFingerprint
+	}
+	if finding.Fingerprint != "" {
+		fingerprints["codeguardLegacy/v1"] = finding.Fingerprint
+	}
+	if len(fingerprints) == 0 {
+		return nil
+	}
+	return fingerprints
 }
 
 func sarifLevelForFinding(finding core.Finding) string {

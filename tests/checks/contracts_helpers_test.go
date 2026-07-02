@@ -33,8 +33,9 @@ func contractsTestConfig(dir string) codeguard.Config {
 	cfg.Checks.Security = false
 	cfg.Checks.Prompts = false
 	cfg.Checks.CI = false
-	cacheOff := false
-	cfg.Cache.Enabled = &cacheOff
+	off := false
+	cfg.Checks.Context = &off
+	cfg.Cache.Enabled = &off
 	return cfg
 }
 

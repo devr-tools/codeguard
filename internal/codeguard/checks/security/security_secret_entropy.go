@@ -63,7 +63,8 @@ func (s Scanner) entropyMatch(lineNo int, line string) *Match {
 		if shannonEntropy(value) < s.entropy.threshold {
 			continue
 		}
-		return &Match{RuleID: highEntropyRule, Level: s.entropy.level, Line: lineNo, Column: 1, Message: "high-entropy string literal (possible secret): " + maskSecret(value)}
+		// A statistical heuristic with no format anchor: low confidence.
+		return &Match{RuleID: highEntropyRule, Level: s.entropy.level, Line: lineNo, Column: 1, Message: "high-entropy string literal (possible secret): " + maskSecret(value), Confidence: core.ConfidenceLow}
 	}
 	return nil
 }

@@ -18,14 +18,35 @@ type inlineSuppression struct {
 
 var inlineIgnorePattern = regexp.MustCompile(`codeguard:ignore\s+([a-z0-9._*\-]+)(?:\s+until\s+(\d{4}-\d{2}-\d{2}))?`)
 
+// Suppression reasons returned by IsSuppressed, keyed on by the rule-stats
+// collector to attribute suppressed findings to their mechanism.
+const (
+	SuppressionReasonBaseline = "baseline"
+	SuppressionReasonWaiver   = "waiver"
+	SuppressionReasonInline   = "inline suppression"
+)
+
 func IsSuppressed(sc Context, finding core.Finding) (bool, string) {
 	if sc.Baseline != nil {
 		if _, ok := sc.Baseline[finding.Fingerprint]; ok {
-			return true, "baseline"
+			return true, SuppressionReasonBaseline
+		}
+		// The context fingerprint deliberately omits the line number, so two
+		// identical findings in the same file (same rule, same normalized
+		// surrounding source, different locations) collide on it. For
+		// suppression that is acceptable: baselining one occurrence of a
+		// duplicated snippet also baselines its identical twins, and any real
+		// change to the offending code alters the context and resurfaces the
+		// finding. Baseline files written before context fingerprints existed
+		// carry legacy-only entries and are matched by the check above.
+		if finding.ContextFingerprint != "" {
+			if _, ok := sc.Baseline[finding.ContextFingerprint]; ok {
+				return true, "baseline"
+			}
 		}
 	}
 	if waiverMatches(sc, finding) {
-		return true, "waiver"
+		return true, SuppressionReasonWaiver
 	}
 	fullPath := findingFullPath(sc, finding.Path)
 	if fullPath == "" {
@@ -36,7 +57,7 @@ func IsSuppressed(sc Context, finding core.Finding) (bool, string) {
 		return false, ""
 	}
 	if inlineSuppressionMatches(sc, finding, directives) {
-		return true, "inline suppression"
+		return true, SuppressionReasonInline
 	}
 	return false, ""
 }

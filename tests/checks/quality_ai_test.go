@@ -45,6 +45,7 @@ func buildClient() {}
 	}
 
 	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.narrative-comment")
+	assertFindingConfidence(t, report, "Code Quality", "quality.ai.narrative-comment", "low")
 }
 
 func TestQualityCheckWarnsForEmptyCatchInTypeScript(t *testing.T) {

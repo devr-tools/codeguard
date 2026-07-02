@@ -94,6 +94,13 @@ type SecurityRulesConfig struct {
 	TypeScriptTaintMaxDepth int                             `json:"typescript_taint_max_depth,omitempty" yaml:"typescript_taint_max_depth,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
 	Secrets                 *SecretsRulesConfig             `json:"secrets,omitempty" yaml:"secrets,omitempty"`
+	// DemoteFixtureFindings downgrades hardcoded-secret, hardcoded-credential,
+	// and high-entropy-string findings located in test/fixture paths (testdata/,
+	// fixtures/, __fixtures__/, *_test.go, *.test.ts, *_test.py, *.spec.ts):
+	// fail becomes warn, confidence drops to low, and the message notes the
+	// demotion. Fixture credentials are still reported — never silenced — but no
+	// longer fail the scan. Defaults to true when unset.
+	DemoteFixtureFindings *bool `json:"demote_fixture_findings,omitempty" yaml:"demote_fixture_findings,omitempty"`
 }
 
 type SupplyChainRulesConfig struct {
@@ -103,6 +110,24 @@ type SupplyChainRulesConfig struct {
 	AllowedLicenses     []string                      `json:"allowed_licenses,omitempty" yaml:"allowed_licenses,omitempty"`
 	DeniedLicenses      []string                      `json:"denied_licenses,omitempty" yaml:"denied_licenses,omitempty"`
 	LicenseCommands     map[string]CommandCheckConfig `json:"license_commands,omitempty" yaml:"license_commands,omitempty"`
+}
+
+// ContextRulesConfig tunes the agent-context legibility family. Nil toggles
+// default to enabled, matching the rest of the rule pack defaults.
+type ContextRulesConfig struct {
+	DetectMissingAgentDocs *bool `json:"detect_missing_agent_docs,omitempty" yaml:"detect_missing_agent_docs,omitempty"`
+	DetectAgentDocsDrift   *bool `json:"detect_agent_docs_drift,omitempty" yaml:"detect_agent_docs_drift,omitempty"`
+	DetectReadmeDrift      *bool `json:"detect_readme_drift,omitempty" yaml:"detect_readme_drift,omitempty"`
+	DetectOversizedFiles   *bool `json:"detect_oversized_files,omitempty" yaml:"detect_oversized_files,omitempty"`
+	DetectAmbiguousSymbols *bool `json:"detect_ambiguous_symbols,omitempty" yaml:"detect_ambiguous_symbols,omitempty"`
+	// MaxFileLines is the agent context budget for a single source file.
+	// Distinct from quality_rules.max_file_lines: this threshold is about how
+	// much of an agent's context window one unit of work consumes, so its
+	// default (1500) is intentionally looser than the maintainability limit.
+	MaxFileLines int `json:"max_file_lines,omitempty" yaml:"max_file_lines,omitempty"`
+	// AmbiguousSymbolThreshold is the number of source files sharing one
+	// basename at which the basename is reported as ambiguous (default 4).
+	AmbiguousSymbolThreshold int `json:"ambiguous_symbol_threshold,omitempty" yaml:"ambiguous_symbol_threshold,omitempty"`
 }
 
 type CommandCheckConfig struct {

@@ -64,8 +64,9 @@ func assertExplainFixTemplateLine(t *testing.T, line string, ruleID string) {
 		Result struct {
 			IsError           bool `json:"isError"`
 			StructuredContent struct {
-				ID          string `json:"id"`
-				FixTemplate string `json:"fix_template"`
+				ID              string `json:"id"`
+				FixTemplate     string `json:"fix_template"`
+				FixTemplateKind string `json:"fix_template_kind"`
 			} `json:"structuredContent"`
 		} `json:"result"`
 	}
@@ -75,6 +76,9 @@ func assertExplainFixTemplateLine(t *testing.T, line string, ruleID string) {
 	}
 	if strings.TrimSpace(resp.Result.StructuredContent.FixTemplate) == "" {
 		t.Fatalf("expected populated fix_template for %s, got %#v", ruleID, resp)
+	}
+	if kind := resp.Result.StructuredContent.FixTemplateKind; kind != "deterministic" && kind != "guided" {
+		t.Fatalf("expected valid fix_template_kind for %s, got %#v", ruleID, resp)
 	}
 }
 

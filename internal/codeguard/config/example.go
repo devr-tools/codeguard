@@ -10,6 +10,7 @@ func baseExampleConfig() core.Config {
 		AI:      exampleAIConfig(),
 		Output:  core.OutputConfig{Format: "text"},
 		Cache:   exampleCacheConfig(),
+		Parsers: core.ParsersConfig{TreeSitter: core.TreeSitterModeOff},
 	}
 }
 
@@ -37,6 +38,19 @@ func exampleChecks() core.CheckConfig {
 		SecurityRules:    exampleSecurityRules(),
 		SupplyChainRules: exampleSupplyChainRules(),
 		ContractRules:    exampleContractRules(),
+		ContextRules:     exampleContextRules(),
+	}
+}
+
+func exampleContextRules() core.ContextRulesConfig {
+	return core.ContextRulesConfig{
+		DetectMissingAgentDocs:   boolPtr(true),
+		DetectAgentDocsDrift:     boolPtr(true),
+		DetectReadmeDrift:        boolPtr(true),
+		DetectOversizedFiles:     boolPtr(true),
+		DetectAmbiguousSymbols:   boolPtr(true),
+		MaxFileLines:             1500,
+		AmbiguousSymbolThreshold: 4,
 	}
 }
 

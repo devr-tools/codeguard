@@ -23,11 +23,22 @@ func Validate(cfg core.Config) error {
 		validateAIChecks(cfg.Checks.QualityRules.AIChecks),
 		validateSupplyChainRules(cfg.Checks.SupplyChainRules),
 		validateContractRules(cfg.Checks.ContractRules),
+		validateContextRules(cfg.Checks.ContextRules),
 		validateCoverageDelta(cfg.Checks.QualityRules.CoverageDelta),
 		validateGraphThresholds(cfg.Checks.DesignRules),
 		validateSecretsRules(cfg.Checks.SecurityRules.Secrets),
+		validateParsers(cfg.Parsers),
 		validateRulePacks(cfg.RulePacks),
 	)
+}
+
+func validateParsers(parsers core.ParsersConfig) error {
+	switch strings.TrimSpace(strings.ToLower(parsers.TreeSitter)) {
+	case "", core.TreeSitterModeOff, core.TreeSitterModeAuto:
+		return nil
+	default:
+		return fmt.Errorf("parsers.treesitter must be %q or %q", core.TreeSitterModeOff, core.TreeSitterModeAuto)
+	}
 }
 
 func validateNameAndProfile(cfg core.Config) error {

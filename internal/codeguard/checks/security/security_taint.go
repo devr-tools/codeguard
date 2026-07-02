@@ -56,12 +56,15 @@ func appendTaintFinding(env support.Context, file string, seen map[string]struct
 		return findings
 	}
 	seen[key] = struct{}{}
+	// Taint findings come from AST-based source-to-sink analysis (including the
+	// SSRF sinks), so they carry high confidence compared to regex line scans.
 	return append(findings, env.NewFinding(support.FindingInput{
-		RuleID:  input.ruleID,
-		Level:   "fail",
-		Path:    file,
-		Line:    input.sinkLine,
-		Column:  1,
-		Message: taintChainMessage(input.source, input.sourceLine, input.sink, input.sinkLine, input.chain),
+		RuleID:     input.ruleID,
+		Level:      "fail",
+		Path:       file,
+		Line:       input.sinkLine,
+		Column:     1,
+		Message:    taintChainMessage(input.source, input.sourceLine, input.sink, input.sinkLine, input.chain),
+		Confidence: core.ConfidenceHigh,
 	}))
 }

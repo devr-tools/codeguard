@@ -1,0 +1,404 @@
+# Ground-truth expectations for the detection-precision corpus under
+# tests/corpus/testdata/. Consumed by tests/corpus/corpus_test.go.
+#
+# Semantics:
+#   - Every fixture file under each group root MUST be listed here (the
+#     harness fails on drift in either direction).
+#   - must_fire entries are findings the scanner is required to produce.
+#     `line` is optional; when omitted, any line in the file satisfies the
+#     expectation (used for TypeScript rules, where the regex fallback and
+#     the optional semantic engine may attribute lines differently).
+#   - known_gaps document current detector behavior we consciously accept:
+#       type: false-negative  -> the detector currently MISSES this (the
+#                                harness asserts it does NOT fire; if it
+#                                starts firing, the test fails so the gap
+#                                gets promoted to must_fire).
+#       type: false-positive  -> the detector currently FLAGS this although
+#                                the file is conceptually clean (the harness
+#                                asserts it DOES fire; if it stops firing,
+#                                the test fails so the entry gets removed).
+#   - A file with neither must_fire nor known_gaps must produce no in-scope
+#     findings at all.
+#   - Findings for rules outside `rules` are ignored (e.g. the TypeScript
+#     semantic engine's taint-flow rules), keeping the corpus deterministic
+#     across environments.
+version: 1
+rules:
+  - security.bind-all-interfaces
+  - security.cors-wildcard
+  - security.debug-enabled
+  - security.dockerfile-root
+  - security.hardcoded-credential
+  - security.hardcoded-secret
+  - security.high-entropy-string
+  - security.insecure-deserialization
+  - security.insecure-tls
+  - security.private-key
+  - security.python.dynamic-code
+  - security.python.insecure-tls
+  - security.python.shell-execution
+  - security.shell-execution
+  - security.ssrf.go
+  - security.ssrf.python
+  - security.taint.go
+  - security.taint.python
+  - security.typescript.dynamic-code
+  - security.typescript.insecure-tls
+  - security.typescript.shell-execution
+  - security.typescript.unsafe-html-sink
+  - security.weak-cipher
+  - security.weak-hash
+groups:
+  - name: agnostic
+    language: go
+    root: testdata/agnostic
+    files:
+      - path: cors-wildcard/vulnerable/headers.yaml
+        must_fire:
+          - rule: security.cors-wildcard
+            line: 3
+      - path: cors-wildcard/clean/headers.yaml
+      - path: dockerfile-root/vulnerable/Dockerfile
+        must_fire:
+          - rule: security.dockerfile-root
+            line: 2
+      - path: dockerfile-root/vulnerable/Dockerfile.web
+        must_fire:
+          - rule: security.dockerfile-root
+            line: 2
+      - path: dockerfile-root/clean/Dockerfile
+      - path: dockerfile-root/clean/setup.sh
+
+  - name: go
+    language: go
+    root: testdata/go
+    entropy: true
+    files:
+      - path: bind-all-interfaces/vulnerable/server.go
+        must_fire:
+          - rule: security.bind-all-interfaces
+            line: 6
+      - path: bind-all-interfaces/clean/localhost.go
+      - path: bind-all-interfaces/clean/comment_mention.go
+        known_gaps:
+          - rule: security.bind-all-interfaces
+            type: false-positive
+            line: 3
+            reason: raw-line matching flags 0.0.0.0 inside a Go comment
+      - path: cors-wildcard/vulnerable/headers.go
+        must_fire:
+          - rule: security.cors-wildcard
+            line: 6
+      - path: cors-wildcard/clean/specific_origin.go
+      - path: cors-wildcard/clean/comment_mention.go
+        known_gaps:
+          - rule: security.cors-wildcard
+            type: false-positive
+            line: 3
+            reason: raw-line matching flags the wildcard header spelled out in a comment
+      - path: hardcoded-credential/vulnerable/providers.go
+        must_fire:
+          - rule: security.hardcoded-credential
+            line: 7
+          - rule: security.hardcoded-credential
+            line: 8
+          - rule: security.hardcoded-credential
+            line: 9
+          - rule: security.hardcoded-credential
+            line: 10
+      - path: hardcoded-credential/vulnerable/embedded_config.go
+        must_fire:
+          - rule: security.hardcoded-credential
+            line: 8
+          - rule: security.hardcoded-credential
+            line: 13
+      - path: hardcoded-credential/vulnerable/header_set.go
+        known_gaps:
+          - rule: security.hardcoded-credential
+            type: false-negative
+            line: 9
+            reason: bearer pattern requires ':' or '=' between name and value, so the
+              two-argument Header.Set("Authorization", "Bearer ...") form is missed
+      - path: hardcoded-credential/clean/placeholders.go
+      - path: hardcoded-credential/clean/comment_mention.go
+      - path: hardcoded-secret/vulnerable/basic.go
+        must_fire:
+          - rule: security.hardcoded-secret
+            line: 4
+          - rule: security.hardcoded-secret
+            line: 5
+      - path: hardcoded-secret/vulnerable/struct_field.go
+        must_fire:
+          - rule: security.hardcoded-secret
+            line: 12
+      - path: hardcoded-secret/vulnerable/renamed_gap.go
+        known_gaps:
+          - rule: security.hardcoded-secret
+            type: false-negative
+            line: 6
+            reason: name-based heuristic only knows secret/token/api_key/password, so
+              the abbreviated identifier dbPass is missed
+      - path: hardcoded-secret/clean/env_lookup.go
+      - path: hardcoded-secret/clean/placeholder.go
+      - path: high-entropy-string/vulnerable/seed.go
+        must_fire:
+          - rule: security.high-entropy-string
+            line: 3
+          - rule: security.high-entropy-string
+            line: 6
+      - path: high-entropy-string/clean/low_entropy.go
+      - path: high-entropy-string/clean/placeholder.go
+      - path: insecure-tls/vulnerable/client.go
+        must_fire:
+          - rule: security.insecure-tls
+            line: 10
+      - path: insecure-tls/vulnerable/multiline.go
+        must_fire:
+          - rule: security.insecure-tls
+            line: 7
+      - path: insecure-tls/vulnerable/renamed.go
+        must_fire:
+          - rule: security.insecure-tls
+            line: 6
+      - path: insecure-tls/vulnerable/nospace_mutation.go.txt
+        must_fire:
+          - rule: security.insecure-tls
+            line: 4
+      - path: insecure-tls/clean/verify_on.go
+      - path: insecure-tls/clean/comment_mention.go
+      - path: private-key/vulnerable/rsa_key.pem
+        must_fire:
+          - rule: security.private-key
+            line: 1
+      - path: private-key/vulnerable/embedded.go
+        must_fire:
+          - rule: security.private-key
+            line: 5
+      - path: private-key/clean/key_path.go
+      - path: private-key/clean/comment_pem.go
+        known_gaps:
+          - rule: security.private-key
+            type: false-positive
+            line: 3
+            reason: raw-line matching flags a PEM header quoted inside a comment
+      - path: shell-execution/vulnerable/run.go
+        must_fire:
+          - rule: security.shell-execution
+            line: 6
+      - path: shell-execution/clean/import_only.go
+      - path: shell-execution/clean/comment_call.go
+      - path: shell-execution/clean/substring_name.go
+      - path: ssrf-go/vulnerable/fetch.go
+        must_fire:
+          - rule: security.ssrf.go
+            line: 10
+      - path: ssrf-go/clean/static_url.go
+      - path: taint-go/vulnerable/env_exec.go
+        must_fire:
+          - rule: security.taint.go
+            line: 11
+          - rule: security.shell-execution
+            line: 11
+      - path: taint-go/vulnerable/request_sql.go
+        must_fire:
+          - rule: security.taint.go
+            line: 16
+      - path: taint-go/vulnerable/stdin_file.go
+        must_fire:
+          - rule: security.taint.go
+            line: 11
+      - path: taint-go/clean/sanitized.go
+        must_fire:
+          - rule: security.shell-execution
+            line: 17
+          - rule: security.shell-execution
+            line: 19
+      - path: weak-cipher/vulnerable/legacy.go
+        must_fire:
+          - rule: security.weak-cipher
+            line: 4
+          - rule: security.weak-cipher
+            line: 5
+      - path: weak-cipher/clean/aes_gcm.go
+      - path: weak-hash/vulnerable/digest.go
+        must_fire:
+          - rule: security.weak-hash
+            line: 4
+          - rule: security.weak-hash
+            line: 5
+          - rule: security.weak-hash
+            line: 10
+          - rule: security.weak-hash
+            line: 11
+      - path: weak-hash/clean/sha256.go
+      - path: weak-hash/clean/comment_mention.go
+        known_gaps:
+          - rule: security.weak-hash
+            type: false-positive
+            line: 3
+            reason: raw-line matching flags crypto/md5 mentioned in a comment
+
+  - name: python
+    language: python
+    root: testdata/python
+    files:
+      - path: debug-enabled/vulnerable/flask_debug.py
+        must_fire:
+          - rule: security.debug-enabled
+            line: 6
+      - path: debug-enabled/clean/debug_false.py
+      - path: debug-enabled/clean/comment.py
+      - path: dynamic-code/vulnerable/eval_static.py
+        must_fire:
+          - rule: security.python.dynamic-code
+            line: 3
+      - path: dynamic-code/vulnerable/exec_static.py
+        must_fire:
+          - rule: security.python.dynamic-code
+            line: 3
+      - path: dynamic-code/clean/literal_eval.py
+      - path: dynamic-code/clean/model_eval.py
+        known_gaps:
+          - rule: security.python.dynamic-code
+            type: false-positive
+            line: 2
+            reason: the eval( pattern matches method calls such as model.eval(), a
+              common PyTorch idiom that executes no dynamic code
+      - path: dynamic-code/clean/comment.py
+      - path: insecure-deserialization/vulnerable/pickle_load.py
+        must_fire:
+          - rule: security.insecure-deserialization
+            line: 5
+      - path: insecure-deserialization/vulnerable/yaml_unsafe.py
+        must_fire:
+          - rule: security.insecure-deserialization
+            line: 5
+      - path: insecure-deserialization/clean/yaml_safe.py
+      - path: insecure-deserialization/clean/json_only.py
+      - path: insecure-tls/vulnerable/requests_client.py
+        must_fire:
+          - rule: security.python.insecure-tls
+            line: 5
+      - path: insecure-tls/vulnerable/spacing.py
+        must_fire:
+          - rule: security.python.insecure-tls
+            line: 4
+      - path: insecure-tls/vulnerable/unverified_context.py
+        must_fire:
+          - rule: security.python.insecure-tls
+            line: 3
+      - path: insecure-tls/clean/verify_true.py
+      - path: insecure-tls/clean/comment.py
+      - path: insecure-tls/clean/docstring.py
+      - path: shell-execution/vulnerable/shell_true.py
+        must_fire:
+          - rule: security.python.shell-execution
+            line: 5
+      - path: shell-execution/vulnerable/os_system.py
+        must_fire:
+          - rule: security.python.shell-execution
+            line: 3
+      - path: shell-execution/clean/list_args.py
+      - path: shell-execution/clean/comment.py
+      - path: ssrf-python/vulnerable/env_fetch.py
+        must_fire:
+          - rule: security.ssrf.python
+            line: 6
+      - path: ssrf-python/clean/static_fetch.py
+      - path: taint-python/vulnerable/input_system.py
+        must_fire:
+          - rule: security.taint.python
+            line: 5
+          - rule: security.python.shell-execution
+            line: 5
+      - path: taint-python/vulnerable/request_sql.py
+        must_fire:
+          - rule: security.taint.python
+            line: 7
+      - path: taint-python/vulnerable/argv_subprocess.py
+        must_fire:
+          - rule: security.taint.python
+            line: 10
+          - rule: security.python.shell-execution
+            line: 10
+      - path: taint-python/clean/sanitized.py
+        must_fire:
+          - rule: security.python.shell-execution
+            line: 6
+          - rule: security.python.shell-execution
+            line: 9
+      - path: taint-python/clean/parameterized.py
+      - path: weak-cipher/vulnerable/aes_ecb.py
+        must_fire:
+          - rule: security.weak-cipher
+            line: 5
+      - path: weak-cipher/clean/aes_gcm.py
+      - path: weak-hash/vulnerable/hashlib_md5.py
+        must_fire:
+          - rule: security.weak-hash
+            line: 5
+      - path: weak-hash/clean/hashlib_sha256.py
+
+  # TypeScript expectations are file-level (no line numbers) for the
+  # security.typescript.* rules: targets with language typescript use the
+  # Node-based semantic analyzer when a TypeScript lib is discoverable and
+  # fall back to the regex scanner otherwise, and the two engines may
+  # attribute findings to lines differently. The secrets pass is a separate
+  # engine-independent scan, so credential expectations keep line numbers.
+  - name: typescript
+    language: typescript
+    root: testdata/typescript
+    files:
+      - path: dynamic-code/vulnerable/eval.ts
+        must_fire:
+          - rule: security.typescript.dynamic-code
+      - path: dynamic-code/clean/comment.ts
+      - path: hardcoded-credential/vulnerable/config.ts
+        must_fire:
+          - rule: security.hardcoded-credential
+            line: 1
+      - path: hardcoded-credential/clean/placeholder.ts
+      - path: insecure-tls/vulnerable/agent.ts
+        must_fire:
+          - rule: security.typescript.insecure-tls
+      - path: insecure-tls/vulnerable/env_flag.ts
+        must_fire:
+          - rule: security.typescript.insecure-tls
+      - path: insecure-tls/vulnerable/nospace.ts
+        must_fire:
+          - rule: security.typescript.insecure-tls
+      - path: insecure-tls/clean/strict.ts
+      - path: shell-execution/vulnerable/run.ts
+        must_fire:
+          - rule: security.typescript.shell-execution
+      - path: shell-execution/clean/strings.ts
+      - path: unsafe-html-sink/vulnerable/dom.ts
+        must_fire:
+          - rule: security.typescript.unsafe-html-sink
+      - path: unsafe-html-sink/clean/text_content.ts
+      - path: unsafe-html-sink/clean/strings.ts
+
+  # Tree-sitter variant: the same detector family scanned with
+  # parsers.treesitter "auto" (treesitter: true), covering the constructs the
+  # regex path cannot see (template-literal interpolations, compound
+  # assignment, formatter-split receivers) and the comparison shape it
+  # false-positives on. The harness forces the per-file path for this group
+  # (see forceTreeSitterScanPath), so these expectations always measure the
+  # tree-sitter engine; they stay file-level for consistency with the
+  # typescript group.
+  - name: typescript-treesitter
+    language: typescript
+    root: testdata/typescript-treesitter
+    treesitter: true
+    files:
+      - path: unsafe-html-sink/vulnerable/template_interpolation.ts
+        must_fire:
+          - rule: security.typescript.unsafe-html-sink
+      - path: unsafe-html-sink/vulnerable/compound_assign.ts
+        must_fire:
+          - rule: security.typescript.unsafe-html-sink
+      - path: unsafe-html-sink/vulnerable/split_receiver.ts
+        must_fire:
+          - rule: security.typescript.unsafe-html-sink
+      - path: unsafe-html-sink/clean/comparison.ts
+      - path: unsafe-html-sink/clean/property_read.ts

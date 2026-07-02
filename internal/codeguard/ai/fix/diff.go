@@ -1,6 +1,7 @@
 package fix
 
 import (
+	"context"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -9,10 +10,10 @@ import (
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
-func changedFilesByTarget(targets []core.TargetConfig, diffText string) map[string][]string {
+func changedFilesByTarget(ctx context.Context, targets []core.TargetConfig, diffText string) map[string][]string {
 	changed := make(map[string][]string, len(targets))
 	for _, target := range targets {
-		rebased := runnersupport.RebaseUnifiedDiff(diffText, runnersupport.DiffPrefixForTarget(target.Path))
+		rebased := runnersupport.RebaseUnifiedDiff(diffText, runnersupport.DiffPrefixForTarget(ctx, target.Path))
 		if strings.TrimSpace(rebased) == "" {
 			continue
 		}

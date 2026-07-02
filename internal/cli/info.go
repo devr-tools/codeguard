@@ -131,6 +131,7 @@ type explainAgentOutput struct {
 	Why              string                        `json:"why"`
 	HowToFix         string                        `json:"how_to_fix"`
 	FixTemplate      string                        `json:"fix_template"`
+	FixTemplateKind  string                        `json:"fix_template_kind,omitempty"`
 	OWASPCategory    string                        `json:"owasp_category,omitempty"`
 }
 
@@ -150,11 +151,12 @@ func buildExplainAgentOutput(rule service.RuleMetadata) explainAgentOutput {
 			Mode:      string(rule.LanguageCoverage.Mode),
 			Languages: explainLanguages(rule.LanguageCoverage.Languages),
 		},
-		Description:   rule.Description,
-		Why:           rule.Description,
-		HowToFix:      rule.HowToFix,
-		FixTemplate:   rule.FixTemplate,
-		OWASPCategory: string(rule.OWASPCategory),
+		Description:     rule.Description,
+		Why:             rule.Description,
+		HowToFix:        rule.HowToFix,
+		FixTemplate:     rule.FixTemplate.Text,
+		FixTemplateKind: string(rule.FixTemplate.Kind),
+		OWASPCategory:   string(rule.OWASPCategory),
 	}
 }
 

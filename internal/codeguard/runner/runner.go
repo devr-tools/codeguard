@@ -34,7 +34,7 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 		return core.Report{}, err
 	}
 
-	sc, err := runnersupport.NewContext(cfg, runnersupport.NormalizeScanOptions(opts)) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
+	sc, err := runnersupport.NewContext(ctx, cfg, runnersupport.NormalizeScanOptions(opts))
 	if err != nil {
 		return core.Report{}, err
 	}
@@ -51,6 +51,10 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	}
 	if triageArtifact != nil {
 		sc.Artifacts.Put(*triageArtifact)
+	}
+	if ruleStats := sc.RuleStats.Snapshot(); len(ruleStats) > 0 {
+		sc.Artifacts.Put(core.NewRuleStatsArtifact(ruleStats))
+		runnersupport.RecordRuleStatsHistory(sc, ruleStats)
 	}
 	report.Artifacts = sc.Artifacts.List()
 	report.Summary = runnersupport.SummarizeSections(report.Sections)
@@ -73,6 +77,18 @@ func SlopHistoryPath(cfg core.Config) string {
 // LoadSlopHistory reads the persisted slop-score trend, keyed by artifact ID.
 func LoadSlopHistory(path string) map[string][]core.SlopHistoryEntry {
 	return runnersupport.LoadSlopHistory(path)
+}
+
+// RuleStatsHistoryPath derives the rule-stats history file path for a config.
+func RuleStatsHistoryPath(cfg core.Config) string {
+	config.ApplyDefaults(&cfg)
+	return runnersupport.RuleStatsHistoryPathForBase(cfg.Cache.Path)
+}
+
+// LoadRuleStatsHistory reads the persisted per-scan rule suppression stats,
+// oldest first.
+func LoadRuleStatsHistory(path string) []core.RuleStatsHistoryEntry {
+	return runnersupport.LoadRuleStatsHistory(path)
 }
 
 func BaselineEntriesFromReport(report core.Report) []core.BaselineEntry {

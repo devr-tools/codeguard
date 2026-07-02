@@ -91,30 +91,18 @@ func TestSDKRuleMetadataForNaturalLanguageCustomRulePack(t *testing.T) {
 }
 
 func TestSDKRuleMetadataFixTemplatesPopulated(t *testing.T) {
-	ruleIDs := []string{
-		"quality.gofmt",
-		"quality.ai.swallowed-error",
-		"quality.ai.hallucinated-import",
-		"quality.ai.narrative-comment",
-		"quality.ai.dead-code",
-		"quality.ai.over-mocked-test",
-		"quality.ai.contract-drift",
-		"quality.ai.semantic-test-adequacy",
-		"quality.javascript.explicit-any",
-		"quality.javascript.ts-ignore",
-		"quality.javascript.debugger-statement",
-		"quality.javascript.non-null-assertion",
-		"prompts.secret-interpolation",
-		"prompts.agent-standing-permissions",
-		"prompts.mcp-config-risk",
-		"ci.test-without-assertion",
-		"quality.max-function-lines",
-		"quality.cyclomatic-complexity",
+	rules := codeguard.Rules()
+	if len(rules) == 0 {
+		t.Fatal("expected a non-empty rule catalog")
 	}
-	for _, ruleID := range ruleIDs {
-		rule := requireRuleMetadata(t, ruleID)
-		if strings.TrimSpace(rule.FixTemplate) == "" {
-			t.Fatalf("%s fix template is empty, want a populated template", ruleID)
+	for _, rule := range rules {
+		if strings.TrimSpace(rule.FixTemplate.Text) == "" {
+			t.Errorf("%s fix template text is empty, want a populated template", rule.ID)
+		}
+		switch rule.FixTemplate.Kind {
+		case codeguard.FixTemplateKindDeterministic, codeguard.FixTemplateKindGuided:
+		default:
+			t.Errorf("%s fix template kind = %q, want deterministic or guided", rule.ID, rule.FixTemplate.Kind)
 		}
 	}
 }

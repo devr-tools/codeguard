@@ -16,12 +16,14 @@ import (
 
 // Build runs every enabled section and returns their results in the fixed
 // registry order. Independent sections run concurrently on a worker pool bounded
-// by the CPU count; the shared scan cache, artifact store, and file corpus are
-// all concurrency-safe, and results are written into position-indexed slots so
-// the output order is deterministic regardless of completion order.
+// by the CPU count (and each section additionally fans its file scans out on a
+// small per-section pool, see runnersupport.ScanTargetFiles); the shared scan
+// cache, artifact store, and file corpus are all concurrency-safe, and results
+// are written into position-indexed slots so the output order is deterministic
+// regardless of completion order.
 func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 	sc = withSynchronizedSectionCallback(sc)
-	checkEnv := buildCheckContext(sc) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
+	checkEnv := buildCheckContext(ctx, sc)
 
 	enabled := make([]sectionDef, 0, len(sectionRegistry))
 	for _, def := range sectionRegistry {
@@ -114,7 +116,23 @@ func contractsEnabled(sc runnersupport.Context) bool {
 	return sc.Opts.Mode == core.ScanModeDiff
 }
 
-func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
+// contextEnabled resolves the agent-context toggle: an explicit config value
+// wins, otherwise the family is enabled for full scans. Diff scans skip it by
+// default because its signature findings are repo-level (missing agent docs,
+// basename ambiguity) and would resurface on every PR regardless of the
+// change under review.
+func contextEnabled(sc runnersupport.Context) bool {
+	if sc.Cfg.Checks.Context != nil {
+		return *sc.Cfg.Checks.Context
+	}
+	return sc.Opts.Mode != core.ScanModeDiff
+}
+
+// buildCheckContext assembles the per-check callback surface. The scan ctx is
+// captured by the git-backed callbacks (ListChangedFiles, ReadBaseFile), whose
+// closure signatures carry no context of their own; they are only invoked
+// while Build's sections run, so the scan ctx is the correct lifetime.
+func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSupport.Context {
 	return checkSupport.Context{
 		Config:    sc.Cfg,
 		AIEnabled: sc.Opts.EnableAI || (sc.Cfg.AI.Enabled != nil && *sc.Cfg.AI.Enabled),
@@ -123,10 +141,10 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		DiffText:  sc.Opts.DiffText,
 		ScanTime:  sc.Today,
 		ListChangedFiles: func(target core.TargetConfig) ([]core.ChangedFile, error) {
-			return runnersupport.ListChangedFiles(sc, target)
+			return runnersupport.ListChangedFiles(ctx, sc, target)
 		},
 		ReadBaseFile: func(target core.TargetConfig, rel string) ([]byte, error) {
-			return runnersupport.ReadBaseFile(sc, target, rel)
+			return runnersupport.ReadBaseFile(ctx, sc, target, rel)
 		},
 		ChangedFiles: runnersupport.ChangedDiffFiles(sc),
 		VisitTargetFiles: func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
@@ -145,14 +163,16 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 		ParseGoFile: func(path string, data []byte) (*token.FileSet, *ast.File, error) {
 			return runnersupport.ParseGoFile(sc, path, data)
 		},
+		ParseScriptFile: scriptFileParser(sc),
 		NewFinding: func(input checkSupport.FindingInput) core.Finding {
 			return runnersupport.NewFinding(sc, runnersupport.FindingInput{
-				RuleID:  input.RuleID,
-				Level:   input.Level,
-				Path:    input.Path,
-				Line:    input.Line,
-				Column:  input.Column,
-				Message: input.Message,
+				RuleID:     input.RuleID,
+				Level:      input.Level,
+				Path:       input.Path,
+				Line:       input.Line,
+				Column:     input.Column,
+				Message:    input.Message,
+				Confidence: input.Confidence,
 			})
 		},
 		FinalizeSection: func(id string, name string, findings []core.Finding) core.SectionResult {
@@ -183,5 +203,19 @@ func buildCheckContext(sc runnersupport.Context) checkSupport.Context {
 			return runnersupport.RunDiffCommandCheckWithContext(ctx, sc, dir, baseRef, check)
 		},
 		NormalizedSeverity: runnersupport.NormalizedSeverity,
+	}
+}
+
+// scriptFileParser wires the tree-sitter ParserProvider seam. The hook stays
+// nil unless parsers.treesitter is "auto", so the default configuration
+// behaves exactly as before this seam existed: every script rule takes its
+// regex path. When enabled, parses are memoized per scan by the shared file
+// corpus (one parse per file no matter how many sections query it).
+func scriptFileParser(sc runnersupport.Context) func(string, []byte, checkSupport.ScriptLanguage) (*checkSupport.SyntaxTree, error) {
+	if !sc.Cfg.Parsers.TreeSitterEnabled() {
+		return nil
+	}
+	return func(path string, data []byte, lang checkSupport.ScriptLanguage) (*checkSupport.SyntaxTree, error) {
+		return runnersupport.ParseScriptFile(sc, path, data, lang)
 	}
 }

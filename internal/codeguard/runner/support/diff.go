@@ -13,9 +13,10 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-// gitCommandTimeout bounds how long a single git invocation may run before it
-// is cancelled. It guards against a hung or pathological git process when no
-// caller context is available to thread through.
+// gitCommandTimeout is the upper bound on how long a single git invocation may
+// run before it is cancelled, layered on top of the caller's context so a hung
+// or pathological git process cannot stall a scan indefinitely even when the
+// caller never cancels.
 const gitCommandTimeout = 2 * time.Minute
 
 // maxGitOutputBytes caps how much stdout codeguard will buffer from a git
@@ -66,12 +67,12 @@ func ValidateBaseRef(ref string) error {
 	return nil
 }
 
-// runGitCapture runs git with the given args, enforcing gitCommandTimeout and
-// capturing at most maxGitOutputBytes of stdout. stderr is captured separately
-// so it can be surfaced in errors without counting against the output cap.
-func runGitCapture(args ...string) ([]byte, error) {
-	// TODO(harden): thread caller ctx once the diff helpers accept one.
-	ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+// runGitCapture runs git with the given args, honouring caller cancellation
+// with gitCommandTimeout as an upper bound, and capturing at most
+// maxGitOutputBytes of stdout. stderr is captured separately so it can be
+// surfaced in errors without counting against the output cap.
+func runGitCapture(ctx context.Context, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, gitCommandTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec // fixed git binary; args are tool-built (constants, validated baseRef, target paths)
@@ -118,10 +119,10 @@ func (r LineRanges) Export() core.ChangedLineRanges {
 	}
 }
 
-func LoadDiffScope(targets []core.TargetConfig, baseRef string) (map[string]LineRanges, error) {
+func LoadDiffScope(ctx context.Context, targets []core.TargetConfig, baseRef string) (map[string]LineRanges, error) {
 	out := map[string]LineRanges{}
 	for _, target := range targets {
-		scope, err := gitChangedLines(target.Path, baseRef)
+		scope, err := gitChangedLines(ctx, target.Path, baseRef)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +133,7 @@ func LoadDiffScope(targets []core.TargetConfig, baseRef string) (map[string]Line
 	return out, nil
 }
 
-func gitChangedLines(dir string, baseRef string) (map[string]LineRanges, error) {
+func gitChangedLines(ctx context.Context, dir string, baseRef string) (map[string]LineRanges, error) {
 	if err := ValidateBaseRef(baseRef); err != nil {
 		return nil, err
 	}
@@ -143,7 +144,7 @@ func gitChangedLines(dir string, baseRef string) (map[string]LineRanges, error) 
 	var output []byte
 	var err error
 	for _, args := range argsVariants {
-		output, err = runGitCapture(args...)
+		output, err = runGitCapture(ctx, args...)
 		if err == nil {
 			return parseUnifiedDiff(string(output)), nil
 		}

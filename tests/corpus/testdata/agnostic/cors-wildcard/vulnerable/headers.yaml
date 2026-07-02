@@ -1,0 +1,4 @@
+# CORS response headers applied by the edge proxy.
+response_headers:
+  Access-Control-Allow-Origin: "*"
+  Access-Control-Allow-Methods: "GET, POST"

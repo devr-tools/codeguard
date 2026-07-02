@@ -49,15 +49,31 @@ func TestOWASPCoverageReportsGaps(t *testing.T) {
 	if !byCode["A10:2021"].Covered {
 		t.Error("expected A10 SSRF to be covered by the SSRF taint rules")
 	}
-	// A04 Insecure Design and A09 Logging are intentional gaps: they are not
-	// reliably detectable by static heuristics. The report must surface them as
-	// gaps rather than imply coverage.
+	// A04 Insecure Design remains an intentional gap: it is a design-level risk
+	// that static heuristics cannot reliably detect. The report must surface it
+	// as a gap rather than imply coverage.
 	if byCode["A04:2021"].Covered {
 		t.Error("expected A04 Insecure Design to be reported as a coverage gap")
 	}
-	if byCode["A09:2021"].Covered {
-		t.Error("expected A09 Logging/Monitoring to be reported as a coverage gap")
+	if !byCode["A09:2021"].Covered {
+		t.Error("expected A09 Logging/Monitoring to be covered by the log-exposure rules")
 	}
+}
+
+func TestOWASPA09CoverageListsLogRules(t *testing.T) {
+	for _, entry := range service.OWASPCoverage() {
+		if entry.Code != "A09:2021" {
+			continue
+		}
+		got := strings.Join(entry.RuleIDs, ",")
+		for _, want := range []string{"security.log-secret-exposure", "security.unsanitized-error-response"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("A09 rules = %q, missing %s", got, want)
+			}
+		}
+		return
+	}
+	t.Fatal("A09:2021 coverage entry not found")
 }
 
 func TestSARIFOutputCarriesOWASPTag(t *testing.T) {

@@ -17,6 +17,13 @@ var (
 	pythonSystemPattern      = regexp.MustCompile(`\bos\.system\s*\(`)
 	pythonEvalPattern        = regexp.MustCompile(`\b(?:eval|exec)\s*\(`)
 	pythonInsecureTLSPattern = regexp.MustCompile(`\bverify\s*=\s*False\b|\bssl\._create_unverified_context\s*\(`)
+
+	// Line-scan forms of the Go-oriented base checks, matched against masked
+	// source. They tolerate missing whitespace (InsecureSkipVerify:true) and
+	// require a call shape for shell execution so import paths alone cannot
+	// fire.
+	goInsecureTLSLinePattern = regexp.MustCompile(`\bInsecureSkipVerify\s*[:=]\s*true\b`)
+	goShellCallLinePattern   = regexp.MustCompile(`\b(?:exec\.Command(?:Context)?|syscall\.Exec)\s*\(`)
 )
 
 func findingsForFile(env support.Context, file string, data []byte) []core.Finding {
@@ -25,9 +32,20 @@ func findingsForFile(env support.Context, file string, data []byte) []core.Findi
 	lines := strings.Split(source, "\n")
 	maskedLines := strings.Split(maskedSourceForFile(file, source), "\n")
 
+	// Go files get AST-based detection for the base checks; the line scan
+	// below is the fallback for files that do not parse.
+	goParsed := false
+	if isGoFile(file) {
+		var goFindings []core.Finding
+		goFindings, goParsed = goSecurityFindings(env, file, data)
+		findings = append(findings, goFindings...)
+	}
+
 	for idx, line := range lines {
 		lineNo := idx + 1
-		findings = append(findings, appendCommonLineFindings(env, file, lineNo, line)...)
+		if !goParsed {
+			findings = append(findings, appendCommonLineFindings(env, file, lineNo, maskedLines[idx])...)
+		}
 		findings = append(findings, appendLanguageLineFindings(env, file, lineNo, line, maskedLines[idx])...)
 		findings = append(findings, appendOWASPExtraLineFindings(env, file, lineNo, line, maskedLines[idx])...)
 	}
@@ -43,6 +61,8 @@ func findingsForFile(env support.Context, file string, data []byte) []core.Findi
 // Masking is byte-for-byte, so line numbers are preserved.
 func maskedSourceForFile(file string, source string) string {
 	switch {
+	case isGoFile(file):
+		return support.MaskCLikeSource(source, support.CLikeGo)
 	case isPythonFile(file):
 		return support.MaskPythonSource(source)
 	case isRustFile(file):
@@ -54,11 +74,16 @@ func maskedSourceForFile(file string, source string) string {
 	}
 }
 
+// appendCommonLineFindings is the line-scan form of the Go-oriented base
+// checks. For Go files it runs only when the file fails to parse (parseable
+// files go through the AST pass in security_go_ast.go); it always receives the
+// masked line, so comments and string literals cannot fire where a masker
+// exists for the language.
 func appendCommonLineFindings(env support.Context, file string, lineNo int, line string) []core.Finding {
 	switch {
-	case strings.Contains(line, "InsecureSkipVerify: true"):
+	case goInsecureTLSLinePattern.MatchString(line):
 		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.insecure-tls", Level: "fail", Path: file, Line: lineNo, Column: 1, Message: "InsecureSkipVerify is enabled"})}
-	case strings.Contains(line, "exec.Command(") || strings.Contains(line, "os/exec"):
+	case goShellCallLinePattern.MatchString(line):
 		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.shell-execution", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "shell execution primitive should be reviewed"})}
 	default:
 		return nil

@@ -36,3 +36,4 @@ go.work.sum
 .idea/
 .vscode/
 **/.codeguard/cache.slop-history.json
+**/.codeguard/cache.rule-stats-history.json

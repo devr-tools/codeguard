@@ -5,6 +5,7 @@ import "github.com/devr-tools/codeguard/internal/codeguard/core"
 const ArtifactKindDependencyGraph = "dependency_graph"
 const ArtifactKindSlopScore = "slop_score"
 const ArtifactKindChangeRisk = "change_risk"
+const ArtifactKindRepoLegibility = "repo_legibility"
 
 func NewDependencyGraphArtifact(id string, language string, target string, graph DependencyGraph) core.Artifact {
 	nodes := make([]core.DependencyGraphNode, 0, len(graph.Order))
@@ -48,6 +49,20 @@ func NewSlopScoreArtifact(id string, language string, target string, score core.
 		SlopScore: &core.SlopScoreArtifact{
 			Score:      score.Score,
 			Signals:    score.Signals,
+			Components: components,
+		},
+	}
+}
+
+func NewRepoLegibilityArtifact(id string, target string, legibility core.RepoLegibilityArtifact) core.Artifact {
+	components := make([]core.RepoLegibilityComponent, 0, len(legibility.Components))
+	components = append(components, legibility.Components...)
+	return core.Artifact{
+		ID:     id,
+		Kind:   ArtifactKindRepoLegibility,
+		Target: target,
+		RepoLegibility: &core.RepoLegibilityArtifact{
+			Score:      legibility.Score,
 			Components: components,
 		},
 	}

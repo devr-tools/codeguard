@@ -63,7 +63,7 @@ codeguard owasp -format json    # machine-readable
 Example:
 
 ```
-OWASP Top 10 (2021) coverage: 8/10 categories have rules
+OWASP Top 10 (2021) coverage: 9/10 categories have rules
 
 [ok  ] A01:2021-Broken Access Control (2 rules)
 [ok  ] A02:2021-Cryptographic Failures (11 rules)
@@ -73,14 +73,15 @@ OWASP Top 10 (2021) coverage: 8/10 categories have rules
 [ok  ] A06:2021-Vulnerable and Outdated Components (1 rules)
 [ok  ] A07:2021-Identification and Authentication Failures (1 rules)
 [ok  ] A08:2021-Software and Data Integrity Failures (1 rules)
-[gap ] A09:2021-Security Logging and Monitoring Failures (0 rules)
+[ok  ] A09:2021-Security Logging and Monitoring Failures (2 rules)
 [ok  ] A10:2021-Server-Side Request Forgery (SSRF) (2 rules)
 ```
 
-`A04` (Insecure Design) and `A09` (Security Logging and Monitoring) are left as
-explicit gaps: both are design- and operations-level risks that static
-heuristics cannot reliably detect, and a false "covered" there would be
-misleading.
+`A04` (Insecure Design) is left as an explicit gap: it is a design-level risk
+that static heuristics cannot reliably detect, and a false "covered" there
+would be misleading. `A09` is covered by two heuristics that target the
+code-visible slice of the category: secrets flowing into log output and raw
+errors leaking to HTTP clients instead of being logged server-side.
 
 ### Newly added detection rules
 
@@ -99,6 +100,8 @@ taint engine and default to `fail`.
 | `security.weak-hash` | A02 | MD5 / SHA-1 used for security |
 | `security.weak-cipher` | A02 | DES / RC4 / ECB mode |
 | `security.insecure-deserialization` | A08 | `pickle`, unsafe `yaml.load`, Java `readObject`, `Marshal.load`, `unserialize` |
+| `security.log-secret-exposure` | A09 | secret-named identifiers (password, token, api_key, …) inside the argument list of a Go/Python/TS/JS logging call, secret-named structured-log keys, and secret-labeled string literals concatenated or format-directed into log output |
+| `security.unsanitized-error-response` | A09 | raw error values written directly into HTTP responses: Go `http.Error(w, err.Error(), …)` / `fmt.Fprintf(w, …, err)`, TS/JS `res.send(err)` / `res.json(err)` / `res.status(…).send(err.stack \|\| err.message)`, Python `return str(e)` / `HttpResponse(str(e))` inside `except` blocks |
 | `security.ssrf.go` / `security.ssrf.python` | A10 | untrusted input flowing into an outbound HTTP request URL |
 
 ## Release integrity (supply chain)

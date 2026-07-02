@@ -3,6 +3,7 @@ package checks
 import (
 	"context"
 
+	agentContextCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/agentcontext"
 	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
 	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
 	designCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/design"
@@ -82,6 +83,14 @@ var sectionRegistry = []sectionDef{
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.SupplyChain },
 		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return supplyChainCheck.Run(ctx, checkEnv)
+		},
+	},
+	{
+		id:      "context",
+		name:    "Agent Context",
+		enabled: contextEnabled,
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return agentContextCheck.Run(ctx, checkEnv)
 		},
 	},
 	{

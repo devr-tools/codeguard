@@ -7,10 +7,11 @@ const (
 	CLikeTypeScript CLikeLanguage = "typescript"
 	CLikeJava       CLikeLanguage = "java"
 	CLikeRust       CLikeLanguage = "rust"
+	CLikeGo         CLikeLanguage = "go"
 )
 
 // MaskCLikeSource blanks comments and string literal contents for TS/JS,
-// Java, and Rust while preserving byte offsets and newlines exactly.
+// Java, Rust, and Go while preserving byte offsets and newlines exactly.
 // Template literal interpolations (`${expr}`) stay visible.
 func MaskCLikeSource(source string, lang CLikeLanguage) string {
 	masker := &clikeMasker{sourceMasker: newSourceMasker(source), lang: lang}
@@ -39,6 +40,8 @@ func (m *clikeMasker) step() {
 		m.handleSingleQuote()
 	case m.lang == CLikeTypeScript && m.src[m.idx] == '`':
 		m.maskTemplate()
+	case m.lang == CLikeGo && m.src[m.idx] == '`':
+		m.maskGoRawString()
 	case m.lang == CLikeRust && m.rustRawStringAhead():
 		m.maskRustRawString()
 	default:

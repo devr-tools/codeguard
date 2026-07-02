@@ -55,6 +55,7 @@ func TestSecurityCheckWarnsForNameBasedSecret(t *testing.T) {
 
 	assertSectionStatus(t, report, "Security", "warn")
 	assertFindingRulePresent(t, report, "Security", "security.hardcoded-secret")
+	assertFindingConfidence(t, report, "Security", "security.hardcoded-secret", "low")
 }
 
 func TestSecurityCheckWarnsForShellExecution(t *testing.T) {
@@ -78,6 +79,7 @@ func TestSecurityCheckWarnsForShellExecution(t *testing.T) {
 	}
 
 	assertSectionStatus(t, report, "Security", "warn")
+	assertFindingRulePresent(t, report, "Security", "security.shell-execution")
 }
 
 func TestSecurityCheckFailsWhenGovulncheckIsRequiredButMissing(t *testing.T) {

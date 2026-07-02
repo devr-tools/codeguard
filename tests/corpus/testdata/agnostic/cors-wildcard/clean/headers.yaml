@@ -1,0 +1,3 @@
+response_headers:
+  Access-Control-Allow-Origin: "https://app.example.com"
+  Access-Control-Allow-Methods: "GET, POST"

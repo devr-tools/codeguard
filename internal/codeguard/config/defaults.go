@@ -48,11 +48,18 @@ func applyRootDefaults(cfg *core.Config, def core.Config) {
 	if cfg.AI.Cache.Path == "" {
 		cfg.AI.Cache.Path = def.AI.Cache.Path
 	}
+	cfg.Parsers.TreeSitter = strings.ToLower(strings.TrimSpace(cfg.Parsers.TreeSitter))
+	if cfg.Parsers.TreeSitter == "" {
+		cfg.Parsers.TreeSitter = core.TreeSitterModeOff
+	}
 }
 
 func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	if cfg.Checks.Contracts == nil {
 		cfg.Checks.Contracts = def.Checks.Contracts
+	}
+	if cfg.Checks.Context == nil {
+		cfg.Checks.Context = def.Checks.Context
 	}
 	applyQualityDefaults(&cfg.Checks.QualityRules, def.Checks.QualityRules)
 	applyDesignDefaults(&cfg.Checks.DesignRules, def.Checks.DesignRules)
@@ -60,6 +67,7 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	applyCIDefaults(&cfg.Checks.CIRules, def.Checks.CIRules)
 	applySecurityDefaults(&cfg.Checks.SecurityRules, def.Checks.SecurityRules)
 	applySupplyChainDefaults(&cfg.Checks.SupplyChainRules, def.Checks.SupplyChainRules)
+	applyContextDefaults(&cfg.Checks.ContextRules, def.Checks.ContextRules)
 	applyContractDefaults(&cfg.Checks.ContractRules, def.Checks.ContractRules)
 	applyAIDefaults(&cfg.AI, def.AI)
 

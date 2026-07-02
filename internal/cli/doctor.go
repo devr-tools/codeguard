@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
@@ -53,4 +54,5 @@ func writeDoctorChecks(checks *[]doctorCheck, cfg service.Config) {
 	if cache, ok := cacheDoctorCheck(cfg); ok {
 		*checks = append(*checks, cache)
 	}
+	*checks = append(*checks, ruleHealthDoctorChecks(cfg, time.Now())...)
 }

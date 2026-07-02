@@ -65,6 +65,7 @@ func TestRunExplainAgentFormat(t *testing.T) {
 		Why              string `json:"why"`
 		HowToFix         string `json:"how_to_fix"`
 		FixTemplate      string `json:"fix_template"`
+		FixTemplateKind  string `json:"fix_template_kind"`
 		LanguageCoverage struct {
 			Mode      string   `json:"mode"`
 			Languages []string `json:"languages"`
@@ -92,8 +93,11 @@ func TestRunExplainAgentFormat(t *testing.T) {
 	if payload.HowToFix == "" {
 		t.Fatalf("expected how_to_fix, got %#v", payload)
 	}
-	if payload.FixTemplate != "" {
-		t.Fatalf("expected empty fix_template without explicit metadata, got %#v", payload)
+	if payload.FixTemplate == "" {
+		t.Fatalf("expected populated fix_template for catalog rule, got %#v", payload)
+	}
+	if payload.FixTemplateKind != "deterministic" && payload.FixTemplateKind != "guided" {
+		t.Fatalf("expected valid fix_template_kind, got %#v", payload)
 	}
 }
 
@@ -107,8 +111,9 @@ func TestRunExplainAgentFormatIncludesFixTemplate(t *testing.T) {
 	}
 
 	var payload struct {
-		ID          string `json:"id"`
-		FixTemplate string `json:"fix_template"`
+		ID              string `json:"id"`
+		FixTemplate     string `json:"fix_template"`
+		FixTemplateKind string `json:"fix_template_kind"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("expected valid json, got err=%v body=%s", err, stdout.String())
@@ -118,6 +123,9 @@ func TestRunExplainAgentFormatIncludesFixTemplate(t *testing.T) {
 	}
 	if !strings.Contains(payload.FixTemplate, "gofmt") || !strings.Contains(payload.FixTemplate, "Before:") {
 		t.Fatalf("expected actionable fix_template, got %q", payload.FixTemplate)
+	}
+	if payload.FixTemplateKind != "deterministic" {
+		t.Fatalf("expected deterministic fix_template_kind for quality.gofmt, got %#v", payload)
 	}
 }
 
