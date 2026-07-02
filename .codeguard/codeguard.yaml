@@ -15,6 +15,9 @@ waivers:
   - rule: ci.test-without-assertion
     path: tests/**/trust_main_test.go
     reason: Go TestMain functions bootstrap package-wide trust policy and are not assertion-bearing tests
+  - rule: quality.unbounded-goroutines-in-loop
+    path: internal/codeguard/runner/checks/checks.go
+    reason: section workers are bounded by a NumCPU-sized semaphore before each goroutine is launched
 targets:
   - name: repository
     path: ..
