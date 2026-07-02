@@ -34,7 +34,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
     steps:
       - name: Check out code
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
@@ -114,7 +114,9 @@ jobs:
     with:
       tag: ${{ needs.prepare-prerelease.outputs.tag }}
       prerelease: true
-    secrets: inherit
+      create_missing_tag: true
+    secrets:
+      RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
   release-please:
     if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master')
@@ -142,7 +144,7 @@ jobs:
 
       - name: Run release-please
         id: release
-        uses: googleapis/release-please-action@v5
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: .github/release-please-config.json
@@ -160,4 +162,6 @@ jobs:
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
       prerelease: false
-    secrets: inherit
+      create_missing_tag: true
+    secrets:
+      RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}

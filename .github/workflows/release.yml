@@ -11,6 +11,19 @@ on:
         description: Whether this release should stay in the prerelease channel.
         required: true
         type: boolean
+      create_missing_tag:
+        description: >-
+          Allow creating and pushing the tag if it does not yet exist. Set only
+          by the trusted automation callers (cd.yml) so freshly-computed
+          prerelease tags can be minted. Manual workflow_dispatch cannot set
+          this, so a dispatched run must reference an existing tag.
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      RELEASE_PLEASE_TOKEN:
+        description: Token used to open the Homebrew tap formula PR.
+        required: false
   workflow_dispatch:
     inputs:
       tag:
@@ -22,15 +35,17 @@ on:
         required: true
         type: boolean
 
+# Least privilege by default; jobs elevate only what they need.
 permissions:
-  contents: write
-  packages: write
-  # Required for keyless cosign signing and SLSA provenance (OIDC token).
-  id-token: write
+  contents: read
 
 jobs:
   build-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub release and push a missing tag
+      packages: write # push the container image to GHCR
+      id-token: write # keyless cosign signing + SLSA provenance OIDC token
     outputs:
       prerelease: ${{ steps.release.outputs.prerelease }}
       tag: ${{ steps.release.outputs.tag }}
@@ -82,11 +97,14 @@ jobs:
 
       - name: Validate inputs
         shell: bash
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
         run: |
           set -euo pipefail
 
-          tag="${{ steps.release.outputs.tag }}"
-          prerelease="${{ steps.release.outputs.prerelease }}"
+          tag="$TAG"
+          prerelease="$PRERELEASE"
           tag_pattern='^([A-Za-z0-9._-]+-)?v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
           prerelease_pattern='^([A-Za-z0-9._-]+-)?v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.-]+$'
 
@@ -107,16 +125,19 @@ jobs:
           fi
 
       - name: Check out code
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
       - name: Ensure requested tag exists
         shell: bash
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          ALLOW_TAG_CREATE: ${{ inputs.create_missing_tag }}
         run: |
           set -euo pipefail
 
-          tag="${{ steps.release.outputs.tag }}"
+          tag="$TAG"
 
           git fetch --tags --force
 
@@ -124,41 +145,50 @@ jobs:
             :
           elif git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
             git fetch origin "refs/tags/$tag:refs/tags/$tag"
-          else
+          elif [ "$ALLOW_TAG_CREATE" = "true" ]; then
+            # Only reachable from the trusted automation callers (cd.yml), which
+            # set create_missing_tag=true so a freshly-computed prerelease tag can
+            # be minted. A manual workflow_dispatch cannot set this input, so it
+            # cannot forge an arbitrary release tag from an arbitrary SHA and
+            # bypass the release-please approval flow.
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git tag -a "$tag" -m "Release $tag" "$GITHUB_SHA"
             git push origin "refs/tags/$tag"
+          else
+            echo "tag '$tag' does not exist and will not be created for this run."
+            echo "Push the tag first, or use the release-please flow, before dispatching a release."
+            exit 1
           fi
 
           git checkout "$tag"
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
       - name: Install syft (SBOM generation)
-        uses: anchore/sbom-action/download-syft@v0
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -177,7 +207,7 @@ jobs:
           echo "hashes=$hashes" >>"$GITHUB_OUTPUT"
 
       - name: Upload release bundle
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dist-${{ steps.release.outputs.tag }}
           path: dist/*
@@ -191,6 +221,10 @@ jobs:
       actions: read
       id-token: write
       contents: write
+    # Must be referenced by an immutable semantic-version tag, not a commit SHA:
+    # the SLSA generator verifies its own provenance against the tagged ref, and
+    # a SHA pin breaks that check. This is the one intentional exception to the
+    # SHA-pinning policy.
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: ${{ needs.build-release.outputs.hashes }}
@@ -200,6 +234,10 @@ jobs:
     needs: build-release
     if: needs.build-release.outputs.prerelease != 'true'
     runs-on: ubuntu-latest
+    # Writes only to the external tap repo via RELEASE_PLEASE_TOKEN; needs no
+    # write scope on GITHUB_TOKEN.
+    permissions:
+      contents: read
     env:
       TAP_REPOSITORY: devr-tools/homebrew-tap
     steps:

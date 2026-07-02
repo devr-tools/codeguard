@@ -56,7 +56,7 @@ checks:
           - RELEASE_PLEASE_TOKEN
       - path: .github/workflows/release.yml
         required_contains:
-          - goreleaser/goreleaser-action@v7
+          - goreleaser/goreleaser-action
           - sync-homebrew-formula
           - Formula/codeguard.rb
     required_release_files:

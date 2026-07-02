@@ -1,0 +1,20 @@
+# Code owners for codeguard. Owners are automatically requested for review on
+# any pull request that touches matching paths, and — combined with branch
+# protection's "Require review from Code Owners" — provide the change-management
+# evidence (SOC 3 CC8.1) that changes are reviewed by an accountable party.
+#
+# Replace @alxxjohn with a @devr-tools/<team> handle once a maintainers team
+# exists. Owners must have write access to the repo or GitHub ignores the entry.
+
+# Default owner for everything not matched below.
+*                       @alxxjohn
+
+# Security-sensitive surfaces warrant explicit ownership.
+/.github/               @alxxjohn
+/.github/workflows/     @alxxjohn
+/Dockerfile             @alxxjohn
+/Dockerfile.release     @alxxjohn
+/.goreleaser.yaml       @alxxjohn
+/SECURITY.md            @alxxjohn
+/internal/codeguard/trust/       @alxxjohn
+/internal/codeguard/ai/safehttp/ @alxxjohn
