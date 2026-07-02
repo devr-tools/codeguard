@@ -22,10 +22,10 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@main
+        uses: Homebrew/actions/setup-homebrew@64bb52ce84da6455bdbd6df88ac86151ba2ff16c # main
 
       - name: Clone Homebrew tap
         shell: bash

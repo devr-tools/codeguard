@@ -11,6 +11,15 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
+// maxScanFileBytes caps the size of an individual scanned repository file that
+// codeguard will list and read into memory. Files above this are skipped: the
+// repository under scan may be an untrusted pull request, and without a cap a
+// single multi-gigabyte file (or many large ones) read fully into the in-memory
+// file corpus could exhaust the CI runner (denial of service). Real source files
+// are far smaller than this; oversized inputs are almost always generated blobs
+// or vendored bundles that are not useful to scan.
+const maxScanFileBytes = 32 << 20 // 32 MiB
+
 // patternCache memoizes compiled glob patterns keyed by the raw glob string.
 // MatchPattern is the hottest compile site in the codebase (per file × per
 // pattern during the walk), so compiling once and reusing avoids recompiling
@@ -55,6 +64,14 @@ func WalkFiles(root string, excludes []string, include func(string) bool) ([]str
 			return nil
 		}
 		if d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		// Skip oversized files to bound scan memory (see maxScanFileBytes).
+		if info.Size() > maxScanFileBytes {
 			return nil
 		}
 		if include(rel) {

@@ -101,7 +101,49 @@ func containedPath(baseDir, p string) (string, error) {
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("path %q escapes the config directory %q", p, absBase)
 	}
+
+	// The lexical check above is not enough: a symlink committed inside the
+	// config directory could still redirect a write outside it. Canonicalize
+	// both the base and the target's deepest existing ancestor (the target
+	// itself is an output path that may not exist yet) and re-check containment.
+	realBase, err := canonicalizeExistingPrefix(absBase)
+	if err != nil {
+		return "", err
+	}
+	realResolved, err := canonicalizeExistingPrefix(resolved)
+	if err != nil {
+		return "", err
+	}
+	realRel, err := filepath.Rel(realBase, realResolved)
+	if err != nil || realRel == ".." || strings.HasPrefix(realRel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q resolves outside the config directory %q via a symlink", p, absBase)
+	}
+
 	return resolved, nil
+}
+
+// canonicalizeExistingPrefix resolves symlinks in path, tolerating a path that
+// does not exist yet by resolving the deepest existing ancestor and re-joining
+// the remaining (necessarily non-symlink) components.
+func canonicalizeExistingPrefix(path string) (string, error) {
+	current := filepath.Clean(path)
+	remainder := ""
+	for {
+		resolved, err := filepath.EvalSymlinks(current)
+		if err == nil {
+			return filepath.Join(resolved, remainder), nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			// Reached the filesystem root without an existing ancestor.
+			return filepath.Join(current, remainder), nil
+		}
+		remainder = filepath.Join(filepath.Base(current), remainder)
+		current = parent
+	}
 }
 
 func resolveRelativePaths(cfg *core.Config, baseDir string) {

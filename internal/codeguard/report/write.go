@@ -9,6 +9,7 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	rulespkg "github.com/devr-tools/codeguard/internal/codeguard/rules"
+	"github.com/devr-tools/codeguard/internal/version"
 )
 
 func Write(w io.Writer, report core.Report, format string) error {
@@ -92,18 +93,32 @@ func writeSARIF(w io.Writer, report core.Report) error {
 		}
 	}
 	sort.Slice(sarifRules, func(i, j int) bool { return sarifRules[i].ID < sarifRules[j].ID })
-	payload["runs"] = []any{
-		map[string]any{
-			"tool": map[string]any{
-				"driver": map[string]any{
-					"name":  "codeguard",
-					"rules": sarifRules,
-				},
-			},
-			"taxonomies": []any{owaspTaxonomy()},
-			"results":    results,
-		},
+
+	// invocation records that codeguard ran, so a consumer can attribute the
+	// SARIF file to a specific run (SOC 3 monitoring / audit trail). The analysis
+	// completing successfully is independent of whether findings were reported.
+	invocation := map[string]any{"executionSuccessful": true}
+	if report.GeneratedAt != "" {
+		invocation["endTimeUtc"] = report.GeneratedAt
 	}
+	run := map[string]any{
+		"tool": map[string]any{
+			"driver": map[string]any{
+				"name":            "codeguard",
+				"version":         version.Number,
+				"semanticVersion": strings.TrimPrefix(version.Number, "v"),
+				"informationUri":  "https://github.com/devr-tools/codeguard",
+				"rules":           sarifRules,
+			},
+		},
+		"taxonomies":  []any{owaspTaxonomy()},
+		"invocations": []any{invocation},
+		"results":     results,
+	}
+	if report.Profile != "" {
+		run["properties"] = map[string]any{"profile": report.Profile}
+	}
+	payload["runs"] = []any{run}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(payload)

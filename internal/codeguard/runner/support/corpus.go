@@ -1,13 +1,35 @@
 package support
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
 )
+
+// readCappedFile reads path but refuses to buffer more than maxScanFileBytes,
+// bounding memory even if a file grew past the walk-time size filter (TOCTOU) or
+// is read outside the walk. It reads one byte past the cap to distinguish an
+// exactly-cap-sized file from an oversized one.
+func readCappedFile(path string) ([]byte, error) {
+	f, err := os.Open(path) //nolint:gosec // path enumerated by WalkFiles under the scan root
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(io.LimitReader(f, maxScanFileBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxScanFileBytes {
+		return nil, fmt.Errorf("file %q exceeds the %d byte scan limit", path, maxScanFileBytes)
+	}
+	return data, nil
+}
 
 // fileCorpus memoizes, for the lifetime of a single scan, the expensive work
 // that would otherwise be repeated by every check section: the per-target
@@ -83,7 +105,7 @@ func (c *fileCorpus) read(root string, rel string) ([]byte, error) {
 	c.mu.Unlock()
 
 	entry.once.Do(func() {
-		entry.data, entry.err = os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // rel enumerated by WalkFiles under root
+		entry.data, entry.err = readCappedFile(filepath.Join(root, rel))
 	})
 	return entry.data, entry.err
 }
@@ -129,7 +151,7 @@ func (sc Context) corpusRead(root string, rel string) ([]byte, error) {
 	if sc.corpus != nil {
 		return sc.corpus.read(root, rel)
 	}
-	return os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // rel enumerated by WalkFiles under root
+	return readCappedFile(filepath.Join(root, rel))
 }
 
 // ParseGoFile returns a shared, read-only Go AST for the given source, parsed at

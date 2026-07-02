@@ -9,7 +9,15 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
+	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
+
+// defaultCommand is the built-in govulncheck binary name. It is resolved from
+// PATH (never the working directory) and is a static analyzer that does not
+// execute the code it scans, so it is safe to run unguarded against untrusted
+// repositories. Any other command name comes from repository configuration and
+// must pass the command-trust gate.
+const defaultCommand = "govulncheck"
 
 // limitedWriter writes to w until remaining bytes are exhausted, then silently
 // drops the rest while recording that truncation occurred. It lets a single
@@ -41,10 +49,19 @@ func (l *limitedWriter) Write(p []byte) (int, error) {
 const maxOutputBytes = 64 << 20 // 64 MiB
 
 func Run(ctx context.Context, dir string, cmdName string, sc runnersupport.Context) ([]core.Finding, error) {
-	if strings.TrimSpace(cmdName) == "" {
-		cmdName = "govulncheck"
+	cmdName = strings.TrimSpace(cmdName)
+	if cmdName == "" {
+		cmdName = defaultCommand
 	}
-	cmd := exec.CommandContext(ctx, cmdName, "./...")
+	// A config-supplied override of the govulncheck binary is untrusted (the repo
+	// under scan may be an untrusted pull request) and must pass the command-trust
+	// gate. The built-in default is exempt so the default "auto" mode keeps working.
+	if cmdName != defaultCommand {
+		if err := trust.GuardConfigCommand("govulncheck_command", cmdName); err != nil {
+			return nil, err
+		}
+	}
+	cmd := exec.CommandContext(ctx, cmdName, "./...") //nolint:gosec // config override gated by trust.GuardConfigCommand above; default resolves from PATH
 	cmd.Dir = dir
 	var buf bytes.Buffer
 	limited := &limitedWriter{w: &buf, remaining: maxOutputBytes}
