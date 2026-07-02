@@ -24,13 +24,16 @@ type manifest struct {
 }
 
 // fixtureGroup is one scan: a fixture subtree scanned as a single target with
-// the given language. Entropy opts the scan into the high-entropy heuristic.
+// the given language. Entropy opts the scan into the high-entropy heuristic;
+// TreeSitter opts it into parsers.treesitter "auto" (the tree-sitter parsing
+// path with regex fallback).
 type fixtureGroup struct {
-	Name     string        `yaml:"name" json:"name"`
-	Language string        `yaml:"language" json:"language"`
-	Root     string        `yaml:"root" json:"root"`
-	Entropy  bool          `yaml:"entropy" json:"entropy"`
-	Files    []fixtureFile `yaml:"files" json:"files"`
+	Name       string        `yaml:"name" json:"name"`
+	Language   string        `yaml:"language" json:"language"`
+	Root       string        `yaml:"root" json:"root"`
+	Entropy    bool          `yaml:"entropy" json:"entropy"`
+	TreeSitter bool          `yaml:"treesitter" json:"treesitter"`
+	Files      []fixtureFile `yaml:"files" json:"files"`
 }
 
 // fixtureFile maps one fixture to the findings it must (and must not)

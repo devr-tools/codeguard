@@ -10,6 +10,7 @@ func baseExampleConfig() core.Config {
 		AI:      exampleAIConfig(),
 		Output:  core.OutputConfig{Format: "text"},
 		Cache:   exampleCacheConfig(),
+		Parsers: core.ParsersConfig{TreeSitter: core.TreeSitterModeOff},
 	}
 }
 

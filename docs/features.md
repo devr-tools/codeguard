@@ -57,7 +57,41 @@ This page lists the current `codeguard` feature surface and the main config entr
 - `quality.ai.change-risk`
   - aggregates AI-quality and review-risk signals into a target-level artifact plus a `Code Quality` finding when thresholds are crossed
 
+## Parsers
+
+- `parsers.treesitter: "off" | "auto"` (default `"off"`) selects the parsing
+  substrate for TypeScript/TSX/JavaScript rules (`docs/treesitter-spike.md`).
+  - `"off"`: the regex-based scanners run exactly as before.
+  - `"auto"`: script files parse through embedded tree-sitter grammars; the
+    migrated rules (`quality.typescript.explicit-any`,
+    `quality.typescript.non-null-assertion`,
+    `quality.typescript.double-assertion`,
+    `security.typescript.unsafe-html-sink` and their `*.javascript.*`
+    mirrors) evaluate grammar queries instead of regexes and report
+    `confidence: high`. Files that exceed the 256 KiB parse cap, fail to
+    parse, or produce error-heavy trees fall back to the regex path per file,
+    so enabling the flag can never lose coverage.
+
 ## JSON/YAML config examples
+
+### Tree-sitter parsing for TypeScript/JavaScript
+
+YAML:
+
+```yaml
+parsers:
+  treesitter: auto
+```
+
+JSON:
+
+```json
+{
+  "parsers": {
+    "treesitter": "auto"
+  }
+}
+```
 
 ### Enable AI change risk
 

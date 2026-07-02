@@ -24,6 +24,12 @@ GOFILES := $(shell find cmd internal pkg tests -type f -name '*.go' 2>/dev/null)
 MANIFEST_VERSION := $(shell grep -oE '[0-9]+\.[0-9]+\.[0-9]+' .release-please-manifest.json 2>/dev/null | head -1)
 MENU_VERSION ?= $(if $(MANIFEST_VERSION),$(MANIFEST_VERSION),$(VERSION))
 MENU_LDFLAGS := -X github.com/devr-tools/codeguard/internal/version.Number=v$(MENU_VERSION)
+# GRAMMAR_TAGS restricts the gotreesitter grammar registry to the languages
+# codeguard parses (docs/treesitter-spike.md §5.3): the subset build embeds
+# only the TypeScript/TSX/JavaScript grammar blobs (~+4 MB) instead of all
+# ~206 (~+22 MB). Builds without these tags (plain `go build`, `go install`)
+# still work; they just embed every grammar.
+GRAMMAR_TAGS := grammar_subset,grammar_subset_typescript,grammar_subset_tsx,grammar_subset_javascript
 
 export GOCACHE
 export GOMODCACHE
@@ -85,7 +91,7 @@ ci: check
 
 build:
 	@mkdir -p dist
-	$(GO) build -trimpath -o $(CODEGUARD_BIN) ./cmd/codeguard
+	$(GO) build -trimpath -tags $(GRAMMAR_TAGS) -o $(CODEGUARD_BIN) ./cmd/codeguard
 
 release: release-snapshot
 

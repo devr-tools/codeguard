@@ -110,3 +110,16 @@ export function snapshot(el: HTMLElement): string {
   const copy = el.innerHTML;
   return copy;
 }
+
+// S11 (phase 2): compound assignment to outerHTML; same `+=` blind spot as
+// S5 but on the second sink property.
+export function appendOuter(el: HTMLElement, chunk: string): void {
+  el.outerHTML += chunk; // EXPECT unsafe-html-sink BASELINE-FN unsafe-html-sink
+}
+
+// S12 (phase 2): writeln through the window-qualified document; parity (the
+// regex's `\bdocument\.` also matches window.document, and the classifier
+// accepts a `.document` receiver suffix).
+export function writeViaWindow(html: string): void {
+  window.document.writeln(html); // EXPECT unsafe-html-sink
+}

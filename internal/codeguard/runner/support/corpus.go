@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 )
 
 // readCappedFile reads path but refuses to buffer more than maxScanFileBytes,
@@ -45,6 +47,7 @@ type fileCorpus struct {
 	targets map[string]*targetListing
 	reads   map[string]*fileRead
 	asts    map[string]*goParse
+	scripts map[string]*scriptParse
 }
 
 type targetListing struct {
@@ -66,11 +69,18 @@ type goParse struct {
 	err  error
 }
 
+type scriptParse struct {
+	once sync.Once
+	tree *checkSupport.SyntaxTree
+	err  error
+}
+
 func newFileCorpus() *fileCorpus {
 	return &fileCorpus{
 		targets: map[string]*targetListing{},
 		reads:   map[string]*fileRead{},
 		asts:    map[string]*goParse{},
+		scripts: map[string]*scriptParse{},
 	}
 }
 
@@ -133,6 +143,27 @@ func (c *fileCorpus) parseGo(path string, data []byte) (*token.FileSet, *ast.Fil
 	return entry.fset, entry.file, entry.err
 }
 
+// parseScript returns a shared tree-sitter syntax tree for the given script
+// source, mirroring parseGo: keyed by path plus content hash (so diff-mode
+// patched content reparses) with a sync.Once per slot, so N rules across N
+// sections pay for exactly one parse per file per scan. Returned trees are
+// read-only; SyntaxTree queries are safe for concurrent use.
+func (c *fileCorpus) parseScript(path string, data []byte, lang checkSupport.ScriptLanguage) (*checkSupport.SyntaxTree, error) {
+	key := path + "\x00" + string(lang) + "\x00" + hashBytes(data)
+	c.mu.Lock()
+	entry, ok := c.scripts[key]
+	if !ok {
+		entry = &scriptParse{}
+		c.scripts[key] = entry
+	}
+	c.mu.Unlock()
+
+	entry.once.Do(func() {
+		entry.tree, entry.err = checkSupport.ParseScriptSource(path, data, lang)
+	})
+	return entry.tree, entry.err
+}
+
 func includeAll(string) bool { return true }
 
 // corpusFiles lists every non-excluded file under root, using the shared
@@ -164,4 +195,15 @@ func ParseGoFile(sc Context, path string, data []byte) (*token.FileSet, *ast.Fil
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, data, parser.ParseComments)
 	return fset, file, err
+}
+
+// ParseScriptFile returns a shared tree-sitter syntax tree for the given
+// script source, parsed at most once per scan across every section (exactly
+// like ParseGoFile). It falls back to a fresh parse when no corpus is
+// attached (e.g. a Context assembled in a unit test).
+func ParseScriptFile(sc Context, path string, data []byte, lang checkSupport.ScriptLanguage) (*checkSupport.SyntaxTree, error) {
+	if sc.corpus != nil {
+		return sc.corpus.parseScript(path, data, lang)
+	}
+	return checkSupport.ParseScriptSource(path, data, lang)
 }

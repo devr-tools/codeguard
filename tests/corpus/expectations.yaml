@@ -377,3 +377,28 @@ groups:
           - rule: security.typescript.unsafe-html-sink
       - path: unsafe-html-sink/clean/text_content.ts
       - path: unsafe-html-sink/clean/strings.ts
+
+  # Tree-sitter variant: the same detector family scanned with
+  # parsers.treesitter "auto" (treesitter: true), covering the constructs the
+  # regex path cannot see (template-literal interpolations, compound
+  # assignment, formatter-split receivers) and the comparison shape it
+  # false-positives on. The harness forces the per-file path for this group
+  # (see forceTreeSitterScanPath), so these expectations always measure the
+  # tree-sitter engine; they stay file-level for consistency with the
+  # typescript group.
+  - name: typescript-treesitter
+    language: typescript
+    root: testdata/typescript-treesitter
+    treesitter: true
+    files:
+      - path: unsafe-html-sink/vulnerable/template_interpolation.ts
+        must_fire:
+          - rule: security.typescript.unsafe-html-sink
+      - path: unsafe-html-sink/vulnerable/compound_assign.ts
+        must_fire:
+          - rule: security.typescript.unsafe-html-sink
+      - path: unsafe-html-sink/vulnerable/split_receiver.ts
+        must_fire:
+          - rule: security.typescript.unsafe-html-sink
+      - path: unsafe-html-sink/clean/comparison.ts
+      - path: unsafe-html-sink/clean/property_read.ts

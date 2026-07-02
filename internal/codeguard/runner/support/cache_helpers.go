@@ -40,19 +40,22 @@ func ConfigFingerprint(cfg core.Config, extras ...string) string {
 // section id that sectionConfigFamily does not recognize, so a newly added
 // section can never silently serve stale cache entries.
 func SectionConfigHashes(cfg core.Config, catalog map[string]core.RuleMetadata, extras ...string) map[string]string {
-	// v2: findings gained ContextFingerprint (see ConfigFingerprint).
-	prefix := "section-config-v2|" + strings.Join(extras, "|") + "|"
+	// v3: quality/security findings can now come from the tree-sitter path, so
+	// the parser selection (cfg.Parsers) is part of their fingerprints.
+	prefix := "section-config-v3|" + strings.Join(extras, "|") + "|"
 	checks := cfg.Checks
 	return map[string]string{
 		// quality reads both QualityRules and DesignRules, and its AI-quality
-		// findings depend on the AI config.
-		"quality":   sectionFingerprint(prefix, "quality", catalog, cfg.AI, checks.QualityRules, checks.DesignRules),
+		// findings depend on the AI config. quality and security both include
+		// cfg.Parsers because toggling parsers.treesitter changes their
+		// per-file script findings.
+		"quality":   sectionFingerprint(prefix, "quality", catalog, cfg.AI, checks.QualityRules, checks.DesignRules, cfg.Parsers),
 		"design":    sectionFingerprint(prefix, "design", catalog, checks.DesignRules),
-		"security":  sectionFingerprint(prefix, "security", catalog, checks.SecurityRules),
+		"security":  sectionFingerprint(prefix, "security", catalog, checks.SecurityRules, cfg.Parsers),
 		"prompts":   sectionFingerprint(prefix, "prompts", catalog, checks.PromptRules),
 		"ci":        sectionFingerprint(prefix, "ci", catalog, checks.CIRules),
 		"contracts": sectionFingerprint(prefix, "contracts", catalog, checks.ContractRules),
-		"":          sectionFingerprint(prefix, "all", catalog, cfg.AI, checks),
+		"":          sectionFingerprint(prefix, "all", catalog, cfg.AI, checks, cfg.Parsers),
 	}
 }
 

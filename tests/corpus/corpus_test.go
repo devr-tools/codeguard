@@ -8,6 +8,7 @@ package corpus_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -44,6 +45,9 @@ func TestCorpusExpectations(t *testing.T) {
 // and returns the in-scope findings keyed by target-relative file path.
 func scanGroup(t *testing.T, group fixtureGroup, inScope map[string]bool) map[string][]finding {
 	t.Helper()
+	if group.TreeSitter {
+		defer forceTreeSitterScanPath(t)()
+	}
 	root, err := filepath.Abs(filepath.FromSlash(group.Root))
 	if err != nil {
 		t.Fatalf("group %s: resolve root %s: %v", group.Name, group.Root, err)
@@ -53,6 +57,33 @@ func scanGroup(t *testing.T, group fixtureGroup, inScope map[string]bool) map[st
 		t.Fatalf("group %s: scan failed: %v", group.Name, err)
 	}
 	return collectFindings(t, group, report, inScope)
+}
+
+// forceTreeSitterScanPath points the TypeScript semantic-engine discovery at
+// an existing but invalid lib for the duration of one group scan, so the
+// analyzer errors and the target takes the per-file path — the tree-sitter
+// path a treesitter group exists to measure. Without this, hosts where a
+// real TypeScript lib is discoverable (e.g. via a VS Code install) would let
+// the Node semantic engine claim the target and parsers.treesitter would
+// never be exercised. The returned func restores the previous environment.
+func forceTreeSitterScanPath(t *testing.T) func() {
+	t.Helper()
+	const libEnv = "CODEGUARD_TYPESCRIPT_LIB_PATH"
+	bogus := filepath.Join(t.TempDir(), "not-typescript.js")
+	if err := os.WriteFile(bogus, []byte("throw new Error('not a TypeScript lib');\n"), 0o600); err != nil {
+		t.Fatalf("write bogus typescript lib: %v", err)
+	}
+	previous, hadPrevious := os.LookupEnv(libEnv)
+	if err := os.Setenv(libEnv, bogus); err != nil {
+		t.Fatalf("set %s: %v", libEnv, err)
+	}
+	return func() {
+		if hadPrevious {
+			_ = os.Setenv(libEnv, previous)
+			return
+		}
+		_ = os.Unsetenv(libEnv)
+	}
 }
 
 // groupConfig builds a security-only SDK config for one fixture group. The
@@ -65,7 +96,7 @@ func groupConfig(group fixtureGroup, root string) codeguard.Config {
 	if group.Entropy {
 		secrets.Entropy = &codeguard.SecretsEntropyConfig{Enabled: &enabled}
 	}
-	return codeguard.Config{
+	cfg := codeguard.Config{
 		Name: "corpus-" + group.Name,
 		Targets: []codeguard.TargetConfig{{
 			Name:     group.Name,
@@ -82,6 +113,10 @@ func groupConfig(group fixtureGroup, root string) codeguard.Config {
 		Output: codeguard.OutputConfig{Format: "text"},
 		Cache:  codeguard.CacheConfig{Enabled: &disabled},
 	}
+	if group.TreeSitter {
+		cfg.Parsers = codeguard.ParsersConfig{TreeSitter: "auto"}
+	}
+	return cfg
 }
 
 // collectFindings filters the report down to in-scope rules and deduplicates

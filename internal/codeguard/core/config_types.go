@@ -12,6 +12,29 @@ type Config struct {
 	Baseline  BaselineConfig   `json:"baseline,omitempty" yaml:"baseline,omitempty"`
 	Waivers   []WaiverConfig   `json:"waivers,omitempty" yaml:"waivers,omitempty"`
 	Cache     CacheConfig      `json:"cache,omitempty" yaml:"cache,omitempty"`
+	Parsers   ParsersConfig    `json:"parsers,omitempty" yaml:"parsers,omitempty"`
+}
+
+// ParsersConfig selects the parsing substrate for non-Go languages.
+type ParsersConfig struct {
+	// TreeSitter controls the tree-sitter parsing path for
+	// TypeScript/TSX/JavaScript rules: "off" (default) keeps the regex-based
+	// scanners exactly as they are; "auto" parses script files through the
+	// embedded tree-sitter grammars and falls back to the regex path per file
+	// on parse failure, oversized input, or error-heavy trees.
+	TreeSitter string `json:"treesitter,omitempty" yaml:"treesitter,omitempty"`
+}
+
+// Tree-sitter parser modes accepted by ParsersConfig.TreeSitter.
+const (
+	TreeSitterModeOff  = "off"
+	TreeSitterModeAuto = "auto"
+)
+
+// TreeSitterEnabled reports whether the tree-sitter parsing path is enabled
+// (mode "auto"). Empty and "off" both disable it.
+func (p ParsersConfig) TreeSitterEnabled() bool {
+	return p.TreeSitter == TreeSitterModeAuto
 }
 
 type TargetConfig struct {

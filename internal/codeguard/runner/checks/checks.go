@@ -163,6 +163,7 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 		ParseGoFile: func(path string, data []byte) (*token.FileSet, *ast.File, error) {
 			return runnersupport.ParseGoFile(sc, path, data)
 		},
+		ParseScriptFile: scriptFileParser(sc),
 		NewFinding: func(input checkSupport.FindingInput) core.Finding {
 			return runnersupport.NewFinding(sc, runnersupport.FindingInput{
 				RuleID:     input.RuleID,
@@ -202,5 +203,19 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 			return runnersupport.RunDiffCommandCheckWithContext(ctx, sc, dir, baseRef, check)
 		},
 		NormalizedSeverity: runnersupport.NormalizedSeverity,
+	}
+}
+
+// scriptFileParser wires the tree-sitter ParserProvider seam. The hook stays
+// nil unless parsers.treesitter is "auto", so the default configuration
+// behaves exactly as before this seam existed: every script rule takes its
+// regex path. When enabled, parses are memoized per scan by the shared file
+// corpus (one parse per file no matter how many sections query it).
+func scriptFileParser(sc runnersupport.Context) func(string, []byte, checkSupport.ScriptLanguage) (*checkSupport.SyntaxTree, error) {
+	if !sc.Cfg.Parsers.TreeSitterEnabled() {
+		return nil
+	}
+	return func(path string, data []byte, lang checkSupport.ScriptLanguage) (*checkSupport.SyntaxTree, error) {
+		return runnersupport.ParseScriptFile(sc, path, data, lang)
 	}
 }

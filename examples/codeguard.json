@@ -149,6 +149,9 @@
     "enabled": true,
     "path": ".codeguard/cache.json"
   },
+  "parsers": {
+    "treesitter": "off"
+  },
   "rule_packs": [
     {
       "name": "repo-policy",

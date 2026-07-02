@@ -22,19 +22,23 @@ type FindingInput struct {
 }
 
 type Context struct {
-	Config                 core.Config
-	AIEnabled              bool
-	Mode                   core.ScanMode
-	BaseRef                string
-	DiffText               string
-	ScanTime               time.Time
-	ChangedFiles           []string
-	ListChangedFiles       func(target core.TargetConfig) ([]core.ChangedFile, error)
-	ReadBaseFile           func(target core.TargetConfig, rel string) ([]byte, error)
-	DiffScope              func() map[string]core.ChangedLineRanges
-	VisitTargetFiles       func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte))
-	ScanTargetFiles        func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding
-	ParseGoFile            func(path string, data []byte) (*token.FileSet, *ast.File, error)
+	Config           core.Config
+	AIEnabled        bool
+	Mode             core.ScanMode
+	BaseRef          string
+	DiffText         string
+	ScanTime         time.Time
+	ChangedFiles     []string
+	ListChangedFiles func(target core.TargetConfig) ([]core.ChangedFile, error)
+	ReadBaseFile     func(target core.TargetConfig, rel string) ([]byte, error)
+	DiffScope        func() map[string]core.ChangedLineRanges
+	VisitTargetFiles func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte))
+	ScanTargetFiles  func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding
+	ParseGoFile      func(path string, data []byte) (*token.FileSet, *ast.File, error)
+	// ParseScriptFile parses a TypeScript/TSX/JavaScript file through the
+	// tree-sitter substrate. It is nil unless parsers.treesitter is "auto";
+	// checks treat nil (and any error) as "use the regex path".
+	ParseScriptFile        func(path string, data []byte, lang ScriptLanguage) (*SyntaxTree, error)
 	NewFinding             func(FindingInput) core.Finding
 	FinalizeSection        func(id string, name string, findings []core.Finding) core.SectionResult
 	PutArtifact            func(core.Artifact)

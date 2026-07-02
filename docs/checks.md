@@ -234,6 +234,21 @@ TypeScript semantic runtime:
 - discovery order is `CODEGUARD_TYPESCRIPT_LIB_PATH`, then `node_modules/typescript/lib/typescript.js` from the target path upward, then the bundled VS Code TypeScript runtime
 - if no runtime is available, codeguard falls back to the lightweight parser-based checks for TypeScript and JavaScript
 
+Tree-sitter parsing (opt-in):
+- `parsers.treesitter: "auto"` (default `"off"`) routes the lightweight
+  TypeScript/TSX/JavaScript checks through embedded tree-sitter grammars
+  instead of regexes for `quality.typescript.explicit-any`,
+  `quality.typescript.non-null-assertion`,
+  `quality.typescript.double-assertion`, and
+  `security.typescript.unsafe-html-sink` (plus their `*.javascript.*`
+  mirrors where the syntax exists in JavaScript)
+- tree-based findings keep the same rule IDs, levels, and messages and set
+  `confidence: high`; they see through template-literal interpolations,
+  regex literals, JSX text, formatter-split expressions, and compound
+  assignments where the regex path cannot
+- oversized files (> 256 KiB), parse failures, and error-heavy trees fall
+  back to the regex path per file
+
 ## Quality
 
 Purpose:

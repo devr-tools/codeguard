@@ -48,6 +48,10 @@ func applyRootDefaults(cfg *core.Config, def core.Config) {
 	if cfg.AI.Cache.Path == "" {
 		cfg.AI.Cache.Path = def.AI.Cache.Path
 	}
+	cfg.Parsers.TreeSitter = strings.ToLower(strings.TrimSpace(cfg.Parsers.TreeSitter))
+	if cfg.Parsers.TreeSitter == "" {
+		cfg.Parsers.TreeSitter = core.TreeSitterModeOff
+	}
 }
 
 func applyCheckDefaults(cfg *core.Config, def core.Config) {

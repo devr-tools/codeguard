@@ -1,6 +1,7 @@
 # Design spike: tree-sitter as the non-Go parsing substrate
 
-- Status: spike complete, decision proposed
+- Status: spike complete; phase 2 (TypeScript behind `parsers.treesitter`)
+  shipped — see §9
 - Date: 2026-07-02
 - Prototype: `internal/codeguard/checks/support/treesitter/` (isolated Go module)
 - Decision: **conditional GO** — adopt tree-sitter via the pure-Go runtime
@@ -122,13 +123,14 @@ CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build .   # cross-compile proof
 
 ## 5. Results
 
-### 5.1 Precision (adversarial corpus, 11 ground-truth findings)
+### 5.1 Precision (adversarial corpus; 13 ground-truth findings after the
+phase-2 additions S11/S12 — originally 11)
 
 | Implementation | Reported | TP | FP | FN | Precision | Recall |
 |---|---|---|---|---|---|---|
-| Current regex + stripper | 10 | 6 | 4 | 5 | **60.0%** | **54.5%** |
-| tree-sitter (pure-Go engine) | 11 | 11 | 0 | 0 | **100%** | **100%** |
-| tree-sitter (CGo engine) | 11 | 11 | 0 | 0 | 100% | 100% |
+| Current regex + stripper | 11 | 7 | 4 | 6 | **63.6%** | **53.8%** |
+| tree-sitter (pure-Go engine) | 13 | 13 | 0 | 0 | **100%** | **100%** |
+| tree-sitter (CGo engine) | 13 | 13 | 0 | 0 | 100% | 100% |
 
 The individual cases (all pinned by `TestBaselinePrecisionGap`):
 
@@ -323,12 +325,30 @@ vendor/fork + differential CI).
   snapshots of a few OSS repos); measure parse-failure rate, pure-Go vs CGo
   parity at node level, memory highwater; file/raise upstream perf+memory
   issues; decide vendor-vs-fork. Exit: parity ≥ 99.99% of nodes, no
-  unexplained divergence.
-- **Phase 2 — ship TS behind a flag**: root module takes the pinned dep
-  (vendored/forked); `ParserProvider` + corpus tree cache; migrate the 3-5
-  highest-noise TS rules (explicit-any, unsafe-html-sink,
-  non-null-assertion, double-assertion); `parsers.treesitter: off` by
-  default, `auto` opt-in; regex fallback on parse failure/oversize. The new
+  unexplained divergence. *(The differential-validation slice was folded
+  into phase 2's tests: per-rule EXPECT-marker corpora pin tree vs regex
+  behavior in `tests/checks/`, and the spike module's CGo-vs-pure-Go
+  harness stays as the runtime-parity reference. The large-real-world-
+  corpus sweep and vendor-vs-fork decision remain open.)*
+- **Phase 2 — ship TS behind a flag (done — this change)**: root module
+  takes `github.com/odvcencio/gotreesitter` pinned at v0.20.8 (not yet
+  vendored/forked — that is the remaining phase-2 supply-chain follow-up,
+  §8 item 2); grammar-subset build tags
+  (`grammar_subset,grammar_subset_{typescript,tsx,javascript}`) in the
+  Makefile and goreleaser keep the release binary delta at ~+5 MB
+  (13.6 → 18.9 MB; an untagged `go build`/`go install` embeds all 206
+  grammars at ~+27 MB but stays fully functional);
+  `Context.ParseScriptFile` + `checks/support.SyntaxTree` seam with a
+  corpus-level `sync.Once` tree cache shaped like `parseGo`; migrated
+  explicit-any, non-null-assertion, double-assertion, and unsafe-html-sink
+  (TS/TSX plus the JS mirror for the sink; the other three are TS-only
+  syntax, so JS keeps regex) with tree findings at `confidence: high`;
+  `parsers.treesitter: off` by default, `auto` opt-in; per-file regex
+  fallback on oversize (> 256 KiB, bounding the ~0.5 MB-heap-per-KB parse
+  cost), parse failure, or ERROR nodes covering > 25% of the bytes.
+  Differential EXPECT-marker corpora live in
+  `tests/checks/testdata/treesitter/` and a tree-path corpus group in
+  `tests/corpus/` (`typescript-treesitter`). The new
   rule-health/suppression-stats telemetry compares FP rates in the field.
 - **Phase 3 — default-on TS, migrate Python**: flip the default once
   phase-2 telemetry shows strictly fewer suppressions and scan-time growth
