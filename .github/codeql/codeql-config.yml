@@ -1,0 +1,9 @@
+name: codeguard CodeQL config
+
+# codeguard's test suites detect vulnerabilities in deliberately vulnerable
+# fixture files. Excluding those paths keeps CodeQL and Copilot Autofix from
+# flagging the fixtures themselves (and suggesting "fixes" that would defang
+# the detection corpus).
+paths-ignore:
+  - "**/testdata/**"
+  - "tests/corpus/**"
