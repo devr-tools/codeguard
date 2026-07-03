@@ -40,8 +40,9 @@ Next: on npmjs.com, open each package's Settings -> Trusted Publisher and add:
   Allowed actions:   npm publish
 
 Use cd.yml (NOT release.yml): the publish-npm job lives in the reusable
-release.yml, but npm/PyPI trusted publishing matches the *top-level calling*
+release.yml, but npm trusted publishing matches the *top-level calling*
 workflow, which is cd.yml (release-please -> stable-release -> release.yml).
+(PyPI is the opposite — it matches release.yml. See packaging/README.md.)
 
 Packages to configure:
   @devr-tools/codeguard

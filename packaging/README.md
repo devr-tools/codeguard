@@ -65,13 +65,23 @@ push to main -> cd.yml (release-please) -> stable-release job -> release.yml
 ```
 
 The `publish-npm` and `publish-pypi` jobs live inside `release.yml` (where the
-release binaries are built), but **npm and PyPI trusted publishing match the
-top-level *calling* workflow, not the reusable one.** So the trusted publisher
-must be configured against **`cd.yml`**, and `id-token: write` is set on both the
-`cd.yml` caller jobs and the `release.yml` publish jobs.
+release binaries are built). The two registries match **different** OIDC claims
+when that publish step runs inside a reusable workflow, so they need **different**
+trusted-publisher workflow filenames:
 
-> PyPI does not allow a *reusable* workflow to be named as the trusted publisher
-> (warehouse#11096); naming the `cd.yml` caller is the supported path.
+| Registry | Matches claim | Configure workflow |
+| --- | --- | --- |
+| PyPI | `job_workflow_ref` — the file that runs the publish step | **`release.yml`** |
+| npm  | `workflow_ref` — the top-level caller | **`cd.yml`** |
+
+`id-token: write` is set on both the `cd.yml` caller jobs and the `release.yml`
+publish jobs (both parent and child need it for OIDC).
+
+> This is confirmed against the live warehouse source
+> (`warehouse/oidc/models/github.py`), which extracts the workflow filename from
+> the `job_workflow_ref` claim — i.e. `release.yml` here, not the `cd.yml` caller.
+> An older PyPI docs page claimed reusable workflows were unsupported
+> (warehouse#11096); that is stale — naming the reusable `release.yml` works.
 
 ## One-time prerequisites (before the first automated release)
 
@@ -112,7 +122,8 @@ registries use OIDC trusted publishing — no long-lived tokens live in CI.
    project `devr-codeguard` (the plain `codeguard` name is taken; the installed
    command is still `codeguard`):
    - Owner / repo: `devr-tools/codeguard`
-   - Workflow filename: `cd.yml`  ← the caller, not release.yml
+   - Workflow filename: `release.yml`  ← the file that runs the publish step,
+     NOT the `cd.yml` caller (PyPI matches `job_workflow_ref`)
    - Environment: *(leave blank — the job sets none)*
 
    This lets the `publish-pypi` job authenticate via `id-token: write` with no
