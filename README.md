@@ -55,7 +55,7 @@ codeguard version
 
 ```yaml
 - name: Devr Codeguard
-  uses: devr-tools/codeguard@v0.2.0
+  uses: devr-tools/codeguard@v0.8.1
 ```
 
 Or run in Docker:
