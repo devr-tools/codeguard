@@ -64,14 +64,28 @@ Unlike a repo that triggers `release.yml` directly on a tag push, codeguard's
 push to main -> cd.yml (release-please) -> stable-release job -> release.yml
 ```
 
-The `publish-npm` and `publish-pypi` jobs live inside `release.yml` (where the
-release binaries are built), but **npm and PyPI trusted publishing match the
-top-level *calling* workflow, not the reusable one.** So the trusted publisher
-must be configured against **`cd.yml`**, and `id-token: write` is set on both the
-`cd.yml` caller jobs and the `release.yml` publish jobs.
+The `publish-npm` and `publish-pypi` jobs live in **`cd.yml`** (the top-level
+entry workflow), NOT in the reusable `release.yml`. They run after the
+`stable-release` job (which builds the binaries and cuts the GitHub release) and
+pull those binaries back down to assemble the packages.
 
-> PyPI does not allow a *reusable* workflow to be named as the trusted publisher
-> (warehouse#11096); naming the `cd.yml` caller is the supported path.
+**Why cd.yml and not release.yml:** OIDC trusted publishing matches the workflow
+filename, and PEP 740 attestations additionally embed it in the signing
+certificate's Build Config URI. When a publish step runs inside a *reusable*
+workflow, the two OIDC claims split — `workflow_ref` = the caller (`cd.yml`),
+`job_workflow_ref` = the reusable file (`release.yml`) — and no single publisher
+can satisfy both: auth matches `job_workflow_ref` (release.yml) but the
+attestation's Build Config URI comes from `workflow_ref` (cd.yml), so PyPI
+rejects the upload with `400 Invalid attestations`. Publishing from `cd.yml`
+directly collapses both claims to `cd.yml`, so **one publisher (`cd.yml`) works
+for both npm and PyPI, with attestations on.**
+
+> This mirrors how szr works: szr's `release.yml` is triggered directly on the
+> tag push (it *is* the entry workflow), so both claims are `release.yml` there.
+> codeguard's `release.yml` is reusable-only, so the entry workflow is `cd.yml`.
+
+Configure both trusted publishers with workflow filename **`cd.yml`**.
+`id-token: write` is set on the `cd.yml` publish jobs.
 
 ## One-time prerequisites (before the first automated release)
 
@@ -112,7 +126,7 @@ registries use OIDC trusted publishing — no long-lived tokens live in CI.
    project `devr-codeguard` (the plain `codeguard` name is taken; the installed
    command is still `codeguard`):
    - Owner / repo: `devr-tools/codeguard`
-   - Workflow filename: `cd.yml`  ← the caller, not release.yml
+   - Workflow filename: `cd.yml`  ← the publish job lives in cd.yml (same as npm)
    - Environment: *(leave blank — the job sets none)*
 
    This lets the `publish-pypi` job authenticate via `id-token: write` with no
