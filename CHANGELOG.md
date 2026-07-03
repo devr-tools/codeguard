@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/devr-tools/codeguard/compare/v0.7.0...v0.8.0) (2026-07-03)
+
+
+### Features
+
+* **packaging:** publish codeguard to npm and PyPI ([6a03f0e](https://github.com/devr-tools/codeguard/commit/6a03f0ef2f5a45dd7ffa3b46075e32c6601f997a))
+* **packaging:** publish codeguard to npm and PyPI ([#29](https://github.com/devr-tools/codeguard/issues/29)) ([bf39a7a](https://github.com/devr-tools/codeguard/commit/bf39a7a53aea44545a09ec93e3feeead87b707b7))
+
 ## [0.7.0](https://github.com/devr-tools/codeguard/compare/v0.6.1...v0.7.0) (2026-07-02)
 
 
