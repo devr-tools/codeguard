@@ -531,3 +531,12 @@ jobs:
         with:
           packages-dir: packaging/pypi/dist
           skip-existing: true
+          # Attestations are disabled because the publish step runs inside the
+          # reusable release.yml. Trusted-publisher AUTH matches job_workflow_ref
+          # (release.yml), but the PEP 740 attestation's Build Config URI comes
+          # from workflow_ref (the cd.yml caller) — so the attestation can never
+          # match the release.yml publisher and PyPI rejects the upload. Release
+          # artifacts still carry SLSA provenance + cosign signatures from the
+          # GoReleaser step. To re-enable, move this job into cd.yml (non-reusable)
+          # so both claims resolve to cd.yml, and point the publisher at cd.yml.
+          attestations: false
