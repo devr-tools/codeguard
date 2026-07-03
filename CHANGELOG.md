@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/devr-tools/codeguard/compare/v0.8.0...v0.8.1) (2026-07-03)
+
+
+### Bug Fixes
+
+* **release:** disable PyPI attestations for reusable-workflow publish ([28a147d](https://github.com/devr-tools/codeguard/commit/28a147d14834ae20cf59749fcd6f21f51f02a568))
+
 ## [0.8.0](https://github.com/devr-tools/codeguard/compare/v0.7.0...v0.8.0) (2026-07-03)
 
 
