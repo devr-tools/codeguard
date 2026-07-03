@@ -17,6 +17,7 @@ coverage.*
 *.coverprofile
 profile.cov
 dist/
+packaging/.staging/
 .gocache/
 .gomodcache/
 .codeguard/cache.json
