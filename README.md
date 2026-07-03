@@ -38,6 +38,21 @@ Other install paths:
 - Homebrew: `brew install devr-tools/tap/codeguard`
 - GitHub Marketplace Action: `Devr Codeguard`
 
+npm (installs a prebuilt binary, no Go toolchain required):
+
+```bash
+npm install -g @devr-tools/codeguard
+codeguard version
+```
+
+pip (installs a prebuilt binary per platform; the project is `devr-codeguard`
+because the plain `codeguard` name is taken, but the command is still `codeguard`):
+
+```bash
+pip install devr-codeguard
+codeguard version
+```
+
 ```yaml
 - name: Devr Codeguard
   uses: devr-tools/codeguard@v0.2.0
