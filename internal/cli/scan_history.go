@@ -20,7 +20,7 @@ func runScanHistory(args []string, stdout io.Writer, stderr io.Writer) int {
 	allRefs := fs.Bool("all", false, "scan all refs rather than just HEAD history")
 	format := fs.String("format", "text", "output format: text or json")
 	if err := fs.Parse(args); err != nil {
-		return 1
+		return exitError
 	}
 
 	// Config is optional: it only supplies secret allowlist/custom-pattern/entropy
@@ -37,20 +37,20 @@ func runScanHistory(args []string, stdout io.Writer, stderr io.Writer) int {
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan-history failed: %v\n", err)
-		return 1
+		return exitError
 	}
 
 	if err := writeHistoryReport(stdout, report, *format); err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan-history output: %v\n", err)
-		return 1
+		return exitError
 	}
 
 	for _, finding := range report.Findings {
 		if finding.Level == "fail" {
-			return 1
+			return exitError
 		}
 	}
-	return 0
+	return exitOK
 }
 
 func writeHistoryReport(stdout io.Writer, report service.HistoryReport, format string) error {

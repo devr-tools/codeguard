@@ -16,15 +16,14 @@ func runRules(args []string, stdout io.Writer, stderr io.Writer) int {
 	configPath := fs.String("config", "", "optional config path to include custom rule packs")
 	profile := fs.String("profile", "", "optional policy profile override")
 	if err := fs.Parse(args); err != nil {
-		return 1
+		return exitError
 	}
 
 	rules := service.Rules()
 	if strings.TrimSpace(*configPath) != "" {
-		cfg, err := loadConfigWithProfile(*configPath, *profile)
-		if err != nil {
-			_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
-			return 1
+		cfg, ok := loadConfigOrFail(*configPath, *profile, stderr)
+		if !ok {
+			return exitError
 		}
 		rules = service.RulesForConfig(cfg)
 	}
@@ -47,7 +46,7 @@ func runRules(args []string, stdout io.Writer, stderr io.Writer) int {
 		}
 		_, _ = fmt.Fprintln(stdout, line.String())
 	}
-	return 0
+	return exitOK
 }
 
 func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -57,22 +56,22 @@ func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
 	format := fs.String("format", "text", "output format: text, agent")
 	profile := fs.String("profile", "", "optional policy profile override")
 	if err := fs.Parse(args); err != nil {
-		return 1
+		return exitError
 	}
 	if fs.NArg() == 0 {
 		_, _ = fmt.Fprintln(stderr, "explain requires a rule id")
-		return 1
+		return exitError
 	}
 
 	ruleID := fs.Arg(0)
 	rule, ok, err := resolveExplainRule(*configPath, *profile, ruleID)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
-		return 1
+		return exitError
 	}
 	if !ok {
 		_, _ = fmt.Fprintf(stderr, "unknown rule %q\n", ruleID)
-		return 1
+		return exitError
 	}
 
 	switch strings.TrimSpace(*format) {
@@ -81,13 +80,13 @@ func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
 	case "agent":
 		if err := writeExplainAgent(stdout, rule); err != nil {
 			_, _ = fmt.Fprintf(stderr, "write explain output: %v\n", err)
-			return 1
+			return exitError
 		}
 	default:
 		_, _ = fmt.Fprintf(stderr, "invalid explain format %q\n", *format)
-		return 1
+		return exitError
 	}
-	return 0
+	return exitOK
 }
 
 func resolveExplainRule(configPath string, profile string, ruleID string) (service.RuleMetadata, bool, error) {
@@ -175,5 +174,5 @@ func runProfiles(stdout io.Writer) int {
 	for _, profile := range service.Profiles() {
 		_, _ = fmt.Fprintf(stdout, "%s\t%s\n", profile.Name, profile.Description)
 	}
-	return 0
+	return exitOK
 }

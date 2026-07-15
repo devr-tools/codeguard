@@ -19,15 +19,14 @@ func runOWASP(args []string, stdout io.Writer, stderr io.Writer) int {
 	profile := fs.String("profile", "", "optional policy profile override")
 	format := fs.String("format", "text", "output format: text or json")
 	if err := fs.Parse(args); err != nil {
-		return 1
+		return exitError
 	}
 
 	coverage := service.OWASPCoverage()
 	if strings.TrimSpace(*configPath) != "" {
-		cfg, err := loadConfigWithProfile(*configPath, *profile)
-		if err != nil {
-			_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
-			return 1
+		cfg, ok := loadConfigOrFail(*configPath, *profile, stderr)
+		if !ok {
+			return exitError
 		}
 		coverage = service.OWASPCoverageForConfig(cfg)
 	}
@@ -40,13 +39,13 @@ func runOWASP(args []string, stdout io.Writer, stderr io.Writer) int {
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(coverage); err != nil {
 			_, _ = fmt.Fprintf(stderr, "write owasp output: %v\n", err)
-			return 1
+			return exitError
 		}
 	default:
 		_, _ = fmt.Fprintf(stderr, "invalid owasp format %q\n", *format)
-		return 1
+		return exitError
 	}
-	return 0
+	return exitOK
 }
 
 func writeOWASPText(stdout io.Writer, coverage []service.OWASPCoverageEntry) {

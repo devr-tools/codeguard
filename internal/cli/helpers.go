@@ -27,6 +27,18 @@ func promptString(reader *bufio.Reader, stdout io.Writer, label string, fallback
 	return line, nil
 }
 
+// loadConfigOrFail wraps loadConfigWithProfile with the shared handler
+// convention: on failure it reports "load config: <err>" on stderr and returns
+// ok=false so the handler can return exitError.
+func loadConfigOrFail(path string, profile string, stderr io.Writer) (service.Config, bool) {
+	cfg, err := loadConfigWithProfile(path, profile)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
+		return service.Config{}, false
+	}
+	return cfg, true
+}
+
 func loadConfigWithProfile(path string, profile string) (service.Config, error) {
 	cfg, err := service.LoadConfigFile(path)
 	if err != nil {
