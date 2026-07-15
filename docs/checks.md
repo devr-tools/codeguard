@@ -529,6 +529,11 @@ Config keys (under `checks.security_rules.secrets`):
 - `entropy` enables the high-entropy heuristic (off by default); tune `min_length`
   (default 20), `threshold` in bits/char (default 4.5), and `level` (default `warn`).
 
+Invalid `allow_patterns`/`custom_patterns` entries are rejected by config validation. If
+an unvalidated config reaches the scan anyway (e.g. through the SDK), the unusable
+pattern is skipped and reported as a `security.secrets-config` (**fail**) finding rather
+than silently reducing coverage.
+
 Existing `exclude`, `waivers`, `baseline`, and inline `codeguard:ignore` suppressions
 also apply to these findings.
 

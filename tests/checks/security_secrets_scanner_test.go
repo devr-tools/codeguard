@@ -1,6 +1,7 @@
 package checks_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/security"
@@ -41,11 +42,54 @@ func gateSamples() []string {
 }
 
 func TestSecretScannerGateCoversBuiltins(t *testing.T) {
-	scanner := security.BuildScanner(nil)
+	scanner, _ := security.BuildScanner(nil)
 	for _, sample := range gateSamples() {
 		if len(scanner.ScanContent(sample)) == 0 {
 			t.Errorf("scanner missed a built-in sample (gate marker likely missing): %q", sample)
 		}
+	}
+}
+
+func TestBuildScannerReportsUnusablePatterns(t *testing.T) {
+	scanner, issues := security.BuildScanner(&core.SecretsRulesConfig{
+		AllowPatterns: []string{`//\s*ok`, `(`},
+		CustomPatterns: []core.CustomSecretPattern{
+			{ID: "good", Regex: `\bacme_live_[0-9a-f]{16}\b`},
+			{ID: "bad-regex", Regex: `[`},
+			{ID: "   ", Regex: `\btoken\b`},
+		},
+	})
+	if len(issues) != 3 {
+		t.Fatalf("issues = %v, want 3 (bad allow pattern, bad custom regex, empty custom id)", issues)
+	}
+	for _, want := range []string{"allow_patterns[1]", `custom_patterns["bad-regex"]`, "empty id"} {
+		found := false
+		for _, issue := range issues {
+			if strings.Contains(issue, want) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("no issue mentions %q: %v", want, issues)
+		}
+	}
+
+	// The valid entries still participate in the scan.
+	if matches := scanner.ScanContent(`key = "acme_live_0123456789abcdef"`); len(matches) != 1 || matches[0].RuleID != "good" {
+		t.Fatalf("valid custom pattern did not survive invalid siblings: %+v", matches)
+	}
+	if matches := scanner.ScanContent(`key = "` + cred("AKIA", "1234567890ABCDEF") + `" // ok`); len(matches) != 0 {
+		t.Fatalf("valid allow pattern did not survive invalid sibling: %+v", matches)
+	}
+}
+
+func TestBuildScannerNoIssuesForValidConfig(t *testing.T) {
+	_, issues := security.BuildScanner(&core.SecretsRulesConfig{
+		AllowPatterns:  []string{`//\s*ok`},
+		CustomPatterns: []core.CustomSecretPattern{{ID: "good", Regex: `token-[0-9]+`}},
+	})
+	if len(issues) != 0 {
+		t.Fatalf("issues = %v, want none for a valid config", issues)
 	}
 }
 
@@ -61,7 +105,7 @@ func benchSource() string {
 }
 
 func BenchmarkSecretScanContent(b *testing.B) {
-	scanner := security.BuildScanner(nil)
+	scanner, _ := security.BuildScanner(nil)
 	source := benchSource()
 	b.SetBytes(int64(len(source)))
 	b.ReportAllocs()
@@ -73,7 +117,7 @@ func BenchmarkSecretScanContent(b *testing.B) {
 
 func BenchmarkSecretScanContentEntropy(b *testing.B) {
 	enabled := true
-	scanner := security.BuildScanner(&core.SecretsRulesConfig{Entropy: &core.SecretsEntropyConfig{Enabled: &enabled}})
+	scanner, _ := security.BuildScanner(&core.SecretsRulesConfig{Entropy: &core.SecretsEntropyConfig{Enabled: &enabled}})
 	source := benchSource()
 	b.SetBytes(int64(len(source)))
 	b.ReportAllocs()

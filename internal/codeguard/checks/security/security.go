@@ -24,7 +24,15 @@ func securityTargetFindings(ctx context.Context, env support.Context, target cor
 	// Use a distinct cache section id ("security-secrets") so this pass does not
 	// collide with the per-file cache of the language pass below, which also
 	// scans the "security" section for the same files.
-	if scanner := BuildScanner(env.Config.Checks.SecurityRules.Secrets); scanner.Enabled() {
+	scanner, scannerIssues := BuildScanner(env.Config.Checks.SecurityRules.Secrets)
+	for _, issue := range scannerIssues {
+		findings = append(findings, env.NewFinding(support.FindingInput{
+			RuleID:  "security.secrets-config",
+			Level:   "fail",
+			Message: issue,
+		}))
+	}
+	if scanner.Enabled() {
 		findings = append(findings, env.ScanTargetFiles(target, "security-secrets", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
 			return secretFindingsForFile(env, file, data, scanner)
 		})...)
