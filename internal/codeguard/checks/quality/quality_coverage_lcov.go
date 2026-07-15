@@ -25,10 +25,12 @@ func commandCoverageProfile(ctx context.Context, env support.Context, target cor
 		Args:    command.Args,
 	})
 	if err != nil {
+		// Keep err in the chain so callers can tell a timeout/cancellation from
+		// a command that ran and reported failures.
 		if strings.TrimSpace(output) != "" {
-			return nil, fmt.Errorf("%s: %s", name, output)
+			return nil, fmt.Errorf("%s: %w: %s", name, err, output)
 		}
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", name, err)
 	}
 	reportPath := command.ReportPath
 	if !filepath.IsAbs(reportPath) {

@@ -37,8 +37,10 @@ func goCoverageProfile(ctx context.Context, env support.Context, target core.Tar
 		Args:    args,
 	})
 	if err != nil {
+		// Keep err in the chain so callers can tell a timeout/cancellation from
+		// a test run that failed.
 		if strings.TrimSpace(output) != "" {
-			return nil, fmt.Errorf("go test: %s", output)
+			return nil, fmt.Errorf("go test: %w: %s", err, output)
 		}
 		return nil, fmt.Errorf("go test: %w", err)
 	}
