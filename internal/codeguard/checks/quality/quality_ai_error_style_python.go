@@ -1,8 +1,6 @@
 package quality
 
 import (
-	"os"
-	"path/filepath"
 	"regexp"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -26,10 +24,10 @@ func pythonErrorStyleCounts(source string) pythonErrorStyleSummary {
 	}
 }
 
-func pythonRepoErrorStyle(root string, files []string) pythonErrorStyleSummary {
+func pythonRepoErrorStyle(env support.Context, target core.TargetConfig, files []string) pythonErrorStyleSummary {
 	total := pythonErrorStyleSummary{}
 	for _, rel := range files {
-		data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
+		data, err := readAITargetFile(env, target, rel)
 		if err != nil {
 			continue
 		}

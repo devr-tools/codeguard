@@ -24,11 +24,11 @@ func pythonAITargetFindings(env support.Context, target core.TargetConfig) []cor
 	}
 	catalog := readPythonDependencyCatalog(target.Path)
 	localModules := pythonLocalModuleNames(target.Path, files)
-	repoErrorStyle := pythonRepoErrorStyle(target.Path, files)
-	repoNaming := dominantNamingConvention(target.Path, files, pythonDeclaredNames)
+	repoErrorStyle := pythonRepoErrorStyle(env, target, files)
+	repoNaming := dominantNamingConvention(env, target, files, pythonDeclaredNames)
 	findings := make([]core.Finding, 0)
 	for _, rel := range files {
-		findings = append(findings, pythonFileAIQualityFindings(env, target.Path, rel, pythonFileScanInput{
+		findings = append(findings, pythonFileAIQualityFindings(env, target, rel, pythonFileScanInput{
 			catalog:      catalog,
 			localModules: localModules,
 			errorStyle:   repoErrorStyle,
@@ -45,15 +45,15 @@ type pythonFileScanInput struct {
 	naming       string
 }
 
-func pythonFileAIQualityFindings(env support.Context, root string, rel string, input pythonFileScanInput) []core.Finding {
-	data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
+func pythonFileAIQualityFindings(env support.Context, target core.TargetConfig, rel string, input pythonFileScanInput) []core.Finding {
+	data, err := readAITargetFile(env, target, rel)
 	if err != nil {
 		return nil
 	}
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
 	findings := make([]core.Finding, 0)
 	if aiCheckEnabled(env.Config.Checks.QualityRules.AIChecks.HallucinatedImport) {
-		findings = append(findings, pythonImportFindings(env, root, rel, source, input)...)
+		findings = append(findings, pythonImportFindings(env, target.Path, rel, source, input)...)
 	}
 	if aiCheckEnabled(env.Config.Checks.QualityRules.AIChecks.DeadCode) {
 		findings = append(findings, pythonDeadCodeFindings(env, rel, source)...)
