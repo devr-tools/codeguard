@@ -1,13 +1,10 @@
 package security
 
 import (
-	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 // Bounds that keep the scan cheap and resistant to pathological (and untrusted)
@@ -19,103 +16,6 @@ const (
 	maxScanLineBytes = 64 << 10 // scan at most the first 64 KiB of any line
 	binarySniffBytes = 8 << 10  // bytes inspected when detecting binary content
 )
-
-// Match is a single secret/credential hit on a line. It is the unit shared by
-// the in-tree finding pass and the git-history scan.
-type Match struct {
-	RuleID  string
-	Level   string
-	Message string
-	Line    int
-	Column  int
-	// Confidence is "high", "medium", or "low"; empty means unspecified and is
-	// treated as medium.
-	Confidence string
-}
-
-// Scanner holds the per-scan compiled allowlist, custom patterns, and entropy
-// settings. Build it once with BuildScanner and reuse it across files/lines.
-type Scanner struct {
-	enabled        bool
-	allowPaths     []string
-	allowRes       []*regexp.Regexp
-	customPatterns []compiledCustomPattern
-	entropy        entropySettings
-}
-
-type compiledCustomPattern struct {
-	id    string
-	re    *regexp.Regexp
-	level string
-	msg   string
-}
-
-// Enabled reports whether the secret scan should run at all.
-func (s Scanner) Enabled() bool { return s.enabled }
-
-// BuildScanner compiles a Scanner from config. A nil config yields the default
-// enabled scanner with no allowlist, no custom patterns, and entropy disabled.
-// Entries that cannot be used (unparseable regexes, custom patterns without an
-// id) are skipped and reported as issues; config validation normally rejects
-// them before this point, so the issues are the backstop for callers scanning
-// with an unvalidated config.
-func BuildScanner(cfg *core.SecretsRulesConfig) (Scanner, []string) {
-	scanner := Scanner{enabled: true}
-	if cfg == nil {
-		return scanner, nil
-	}
-	var issues []string
-	if cfg.Enabled != nil {
-		scanner.enabled = *cfg.Enabled
-	}
-	scanner.allowPaths = append([]string(nil), cfg.AllowPaths...)
-	for idx, pattern := range cfg.AllowPatterns {
-		re, err := regexp.Compile(pattern)
-		if err != nil {
-			issues = append(issues, fmt.Sprintf("secrets allow_patterns[%d] skipped: %v", idx, err))
-			continue
-		}
-		scanner.allowRes = append(scanner.allowRes, re)
-	}
-	for _, custom := range cfg.CustomPatterns {
-		if strings.TrimSpace(custom.ID) == "" {
-			issues = append(issues, "secrets custom_patterns entry with an empty id skipped")
-			continue
-		}
-		re, err := regexp.Compile(custom.Regex)
-		if err != nil {
-			issues = append(issues, fmt.Sprintf("secrets custom_patterns[%q] skipped: %v", custom.ID, err))
-			continue
-		}
-		level := normalizeSecretLevel(custom.Level, "fail")
-		message := strings.TrimSpace(custom.Message)
-		if message == "" {
-			message = "possible hardcoded credential detected (" + custom.ID + ")"
-		}
-		scanner.customPatterns = append(scanner.customPatterns, compiledCustomPattern{id: custom.ID, re: re, level: level, msg: message})
-	}
-	scanner.entropy = buildEntropySettings(cfg.Entropy)
-	return scanner, issues
-}
-
-// SkipPath reports whether the file is covered by an allow_paths glob.
-func (s Scanner) SkipPath(file string) bool {
-	for _, pattern := range s.allowPaths {
-		if runnersupport.MatchPattern(pattern, file) {
-			return true
-		}
-	}
-	return false
-}
-
-func (s Scanner) lineAllowed(line string) bool {
-	for _, re := range s.allowRes {
-		if re.MatchString(line) {
-			return true
-		}
-	}
-	return false
-}
 
 // ScanContent runs the secret/credential scan over file content and returns the
 // matches with 1-based line numbers. Path allowlisting is the caller's
@@ -181,15 +81,6 @@ func located(m *Match, lineNo int) []Match {
 	m.Line = lineNo
 	m.Column = 1
 	return []Match{*m}
-}
-
-func (s Scanner) matchCustom(line string) *Match {
-	for _, pattern := range s.customPatterns {
-		if match := pattern.re.FindStringSubmatch(line); match != nil {
-			return &Match{RuleID: pattern.id, Level: pattern.level, Message: pattern.msg + ": " + maskSecret(credentialMatchValue(match))}
-		}
-	}
-	return nil
 }
 
 // secretFindingsForFile runs the scan over a single file and converts matches to

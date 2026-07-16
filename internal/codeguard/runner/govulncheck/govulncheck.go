@@ -1,10 +1,8 @@
 package govulncheck
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -18,31 +16,6 @@ import (
 // repositories. Any other command name comes from repository configuration and
 // must pass the command-trust gate.
 const defaultCommand = "govulncheck"
-
-// limitedWriter writes to w until remaining bytes are exhausted, then silently
-// drops the rest while recording that truncation occurred. It lets a single
-// writer back both cmd.Stdout and cmd.Stderr under a shared byte budget.
-type limitedWriter struct {
-	w         *bytes.Buffer
-	remaining int
-	truncated bool
-}
-
-func (l *limitedWriter) Write(p []byte) (int, error) {
-	if l.remaining <= 0 {
-		l.truncated = true
-		return len(p), nil
-	}
-	if len(p) > l.remaining {
-		l.w.Write(p[:l.remaining])
-		l.remaining = 0
-		l.truncated = true
-		return len(p), nil
-	}
-	n, err := l.w.Write(p)
-	l.remaining -= n
-	return n, err
-}
 
 // maxOutputBytes caps how much govulncheck output is buffered so a runaway or
 // malicious tool cannot exhaust memory.
@@ -61,17 +34,7 @@ func Run(ctx context.Context, dir string, cmdName string, sc runnersupport.Conte
 			return nil, err
 		}
 	}
-	cmd := exec.CommandContext(ctx, cmdName, "./...") //nolint:gosec // config override gated by trust.GuardConfigCommand above; default resolves from PATH
-	cmd.Dir = dir
-	var buf bytes.Buffer
-	limited := &limitedWriter{w: &buf, remaining: maxOutputBytes}
-	cmd.Stdout = limited
-	cmd.Stderr = limited
-	err := cmd.Run()
-	if limited.truncated {
-		return nil, fmt.Errorf("govulncheck output exceeded %d bytes", maxOutputBytes)
-	}
-	text := buf.String()
+	text, err := runnersupport.RunLimitedCommand(ctx, dir, maxOutputBytes, cmdName, "./...")
 	parsed := parseOutput(text, sc)
 	if len(parsed) > 0 {
 		return parsed, nil

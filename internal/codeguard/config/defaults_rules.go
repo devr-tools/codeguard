@@ -27,9 +27,11 @@ func applyPerformanceDefaults(dst *core.PerformanceRulesConfig) {
 		&dst.DetectUnboundedReads,
 		&dst.DetectComplexityRegression,
 		&dst.DetectFrameworkPatterns,
+		&dst.DetectRebuildCascade,
 	)
 	defaultBoolPtr(&dst.DetectPreallocInLoop, false)
 	applyPerformanceMeasurementDefaults(dst)
+	applyPerformanceGraphDefaults(dst)
 }
 
 func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig) {

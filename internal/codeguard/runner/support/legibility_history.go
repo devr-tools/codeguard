@@ -3,7 +3,6 @@ package support
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -23,15 +22,7 @@ type legibilityHistoryFile struct {
 // LegibilityHistoryPathForBase derives the repo_legibility history file path
 // from the scan cache path, mirroring SlopHistoryPathForBase.
 func LegibilityHistoryPathForBase(base string) string {
-	trimmed := strings.TrimSpace(base)
-	if trimmed == "" {
-		return ""
-	}
-	ext := filepath.Ext(trimmed)
-	if ext == "" {
-		return trimmed + ".legibility-history"
-	}
-	return strings.TrimSuffix(trimmed, ext) + ".legibility-history" + ext
+	return derivedCachePath(base, ".legibility-history")
 }
 
 // LoadLegibilityHistory reads the persisted legibility-score history keyed by
@@ -79,12 +70,5 @@ func AppendLegibilityHistory(path string, key string, entry core.LegibilityHisto
 
 func saveLegibilityHistory(path string, entries map[string][]core.LegibilityHistoryEntry) {
 	payload := legibilityHistoryFile{Version: legibilityHistoryVersion, Entries: entries}
-	data, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return
-	}
-	_ = os.WriteFile(path, append(data, '\n'), 0o600)
+	writeHistoryFile(path, payload)
 }

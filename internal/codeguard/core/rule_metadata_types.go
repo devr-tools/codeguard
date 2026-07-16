@@ -17,6 +17,7 @@ const (
 	RuleLanguageJavaScript RuleLanguage = "javascript"
 	RuleLanguageRust       RuleLanguage = "rust"
 	RuleLanguageJava       RuleLanguage = "java"
+	RuleLanguageCPP        RuleLanguage = "cpp"
 	RuleLanguageCSharp     RuleLanguage = "csharp"
 	RuleLanguageRuby       RuleLanguage = "ruby"
 )

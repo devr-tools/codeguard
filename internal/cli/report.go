@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
@@ -55,63 +54,35 @@ func runReport(args []string, stdout io.Writer, stderr io.Writer) int {
 func writePerfHistoryReport(stdout io.Writer, cfg service.Config, limit int) int {
 	path := service.PerfScoreHistoryPath(cfg)
 	history := service.LoadPerfScoreHistory(path)
-	if len(history) == 0 {
-		_, _ = fmt.Fprintf(stdout, "no performance-score history recorded at %s\n", path)
-		return exitOK
-	}
-	keys := make([]string, 0, len(history))
-	for key := range history {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		entries := history[key]
-		if limit > 0 && len(entries) > limit {
-			entries = entries[len(entries)-limit:]
-		}
-		_, _ = fmt.Fprintf(stdout, "%s\n", key)
-		previousScore := 0
-		hasPrevious := false
-		for _, entry := range entries {
+	return writeScoreHistoryReport(stdout, scoreHistoryReportSpec[service.PerformanceHistoryEntry]{
+		path:       path,
+		history:    history,
+		limit:      limit,
+		emptyLabel: "performance-score",
+		render: func(stdout io.Writer, entry service.PerformanceHistoryEntry, previousScore int, hasPrevious bool) int {
 			_, _ = fmt.Fprintf(stdout, "  %s  score %3d%s  signals %d  %s\n",
 				entry.Timestamp, entry.Score, formatSlopDelta(entry.Score, previousScore, hasPrevious),
 				entry.Signals, formatScoreComponents(entry.Components))
-			previousScore = entry.Score
-			hasPrevious = true
-		}
-	}
-	return 0
+			return entry.Score
+		},
+	})
 }
 
 func writeSlopHistoryReport(stdout io.Writer, cfg service.Config, limit int) int {
 	path := service.SlopHistoryPath(cfg)
 	history := service.LoadSlopHistory(path)
-	if len(history) == 0 {
-		_, _ = fmt.Fprintf(stdout, "no slop-score history recorded at %s\n", path)
-		return exitOK
-	}
-	keys := make([]string, 0, len(history))
-	for key := range history {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		entries := history[key]
-		if limit > 0 && len(entries) > limit {
-			entries = entries[len(entries)-limit:]
-		}
-		_, _ = fmt.Fprintf(stdout, "%s\n", key)
-		previousScore := 0
-		hasPrevious := false
-		for _, entry := range entries {
+	return writeScoreHistoryReport(stdout, scoreHistoryReportSpec[service.SlopHistoryEntry]{
+		path:       path,
+		history:    history,
+		limit:      limit,
+		emptyLabel: "slop-score",
+		render: func(stdout io.Writer, entry service.SlopHistoryEntry, previousScore int, hasPrevious bool) int {
 			_, _ = fmt.Fprintf(stdout, "  %s  score %3d%s  signals %d  %s\n",
 				entry.Timestamp, entry.Score, formatSlopDelta(entry.Score, previousScore, hasPrevious),
 				entry.Signals, formatSlopComponents(entry))
-			previousScore = entry.Score
-			hasPrevious = true
-		}
-	}
-	return 0
+			return entry.Score
+		},
+	})
 }
 
 func formatSlopDelta(score int, previous int, hasPrevious bool) string {

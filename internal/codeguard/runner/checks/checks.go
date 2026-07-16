@@ -214,9 +214,10 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 
 // scriptFileParser wires the tree-sitter ParserProvider seam. The hook stays
 // nil unless parsers.treesitter is "auto", so the default configuration
-// behaves exactly as before this seam existed: every script rule takes its
-// regex path. When enabled, parses are memoized per scan by the shared file
-// corpus (one parse per file no matter how many sections query it).
+// behaves exactly as before this seam existed: every non-Go rule keeps its
+// native fallback path. When enabled, parses are memoized per scan by the
+// shared file corpus (one parse per file no matter how many sections query
+// it).
 func scriptFileParser(sc runnersupport.Context) func(string, []byte, checkSupport.ScriptLanguage) (*checkSupport.SyntaxTree, error) {
 	if !sc.Cfg.Parsers.TreeSitterEnabled() {
 		return nil

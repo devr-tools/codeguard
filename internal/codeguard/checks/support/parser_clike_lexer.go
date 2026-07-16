@@ -7,11 +7,12 @@ const (
 	CLikeTypeScript CLikeLanguage = "typescript"
 	CLikeJava       CLikeLanguage = "java"
 	CLikeRust       CLikeLanguage = "rust"
+	CLikeCPP        CLikeLanguage = "cpp"
 	CLikeGo         CLikeLanguage = "go"
 )
 
 // MaskCLikeSource blanks comments and string literal contents for TS/JS,
-// Java, Rust, and Go while preserving byte offsets and newlines exactly.
+// Java, Rust, C++, and Go while preserving byte offsets and newlines exactly.
 // Template literal interpolations (`${expr}`) stay visible.
 func MaskCLikeSource(source string, lang CLikeLanguage) string {
 	masker := &clikeMasker{sourceMasker: newSourceMasker(source), lang: lang}
@@ -27,26 +28,51 @@ type clikeMasker struct {
 }
 
 func (m *clikeMasker) step() {
+	if m.maskCommentOrString() {
+		return
+	}
+	m.idx++
+}
+
+func (m *clikeMasker) maskCommentOrString() bool {
+	if m.maskCommentStart() {
+		return true
+	}
+	return m.maskLiteralStart()
+}
+
+func (m *clikeMasker) maskCommentStart() bool {
 	switch {
 	case m.matches("//"):
 		m.maskUntilNewline()
 	case m.matches("/*"):
 		m.maskBlockComment()
+	default:
+		return false
+	}
+	return true
+}
+
+func (m *clikeMasker) maskLiteralStart() bool {
+	switch {
 	case m.lang == CLikeJava && m.matches(`"""`):
 		m.maskJavaTextBlock()
 	case m.src[m.idx] == '"':
 		m.maskQuoted('"', m.lang == CLikeRust)
 	case m.src[m.idx] == '\'':
-		m.handleSingleQuote()
+		handleSingleQuote(m)
 	case m.lang == CLikeTypeScript && m.src[m.idx] == '`':
 		m.maskTemplate()
 	case m.lang == CLikeGo && m.src[m.idx] == '`':
-		m.maskGoRawString()
+		maskGoRawString(m)
+	case m.lang == CLikeCPP && m.cppRawStringAhead():
+		m.maskCPPRawString()
 	case m.lang == CLikeRust && m.rustRawStringAhead():
 		m.maskRustRawString()
 	default:
-		m.idx++
+		return false
 	}
+	return true
 }
 
 func (m *clikeMasker) maskBlockComment() {

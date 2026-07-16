@@ -190,6 +190,43 @@ func TestParseJavaStructure(t *testing.T) {
 	}
 }
 
+const trickyCPP = `#include <regex>
+#include "widget.hpp"
+
+// int commented(int x) { return x; }
+std::string Demo::render(const std::vector<std::string>& rows, int count) {
+    const char* raw = R"(int fake_inner() { return 1; })";
+    std::string out = "";
+    auto nested = [](const std::string& row) { return row.size(); };
+    out += rows.front();
+    return out;
+}
+`
+
+func TestParseCPPStructure(t *testing.T) {
+	file := support.ParseCLike(trickyCPP, support.CLikeCPP)
+
+	if file.FunctionByName("commented") != nil {
+		t.Fatal("function inside comment must not parse")
+	}
+	if file.FunctionByName("fake_inner") != nil {
+		t.Fatal("function inside raw string must not parse")
+	}
+	render := file.FunctionByName("Demo::render")
+	if render == nil {
+		t.Fatalf("render not found; functions: %v", functionNames(file))
+	}
+	if len(render.Params) != 2 || render.Params[0].Name != "rows" || render.Params[1].Name != "count" {
+		t.Fatalf("render params = %+v", render.Params)
+	}
+	if kind, ok := render.Lookup("out"); !ok || kind != support.SymbolLocal {
+		t.Fatalf("out = (%v,%v), want local", kind, ok)
+	}
+	if !hasImport(file.Imports, "regex", "regex") || !hasImport(file.Imports, "widget.hpp", "widget.hpp") {
+		t.Fatalf("cpp includes missing: %+v", file.Imports)
+	}
+}
+
 func functionNames(file *support.ParsedFile) []string {
 	allFns := file.AllFunctions()
 	names := make([]string, 0, len(allFns))

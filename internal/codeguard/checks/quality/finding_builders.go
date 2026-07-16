@@ -11,14 +11,15 @@ import (
 // while preserving the exact field values, so findings output is unchanged.
 // Rules with a known precision profile pick up their confidence from
 // aiRuleConfidence; everything else stays at the unspecified/medium default.
-func warnFinding(env support.Context, ruleID string, file string, line int, column int, message string) core.Finding {
+func warnFinding(env support.Context, args ...any) core.Finding {
+	ruleID := args[0].(string)
 	return env.NewFinding(support.FindingInput{
 		RuleID:     ruleID,
 		Level:      "warn",
-		Path:       file,
-		Line:       line,
-		Column:     column,
-		Message:    message,
+		Path:       args[1].(string),
+		Line:       args[2].(int),
+		Column:     args[3].(int),
+		Message:    args[4].(string),
 		Confidence: aiRuleConfidence[ruleID],
 	})
 }

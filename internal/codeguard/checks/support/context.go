@@ -44,9 +44,9 @@ type Context struct {
 	ReadTargetFile  func(target core.TargetConfig, rel string) ([]byte, error)
 	ScanTargetFiles func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding
 	ParseGoFile     func(path string, data []byte) (*token.FileSet, *ast.File, error)
-	// ParseScriptFile parses a TypeScript/TSX/JavaScript file through the
-	// tree-sitter substrate. It is nil unless parsers.treesitter is "auto";
-	// checks treat nil (and any error) as "use the regex path".
+	// ParseScriptFile parses one supported non-Go file through the tree-sitter
+	// substrate. It is nil unless parsers.treesitter is "auto"; checks treat
+	// nil (and any error) as "use the native fallback path".
 	ParseScriptFile        func(path string, data []byte, lang ScriptLanguage) (*SyntaxTree, error)
 	NewFinding             func(FindingInput) core.Finding
 	FinalizeSection        func(id string, name string, findings []core.Finding) core.SectionResult

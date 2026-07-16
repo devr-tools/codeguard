@@ -18,10 +18,11 @@ type Config struct {
 // ParsersConfig selects the parsing substrate for non-Go languages.
 type ParsersConfig struct {
 	// TreeSitter controls the tree-sitter parsing path for
-	// TypeScript/TSX/JavaScript rules: "off" (default) keeps the regex-based
-	// scanners exactly as they are; "auto" parses script files through the
-	// embedded tree-sitter grammars and falls back to the regex path per file
-	// on parse failure, oversized input, or error-heavy trees.
+	// TypeScript/TSX/JavaScript plus migrated Python/C++ rules: "off"
+	// (default) keeps the regex/native scanners exactly as they are; "auto"
+	// parses supported files through the embedded tree-sitter grammars and
+	// falls back to the native path per file on parse failure, oversized
+	// input, or error-heavy trees.
 	TreeSitter string `json:"treesitter,omitempty" yaml:"treesitter,omitempty"`
 }
 

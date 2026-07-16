@@ -20,32 +20,15 @@ func prepareDiffCommandEnv(ctx context.Context, dir string, baseRef string) (dif
 		return diffCommandEnv{}, func() {}, err
 	}
 
-	repoRoot, err := gitRepoRoot(ctx, dir)
+	repoRoot, dir, err := resolveDiffPaths(ctx, dir)
 	if err != nil {
 		return diffCommandEnv{}, func() {}, err
 	}
 
-	repoRoot, err = canonicalPath(repoRoot)
-	if err != nil {
-		return diffCommandEnv{}, func() {}, fmt.Errorf("canonicalize repo root: %w", err)
-	}
-	dir, err = canonicalPath(dir)
-	if err != nil {
-		return diffCommandEnv{}, func() {}, fmt.Errorf("canonicalize target path: %w", err)
-	}
-
-	relativeTarget, err := filepath.Rel(repoRoot, dir)
-	if err != nil {
-		return diffCommandEnv{}, func() {}, fmt.Errorf("resolve target path: %w", err)
-	}
-
-	tempRoot, err := os.MkdirTemp("", "codeguard-diff-check-*")
+	relativeTarget, tempRoot, headRoot, baseWorktree, err := newDiffWorkspace(repoRoot, dir)
 	if err != nil {
 		return diffCommandEnv{}, func() {}, err
 	}
-
-	headRoot := filepath.Join(tempRoot, "head")
-	baseWorktree := filepath.Join(tempRoot, "base-worktree")
 	// Cleanup deliberately uses context.Background(): it runs via defer and
 	// must still remove the worktree after the caller's ctx is cancelled.
 	cleanup := func() { //nolint:contextcheck // see comment above
@@ -69,17 +52,52 @@ func prepareDiffCommandEnv(ctx context.Context, dir string, baseRef string) (dif
 	}
 
 	baseDir := filepath.Join(baseWorktree, relativeTarget)
-	if info, err := os.Stat(baseDir); err != nil || !info.IsDir() {
-		if err := os.MkdirAll(baseDir, 0o750); err != nil {
-			cleanup()
-			return diffCommandEnv{}, func() {}, fmt.Errorf("prepare base target dir: %w", err)
-		}
+	if err := ensureDir(baseDir); err != nil {
+		cleanup()
+		return diffCommandEnv{}, func() {}, fmt.Errorf("prepare base target dir: %w", err)
 	}
 
 	return diffCommandEnv{
 		baseDir: baseDir,
 		headDir: headRoot,
 	}, cleanup, nil
+}
+
+func newDiffWorkspace(repoRoot string, dir string) (string, string, string, string, error) {
+	relativeTarget, err := filepath.Rel(repoRoot, dir)
+	if err != nil {
+		return "", "", "", "", fmt.Errorf("resolve target path: %w", err)
+	}
+	tempRoot, err := os.MkdirTemp("", "codeguard-diff-check-*")
+	if err != nil {
+		return "", "", "", "", err
+	}
+	headRoot := filepath.Join(tempRoot, "head")
+	baseWorktree := filepath.Join(tempRoot, "base-worktree")
+	return relativeTarget, tempRoot, headRoot, baseWorktree, nil
+}
+
+func resolveDiffPaths(ctx context.Context, dir string) (string, string, error) {
+	repoRoot, err := gitRepoRoot(ctx, dir)
+	if err != nil {
+		return "", "", err
+	}
+	repoRoot, err = canonicalPath(repoRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("canonicalize repo root: %w", err)
+	}
+	dir, err = canonicalPath(dir)
+	if err != nil {
+		return "", "", fmt.Errorf("canonicalize target path: %w", err)
+	}
+	return repoRoot, dir, nil
+}
+
+func ensureDir(path string) error {
+	if info, err := os.Stat(path); err == nil && info.IsDir() {
+		return nil
+	}
+	return os.MkdirAll(path, 0o750)
 }
 
 func canonicalPath(path string) (string, error) {

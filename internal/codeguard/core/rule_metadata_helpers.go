@@ -5,6 +5,33 @@ import (
 	"strings"
 )
 
+var canonicalRuleLanguages = map[string]RuleLanguage{
+	"go":         RuleLanguageGo,
+	"golang":     RuleLanguageGo,
+	"python":     RuleLanguagePython,
+	"py":         RuleLanguagePython,
+	"typescript": RuleLanguageTypeScript,
+	"ts":         RuleLanguageTypeScript,
+	"tsx":        RuleLanguageTypeScript,
+	"javascript": RuleLanguageJavaScript,
+	"js":         RuleLanguageJavaScript,
+	"jsx":        RuleLanguageJavaScript,
+	"mjs":        RuleLanguageJavaScript,
+	"cjs":        RuleLanguageJavaScript,
+	"rust":       RuleLanguageRust,
+	"rs":         RuleLanguageRust,
+	"java":       RuleLanguageJava,
+	"c++":        RuleLanguageCPP,
+	"cpp":        RuleLanguageCPP,
+	"cxx":        RuleLanguageCPP,
+	"cc":         RuleLanguageCPP,
+	"csharp":     RuleLanguageCSharp,
+	"cs":         RuleLanguageCSharp,
+	"dotnet":     RuleLanguageCSharp,
+	"ruby":       RuleLanguageRuby,
+	"rb":         RuleLanguageRuby,
+}
+
 func FixedRuleLanguageCoverage(languages ...RuleLanguage) RuleLanguageCoverage {
 	return RuleLanguageCoverage{
 		Mode:      RuleLanguageCoverageFixed,
@@ -58,7 +85,7 @@ func defaultRuleLanguageCoverage(ruleID string, executionModel RuleExecutionMode
 		"quality.max-parameters",
 		"quality.cyclomatic-complexity",
 		"ci.test-file-location":
-		return FixedRuleLanguageCoverage(RuleLanguageGo, RuleLanguagePython, RuleLanguageTypeScript)
+		return FixedRuleLanguageCoverage(RuleLanguageGo, RuleLanguagePython, RuleLanguageTypeScript, RuleLanguageCPP)
 	case "quality.command-check", "security.command-check", "design.diff-command-check":
 		return ConfigurableRuleLanguageCoverage()
 	case
@@ -138,24 +165,5 @@ func ruleLanguageFromRuleID(ruleID string) (RuleLanguage, bool) {
 }
 
 func canonicalRuleLanguage(language RuleLanguage) RuleLanguage {
-	switch strings.ToLower(strings.TrimSpace(string(language))) {
-	case "go", "golang":
-		return RuleLanguageGo
-	case "python", "py":
-		return RuleLanguagePython
-	case "typescript", "ts", "tsx":
-		return RuleLanguageTypeScript
-	case "javascript", "js", "jsx", "mjs", "cjs":
-		return RuleLanguageJavaScript
-	case "rust", "rs":
-		return RuleLanguageRust
-	case "java":
-		return RuleLanguageJava
-	case "csharp", "cs", "dotnet":
-		return RuleLanguageCSharp
-	case "ruby", "rb":
-		return RuleLanguageRuby
-	default:
-		return ""
-	}
+	return canonicalRuleLanguages[strings.ToLower(strings.TrimSpace(string(language)))]
 }
