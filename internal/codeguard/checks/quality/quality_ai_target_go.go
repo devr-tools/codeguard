@@ -3,7 +3,6 @@ package quality
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -24,17 +23,15 @@ func goAITargetFindings(env support.Context, target core.TargetConfig) []core.Fi
 		return nil
 	}
 	metadata := readGoModuleMetadata(target.Path)
-	dominant := dominantGoTestFramework(target.Path, files)
-	errorStyle := dominantGoErrorStyle(target.Path, files)
-	naming := dominantNamingConvention(target.Path, files, goDeclaredNames)
+	profile := goRepoStyleProfile(env, target, files)
 	packageFiles := map[string][]goParsedFile{}
 	findings := make([]core.Finding, 0)
 	for _, rel := range files {
-		fileFindings, parsedFile := goFileAIQualityFindings(env, target.Path, rel, goFileScanInput{
+		fileFindings, parsedFile := goFileAIQualityFindings(env, target, rel, goFileScanInput{
 			metadata:   metadata,
-			dominant:   dominant,
-			errorStyle: errorStyle,
-			naming:     naming,
+			dominant:   profile.testFramework,
+			errorStyle: profile.errorStyle,
+			naming:     profile.naming,
 		})
 		findings = append(findings, fileFindings...)
 		if parsedFile != nil {
@@ -57,9 +54,46 @@ type goFileScanInput struct {
 	naming     string
 }
 
-func goFileAIQualityFindings(env support.Context, root string, rel string, input goFileScanInput) ([]core.Finding, *goParsedFile) {
-	abs := filepath.Join(root, rel)
-	data, err := os.ReadFile(abs) //nolint:gosec // path resolved under the scan-target root
+type goRepoStyle struct {
+	testFramework string
+	errorStyle    string
+	naming        string
+}
+
+// goRepoStyleProfile computes the three repository-dominant style signals
+// (test framework, error style, naming convention) in a single pass over the
+// corpus instead of one read of every file per signal. Each signal is an
+// independent per-file sum, so folding them into one loop is
+// behavior-identical to the previous three passes.
+func goRepoStyleProfile(env support.Context, target core.TargetConfig, files []string) goRepoStyle {
+	frameworkCounts := map[string]int{}
+	styleTotals := map[string]int{}
+	namingTotals := map[string]int{}
+	for _, rel := range files {
+		data, err := readAITargetFile(env, target, rel)
+		if err != nil {
+			continue
+		}
+		source := string(data)
+		if framework := goTestFramework(source); framework != "" {
+			frameworkCounts[framework]++
+		}
+		for style, count := range goErrorStyleCounts(source) {
+			styleTotals[style] += count
+		}
+		for convention, count := range namingCounts(source, goDeclaredNames) {
+			namingTotals[convention] += count
+		}
+	}
+	return goRepoStyle{
+		testFramework: dominantFrameworkFromCounts(frameworkCounts),
+		errorStyle:    dominantStyleFromTotals(styleTotals),
+		naming:        dominantStyleFromTotals(namingTotals),
+	}
+}
+
+func goFileAIQualityFindings(env support.Context, target core.TargetConfig, rel string, input goFileScanInput) ([]core.Finding, *goParsedFile) {
+	data, err := readAITargetFile(env, target, rel)
 	if err != nil {
 		return nil, nil
 	}
@@ -67,8 +101,7 @@ func goFileAIQualityFindings(env support.Context, root string, rel string, input
 	checks := env.Config.Checks.QualityRules.AIChecks
 	findings := make([]core.Finding, 0)
 	var parsedFile *goParsedFile
-	fset := token.NewFileSet()
-	if parsed, err := parser.ParseFile(fset, abs, data, 0); err == nil {
+	if fset, parsed, err := support.ParseGoSource(env, rel, data); err == nil {
 		parsedFile = &goParsedFile{rel: rel, fset: fset, parsed: parsed}
 		if aiCheckEnabled(checks.HallucinatedImport) {
 			findings = append(findings, goHallucinatedImportFindings(env, rel, fset, parsed, input.metadata)...)

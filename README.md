@@ -95,13 +95,13 @@ codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 
 `codeguard rules` prints each rule's level, execution model, language coverage, section, and title. `codeguard explain <rule-id>` includes the same metadata for a single rule.
 
-By default, `codeguard` looks for `codeguard.yaml`, `codeguard.yml`, or `codeguard.json` in the repository root. If those are missing, it also checks `.codeguard/codeguard.yaml`, `.codeguard/codeguard.yml`, and `.codeguard/codeguard.json`.
+By default, `codeguard` looks for `codeguard.yaml`, `codeguard.yml`, or `codeguard.json` in the repository root. If those are missing, it also checks for the same file names inside a `.codeguard/` directory.
 
 If you point `-config` at a directory such as `.codeguard`, `codeguard` will look inside it for `codeguard.*` or `config.*` files.
 
 Text output includes ANSI color and emoji markers by default. Set `NO_COLOR=1` if you want plain terminal output.
 
-If you want a JSON starting point instead, use [examples/codeguard.json](/Users/alex/Documents/GitHub/codeguard/examples/codeguard.json:1).
+If you want a JSON starting point instead, use [examples/codeguard.json](examples/codeguard.json).
 
 ## SDK
 
@@ -129,16 +129,16 @@ func main() {
 
 ## Docs
 
-- [Getting started](/Users/alex/Documents/GitHub/codeguard/docs/getting-started.md:1)
-- [Features](/Users/alex/Documents/GitHub/codeguard/docs/features.md:1)
-- [Security & OWASP](/Users/alex/Documents/GitHub/codeguard/docs/security.md:1)
-- [AI-generated code quality](/Users/alex/Documents/GitHub/codeguard/docs/ai-quality.md:1)
-- [Agent-native features](/Users/alex/Documents/GitHub/codeguard/docs/agent-native.md:1)
-- [Integrations](/Users/alex/Documents/GitHub/codeguard/docs/integrations.md:1)
-- [Hook-pack examples](/Users/alex/Documents/GitHub/codeguard/examples/hooks/README.md:1)
-- [SDK guide](/Users/alex/Documents/GitHub/codeguard/docs/sdk.md:1)
-- [Release automation](/Users/alex/Documents/GitHub/codeguard/docs/release-automation.md:1)
-- [Homebrew packaging](/Users/alex/Documents/GitHub/codeguard/docs/homebrew.md:1)
-- [Checks reference](/Users/alex/Documents/GitHub/codeguard/docs/checks.md:1)
-- [Architecture](/Users/alex/Documents/GitHub/codeguard/docs/architecture.md:1)
-- [Competitive roadmap](/Users/alex/Documents/GitHub/codeguard/docs/competitive-roadmap.md:1)
+- [Getting started](docs/getting-started.md)
+- [Features](docs/features.md)
+- [Security & OWASP](docs/security.md)
+- [AI-generated code quality](docs/ai-quality.md)
+- [Agent-native features](docs/agent-native.md)
+- [Integrations](docs/integrations.md)
+- [Hook-pack examples](examples/hooks/README.md)
+- [SDK guide](docs/sdk.md)
+- [Release automation](docs/release-automation.md)
+- [Homebrew packaging](docs/homebrew.md)
+- [Checks reference](docs/checks.md)
+- [Architecture](docs/architecture.md)
+- [Competitive roadmap](docs/competitive-roadmap.md)

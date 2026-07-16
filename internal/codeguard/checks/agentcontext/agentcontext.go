@@ -27,40 +27,60 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 // even when individual rules are muted.
 func targetFindings(env support.Context, target core.TargetConfig) []core.Finding {
 	rules := env.Config.Checks.ContextRules
-	assessment, driftFound := assessTarget(env, target)
+	assessment, driftFound, readiness := assessTarget(env, target)
 	findings := make([]core.Finding, 0)
 	if ruleEnabled(rules.DetectMissingAgentDocs) && len(assessment.agentDocs) == 0 {
 		findings = append(findings, missingAgentDocsFinding(env))
 	}
 	if ruleEnabled(rules.DetectAgentDocsDrift) {
-		findings = append(findings, driftFound.agentDocs...)
+		findings = append(findings, driftFound.agentDocs.findings...)
 	}
 	if ruleEnabled(rules.DetectReadmeDrift) {
-		findings = append(findings, driftFound.readme...)
+		findings = append(findings, driftFound.readme.findings...)
 	}
 	if ruleEnabled(rules.DetectOversizedFiles) {
 		findings = append(findings, oversizedFindings(env, assessment.inventory, assessment.maxFileLines)...)
 	}
 	if ruleEnabled(rules.DetectAmbiguousSymbols) {
-		findings = append(findings, ambiguousBasenameFindings(env, assessment.inventory, ambiguousThreshold(rules))...)
+		findings = append(findings, ambiguousBasenameFindings(env, assessment.ambiguousGroups)...)
 	}
+	if ruleEnabled(rules.DetectUndocumentedCommands) {
+		findings = append(findings, readiness.undocumentedCommands...)
+	}
+	if ruleEnabled(rules.DetectOversizedAgentDocs) {
+		findings = append(findings, readiness.oversizedAgentDocs...)
+	}
+	if ruleEnabled(rules.DetectDocLinkRot) {
+		findings = append(findings, readiness.docLinkRot...)
+	}
+	artifact := legibilityArtifact(target, assessment)
+	findings = append(findings, legibilityThresholdFindings(env, artifact.RepoLegibility)...)
 	if env.PutArtifact != nil {
-		env.PutArtifact(legibilityArtifact(target, assessment))
+		recordLegibilityHistory(env, &artifact)
+		env.PutArtifact(artifact)
 	}
 	return findings
 }
 
-// driftResults keeps the two drift rules' findings separate so toggles gate
-// them independently while the artifact counts both.
+// driftResults keeps the two drift rules' resolutions separate so toggles
+// gate their findings independently while the artifact counts both.
 type driftResults struct {
-	agentDocs []core.Finding
-	readme    []core.Finding
+	agentDocs docResolution
+	readme    docResolution
 }
 
-// assessTarget performs every measurement once: doc presence, drift
-// resolution, and the source inventory walk shared by the size and basename
-// rules and the legibility score.
-func assessTarget(env support.Context, target core.TargetConfig) (targetAssessment, driftResults) {
+// readinessResults carries the AI-and-human-readiness rules' findings, each
+// gated by its own toggle in targetFindings.
+type readinessResults struct {
+	undocumentedCommands []core.Finding
+	oversizedAgentDocs   []core.Finding
+	docLinkRot           []core.Finding
+}
+
+// assessTarget performs every measurement once: doc presence, drift and
+// readiness resolution, and the source inventory walk shared by the size and
+// basename rules and the legibility score.
+func assessTarget(env support.Context, target core.TargetConfig) (targetAssessment, driftResults, readinessResults) {
 	rules := env.Config.Checks.ContextRules
 	resolver := newRepoResolver(target.Path)
 	assessment := targetAssessment{
@@ -68,14 +88,22 @@ func assessTarget(env support.Context, target core.TargetConfig) (targetAssessme
 		readmePresent: resolver.pathExists("README.md"),
 		maxFileLines:  contextBudgetLines(rules),
 	}
+	assessment.agentDocLines = agentDocSubstance(target.Path, assessment.agentDocs)
 	drift := driftResults{
-		agentDocs: agentDocsDriftFindings(env, resolver, assessment.agentDocs),
-		readme:    readmeDriftFindings(env, resolver),
+		agentDocs: agentDocsDrift(env, resolver, assessment.agentDocs),
+		readme:    readmeDrift(env, resolver),
 	}
-	assessment.driftReferences = len(drift.agentDocs) + len(drift.readme)
+	readiness := readinessResults{
+		undocumentedCommands: undocumentedCommandFindings(env, resolver, assessment.agentDocs),
+		oversizedAgentDocs:   oversizedAgentDocFindings(env, resolver.root, assessment.agentDocs, maxAgentDocLinesBudget(rules)),
+		docLinkRot:           docLinkRotFindings(env, resolver, assessment.agentDocs),
+	}
+	assessment.agentDocBrokenRefs = drift.agentDocs.broken
+	assessment.brokenReferences = drift.agentDocs.broken + drift.readme.broken
+	assessment.totalReferences = drift.agentDocs.total + drift.readme.total
 	assessment.inventory = collectSourceInventory(env, target, assessment.maxFileLines)
-	assessment.ambiguousGroups = ambiguousBasenameGroups(assessment.inventory, ambiguousThreshold(rules))
-	return assessment, drift
+	assessment.ambiguousGroups = ambiguousBasenameGroups(assessment.inventory, ambiguousThreshold(rules), ambiguousIgnoreSet(rules))
+	return assessment, drift, readiness
 }
 
 // ruleEnabled treats a nil toggle as enabled: the family's rules are opt-out.

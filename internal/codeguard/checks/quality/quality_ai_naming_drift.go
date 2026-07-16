@@ -2,8 +2,6 @@ package quality
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -62,10 +60,10 @@ func namingCounts(source string, extract nameExtractor) map[string]int {
 
 // dominantNamingConvention establishes the repository-dominant identifier
 // convention for the language, requiring a minimum amount of signal.
-func dominantNamingConvention(root string, files []string, extract nameExtractor) string {
+func dominantNamingConvention(env support.Context, target core.TargetConfig, files []string, extract nameExtractor) string {
 	totals := map[string]int{}
 	for _, rel := range files {
-		data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
+		data, err := readAITargetFile(env, target, rel)
 		if err != nil {
 			continue
 		}
@@ -73,11 +71,7 @@ func dominantNamingConvention(root string, files []string, extract nameExtractor
 			totals[convention] += count
 		}
 	}
-	dominant := dominantFrameworkFromCounts(totals)
-	if totals[dominant] < 3 {
-		return ""
-	}
-	return dominant
+	return dominantStyleFromTotals(totals)
 }
 
 func namingDriftFinding(env support.Context, file string, source string, dominant string, extract nameExtractor) []core.Finding {

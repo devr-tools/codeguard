@@ -17,16 +17,23 @@ func runReport(args []string, stdout io.Writer, stderr io.Writer) int {
 	profile := fs.String("profile", "", "optional policy profile override")
 	slopHistory := fs.Bool("slop-history", false, "print the persisted slop-score trend per target")
 	perfHistory := fs.Bool("perf-history", false, "print the persisted performance-score trend per target")
+	legibilityHistory := fs.Bool("legibility-history", false, "print the persisted repo-legibility score trend per target")
 	limit := fs.Int("limit", 0, "maximum history entries to print per target (0 = all)")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
-	if !*slopHistory && !*perfHistory {
-		_, _ = fmt.Fprintln(stderr, "report requires a mode flag: -slop-history or -perf-history")
+	modes := 0
+	for _, enabled := range []bool{*slopHistory, *perfHistory, *legibilityHistory} {
+		if enabled {
+			modes++
+		}
+	}
+	if modes == 0 {
+		_, _ = fmt.Fprintln(stderr, "report requires a mode flag: -slop-history, -perf-history, or -legibility-history")
 		return exitError
 	}
-	if *slopHistory && *perfHistory {
-		_, _ = fmt.Fprintln(stderr, "report accepts only one mode flag: -slop-history or -perf-history")
+	if modes > 1 {
+		_, _ = fmt.Fprintln(stderr, "report accepts only one mode flag: -slop-history, -perf-history, or -legibility-history")
 		return exitError
 	}
 
@@ -36,6 +43,9 @@ func runReport(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	if *perfHistory {
 		return writePerfHistoryReport(stdout, cfg, *limit)
+	}
+	if *legibilityHistory {
+		return writeLegibilityHistoryReport(stdout, cfg, *limit)
 	}
 	return writeSlopHistoryReport(stdout, cfg, *limit)
 }

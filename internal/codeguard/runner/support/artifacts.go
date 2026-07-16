@@ -76,6 +76,21 @@ func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string)
 	}
 }
 
+// ListTargetFiles returns every non-excluded file under the target root,
+// sharing the per-scan corpus walk with every other section (the same listing
+// VisitTargetFiles iterates). Callers apply their own include filter to the
+// result.
+func ListTargetFiles(sc Context, target core.TargetConfig) ([]string, error) {
+	return sc.corpusFiles(target.Path)
+}
+
+// ReadTargetFile returns the bytes of target-root-relative rel via the shared
+// per-scan corpus, so a file inspected by several checks is read from disk at
+// most once per scan.
+func ReadTargetFile(sc Context, target core.TargetConfig, rel string) ([]byte, error) {
+	return sc.corpusRead(target.Path, rel)
+}
+
 // ChangedDiffFiles returns the sorted set of changed file paths in diff mode.
 func ChangedDiffFiles(sc Context) []string {
 	if len(sc.Diff) == 0 {

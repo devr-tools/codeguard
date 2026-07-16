@@ -43,6 +43,16 @@ var contextCatalog = map[string]core.RuleMetadata{
 		Description:      "Warns when a source file exceeds the agent context budget (context_rules.max_file_lines, default 1500): a file that large crowds out the rest of an AI agent's working context.",
 		HowToFix:         "Split the file into smaller, focused units so an agent can load only the part relevant to its task; extract cohesive sections into their own files.",
 	},
+	"context.legibility-threshold": {
+		ID:               "context.legibility-threshold",
+		Section:          "Agent Context",
+		DefaultLevel:     "warn",
+		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.RepositoryWideRuleLanguageCoverage(),
+		Title:            "Repository legibility below threshold",
+		Description:      "Fires when the repo_legibility score (0-100, higher is better) falls below a configured floor: warns below context_rules.legibility_warn_threshold and fails below context_rules.legibility_fail_threshold (0 disables each). The message carries the per-component breakdown so the weakest signal is visible.",
+		HowToFix:         "Raise the weakest components named in the finding: give agent docs real substance and fix their stale references, repair broken doc/README references, split files that exceed the context budget, and rename duplicated basenames — or lower the configured threshold if the current bar is intentional.",
+	},
 	"context.ambiguous-symbol": {
 		ID:               "context.ambiguous-symbol",
 		Section:          "Agent Context",
