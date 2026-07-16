@@ -25,6 +25,7 @@ var performanceScoreWeights = map[string]int{
 	"performance.python.sync-io-in-async":       4,
 
 	"performance.unbounded-goroutines-in-loop":     4,
+	"performance.cpp.unbounded-concurrency":        4,
 	"performance.typescript.unbounded-concurrency": 4,
 	"performance.javascript.unbounded-concurrency": 4,
 	"performance.python.unbounded-concurrency":     4,

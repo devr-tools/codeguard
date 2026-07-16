@@ -20,6 +20,14 @@ func TestSecurityCheckFindsAdditionalLanguagePatterns(t *testing.T) {
 		ruleIDs  []string
 	}{
 		{
+			name:     "cpp",
+			language: "cpp",
+			path:     "src/sample.cpp",
+			source:   "void run(CURL* curl, char* dst, const char* src) {\n  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);\n  std::system(\"echo ok\");\n  strcpy(dst, src);\n  // system(\"ignored\");\n  const char* ignored = R\"(SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, nullptr))\";\n}\n",
+			status:   "fail",
+			ruleIDs:  []string{"security.cpp.insecure-tls", "security.cpp.shell-execution", "security.cpp.unsafe-c-api"},
+		},
+		{
 			name:     "rust",
 			language: "rust",
 			path:     "src/lib.rs",

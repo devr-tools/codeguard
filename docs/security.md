@@ -66,12 +66,12 @@ Example:
 OWASP Top 10 (2021) coverage: 9/10 categories have rules
 
 [ok  ] A01:2021-Broken Access Control (2 rules)
-[ok  ] A02:2021-Cryptographic Failures (11 rules)
-[ok  ] A03:2021-Injection (24 rules)
+[ok  ] A02:2021-Cryptographic Failures (12 rules)
+[ok  ] A03:2021-Injection (26 rules)
 [gap ] A04:2021-Insecure Design (0 rules)
-[ok  ] A05:2021-Security Misconfiguration (4 rules)
+[ok  ] A05:2021-Security Misconfiguration (5 rules)
 [ok  ] A06:2021-Vulnerable and Outdated Components (1 rules)
-[ok  ] A07:2021-Identification and Authentication Failures (1 rules)
+[ok  ] A07:2021-Identification and Authentication Failures (3 rules)
 [ok  ] A08:2021-Software and Data Integrity Failures (1 rules)
 [ok  ] A09:2021-Security Logging and Monitoring Failures (2 rules)
 [ok  ] A10:2021-Server-Side Request Forgery (SSRF) (2 rules)

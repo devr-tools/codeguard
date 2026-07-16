@@ -26,6 +26,8 @@ func appendAdditionalLanguageLineFindings(env support.Context, file string, line
 	switch {
 	case isRustFile(file):
 		return appendRustLineFindings(env, file, lineNo, raw, masked)
+	case isCPPFile(file):
+		return appendCPPLineFindings(env, file, lineNo, masked)
 	case isJavaFile(file):
 		return appendJavaLineFindings(env, file, lineNo, masked)
 	case isCSharpFile(file):

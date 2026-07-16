@@ -60,14 +60,14 @@ type PerformanceRulesConfig struct {
 	// framework evidence (imports or obvious idioms), so non-framework code
 	// never matches.
 	DetectFrameworkPatterns *bool `json:"detect_framework_patterns,omitempty" yaml:"detect_framework_patterns,omitempty"`
-	// DetectRebuildCascade flags Go packages whose import graph position makes
-	// them rebuild hot spots or rebuild-cascade amplifiers.
+	// DetectRebuildCascade flags Go packages and C++ headers/modules whose
+	// dependency-graph position makes them rebuild hot spots or amplifiers.
 	DetectRebuildCascade *bool `json:"detect_rebuild_cascade,omitempty" yaml:"detect_rebuild_cascade,omitempty"`
 	// HotPackageImporterThreshold is the direct importer count above which
-	// performance.go.hot-package fires. Zero means use the default threshold.
+	// the language-specific hot package/header rule fires. Zero uses the default.
 	HotPackageImporterThreshold int `json:"hot_package_importer_threshold,omitempty" yaml:"hot_package_importer_threshold,omitempty"`
 	// RebuildAmplifierThreshold is the transitive dependent count above which
-	// performance.go.rebuild-amplifier fires. Zero means use the default threshold.
+	// a language-specific rebuild-amplifier rule fires. Zero uses the default.
 	RebuildAmplifierThreshold int `json:"rebuild_amplifier_threshold,omitempty" yaml:"rebuild_amplifier_threshold,omitempty"`
 	// Budgets lists measured size gates over build artifacts (see
 	// PerformanceBudgetConfig); findings report as performance.budget.

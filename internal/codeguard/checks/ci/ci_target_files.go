@@ -3,6 +3,8 @@ package ci
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 )
 
 func isTargetTestFile(language, rel string) bool {
@@ -21,9 +23,40 @@ func isTargetTestFile(language, rel string) bool {
 		return isCSharpTestFile(rel)
 	case "ruby", "rb":
 		return isRubyTestFile(rel)
+	case "c++", "cpp", "cxx", "cc":
+		return isCPPTestFile(rel)
 	default:
 		return false
 	}
+}
+
+func isCPPTestFile(rel string) bool {
+	if !support.IsCPPPath(rel, true) {
+		return false
+	}
+	slashPath := strings.ToLower(filepath.ToSlash(rel))
+	base := filepath.Base(slashPath)
+	stem := strings.TrimSuffix(base, filepath.Ext(base))
+	originalBase := filepath.Base(rel)
+	originalStem := strings.TrimSuffix(originalBase, filepath.Ext(originalBase))
+	if stem == "test" || stem == "tests" || stem == "unittest" || stem == "unittests" ||
+		strings.HasPrefix(stem, "test_") || strings.HasPrefix(stem, "tests_") {
+		return true
+	}
+	for _, suffix := range []string{"_test", "_tests", "_unittest", "_unittests"} {
+		if strings.HasSuffix(stem, suffix) {
+			return true
+		}
+	}
+	if strings.HasSuffix(originalStem, "Test") || strings.HasSuffix(originalStem, "Tests") {
+		return true
+	}
+	for _, directory := range []string{"test", "tests", "unittest", "unittests"} {
+		if strings.HasPrefix(slashPath, directory+"/") || strings.Contains(slashPath, "/"+directory+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizedLanguage(language string) string {

@@ -196,7 +196,6 @@ function normalizedModuleName(relPath) {
   return lower.slice(0, -path.extname(lower).length);
 }
 
-main();
 
 function analyzeDirectives(sourceFile, relPath, flavor) {
   const lines = sourceFile.text.replace(/\r\n/g, "\n").split("\n");

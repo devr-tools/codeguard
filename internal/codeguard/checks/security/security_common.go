@@ -67,6 +67,8 @@ func maskedSourceForFile(file string, source string) string {
 		return support.MaskPythonSource(source)
 	case isRustFile(file):
 		return support.MaskCLikeSource(source, support.CLikeRust)
+	case isCPPFile(file):
+		return support.MaskCLikeSource(source, support.CLikeCPP)
 	case isJavaFile(file), isCSharpFile(file):
 		return support.MaskCLikeSource(source, support.CLikeJava)
 	default:

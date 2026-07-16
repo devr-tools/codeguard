@@ -59,6 +59,8 @@ func parseLockfileState(path string, data []byte) (lockfileState, bool) {
 		return parseBunLockState(data), true
 	case "cargo.lock", "poetry.lock", "uv.lock":
 		return parsePackageBlockLockState(data), true
+	case "conan.lock":
+		return parseConanLockState(data)
 	default:
 		return lockfileState{}, false
 	}

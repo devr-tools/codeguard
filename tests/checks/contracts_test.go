@@ -65,6 +65,58 @@ func TestContractsGoExportedBreakingOnDeletedFile(t *testing.T) {
 	assertMessageContaining(t, messages, "func Gone was removed")
 }
 
+func TestContractsCPPPublicHeaderBreaking(t *testing.T) {
+	dir := initContractsRepo(t)
+	writeFile(t, filepath.Join(dir, "include", "demo", "client.hpp"), strings.Join([]string{
+		"#pragma once",
+		"namespace demo {",
+		"class Legacy {};",
+		"class Client {};",
+		"Client Fetch(const char* url, int timeout = 0);",
+		"void Keep(int value);",
+		"}",
+		"",
+	}, "\n"))
+	commitAll(t, dir, "base")
+
+	writeFile(t, filepath.Join(dir, "include", "demo", "client.hpp"), strings.Join([]string{
+		"#pragma once",
+		"namespace demo {",
+		"class Client {};",
+		"Client Fetch(const char* url);",
+		"void Keep(int renamed);",
+		"}",
+		"",
+	}, "\n"))
+
+	cfg := contractsTestConfig(dir)
+	cfg.Targets[0].Language = "cpp"
+	report := runContractsDiff(t, cfg)
+	assertSectionStatus(t, report, "API Contracts", "fail")
+	messages := contractsRuleMessages(report, "contracts.cpp-public-breaking")
+	assertMessageContaining(t, messages, "type Legacy was removed")
+	assertMessageContaining(t, messages, "function Fetch changed signature")
+	for _, message := range messages {
+		if strings.Contains(message, "function Keep") {
+			t.Fatalf("parameter rename must not be treated as a breaking change: %v", messages)
+		}
+	}
+}
+
+func TestContractsCPPIgnoresPrivateSourceHeaders(t *testing.T) {
+	dir := initContractsRepo(t)
+	writeFile(t, filepath.Join(dir, "src", "detail.hpp"), "class Internal {};\n")
+	commitAll(t, dir, "base")
+	writeFile(t, filepath.Join(dir, "src", "detail.hpp"), "class Replacement {};\n")
+
+	cfg := contractsTestConfig(dir)
+	cfg.Targets[0].Language = "cpp"
+	report := runContractsDiff(t, cfg)
+	if messages := contractsRuleMessages(report, "contracts.cpp-public-breaking"); len(messages) != 0 {
+		t.Fatalf("private source header produced contract findings: %v", messages)
+	}
+}
+
 func TestContractsOpenAPIBreaking(t *testing.T) {
 	dir := initContractsRepo(t)
 	writeFile(t, filepath.Join(dir, "openapi.yaml"), strings.Join([]string{

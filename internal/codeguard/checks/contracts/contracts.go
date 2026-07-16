@@ -23,6 +23,7 @@ func findingsForTarget(_ context.Context, env support.Context, target core.Targe
 	changed := changedFilesForTarget(env, target)
 	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each rule appends a variable number
 	findings = append(findings, goBreakingFindings(env, target, changed)...)
+	findings = append(findings, cppBreakingFindings(env, target, changed)...)
 	findings = append(findings, openAPIBreakingFindings(env, target, changed)...)
 	findings = append(findings, protoBreakingFindings(env, target, changed)...)
 	findings = append(findings, migrationFindings(env, target, changed)...)

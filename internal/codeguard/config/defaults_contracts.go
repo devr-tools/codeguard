@@ -6,6 +6,9 @@ func applyContractDefaults(dst *core.ContractRulesConfig, def core.ContractRules
 	if dst.GoExportedBreaking == nil {
 		dst.GoExportedBreaking = boolPtr(true)
 	}
+	if dst.CPPPublicBreaking == nil {
+		dst.CPPPublicBreaking = boolPtr(true)
+	}
 	if dst.OpenAPIBreaking == nil {
 		dst.OpenAPIBreaking = boolPtr(true)
 	}

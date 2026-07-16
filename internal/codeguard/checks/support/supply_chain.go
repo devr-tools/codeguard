@@ -34,6 +34,10 @@ func IsSupplyChainManifest(rel string) bool {
 		return true
 	case base == "cargo.toml":
 		return true
+	case base == "vcpkg.json":
+		return true
+	case base == "conanfile.txt":
+		return true
 	case strings.HasPrefix(base, "requirements") && strings.HasSuffix(base, ".txt"):
 		return true
 	default:
@@ -81,6 +85,10 @@ func parseSupplyChainManifest(root string, rel string, data []byte) (core.Supply
 		return parsePyprojectManifest(root, rel, data), true
 	case "cargo.toml":
 		return parseCargoManifest(root, rel, data), true
+	case "vcpkg.json":
+		return parseVCPKGManifest(root, rel, data)
+	case "conanfile.txt":
+		return parseConanTextManifest(root, rel, data), true
 	default:
 		if strings.HasPrefix(strings.ToLower(path.Base(rel)), "requirements") && strings.HasSuffix(strings.ToLower(path.Base(rel)), ".txt") {
 			return parseRequirementsManifest(root, rel, data), true

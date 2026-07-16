@@ -194,6 +194,7 @@ const trickyCPP = `#include <regex>
 #include "widget.hpp"
 
 // int commented(int x) { return x; }
+// #include "commented.hpp"
 std::string Demo::render(const std::vector<std::string>& rows, int count) {
     const char* raw = R"(int fake_inner() { return 1; })";
     std::string out = "";
@@ -224,6 +225,9 @@ func TestParseCPPStructure(t *testing.T) {
 	}
 	if !hasImport(file.Imports, "regex", "regex") || !hasImport(file.Imports, "widget.hpp", "widget.hpp") {
 		t.Fatalf("cpp includes missing: %+v", file.Imports)
+	}
+	if hasImport(file.Imports, "commented.hpp", "commented.hpp") {
+		t.Fatalf("commented include must not parse: %+v", file.Imports)
 	}
 }
 
