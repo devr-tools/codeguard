@@ -1,7 +1,7 @@
 # Base images are digest-pinned for build-input integrity (OWASP A08). The
 # trailing tag comment records the human-readable version; Dependabot bumps the
 # digest.
-FROM golang:1.26@sha256:079e59808d2d252516e27e3f3a9c003740dee7f75e55aa71528766d52bcfc16a AS build
+FROM golang:1.26@sha256:ae5a2316d12f3e78fd99177dad452e6ad4f240af2d71d57b480c3477f250fec6 AS build
 
 WORKDIR /src
 
