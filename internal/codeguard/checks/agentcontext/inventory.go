@@ -114,9 +114,15 @@ func oversizedFindings(env support.Context, inv sourceInventory, maxLines int) [
 
 // ambiguousBasenameGroups returns basenames shared by at least threshold
 // source files, with sorted locations, in deterministic basename order.
-func ambiguousBasenameGroups(inv sourceInventory, threshold int) [][]string {
+// Conventional basenames in the ignore set (index.ts, __init__.py, ...) are
+// skipped entirely: they neither fire context.ambiguous-symbol findings nor
+// count against the legibility navigability component.
+func ambiguousBasenameGroups(inv sourceInventory, threshold int, ignore map[string]struct{}) [][]string {
 	names := make([]string, 0, len(inv.basenames))
 	for name, locations := range inv.basenames {
+		if _, skip := ignore[strings.ToLower(name)]; skip {
+			continue
+		}
 		if len(locations) >= threshold {
 			names = append(names, name)
 		}
@@ -133,8 +139,7 @@ func ambiguousBasenameGroups(inv sourceInventory, threshold int) [][]string {
 
 // ambiguousBasenameFindings emits one finding per over-shared basename,
 // listing up to five locations.
-func ambiguousBasenameFindings(env support.Context, inv sourceInventory, threshold int) []core.Finding {
-	groups := ambiguousBasenameGroups(inv, threshold)
+func ambiguousBasenameFindings(env support.Context, groups [][]string) []core.Finding {
 	findings := make([]core.Finding, 0, len(groups))
 	for _, locations := range groups {
 		shown := locations
