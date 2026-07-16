@@ -197,6 +197,30 @@ type ContextRulesConfig struct {
 	// MaxAgentDocLines is the line budget for a single agent instruction file
 	// (default 600); larger docs crowd out the working context they document.
 	MaxAgentDocLines int `json:"max_agent_doc_lines,omitempty" yaml:"max_agent_doc_lines,omitempty"`
+	// AmbiguousSymbolIgnore lists source-file basenames that never count as
+	// ambiguous: conventional names imposed by a language or framework
+	// (index.ts, __init__.py, mod.rs, ...) are expected to repeat. When set it
+	// REPLACES the built-in default list entirely (set it to [] to disable
+	// ignoring); when omitted the documented default set applies. Ignored
+	// basenames are excluded from both context.ambiguous-symbol findings and
+	// the repo_legibility navigability component.
+	AmbiguousSymbolIgnore []string `json:"ambiguous_symbol_ignore,omitempty" yaml:"ambiguous_symbol_ignore,omitempty"`
+	// LegibilityWarnThreshold and LegibilityFailThreshold gate the
+	// repo_legibility score (0-100, higher is better). Unlike the slop-score
+	// thresholds — where a HIGH score is bad and the finding fires when the
+	// score rises to the threshold — legibility is good-high, so the
+	// context.legibility-threshold finding fires when the computed score falls
+	// BELOW a threshold. 0 disables a threshold; when both are set the fail
+	// threshold must be less than or equal to the warn threshold.
+	LegibilityWarnThreshold int `json:"legibility_warn_threshold,omitempty" yaml:"legibility_warn_threshold,omitempty"`
+	LegibilityFailThreshold int `json:"legibility_fail_threshold,omitempty" yaml:"legibility_fail_threshold,omitempty"`
+	// LegibilityHistory gates persistence of the repo_legibility score trend
+	// next to the scan cache (nil = enabled, mirroring
+	// performance_rules.score_history and ai_checks.slop_history).
+	LegibilityHistory *bool `json:"legibility_history,omitempty" yaml:"legibility_history,omitempty"`
+	// LegibilityHistoryLimit caps retained repo_legibility history entries per
+	// target (0 = default limit of 100).
+	LegibilityHistoryLimit int `json:"legibility_history_limit,omitempty" yaml:"legibility_history_limit,omitempty"`
 }
 
 type CommandCheckConfig struct {
