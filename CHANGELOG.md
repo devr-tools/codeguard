@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.2](https://github.com/devr-tools/codeguard/compare/v0.8.1...v0.8.2) (2026-07-16)
+
+
+### Bug Fixes
+
+* **quality:** keep exec error in coverage-command failure chain ([0666e42](https://github.com/devr-tools/codeguard/commit/0666e42bfcf237310c33dd0a79a23fd50df25b17))
+* **security:** surface invalid secret patterns instead of silently dropping them ([5445fde](https://github.com/devr-tools/codeguard/commit/5445fdeb8da732682a9f7f6cccd62ed648eb7ac2))
+
 ## [0.8.1](https://github.com/devr-tools/codeguard/compare/v0.8.0...v0.8.1) (2026-07-03)
 
 
