@@ -27,6 +27,7 @@ var fixTemplates = mergeFixTemplates(
 	designFixTemplates,
 	miscFixTemplates,
 	contextFixTemplates,
+	contextReadinessFixTemplates,
 )
 
 func mergeFixTemplates(parts ...map[string]core.FixTemplate) map[string]core.FixTemplate {

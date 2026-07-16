@@ -940,8 +940,9 @@ Rules:
 
 Purpose:
 - Agent instruction file presence (CLAUDE.md, AGENTS.md, .cursorrules, .github/copilot-instructions.md)
-- Drift between agent docs / README commands and the actual repository
-- Agent context budget for individual source files
+- Drift between agent docs / README references and the actual repository
+- Canonical dev commands the docs never mention, and markdown links that rot
+- Agent context budget for individual source files and for the agent docs themselves
 - Basename ambiguity that defeats filename-based navigation
 - A `repo_legibility` artifact scoring how legible the repository is to AI agents
 
@@ -957,8 +958,12 @@ Config keys:
       "detect_readme_drift": true,
       "detect_oversized_files": true,
       "detect_ambiguous_symbols": true,
+      "detect_undocumented_commands": true,
+      "detect_oversized_agent_docs": true,
+      "detect_doc_link_rot": true,
       "max_file_lines": 1500,
-      "ambiguous_symbol_threshold": 4
+      "ambiguous_symbol_threshold": 4,
+      "max_agent_doc_lines": 600
     }
   }
 }
@@ -969,9 +974,12 @@ When `checks.context` is omitted the family runs in full scans and is skipped in
 Current behavior:
 - `context.agent-docs-missing` warns once at repo level when none of the recognized agent instruction files exist at the target root
 - `context.agent-docs-drift` warns when an agent instruction file references a file or directory path, a `make` target, or an npm/pnpm/yarn `run` script that provably does not exist
-- `context.readme-drift` applies the same resolution to fenced `bash`/`sh`/`shell` blocks in the root README.md: `./`-prefixed paths, make targets, and run scripts that resolve nowhere
+- `context.readme-drift` applies the same full extraction to the root README.md as agent docs get: prose and inline-code references as well as fenced `bash`/`sh`/`shell` blocks — the README is the doc agents and humans read first, so it earns the same truthfulness bar
 - `context.oversized-context-unit` warns when a source file exceeds `context_rules.max_file_lines` (default 1500); the message is framed as agent context cost, distinct from `quality.max-file-lines` maintainability thresholds; generated and vendored files are skipped
 - `context.ambiguous-symbol` warns once per source-file basename shared by at least `context_rules.ambiguous_symbol_threshold` files (default 4), listing up to five locations
+- `context.undocumented-commands` is the inverse of drift: it warns (up to 10 findings) when a high-signal Makefile target or package.json script — exactly `build`, `check`, `dev`, `fmt`, `lint`, `run`, `start`, `test`; prefixed variants like `fmt-check` are not implied — is mentioned by no agent instruction file and not even the root README. Any plausible mention counts as documentation: a structured reference (inline code, shell fence) or a plain-text `make <name>` / `npm|pnpm|yarn [run] <name>` invocation anywhere in the doc. The rule stays silent when the repo has no agent docs at all (`context.agent-docs-missing` already covers that), and when the Makefile or package.json cannot be parsed reliably (includes, pattern rules, workspaces)
+- `context.oversized-agent-doc` warns when an agent instruction file exceeds `context_rules.max_agent_doc_lines` (default 600): agent docs are loaded into every session verbatim, so an oversized one consumes the context window it exists to save; the README and linked reference docs are free to be long
+- `context.doc-link-rot` warns (up to 20 findings per doc) when a markdown link in an agent instruction file or the root README points at a repository file or directory that does not exist. Relative targets resolve against the doc's own directory and the repo root; absolute `/path` targets resolve against the repo root only (the hosted-viewer convention — an absolute filesystem path baked into a doc is exactly the rot this rule catches). External URLs (any scheme) are never fetched, pure `#anchor` links are skipped, `path.md#anchor` checks only the path part, editor-style `:line` suffixes are stripped, and templated or placeholder targets (`<name>`, `$VAR`, globs, `..` traversals, query strings) are exempt. Markdown links are owned by this rule; the drift rules no longer extract them, so one broken link is never reported twice
 
 Drift resolution is deliberately conservative — precision over recall. It only flags references it can positively prove broken, and skips:
 - URLs, module/domain paths (`github.com/...`), absolute paths, and `..` traversals

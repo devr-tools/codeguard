@@ -51,21 +51,22 @@ func agentDocsDriftFindings(env support.Context, resolver *repoResolver, docs []
 		if !ok {
 			continue
 		}
-		refs := extractDocReferences(string(data), extractOptions{})
+		refs := extractDocReferences(string(data))
 		findings = append(findings, driftFindings(env, resolver, rel, refs, "context.agent-docs-drift")...)
 	}
 	return findings
 }
 
-// readmeDriftFindings applies the same resolver to the root README, scoped to
-// fenced shell blocks: the commands a README tells contributors (and agents)
-// to run.
+// readmeDriftFindings applies the same full extraction as agent docs to the
+// root README: prose and inline-code references as well as fenced shell
+// blocks. The README is the doc agents (and humans) read first, so it earns
+// the same truthfulness bar.
 func readmeDriftFindings(env support.Context, resolver *repoResolver) []core.Finding {
 	data, ok := readCappedDocFile(resolver.root, "README.md")
 	if !ok {
 		return nil
 	}
-	refs := extractDocReferences(string(data), extractOptions{commandFencesOnly: true})
+	refs := extractDocReferences(string(data))
 	return driftFindings(env, resolver, "README.md", refs, "context.readme-drift")
 }
 
