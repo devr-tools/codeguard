@@ -29,14 +29,6 @@ func javaFindingsForFile(env support.Context, file string, data []byte) []core.F
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 
-func cppFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each function appends a variable number
-	for _, fn := range clikeQualityFunctions(string(data), support.CLikeCPP, braceComplexity) {
-		findings = append(findings, maintainabilityFindings(env, file, fn)...)
-	}
-	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
-}
-
 // clikeQualityFunctions extracts function metrics from the structured C-like
 // parser, so comments and string literals cannot produce phantom functions
 // or corrupt brace matching.

@@ -163,3 +163,47 @@ func (c *fileCorpus) parseScript(path string, data []byte, lang checkSupport.Scr
 	})
 	return entry.tree, entry.err
 }
+
+func includeAll(string) bool { return true }
+
+// corpusFiles lists every non-excluded file under root, using the shared
+// per-scan corpus when present and falling back to a direct walk otherwise
+// (e.g. for a Context assembled in a unit test).
+func (sc Context) corpusFiles(root string) ([]string, error) {
+	if sc.corpus != nil {
+		return sc.corpus.list(root, sc.Cfg.Exclude)
+	}
+	return WalkFiles(root, sc.Cfg.Exclude, includeAll)
+}
+
+// corpusRead returns the bytes of root/rel via the shared per-scan corpus,
+// falling back to a direct read when no corpus is attached.
+func (sc Context) corpusRead(root string, rel string) ([]byte, error) {
+	if sc.corpus != nil {
+		return sc.corpus.read(root, rel)
+	}
+	return readCappedFile(filepath.Join(root, rel))
+}
+
+// ParseGoFile returns a shared, read-only Go AST for the given source, parsed at
+// most once per scan across every section. It falls back to a fresh parse when
+// no corpus is attached.
+func ParseGoFile(sc Context, path string, data []byte) (*token.FileSet, *ast.File, error) {
+	if sc.corpus != nil {
+		return sc.corpus.parseGo(path, data)
+	}
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, data, parser.ParseComments)
+	return fset, file, err
+}
+
+// ParseScriptFile returns a shared tree-sitter syntax tree for the given
+// script source, parsed at most once per scan across every section (exactly
+// like ParseGoFile). It falls back to a fresh parse when no corpus is
+// attached (e.g. a Context assembled in a unit test).
+func ParseScriptFile(sc Context, path string, data []byte, lang checkSupport.ScriptLanguage) (*checkSupport.SyntaxTree, error) {
+	if sc.corpus != nil {
+		return sc.corpus.parseScript(path, data, lang)
+	}
+	return checkSupport.ParseScriptSource(path, data, lang)
+}

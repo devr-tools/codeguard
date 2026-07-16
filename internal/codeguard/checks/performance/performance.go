@@ -6,6 +6,7 @@ package performance
 
 import (
 	"context"
+	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -17,15 +18,29 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 }
 
 func performanceTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	findings := make([]core.Finding, 0, 4)
+	findings := make([]core.Finding, 0)
 	findings = append(findings, complexityRegressionFindings(env, target)...)
-	findings = append(findings, scanLanguagePerformanceFindings(env, target)...)
+	switch support.NormalizedLanguage(target.Language) {
+	case "", "go":
+		findings = append(findings, env.ScanTargetFiles(target, "performance", func(rel string) bool {
+			return strings.HasSuffix(rel, ".go")
+		}, func(file string, data []byte) []core.Finding {
+			return goFindingsForFile(env, file, data)
+		})...)
+	case "python", "py":
+		findings = append(findings, env.ScanTargetFiles(target, "performance", func(rel string) bool {
+			return strings.HasSuffix(strings.ToLower(rel), ".py")
+		}, func(file string, data []byte) []core.Finding {
+			return pythonPerformanceFindings(env, file, data)
+		})...)
+	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
+		findings = append(findings, typeScriptPerformanceTargetFindings(env, target)...)
+	}
 	findings = append(findings, semanticPerformanceFindings(ctx, env, target)...)
 	// Measurement-based gates: artifact size budgets are language-agnostic and
 	// run for every target; the benchmark-regression gate only applies to Go
 	// targets (it shells out to go test -bench).
 	findings = append(findings, budgetFindings(env, target)...)
-	findings = append(findings, buildRegressionFindings(ctx, env, target)...)
 	findings = append(findings, benchmarkFindings(ctx, env, target)...)
 	maybePutPerformanceScoreArtifact(env, target, findings)
 	return findings
@@ -43,14 +58,14 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 
 // warnFinding builds a warn-level finding; every performance rule reports at
 // warn severity with the unspecified/medium confidence default.
-func warnFinding(env support.Context, args ...any) core.Finding {
+func warnFinding(env support.Context, ruleID string, file string, line int, column int, message string) core.Finding {
 	return env.NewFinding(support.FindingInput{
-		RuleID:  args[0].(string),
+		RuleID:  ruleID,
 		Level:   "warn",
-		Path:    args[1].(string),
-		Line:    args[2].(int),
-		Column:  args[3].(int),
-		Message: args[4].(string),
+		Path:    file,
+		Line:    line,
+		Column:  column,
+		Message: message,
 	})
 }
 

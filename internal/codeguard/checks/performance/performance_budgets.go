@@ -32,10 +32,6 @@ func evaluateBudget(env support.Context, target core.TargetConfig, budget core.P
 		return fileSizeBudgetFindings(env, target, budget)
 	case core.PerformanceBudgetKindBundleStats:
 		return bundleStatsBudgetFindings(env, target, budget)
-	case core.PerformanceBudgetKindClangTimeTrace:
-		return clangTimeTraceBudgetFindings(env, target, budget)
-	case core.PerformanceBudgetKindCargoTimings:
-		return cargoTimingsBudgetFindings(env, target, budget)
 	default:
 		// Config validation rejects unknown kinds; a programmatically built
 		// config that skipped validation still gets a diagnostic, not a panic.
@@ -138,10 +134,6 @@ func hasDotDotSegment(slashPath string) bool {
 }
 
 func budgetExceededFinding(env support.Context, budget core.PerformanceBudgetConfig, measurement string) core.Finding {
-	return performanceBudgetLimitFinding(env, budget, measurement, "max_bytes", budget.MaxBytes)
-}
-
-func performanceBudgetLimitFinding(env support.Context, budget core.PerformanceBudgetConfig, measurement string, limitLabel string, limit int64) core.Finding {
 	level := "warn"
 	if budget.Level == "fail" {
 		level = "fail"
@@ -149,7 +141,7 @@ func performanceBudgetLimitFinding(env support.Context, budget core.PerformanceB
 	return env.NewFinding(support.FindingInput{
 		RuleID:  "performance.budget",
 		Level:   level,
-		Message: fmt.Sprintf("performance budget %q exceeded: %s, over the %s budget of %d", budget.Name, measurement, limitLabel, limit),
+		Message: fmt.Sprintf("performance budget %q exceeded: %s, over the max_bytes budget of %d", budget.Name, measurement, budget.MaxBytes),
 	})
 }
 

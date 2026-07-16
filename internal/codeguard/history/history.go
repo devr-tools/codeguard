@@ -22,6 +22,31 @@ const commitMarker = "@@CG-COMMIT@@ "
 
 var hunkHeader = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)`)
 
+// Options configures a history scan.
+type Options struct {
+	RepoPath   string
+	MaxCommits int  // 0 scans all reachable commits
+	AllRefs    bool // scan every ref rather than just HEAD
+	Scanner    security.Scanner
+}
+
+// Finding is a single secret detected at a path/line in a specific commit.
+type Finding struct {
+	RuleID     string `json:"rule_id"`
+	Level      string `json:"level"`
+	Confidence string `json:"confidence,omitempty"`
+	Message    string `json:"message"`
+	Path       string `json:"path"`
+	Line       int    `json:"line"`
+	Commit     string `json:"commit"`
+}
+
+// Report is the result of a history scan.
+type Report struct {
+	Findings       []Finding `json:"findings"`
+	CommitsScanned int       `json:"commits_scanned"`
+}
+
 // Scan walks git history and returns deduplicated secret findings. Findings are
 // deduplicated by rule, path, and masked value, keeping the most recent commit
 // that introduced the value (git log is newest-first).

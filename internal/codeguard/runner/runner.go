@@ -63,3 +63,47 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	}
 	return report, nil
 }
+
+func WriteBaselineFile(path string, entries []core.BaselineEntry) error {
+	return runnersupport.WriteBaselineFile(path, entries)
+}
+
+// SlopHistoryPath derives the slop-score history file path for a config.
+func SlopHistoryPath(cfg core.Config) string {
+	config.ApplyDefaults(&cfg)
+	return runnersupport.SlopHistoryPathForBase(cfg.Cache.Path)
+}
+
+// LoadSlopHistory reads the persisted slop-score trend, keyed by artifact ID.
+func LoadSlopHistory(path string) map[string][]core.SlopHistoryEntry {
+	return runnersupport.LoadSlopHistory(path)
+}
+
+// PerfScoreHistoryPath derives the performance-score history file path for a
+// config.
+func PerfScoreHistoryPath(cfg core.Config) string {
+	config.ApplyDefaults(&cfg)
+	return runnersupport.PerfScoreHistoryPathForBase(cfg.Cache.Path)
+}
+
+// LoadPerfScoreHistory reads the persisted performance-score trend, keyed by
+// artifact ID.
+func LoadPerfScoreHistory(path string) map[string][]core.PerformanceHistoryEntry {
+	return runnersupport.LoadPerfScoreHistory(path)
+}
+
+// RuleStatsHistoryPath derives the rule-stats history file path for a config.
+func RuleStatsHistoryPath(cfg core.Config) string {
+	config.ApplyDefaults(&cfg)
+	return runnersupport.RuleStatsHistoryPathForBase(cfg.Cache.Path)
+}
+
+// LoadRuleStatsHistory reads the persisted per-scan rule suppression stats,
+// oldest first.
+func LoadRuleStatsHistory(path string) []core.RuleStatsHistoryEntry {
+	return runnersupport.LoadRuleStatsHistory(path)
+}
+
+func BaselineEntriesFromReport(report core.Report) []core.BaselineEntry {
+	return runnersupport.BaselineEntriesFromReport(report)
+}

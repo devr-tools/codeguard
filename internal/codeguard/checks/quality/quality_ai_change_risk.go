@@ -71,7 +71,7 @@ func aiChangeRiskArtifact(env support.Context, target core.TargetConfig, finding
 		SemanticFindingCount: semanticCount,
 		Components:           components,
 	}
-	return support.NewChangeRiskArtifact("change_risk."+language+"."+support.ArtifactSafeID(target.Name), language, target.Path, risk), true
+	return support.NewChangeRiskArtifact("change_risk."+language+"."+artifactSafeID(target.Name), language, target.Path, risk), true
 }
 
 func changeRiskLevel(cfg core.AIChangeRiskConfig, score int) string {

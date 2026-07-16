@@ -9,18 +9,16 @@ import (
 
 func TestScriptLanguageForPath(t *testing.T) {
 	cases := map[string]checksupport.ScriptLanguage{
-		"src/app.ts":      checksupport.ScriptLangTypeScript,
-		"src/app.mts":     checksupport.ScriptLangTypeScript,
-		"src/app.cts":     checksupport.ScriptLangTypeScript,
-		"src/View.tsx":    checksupport.ScriptLangTSX,
-		"src/app.js":      checksupport.ScriptLangJavaScript,
-		"src/View.jsx":    checksupport.ScriptLangJavaScript,
-		"src/app.mjs":     checksupport.ScriptLangJavaScript,
-		"src/app.cjs":     checksupport.ScriptLangJavaScript,
-		"src/main.cpp":    checksupport.ScriptLangCPP,
-		"include/app.hpp": checksupport.ScriptLangCPP,
-		"src/main.go":     "",
-		"src/app.ts.bak":  "",
+		"src/app.ts":     checksupport.ScriptLangTypeScript,
+		"src/app.mts":    checksupport.ScriptLangTypeScript,
+		"src/app.cts":    checksupport.ScriptLangTypeScript,
+		"src/View.tsx":   checksupport.ScriptLangTSX,
+		"src/app.js":     checksupport.ScriptLangJavaScript,
+		"src/View.jsx":   checksupport.ScriptLangJavaScript,
+		"src/app.mjs":    checksupport.ScriptLangJavaScript,
+		"src/app.cjs":    checksupport.ScriptLangJavaScript,
+		"src/main.go":    "",
+		"src/app.ts.bak": "",
 	}
 	for path, want := range cases {
 		if got := checksupport.ScriptLanguageForPath(path); got != want {
@@ -85,12 +83,5 @@ func TestParseScriptSourceAcceptsLocallyDamagedSource(t *testing.T) {
 func TestParseScriptSourceRejectsUnknownLanguage(t *testing.T) {
 	if _, err := checksupport.ParseScriptSource("file.rb", []byte("puts 1"), checksupport.ScriptLanguage("ruby")); err == nil {
 		t.Fatal("unknown script language accepted; want error")
-	}
-}
-
-func TestParseScriptSourceParsesCPP(t *testing.T) {
-	source := []byte("#include <regex>\nint scan(const std::string& value) { std::regex digits(\"[0-9]+\"); return digits.mark_count(); }\n")
-	if _, err := checksupport.ParseScriptSource("fixture.cpp", source, checksupport.ScriptLangCPP); err != nil {
-		t.Fatalf("parse cpp: %v", err)
 	}
 }

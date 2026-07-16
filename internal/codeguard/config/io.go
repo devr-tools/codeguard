@@ -69,7 +69,6 @@ func containConfigArtifactPaths(cfg *core.Config, baseDir string) error {
 		{"cache.path", &cfg.Cache.Path},
 		{"ai.cache.path", &cfg.AI.Cache.Path},
 		{"performance_rules.benchmarks.baseline_path", &cfg.Checks.PerformanceRules.Benchmarks.BaselinePath},
-		{"performance_rules.build_regression.baseline_path", &cfg.Checks.PerformanceRules.BuildRegression.BaselinePath},
 	} {
 		resolved, err := containedPath(baseDir, *a.path)
 		if err != nil {

@@ -7,7 +7,7 @@ This page lists the current `codeguard` feature surface and the main config entr
 - `quality`
   - maintainability thresholds
   - clone detection
-  - language-native quality heuristics for Go, Python, TypeScript, JavaScript, Rust, Java, C++, C#, and Ruby
+  - language-native quality heuristics for Go, Python, TypeScript, JavaScript, Rust, Java, C#, and Ruby
   - AI-quality heuristics such as swallowed errors, narrative comments, hallucinated imports, dead code, over-mocked tests, idiom drift, semantic review, provenance policy, and change-risk rollups
   - changed-line coverage gating in diff mode
 - `design`
@@ -31,12 +31,6 @@ This page lists the current `codeguard` feature surface and the main config entr
   - lockfile presence and drift validation
   - unpinned dependency detection
   - dependency and manifest license policy
-  - Cargo manifest hygiene for missing package licenses and non-hermetic dependency sources
-- `performance`
-  - N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, and unbounded concurrency
-  - Go package rebuild-cascade analysis for rebuild hot spots and amplifiers
-  - Rust and C++ loop-smell coverage for regex construction, non-preallocated string growth, and polling sleeps
-  - build regression, benchmark regression, artifact-size budgets, and clang `-ftime-trace` budgets
 
 ## Agent-native features
 
@@ -66,8 +60,7 @@ This page lists the current `codeguard` feature surface and the main config entr
 ## Parsers
 
 - `parsers.treesitter: "off" | "auto"` (default `"off"`) selects the parsing
-  substrate for TypeScript/TSX/JavaScript plus the migrated Python/C++ paths
-  (`docs/treesitter-spike.md`).
+  substrate for TypeScript/TSX/JavaScript rules (`docs/treesitter-spike.md`).
   - `"off"`: the regex-based scanners run exactly as before.
   - `"auto"`: script files parse through embedded tree-sitter grammars; the
     migrated rules (`quality.typescript.explicit-any`,

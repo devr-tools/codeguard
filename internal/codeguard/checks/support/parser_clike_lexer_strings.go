@@ -20,7 +20,7 @@ func (m *clikeMasker) maskQuoted(quote byte, allowNewline bool) {
 
 // handleSingleQuote distinguishes Rust lifetimes ('a, 'static) from char
 // literals; other languages treat single quotes as plain string delimiters.
-func handleSingleQuote(m *clikeMasker) {
+func (m *clikeMasker) handleSingleQuote() {
 	if m.lang != CLikeRust {
 		m.maskQuoted('\'', false)
 		return
@@ -74,7 +74,7 @@ func (m *clikeMasker) scanInterpolation() {
 
 // maskGoRawString blanks a Go backquoted raw string literal, which has no
 // escape sequences and may span multiple lines.
-func maskGoRawString(m *clikeMasker) {
+func (m *clikeMasker) maskGoRawString() {
 	m.maskBytes(1) // opening backquote
 	for m.idx < len(m.src) {
 		if m.src[m.idx] == '`' {
@@ -129,46 +129,4 @@ func repeatHash(count int) string {
 		out[i] = '#'
 	}
 	return string(out)
-}
-
-func (m *clikeMasker) cppRawStringAhead() bool {
-	if m.idx+2 >= len(m.src) {
-		return false
-	}
-	switch {
-	case m.matches(`R"`):
-		return true
-	case m.matches(`u8R"`), m.matches(`uR"`), m.matches(`UR"`), m.matches(`LR"`):
-		return true
-	default:
-		return false
-	}
-}
-
-func (m *clikeMasker) maskCPPRawString() {
-	switch {
-	case m.matches(`u8R"`):
-		m.maskBytes(4)
-	case m.matches(`uR"`), m.matches(`UR"`), m.matches(`LR"`):
-		m.maskBytes(3)
-	default:
-		m.maskBytes(2)
-	}
-	delimStart := m.idx
-	for m.idx < len(m.src) && m.src[m.idx] != '(' {
-		m.maskBytes(1)
-	}
-	if m.idx >= len(m.src) {
-		return
-	}
-	delimiter := m.src[delimStart:m.idx]
-	m.maskBytes(1) // '('
-	closing := ")" + delimiter + `"`
-	for m.idx < len(m.src) {
-		if m.matches(closing) {
-			m.maskBytes(len(closing))
-			return
-		}
-		m.maskBytes(1)
-	}
 }

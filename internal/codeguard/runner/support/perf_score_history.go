@@ -3,6 +3,7 @@ package support
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -22,7 +23,15 @@ type perfScoreHistoryFile struct {
 // PerfScoreHistoryPathForBase derives the performance-score history file path
 // from the scan cache path, mirroring SlopHistoryPathForBase.
 func PerfScoreHistoryPathForBase(base string) string {
-	return derivedCachePath(base, ".perf-history")
+	trimmed := strings.TrimSpace(base)
+	if trimmed == "" {
+		return ""
+	}
+	ext := filepath.Ext(trimmed)
+	if ext == "" {
+		return trimmed + ".perf-history"
+	}
+	return strings.TrimSuffix(trimmed, ext) + ".perf-history" + ext
 }
 
 // LoadPerfScoreHistory reads the persisted performance-score history keyed by
@@ -70,5 +79,12 @@ func AppendPerfScoreHistory(path string, key string, entry core.PerformanceHisto
 
 func savePerfScoreHistory(path string, entries map[string][]core.PerformanceHistoryEntry) {
 	payload := perfScoreHistoryFile{Version: perfScoreHistoryVersion, Entries: entries}
-	writeHistoryFile(path, payload)
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return
+	}
+	_ = os.WriteFile(path, append(data, '\n'), 0o600)
 }

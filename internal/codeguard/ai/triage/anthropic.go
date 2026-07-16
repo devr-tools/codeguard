@@ -3,7 +3,9 @@ package triage
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -42,20 +44,27 @@ func (provider anthropicProvider) doRequest(ctx context.Context, body []byte) (*
 }
 
 func (provider anthropicProvider) baseURL() string {
-	return defaultBaseURL(provider.cfg.BaseURL, anthropicDefaultBaseURL)
+	baseURL := strings.TrimRight(provider.cfg.BaseURL, "/")
+	if baseURL == "" {
+		return anthropicDefaultBaseURL
+	}
+	return baseURL
 }
 
 func decodeAnthropicVerdicts(resp *http.Response) (map[string]providerVerdict, error) {
-	return decodeTextVerdicts(resp, func(decoder *json.Decoder) (anthropicResponse, error) {
-		var decoded anthropicResponse
-		err := decoder.Decode(&decoded)
-		return decoded, err
-	}, func(decoded anthropicResponse) (string, error) {
-		if len(decoded.Content) == 0 {
-			return "", errNoContentBlocks
-		}
-		return decoded.Content[0].Text, nil
-	})
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("ai triage provider returned %s", resp.Status)
+	}
+
+	var decoded anthropicResponse
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		return nil, err
+	}
+	if len(decoded.Content) == 0 {
+		return nil, fmt.Errorf("ai triage provider returned no content blocks")
+	}
+	return parseVerdictText(decoded.Content[0].Text)
 }
 
 type anthropicRequest struct {

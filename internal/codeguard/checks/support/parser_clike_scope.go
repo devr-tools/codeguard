@@ -9,7 +9,6 @@ var (
 	tsDeclAssignPattern   = regexp.MustCompile(`^[ \t]*(?:export[ \t]+)?(?:const|let|var)[ \t]+([A-Za-z_$][\w$]*)[ \t]*(?::[^=\n]+?)?=[ \t]*([^=].*)$`)
 	rustDeclAssignPattern = regexp.MustCompile(`^[ \t]*let[ \t]+(?:mut[ \t]+)?([A-Za-z_]\w*)[ \t]*(?::[^=\n]+?)?=[ \t]*(.+)$`)
 	javaDeclAssignPattern = regexp.MustCompile(`^[ \t]*(?:final[ \t]+)?(?:[\w<>\[\],.?&]+(?:[ \t]+[\w<>\[\],.?&]+)*[ \t]+)?([A-Za-z_]\w*)[ \t]*=[ \t]*([^=].*)$`)
-	cppDeclAssignPattern  = regexp.MustCompile(`^[ \t]*(?:constexpr[ \t]+|static[ \t]+|inline[ \t]+|const[ \t]+|volatile[ \t]+|mutable[ \t]+)*(?:[\w:<>[\],.?&*]+(?:[ \t]+[\w:<>[\],.?&*]+)*)[ \t]+([A-Za-z_]\w*)[ \t]*=[ \t]*([^=].*)$`)
 	plainAssignPattern    = regexp.MustCompile(`^[ \t]*([A-Za-z_$][\w$]*)[ \t]*([-+*/%&|^]?)=[ \t]*([^=].*)$`)
 	clikeCallPattern      = regexp.MustCompile(`([A-Za-z_$][\w$]*(?:(?:\.|::)[A-Za-z_$][\w$]*)*)[ \t]*\(`)
 )
@@ -33,8 +32,6 @@ func declAssignPatternFor(lang CLikeLanguage) *regexp.Regexp {
 		return rustDeclAssignPattern
 	case CLikeJava:
 		return javaDeclAssignPattern
-	case CLikeCPP:
-		return cppDeclAssignPattern
 	default:
 		return tsDeclAssignPattern
 	}
@@ -88,7 +85,7 @@ func clikeParamFromPart(part string, lang CLikeLanguage) (ParsedParam, bool) {
 	if eq := topLevelIndex(part, '='); eq >= 0 {
 		part = strings.TrimSpace(part[:eq])
 	}
-	if lang == CLikeJava || lang == CLikeCPP {
+	if lang == CLikeJava {
 		return javaParamFromPart(part)
 	}
 	name := part

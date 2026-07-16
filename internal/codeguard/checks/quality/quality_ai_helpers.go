@@ -18,6 +18,15 @@ func aiCheckEnabled(flag *bool) bool {
 	return flag == nil || *flag
 }
 
+func artifactSafeID(value string) string {
+	replacer := strings.NewReplacer(" ", "-", "/", "-", "\\", "-", "_", "-")
+	out := strings.Trim(replacer.Replace(strings.ToLower(strings.TrimSpace(value))), "-")
+	if out == "" {
+		return "target"
+	}
+	return out
+}
+
 func isNarrativeComment(text string) bool {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" || aiRationalePattern.MatchString(trimmed) || !aiNarrativeCommentPattern.MatchString(trimmed) {

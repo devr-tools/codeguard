@@ -9,9 +9,9 @@ import (
 	"github.com/odvcencio/gotreesitter/grammars"
 )
 
-// ScriptLanguage names one tree-sitter grammar on the non-Go parsing
-// substrate. It is deliberately engine-neutral: checks pass it to
-// Context.ParseScriptFile and never see the underlying runtime.
+// ScriptLanguage names a tree-sitter grammar used for script files. It is
+// deliberately engine-neutral: checks pass it to Context.ParseScriptFile and
+// never see the underlying runtime.
 type ScriptLanguage string
 
 const (
@@ -19,15 +19,13 @@ const (
 	ScriptLangTSX        ScriptLanguage = "tsx"
 	ScriptLangJavaScript ScriptLanguage = "javascript"
 	ScriptLangPython     ScriptLanguage = "python"
-	ScriptLangCPP        ScriptLanguage = "cpp"
 )
 
 // ScriptLanguageForPath maps a file path onto the grammar that parses it:
 // .ts/.mts/.cts use the TypeScript grammar, .tsx the TSX grammar (JSX and
 // type annotations are grammatically incompatible, so upstream ships two),
-// .js/.jsx/.mjs/.cjs the JavaScript grammar (which includes JSX), .py the
-// Python grammar, and common C++ source/header suffixes the C++ grammar. It
-// returns "" for unsupported files.
+// .js/.jsx/.mjs/.cjs the JavaScript grammar (which includes JSX), and .py
+// the Python grammar. It returns "" for non-script files.
 func ScriptLanguageForPath(path string) ScriptLanguage {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".ts", ".mts", ".cts":
@@ -38,8 +36,6 @@ func ScriptLanguageForPath(path string) ScriptLanguage {
 		return ScriptLangJavaScript
 	case ".py":
 		return ScriptLangPython
-	case ".cc", ".cp", ".cpp", ".cxx", ".c++", ".hh", ".hpp", ".hxx", ".h++", ".ipp", ".tpp":
-		return ScriptLangCPP
 	default:
 		return ""
 	}
@@ -104,8 +100,6 @@ func scriptGrammar(lang ScriptLanguage) (*gotreesitter.Language, error) {
 		language = grammars.JavascriptLanguage()
 	case ScriptLangPython:
 		language = grammars.PythonLanguage()
-	case ScriptLangCPP:
-		language = grammars.CppLanguage()
 	default:
 		return nil, fmt.Errorf("no tree-sitter grammar for script language %q", lang)
 	}

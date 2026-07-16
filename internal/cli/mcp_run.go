@@ -76,8 +76,11 @@ func runServe(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer
 // in-flight requests gracefully.
 func serveMCPHTTP(addr string, path string, tools *mcpToolService, auth mcpAuthConfig, stderr io.Writer) error {
 	handler := newMCPHTTPHandler(tools, auth, path)
-	// Keep header reads short to avoid connection-slot exhaustion while still
-	// allowing longer streamed tool responses.
+	// Set server timeouts to defend against Slowloris-style attacks, where a
+	// slow client trickles request bytes to exhaust connection slots.
+	// ReadHeaderTimeout is the key defense; the others bound overall request,
+	// response, and idle-connection lifetimes. WriteTimeout is generous because
+	// MCP tool responses can be large and stream over a longer scan.
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           handler,

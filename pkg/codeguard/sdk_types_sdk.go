@@ -26,7 +26,6 @@ const (
 	RuleLanguageJavaScript             = core.RuleLanguageJavaScript
 	RuleLanguageRust                   = core.RuleLanguageRust
 	RuleLanguageJava                   = core.RuleLanguageJava
-	RuleLanguageCPP                    = core.RuleLanguageCPP
 	RuleLanguageCSharp                 = core.RuleLanguageCSharp
 	RuleLanguageRuby                   = core.RuleLanguageRuby
 	RuleLanguageCoverageFixed          = core.RuleLanguageCoverageFixed

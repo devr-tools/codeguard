@@ -44,20 +44,27 @@ func (provider openAIProvider) doRequest(ctx context.Context, body []byte) (*htt
 }
 
 func (provider openAIProvider) baseURL() string {
-	return defaultBaseURL(provider.cfg.BaseURL, "https://api.openai.com/v1")
+	baseURL := strings.TrimRight(provider.cfg.BaseURL, "/")
+	if baseURL == "" {
+		return "https://api.openai.com/v1"
+	}
+	return baseURL
 }
 
 func decodeVerdicts(resp *http.Response) (map[string]providerVerdict, error) {
-	return decodeTextVerdicts(resp, func(decoder *json.Decoder) (openAIResponse, error) {
-		var decoded openAIResponse
-		err := decoder.Decode(&decoded)
-		return decoded, err
-	}, func(decoded openAIResponse) (string, error) {
-		if len(decoded.Choices) == 0 {
-			return "", errNoChoices
-		}
-		return decoded.Choices[0].Message.Content, nil
-	})
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("ai triage provider returned %s", resp.Status)
+	}
+
+	var decoded openAIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		return nil, err
+	}
+	if len(decoded.Choices) == 0 {
+		return nil, fmt.Errorf("ai triage provider returned no choices")
+	}
+	return parseVerdictText(decoded.Choices[0].Message.Content)
 }
 
 func parseVerdictText(text string) (map[string]providerVerdict, error) {

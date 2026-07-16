@@ -35,11 +35,7 @@ checks:
     max_function_lines: 80
     max_parameters: 5
     max_cyclomatic_complexity: 10
-  design_rules:
-    god_module_threshold: 32
   performance_rules:
-    hot_package_importer_threshold: 32
-    rebuild_amplifier_threshold: 32
     # Dogfood the measured budget gate on artifacts that always exist in the
     # repository (dist/ is not built in CI, so a binary budget would only ever
     # report "not found"): the user-facing rule reference must stay readable

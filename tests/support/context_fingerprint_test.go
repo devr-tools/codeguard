@@ -9,11 +9,6 @@ import (
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
-type fingerprintCaseExpectation struct {
-	wantFallback bool
-	wantSame     bool
-}
-
 const contextFingerprintBase = "alpha one\nbeta two\ngamma three\ndelta four\nepsilon five\n"
 
 // contextFingerprintFinding builds a finding through the real NewFinding path
@@ -108,29 +103,21 @@ func TestContextFingerprintNormalization(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assertContextFingerprintCase(t, base, tc.content, tc.line, fingerprintCaseExpectation{
-				wantFallback: tc.wantFallback,
-				wantSame:     tc.wantSame,
-			})
+			finding := contextFingerprintFinding(t, tc.content, "src/app.go", tc.line)
+			if tc.wantFallback {
+				if finding.ContextFingerprint != finding.Fingerprint {
+					t.Fatalf("expected fallback to legacy fingerprint, got context %q legacy %q", finding.ContextFingerprint, finding.Fingerprint)
+				}
+				return
+			}
+			if finding.ContextFingerprint == finding.Fingerprint {
+				t.Fatalf("expected a real context fingerprint, got legacy fallback %q", finding.Fingerprint)
+			}
+			same := finding.ContextFingerprint == base.ContextFingerprint
+			if same != tc.wantSame {
+				t.Fatalf("context fingerprint match = %v, want %v (context %q, base %q)", same, tc.wantSame, finding.ContextFingerprint, base.ContextFingerprint)
+			}
 		})
-	}
-}
-
-func assertContextFingerprintCase(t *testing.T, base core.Finding, content string, line int, want fingerprintCaseExpectation) {
-	t.Helper()
-	finding := contextFingerprintFinding(t, content, "src/app.go", line)
-	if want.wantFallback {
-		if finding.ContextFingerprint != finding.Fingerprint {
-			t.Fatalf("expected fallback to legacy fingerprint, got context %q legacy %q", finding.ContextFingerprint, finding.Fingerprint)
-		}
-		return
-	}
-	if finding.ContextFingerprint == finding.Fingerprint {
-		t.Fatalf("expected a real context fingerprint, got legacy fallback %q", finding.Fingerprint)
-	}
-	same := finding.ContextFingerprint == base.ContextFingerprint
-	if same != want.wantSame {
-		t.Fatalf("context fingerprint match = %v, want %v (context %q, base %q)", same, want.wantSame, finding.ContextFingerprint, base.ContextFingerprint)
 	}
 }
 

@@ -14,11 +14,11 @@ builds:
     goarch:
       - amd64
       - arm64
-    # Embed only the grammars codeguard parses (TS/TSX/JS/Python/C++) instead of the
+    # Embed only the grammars codeguard parses (TS/TSX/JS) instead of the
     # full ~206-grammar registry: ~+4 MB binary delta instead of ~+22 MB.
     # See docs/treesitter-spike.md §5.3.
     flags:
-      - -tags=grammar_subset,grammar_subset_typescript,grammar_subset_tsx,grammar_subset_javascript,grammar_subset_python,grammar_subset_cpp
+      - -tags=grammar_subset,grammar_subset_typescript,grammar_subset_tsx,grammar_subset_javascript,grammar_subset_python
     ldflags:
       - -s -w -X github.com/devr-tools/codeguard/internal/version.Number=v{{ .Version }}
 

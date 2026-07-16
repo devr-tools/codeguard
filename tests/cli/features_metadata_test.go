@@ -20,7 +20,6 @@ func TestSDKRuleMetadataForMultiLanguageRule(t *testing.T) {
 		t,
 		rule,
 		codeguard.RuleLanguageCoverageFixed,
-		codeguard.RuleLanguageCPP,
 		codeguard.RuleLanguageCSharp,
 		codeguard.RuleLanguageGo,
 		codeguard.RuleLanguageJava,
