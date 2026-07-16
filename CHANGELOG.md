@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.0.0](https://github.com/devr-tools/codeguard/compare/v0.8.3...v1.0.0) (2026-07-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* promote performance rules to their own opt-in check section ([#41](https://github.com/devr-tools/codeguard/issues/41))
+* the performance rules' ids renamed from quality.* to performance.* (quality.n-plus-one-query -> performance.n-plus-one-query, quality.go.alloc-in-loop -> performance.go.alloc-in-loop, quality.sync-io-in-request-path -> performance.sync-io-in-request-path, quality.unbounded-goroutines-in-loop -> performance.unbounded-goroutines-in-loop, plus the typescript/javascript mirrors and quality.python.sync-io-in-async). Their detect_* toggles moved from quality_rules to performance_rules, and the section is opt-in: set checks.performance: true to keep running these rules, and update any waivers or baselines that reference the old ids.
+
+### Features
+
+* 30% faster scans, enforceable AI-readiness score, and doc-truth rules ([#44](https://github.com/devr-tools/codeguard/issues/44)) ([718dd08](https://github.com/devr-tools/codeguard/commit/718dd085f2ecf11bf663901f0ecb057cf962d133))
+* **context:** add AI-and-human-readiness rules and broaden README drift ([6caac9a](https://github.com/devr-tools/codeguard/commit/6caac9a0a1f687c18a280a238b43d77cf834cd23))
+* **context:** AI-readiness gate, doc-truth rules, and 30% faster scans ([1f4f130](https://github.com/devr-tools/codeguard/commit/1f4f130ac7e309ba97e737a457f0687b067569b0))
+* **context:** AI-readiness gate, doc-truth rules, and 30% faster scans (re-land [#44](https://github.com/devr-tools/codeguard/issues/44)) ([#46](https://github.com/devr-tools/codeguard/issues/46)) ([75b3f02](https://github.com/devr-tools/codeguard/commit/75b3f02c5cfca86eb38d12b8a5c8e7730d733e5b))
+* **context:** enforceable legibility threshold and recalibrated score components ([604dd52](https://github.com/devr-tools/codeguard/commit/604dd52cf9503d1db43b34d094f97584c64d9e52))
+* **context:** persist repo_legibility score history with report flag ([e54f643](https://github.com/devr-tools/codeguard/commit/e54f6430a3f8312f7ab2a4e108f29607a6b9b6fd))
+* **parsers:** wire the Python tree-sitter grammar and upgrade Python N+1 detection ([07a0b24](https://github.com/devr-tools/codeguard/commit/07a0b24c487feead16df877723e9839736f0926a))
+* **performance:** add AI-assisted semantic performance lens ([eabd7fe](https://github.com/devr-tools/codeguard/commit/eabd7feb33dcc1d10c02b3798f1a90f434c88b7e))
+* **performance:** add diff-only loop-nesting complexity regression rule ([2e8bcef](https://github.com/devr-tools/codeguard/commit/2e8bcef06e819083a569338dee90a3d15a40c57e))
+* **performance:** add framework-aware rules for Django, SQLAlchemy, React, and Express ([b49ce7b](https://github.com/devr-tools/codeguard/commit/b49ce7b11801509711972eedd29d1fa2084f1f03))
+* **performance:** add loop-hygiene, concurrency, and memory-pressure rules ([54bfca9](https://github.com/devr-tools/codeguard/commit/54bfca96401947cae75ad29ade4dfc904508d126))
+* **performance:** add measured budgets and benchmark regression gates ([2c5e4ba](https://github.com/devr-tools/codeguard/commit/2c5e4ba62fc7d928f4e025878078f8d9a4a043ea))
+* **performance:** publish a performance_score artifact with history and report flag ([5c5a738](https://github.com/devr-tools/codeguard/commit/5c5a73872340609fa1e13c21bcf11a963e5342c0))
+* promote performance rules to their own opt-in check section ([ede8b37](https://github.com/devr-tools/codeguard/commit/ede8b37e4a6ddb2b467bfbe50bc611fa648fd3c6))
+* promote performance rules to their own opt-in check section ([#41](https://github.com/devr-tools/codeguard/issues/41)) ([81a575b](https://github.com/devr-tools/codeguard/commit/81a575b60c7404dbec1db45240557112187103bf))
+* suggest enabling the performance section in scan output ([81d9d46](https://github.com/devr-tools/codeguard/commit/81d9d46e2f11e0913b8fd8e66d984020aa582476))
+
+
+### Performance Improvements
+
+* **quality:** hash clone tokens once and roll the window hash ([bbf5b69](https://github.com/devr-tools/codeguard/commit/bbf5b69147e09f77e037a830c834091f95834d80))
+* **quality:** route AI check reads through the shared scan corpus ([b271cfb](https://github.com/devr-tools/codeguard/commit/b271cfb6abde0b34378ea7fb63e2bea33730f709))
+* **runner:** count lines by scanning bytes instead of allocating ([17a4593](https://github.com/devr-tools/codeguard/commit/17a45937f071d67cde965b454c3e3000df6d0c40))
+
 ## [0.8.3](https://github.com/devr-tools/codeguard/compare/v0.8.2...v0.8.3) (2026-07-16)
 
 
