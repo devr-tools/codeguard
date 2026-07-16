@@ -2,6 +2,7 @@ package supplychain
 
 import (
 	"context"
+	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -14,8 +15,53 @@ func targetFindings(_ context.Context, env support.Context, target core.TargetCo
 		findings = append(findings, unpinnedDependencyFindings(env, manifest)...)
 		findings = append(findings, lockfilePolicyFindings(env, target, manifest, changed)...)
 		findings = append(findings, licensePolicyFindings(env, manifest)...)
+		findings = append(findings, cargoManifestFindings(env, manifest)...)
 	}
 	return findings
+}
+
+func cargoManifestFindings(env support.Context, manifest core.SupplyChainManifest) []core.Finding {
+	if manifest.Ecosystem != "cargo" {
+		return nil
+	}
+	findings := make([]core.Finding, 0)
+	if strings.TrimSpace(manifest.License) == "" {
+		findings = append(findings, env.NewFinding(support.FindingInput{
+			RuleID:  "supply_chain.cargo.missing-package-license",
+			Level:   "warn",
+			Path:    manifest.Path,
+			Line:    max(manifest.LicenseLine, 1),
+			Column:  1,
+			Message: "Cargo package manifest is missing a package.license declaration",
+		}))
+	}
+	for _, dep := range manifest.Dependencies {
+		if message, ok := cargoDependencySourceIssue(dep); ok {
+			findings = append(findings, env.NewFinding(support.FindingInput{
+				RuleID:  "supply_chain.cargo.non-hermetic-source",
+				Level:   "warn",
+				Path:    manifest.Path,
+				Line:    dep.Line,
+				Column:  1,
+				Message: "dependency " + dep.Name + " " + message,
+			}))
+		}
+	}
+	return findings
+}
+
+func cargoDependencySourceIssue(dep core.SupplyChainDependency) (string, bool) {
+	req := strings.ToLower(strings.TrimSpace(dep.Requirement))
+	switch {
+	case strings.Contains(req, "path ="):
+		return "uses a local path source, which is not hermetic across environments", true
+	case strings.Contains(req, "branch ="):
+		return "tracks a git branch instead of a fixed revision", true
+	case strings.Contains(req, "git =") && !strings.Contains(req, "rev ="):
+		return "uses a git source without a pinned rev", true
+	default:
+		return "", false
+	}
 }
 
 func unpinnedDependencyFindings(env support.Context, manifest core.SupplyChainManifest) []core.Finding {

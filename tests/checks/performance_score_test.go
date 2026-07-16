@@ -62,41 +62,7 @@ func TestPerformanceScoreArtifactComputesWeightedScore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
-
-	found := false
-	for _, artifact := range report.Artifacts {
-		if artifact.Kind != "performance_score" {
-			continue
-		}
-		found = true
-		if artifact.ID != "performance_score.python.repo" {
-			t.Errorf("artifact ID = %q, want performance_score.python.repo", artifact.ID)
-		}
-		score := artifact.PerformanceScore
-		if score == nil {
-			t.Fatal("performance_score artifact has no payload")
-		}
-		if score.Score != 60 {
-			t.Errorf("score = %d, want 60 (min(10*(5+1), 100))", score.Score)
-		}
-		if score.Signals != 2 {
-			t.Errorf("signals = %d, want 2", score.Signals)
-		}
-		if len(score.Components) != 2 {
-			t.Fatalf("components = %#v, want 2 entries", score.Components)
-		}
-		nPlusOne := score.Components[0]
-		concat := score.Components[1]
-		if nPlusOne.RuleID != "performance.n-plus-one-query" || nPlusOne.Weight != 5 || nPlusOne.Count != 1 || nPlusOne.Contribution != 5 {
-			t.Errorf("unexpected n-plus-one component: %#v", nPlusOne)
-		}
-		if concat.RuleID != "performance.string-concat-in-loop" || concat.Weight != 1 || concat.Count != 1 || concat.Contribution != 1 {
-			t.Errorf("unexpected string-concat component: %#v", concat)
-		}
-	}
-	if !found {
-		t.Fatalf("expected performance_score artifact, got %#v", report.Artifacts)
-	}
+	assertPerformanceScoreArtifact(t, report)
 }
 
 func TestPerformanceScoreAbsentWithoutFindings(t *testing.T) {
@@ -142,20 +108,7 @@ func TestPerformanceScoreHistoryRecordsTrendAndDelta(t *testing.T) {
 		t.Fatalf("delta = %d, want %d", *second.Delta, second.Score-first.Score)
 	}
 
-	history := codeguard.LoadPerfScoreHistory(historyPath)
-	if len(history) == 0 {
-		t.Fatal("expected non-empty performance-score history")
-	}
-	for key, entries := range history {
-		if len(entries) != 2 {
-			t.Fatalf("history[%s] entries = %d, want 2", key, len(entries))
-		}
-		for _, entry := range entries {
-			if entry.Timestamp == "" || entry.Score <= 0 || entry.Signals <= 0 || len(entry.Components) == 0 {
-				t.Fatalf("incomplete history entry: %#v", entry)
-			}
-		}
-	}
+	assertPerformanceHistoryEntries(t, codeguard.LoadPerfScoreHistory(historyPath))
 }
 
 func TestPerformanceScoreHistoryHonorsToggle(t *testing.T) {

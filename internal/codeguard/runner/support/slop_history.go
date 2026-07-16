@@ -3,7 +3,6 @@ package support
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -22,15 +21,7 @@ type slopHistoryFile struct {
 // SlopHistoryPathForBase derives the slop-history file path from the scan
 // cache path, mirroring the semantic cache naming convention.
 func SlopHistoryPathForBase(base string) string {
-	trimmed := strings.TrimSpace(base)
-	if trimmed == "" {
-		return ""
-	}
-	ext := filepath.Ext(trimmed)
-	if ext == "" {
-		return trimmed + ".slop-history"
-	}
-	return strings.TrimSuffix(trimmed, ext) + ".slop-history" + ext
+	return derivedCachePath(base, ".slop-history")
 }
 
 // LoadSlopHistory reads the persisted slop-score history keyed by artifact
@@ -78,12 +69,5 @@ func AppendSlopHistory(path string, key string, entry core.SlopHistoryEntry, lim
 
 func saveSlopHistory(path string, entries map[string][]core.SlopHistoryEntry) {
 	payload := slopHistoryFile{Version: slopHistoryVersion, Entries: entries}
-	data, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return
-	}
-	_ = os.WriteFile(path, append(data, '\n'), 0o600)
+	writeHistoryFile(path, payload)
 }

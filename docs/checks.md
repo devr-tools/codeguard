@@ -21,11 +21,11 @@ This file documents the current check categories in `codeguard` and the config k
 
 Each top-level boolean enables or disables an entire check family.
 
-`performance` is opt-in and covers N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, unbounded concurrency, memory-pressure and framework-aware smells, diff-mode complexity regressions, and measurement gates (size budgets, benchmark regression); see [Performance](#performance) for the rule list and the migration note for the former `quality.*` ids.
+`performance` is opt-in and covers N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, unbounded concurrency, memory-pressure and framework-aware smells, Rust loop-smell heuristics, diff-mode complexity regressions, and measurement gates (size budgets, benchmark regression); see [Performance](#performance) for the rule list and the migration note for the former `quality.*` ids.
 
 `context` covers agent-context legibility: when the key is omitted the family defaults to enabled in full scans and disabled in diff scans; see [Agent Context](#agent-context).
 
-`supply_chain` is opt-in and currently covers normalized manifest parsing plus initial policy checks for missing lockfiles, content-based lockfile drift validation, unpinned dependencies, and dependency license policy resolved from local manifest and installed metadata where available.
+`supply_chain` is opt-in and currently covers normalized manifest parsing plus initial policy checks for missing lockfiles, content-based lockfile drift validation, unpinned dependencies, dependency license policy resolved from local manifest and installed metadata where available, and Cargo manifest hygiene for missing package licenses and non-hermetic dependency sources.
 
 For ecosystems where local metadata is not present, `supply_chain_rules.license_commands` can provide an opt-in per-ecosystem command that prints JSON license mappings for unresolved dependencies.
 
@@ -394,15 +394,15 @@ Behavior:
 
 Purpose:
 - N+1 query / remote-fetch patterns inside loops (Go, Python, TypeScript, JavaScript)
-- Allocation-heavy loops: string concatenation and `fmt.Sprintf` accumulation (Go, Python, TS/JS) and (opt-in) append without preallocation (Go)
-- Repeated work inside loops: regex compilation (Go, Python, TS/JS), `defer` accumulation (Go), polling sleeps (Go)
+- Allocation-heavy loops: string concatenation and `fmt.Sprintf` accumulation (Go, Python, TS/JS), non-preallocated `String` growth (Rust), and (opt-in) append without preallocation (Go)
+- Repeated work inside loops: regex compilation (Go, Python, TS/JS, Rust), `defer` accumulation (Go), polling sleeps (Go, Rust)
 - Blocking I/O in request paths: synchronous file I/O in Go HTTP handlers, `*Sync` calls in TS/JS handlers, blocking calls in Python `async def` bodies
 - Unbounded concurrency: goroutines launched from loops (Go), promises created in loops without a limiter (TS/JS), `asyncio` tasks created in loops without a semaphore (Python)
 - Sequential `await` in TS/JS loops that could batch through `Promise.all`
 - Memory-pressure patterns: `time.After` timers leaked in Go loops, `setInterval` without `clearInterval` and listeners added in TS/JS loops without cleanup, unbounded whole-input reads (`io.ReadAll` in Go handlers/loops, `.read()`/`.readlines()` in Python loops)
 - Framework-aware smells, gated on file-level framework evidence: Django relation access in queryset loops, Django/SQLAlchemy ORM point queries in loops, expensive per-render work in React components, CPU-heavy synchronous calls in Express middleware
 - Change intelligence (diff scans): loop-nesting complexity regressions in functions touched by the diff
-- Measurement gates: artifact size budgets and `go test -bench` regression detection against a stored baseline
+- Measurement gates: artifact size budgets, clang `-ftime-trace` budgets, and `go test -bench` regression detection against a stored baseline
 - An opt-in AI-assisted lens for judgment-call concerns (missing caching, algorithmic complexity) when the semantic runtime is configured
 - A `performance_score` artifact with per-target history so the smell trend is visible across scans
 
@@ -439,10 +439,12 @@ Rules:
 |---|---|---|
 | `performance.n-plus-one-query` | Go, Python, TS, JS | `detect_n_plus_one_query` |
 | `performance.go.alloc-in-loop` | Go | `detect_alloc_in_loop` (+ `detect_prealloc_in_loop`) |
+| `performance.rust.alloc-in-loop` | Rust | `detect_alloc_in_loop` |
 | `performance.string-concat-in-loop` | Python, TS, JS | `detect_alloc_in_loop` |
-| `performance.regex-compile-in-loop` | Go, Python, TS, JS | `detect_regex_compile_in_loop` |
+| `performance.regex-compile-in-loop` | Go, Python, TS, JS, Rust | `detect_regex_compile_in_loop` |
 | `performance.go.defer-in-loop` | Go | `detect_defer_in_loop` |
 | `performance.go.sleep-in-loop` | Go | `detect_sleep_in_loop` |
+| `performance.rust.sleep-in-loop` | Rust | `detect_sleep_in_loop` |
 | `performance.sync-io-in-request-path` | Go | `detect_sync_io_in_handlers` |
 | `performance.{typescript,javascript}.sync-io-in-handler` | TS, JS | `detect_sync_io_in_handlers` |
 | `performance.python.sync-io-in-async` | Python | `detect_sync_io_in_handlers` |
@@ -463,6 +465,8 @@ Notes on precision:
 - `unbounded-goroutines-in-loop` recognizes bounded worker-pool construction and stays silent for it: counted loops (`for range n` with no iteration variables, or `for i := 0; i < n; i++` with a literal/identifier bound — `len()`/`cap()` bounds stay data-driven and still fire) and loops whose body acquires a `struct{}` channel semaphore (`sem <- struct{}{}`) before launching.
 - `go.sleep-in-loop` exempts `_test.go` files: polling with a short sleep between readiness probes is the idiomatic test pattern.
 - `regex-compile-in-loop` fires only on **literal** patterns: compiling a variable pattern in a loop usually means the pattern differs per iteration (e.g. compiling config-supplied patterns), which is not hoistable.
+- `rust.alloc-in-loop` is intentionally conservative: it looks only for obvious `String` growth (`+=`, `x = x + ...`, `push_str`) on variables initialized from `String::new`, `String::from`, or `format!`, and stays silent when the variable was initialized with `String::with_capacity(...)`.
+- `rust.sleep-in-loop` targets `std::thread::sleep` / `thread::sleep`; async-runtime sleeps are out of scope for this version.
 - `defer-in-loop` scopes to the enclosing function: `defer wg.Done()` inside a goroutine launched from a loop runs per goroutine and is not flagged.
 - `await-in-loop` exempts `for await` streams and any file using a concurrency limiter (`p-limit`/`p-queue`); keep the loop (or disable the toggle) when iterations genuinely depend on each other.
 - `unbounded-read` does not fire when the reader is already bounded (`io.LimitReader`, `http.MaxBytesReader`, `read(n)`).
@@ -501,8 +505,8 @@ When the performance section runs and produces findings, each target publishes a
 | Blocking I/O | `sync-io-in-request-path`, `{typescript,javascript}.sync-io-in-handler`, `python.sync-io-in-async` | 4 |
 | Unbounded concurrency | `unbounded-goroutines-in-loop`, `{typescript,javascript,python}.unbounded-concurrency` | 4 |
 | Memory pressure | `unbounded-read`, `go.timer-leak-in-loop`, `{typescript,javascript}.timer-listener-leak` | 3 |
-| Repeated loop work | `regex-compile-in-loop`, `go.defer-in-loop`, `go.sleep-in-loop`, `{typescript,javascript}.await-in-loop` | 2 |
-| Allocation churn | `go.alloc-in-loop`, `string-concat-in-loop` | 1 |
+| Repeated loop work | `regex-compile-in-loop`, `go.defer-in-loop`, `go.sleep-in-loop`, `rust.sleep-in-loop`, `{typescript,javascript}.await-in-loop` | 2 |
+| Allocation churn | `go.alloc-in-loop`, `rust.alloc-in-loop`, `string-concat-in-loop` | 1 |
 
 The score trend is persisted per target next to the scan cache (`<cache>.perf-history.<ext>`) whenever the cache is enabled; subsequent scans annotate the artifact with `previous_score` and `delta`. `performance_rules.score_history: false` disables persistence and `performance_rules.score_history_limit` caps retained entries per target (default 100). Print the recorded trend with:
 
@@ -565,7 +569,9 @@ Repo-specific performance policies can also be expressed as natural-language cus
         {"name": "cli-binary", "kind": "file-size", "path": "dist/codeguard", "max_bytes": 41943040},
         {"name": "js-bundles", "kind": "file-size", "path": "dist/*.js", "max_bytes": 512000, "level": "fail"},
         {"name": "bundle-total", "kind": "bundle-stats", "path": "build/meta.json", "max_bytes": 1048576},
-        {"name": "main-chunk", "kind": "bundle-stats", "path": "build/stats.json", "asset": "main.js", "max_bytes": 262144}
+        {"name": "main-chunk", "kind": "bundle-stats", "path": "build/stats.json", "asset": "main.js", "max_bytes": 262144},
+        {"name": "frontend-compile", "kind": "clang-time-trace", "path": "build/trace.json", "max_milliseconds": 250},
+        {"name": "frontend-pass-total", "kind": "clang-time-trace", "path": "build/*.json", "event": "Frontend", "max_milliseconds": 900}
       ]
     }
   }
@@ -574,10 +580,13 @@ Repo-specific performance policies can also be expressed as natural-language cus
 
 - `kind: file-size` budgets the on-disk size of a file, or the **summed** size of every file a glob matches.
 - `kind: bundle-stats` parses a bundler stats JSON — the common minimal shapes are supported: an esbuild metafile (`outputs.<name>.bytes`) and webpack stats (`assets[].size`) — and budgets the total across assets, or a single asset when `asset` names one.
+- `kind: clang-time-trace` parses a Clang `-ftime-trace` / Chrome-tracing-compatible JSON file and budgets either the whole trace span or the summed duration of events whose `name` matches `event`. Multiple matched files are summed.
 - `level` is `warn` (default) or `fail`; `max_bytes` must be positive and `name` non-empty (validated at config load).
+- `max_milliseconds` applies to timing-based budgets such as `clang-time-trace`.
 - A **missing artifact is a warn finding, never a hard error** — budgets on optional build outputs (a `dist/` that only exists after a release build) stay usable, and `level: fail` does not apply to absence.
 - `path` is resolved relative to the target directory and is contained within it: absolute paths and `..` segments are rejected at validation, and artifacts that resolve outside the target through a symlink are skipped with a warn finding. codeguard never reads outside the repository to measure a budget.
 - Budget findings carry the artifact path in the message rather than as a finding path, so they are reported in diff scans too (a built artifact is a repository-level gate, not a changed-line lint).
+- Official Cargo documentation describes `cargo --timings` output as HTML for human consumption rather than a stable machine-readable format, so CodeGuard does **not** ingest Cargo timings files directly in this version; use benchmark regression for active measurement, or supply Clang-style trace JSON when your build tool produces it.
 
 ### Benchmark regression
 
@@ -606,6 +615,30 @@ Repo-specific performance policies can also be expressed as natural-language cus
 - The run is bounded like every other subprocess: contained timeout, output capped, packages validated before they reach `go test`.
 
 **Future work:** pprof profile ingestion/fusion (attributing regressions to functions by diffing CPU/heap profiles) is deliberately out of scope for this version.
+
+## Supply Chain
+
+Purpose:
+- Manifest normalization across supported ecosystems
+- Lockfile presence and drift validation
+- Unpinned dependency detection
+- Dependency license policy resolved from manifest, lockfile, installed metadata, or configured license commands
+- Cargo manifest hygiene for missing package licenses and non-hermetic dependency sources
+
+Rules:
+
+| Rule | Languages | Toggle |
+|---|---|---|
+| `supply_chain.missing-lockfile` | repository-wide | `require_lockfile` |
+| `supply_chain.lockfile-drift` | repository-wide | `detect_lockfile_drift` |
+| `supply_chain.unpinned-dependency` | repository-wide | `detect_unpinned` |
+| `supply_chain.denied-license` | repository-wide | license policy |
+| `supply_chain.cargo.missing-package-license` | Rust / Cargo manifests | always on when `checks.supply_chain` is enabled |
+| `supply_chain.cargo.non-hermetic-source` | Rust / Cargo manifests | always on when `checks.supply_chain` is enabled |
+
+Notes on Cargo precision:
+- `cargo.missing-package-license` looks only at the manifest package metadata (`package.license` in `Cargo.toml`); it does not infer intent from README text or dependency licenses.
+- `cargo.non-hermetic-source` warns on `path = ...`, `branch = ...`, or `git = ...` without `rev = ...` in dependency specs. A git dependency pinned to an exact `rev` stays silent.
 
 ## Design
 

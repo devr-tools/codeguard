@@ -21,6 +21,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 // maxOutputBytes caps how much benchmark output is buffered so a runaway or
@@ -31,30 +33,6 @@ const maxOutputBytes = 16 << 20 // 16 MiB
 // measurement per benchmark plus compilation, so a stuck run is capped well
 // before it stalls a CI job indefinitely.
 const runTimeout = 10 * time.Minute
-
-// limitedWriter drops bytes beyond its budget while recording that truncation
-// occurred, letting one writer back both stdout and stderr under a shared cap.
-type limitedWriter struct {
-	w         *bytes.Buffer
-	remaining int
-	truncated bool
-}
-
-func (l *limitedWriter) Write(p []byte) (int, error) {
-	if l.remaining <= 0 {
-		l.truncated = true
-		return len(p), nil
-	}
-	if len(p) > l.remaining {
-		l.w.Write(p[:l.remaining])
-		l.remaining = 0
-		l.truncated = true
-		return len(p), nil
-	}
-	n, err := l.w.Write(p)
-	l.remaining -= n
-	return n, err
-}
 
 // RunBenchmarks executes `go test -run=^$ -bench=. -benchmem <packages>` in
 // dir with a contained timeout and bounded output, returning the combined
@@ -79,11 +57,11 @@ func RunBenchmarks(ctx context.Context, dir string, packages []string) (string, 
 	cmd := exec.CommandContext(ctx, "go", args...) //nolint:gosec // fixed `go` binary from PATH; package args validated above
 	cmd.Dir = dir
 	var buf bytes.Buffer
-	limited := &limitedWriter{w: &buf, remaining: maxOutputBytes}
+	limited := runnersupport.NewLimitedBufferWriter(&buf, maxOutputBytes)
 	cmd.Stdout = limited
 	cmd.Stderr = limited
 	err := cmd.Run()
-	if limited.truncated {
+	if limited.Truncated() {
 		return "", fmt.Errorf("benchmark output exceeded %d bytes", maxOutputBytes)
 	}
 	text := buf.String()

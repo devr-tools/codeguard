@@ -6,7 +6,6 @@ package performance
 
 import (
 	"context"
-	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -22,16 +21,16 @@ func performanceTargetFindings(ctx context.Context, env support.Context, target 
 	findings = append(findings, complexityRegressionFindings(env, target)...)
 	switch support.NormalizedLanguage(target.Language) {
 	case "", "go":
-		findings = append(findings, env.ScanTargetFiles(target, "performance", func(rel string) bool {
-			return strings.HasSuffix(rel, ".go")
-		}, func(file string, data []byte) []core.Finding {
+		findings = append(findings, support.ScanGoFiles(env, target, "performance", func(file string, data []byte) []core.Finding {
 			return goFindingsForFile(env, file, data)
 		})...)
 	case "python", "py":
-		findings = append(findings, env.ScanTargetFiles(target, "performance", func(rel string) bool {
-			return strings.HasSuffix(strings.ToLower(rel), ".py")
-		}, func(file string, data []byte) []core.Finding {
+		findings = append(findings, support.ScanPythonFiles(env, target, "performance", func(file string, data []byte) []core.Finding {
 			return pythonPerformanceFindings(env, file, data)
+		})...)
+	case "rust", "rs":
+		findings = append(findings, support.ScanRustFiles(env, target, "performance", func(file string, data []byte) []core.Finding {
+			return rustPerformanceFindings(env, file, data)
 		})...)
 	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
 		findings = append(findings, typeScriptPerformanceTargetFindings(env, target)...)
@@ -58,14 +57,14 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 
 // warnFinding builds a warn-level finding; every performance rule reports at
 // warn severity with the unspecified/medium confidence default.
-func warnFinding(env support.Context, ruleID string, file string, line int, column int, message string) core.Finding {
+func warnFinding(env support.Context, args ...any) core.Finding {
 	return env.NewFinding(support.FindingInput{
-		RuleID:  ruleID,
+		RuleID:  args[0].(string),
 		Level:   "warn",
-		Path:    file,
-		Line:    line,
-		Column:  column,
-		Message: message,
+		Path:    args[1].(string),
+		Line:    args[2].(int),
+		Column:  args[3].(int),
+		Message: args[4].(string),
 	})
 }
 

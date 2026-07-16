@@ -3,7 +3,6 @@ package quality
 import (
 	"go/ast"
 	"go/token"
-	"sort"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -93,47 +92,20 @@ func maybePutAISlopArtifact(env support.Context, target core.TargetConfig, findi
 }
 
 func aiSlopArtifact(target core.TargetConfig, findings []core.Finding) (core.Artifact, bool) {
-	componentCounts := map[string]int{}
-	signals := 0
-	score := 0
-	for _, finding := range findings {
-		weight, ok := aiSlopRuleWeights[finding.RuleID]
-		if !ok {
-			continue
-		}
-		componentCounts[finding.RuleID]++
-		signals++
-		score += weight
-	}
-	if signals == 0 {
+	components, signals, total, ok := support.WeightedFindingComponents(findings, aiSlopRuleWeights)
+	if !ok {
 		return core.Artifact{}, false
-	}
-	componentIDs := make([]string, 0, len(componentCounts))
-	for ruleID := range componentCounts {
-		componentIDs = append(componentIDs, ruleID)
-	}
-	sort.Strings(componentIDs)
-	components := make([]core.SlopScoreComponent, 0, len(componentIDs))
-	for _, ruleID := range componentIDs {
-		weight := aiSlopRuleWeights[ruleID]
-		count := componentCounts[ruleID]
-		components = append(components, core.SlopScoreComponent{
-			RuleID:       ruleID,
-			Count:        count,
-			Weight:       weight,
-			Contribution: count * weight,
-		})
 	}
 	language := support.NormalizedLanguage(target.Language)
 	if language == "" {
 		language = "go"
 	}
 	return support.NewSlopScoreArtifact(
-		"slop_score."+language+"."+artifactSafeID(target.Name),
+		"slop_score."+language+"."+support.ArtifactSafeID(target.Name),
 		language,
 		target.Path,
 		core.SlopScoreArtifact{
-			Score:      minInt(score*10, 100),
+			Score:      minInt(total*10, 100),
 			Signals:    signals,
 			Components: components,
 		},

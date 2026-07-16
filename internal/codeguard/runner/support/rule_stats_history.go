@@ -3,7 +3,6 @@ package support
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,15 +23,7 @@ type ruleStatsHistoryFile struct {
 // RuleStatsHistoryPathForBase derives the rule-stats history file path from
 // the scan cache path, mirroring the slop-history naming convention.
 func RuleStatsHistoryPathForBase(base string) string {
-	trimmed := strings.TrimSpace(base)
-	if trimmed == "" {
-		return ""
-	}
-	ext := filepath.Ext(trimmed)
-	if ext == "" {
-		return trimmed + ".rule-stats-history"
-	}
-	return strings.TrimSuffix(trimmed, ext) + ".rule-stats-history" + ext
+	return derivedCachePath(base, ".rule-stats-history")
 }
 
 // LoadRuleStatsHistory reads the persisted per-scan rule stats, oldest first.
@@ -91,12 +82,5 @@ func RecordRuleStatsHistory(sc Context, rules []core.RuleStatsEntry) {
 
 func saveRuleStatsHistory(path string, entries []core.RuleStatsHistoryEntry) {
 	payload := ruleStatsHistoryFile{Version: ruleStatsHistoryVersion, Entries: entries}
-	data, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return
-	}
-	_ = os.WriteFile(path, append(data, '\n'), 0o600)
+	writeHistoryFile(path, payload)
 }

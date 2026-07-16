@@ -122,6 +122,14 @@ func (s *tsPerformanceScan) checkLine(lineNo int, line string, rawLine string, i
 	if tsClearInterval.MatchString(line) {
 		s.intervalsCleaned = true
 	}
+	s.checkLoopAgnosticLine(lineNo, line, inLoop, inHandler)
+	if !inLoop {
+		return
+	}
+	s.checkLoopBodyLine(lineNo, line, rawLine)
+}
+
+func (s *tsPerformanceScan) checkLoopAgnosticLine(lineNo int, line string, inLoop bool, inHandler bool) {
 	if inLoop && toggleEnabled(s.rules.DetectNPlusOneQuery) && tsQueryCallPattern.MatchString(line) {
 		s.addFinding("performance.n-plus-one-query", "performance.n-plus-one-query", lineNo,
 			"query or fetch call inside a loop suggests an N+1 pattern; batch requests or hoist the call out of the loop")
@@ -132,16 +140,21 @@ func (s *tsPerformanceScan) checkLine(lineNo int, line string, rawLine string, i
 			"promise created inside a loop without a concurrency limit; batch with Promise.all over chunks or use p-limit")
 	}
 	if inHandler && tsSyncCallPattern.MatchString(line) {
-		// The framework-aware express middleware rule takes precedence over
-		// the generic sync-io rule so a single line never reports twice.
-		if !s.frameworks.reportExpressSyncMiddleware(s, lineNo, line) && toggleEnabled(s.rules.DetectSyncIOInHandlers) {
-			s.addFinding("performance.typescript.sync-io-in-handler", "performance.javascript.sync-io-in-handler", lineNo,
-				"synchronous I/O call inside a request handler blocks the event loop; use the async API instead")
-		}
+		s.reportSyncIOInHandler(lineNo, line)
 	}
-	if !inLoop {
+}
+
+func (s *tsPerformanceScan) reportSyncIOInHandler(lineNo int, line string) {
+	// The framework-aware express middleware rule takes precedence over the
+	// generic sync-io rule so a single line never reports twice.
+	if s.frameworks.reportExpressSyncMiddleware(s, lineNo, line) || !toggleEnabled(s.rules.DetectSyncIOInHandlers) {
 		return
 	}
+	s.addFinding("performance.typescript.sync-io-in-handler", "performance.javascript.sync-io-in-handler", lineNo,
+		"synchronous I/O call inside a request handler blocks the event loop; use the async API instead")
+}
+
+func (s *tsPerformanceScan) checkLoopBodyLine(lineNo int, line string, rawLine string) {
 	if toggleEnabled(s.rules.DetectAwaitInLoop) && !s.limited &&
 		tsAwaitPattern.MatchString(line) && !tsForAwaitPattern.MatchString(line) {
 		s.addFinding("performance.typescript.await-in-loop", "performance.javascript.await-in-loop", lineNo,

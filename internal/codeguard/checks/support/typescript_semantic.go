@@ -14,8 +14,24 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-//go:embed typescript_semantic_runner.js
-var typeScriptSemanticRunner string
+//go:embed typescript_semantic_runner_core.js
+var typeScriptSemanticRunnerCore string
+
+//go:embed typescript_semantic_runner_security.js
+var typeScriptSemanticRunnerSecurity string
+
+//go:embed typescript_semantic_runner_taint.js
+var typeScriptSemanticRunnerTaint string
+
+//go:embed typescript_semantic_runner_bootstrap.js
+var typeScriptSemanticRunnerBootstrap string
+
+var typeScriptSemanticRunner = strings.Join([]string{
+	typeScriptSemanticRunnerCore,
+	typeScriptSemanticRunnerSecurity,
+	typeScriptSemanticRunnerTaint,
+	typeScriptSemanticRunnerBootstrap,
+}, "\n")
 
 var (
 	typeScriptSemanticCacheMu sync.Mutex

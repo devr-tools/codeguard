@@ -13,8 +13,8 @@ var performanceMeasuredCatalog = map[string]core.RuleMetadata{
 		DefaultLevel:   "warn",
 		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
 		Title:          "Performance budget exceeded",
-		Description:    "Compares artifact sizes against the budgets configured in performance_rules.budgets: on-disk file or glob-total sizes (kind file-size) and bundler stats totals or per-asset sizes from an esbuild metafile or webpack stats JSON (kind bundle-stats). A missing artifact reports as a warn finding, never a hard error; a budget entry may set level fail to gate the scan.",
-		HowToFix:       "Shrink the artifact below the budget (trim dependencies, split bundles, strip debug info, compress assets) or, if the growth is intentional, raise max_bytes for the budget entry.",
+		Description:    "Compares measured artifacts against the budgets configured in performance_rules.budgets: on-disk file or glob-total sizes (kind file-size), bundler stats totals or per-asset sizes from an esbuild metafile or webpack stats JSON (kind bundle-stats), and clang -ftime-trace durations for whole traces or named events (kind clang-time-trace). A missing artifact reports as a warn finding, never a hard error; a budget entry may set level fail to gate the scan.",
+		HowToFix:       "Shrink the artifact below the budget (trim dependencies, split bundles, strip debug info, compress assets, or reduce compile-time hotspots) or, if the growth is intentional, raise the matching budget entry deliberately.",
 	},
 	"performance.benchmark-regression": {
 		ID:             "performance.benchmark-regression",

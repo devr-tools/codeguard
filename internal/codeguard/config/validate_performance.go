@@ -31,24 +31,54 @@ func validatePerformanceBudget(idx int, budget core.PerformanceBudgetConfig) err
 	if strings.TrimSpace(budget.Name) == "" {
 		return fmt.Errorf("%s.name is required", label)
 	}
-	switch budget.Kind {
-	case core.PerformanceBudgetKindFileSize, core.PerformanceBudgetKindBundleStats:
-	default:
-		return fmt.Errorf("%s.kind must be %q or %q", label, core.PerformanceBudgetKindFileSize, core.PerformanceBudgetKindBundleStats)
+	if err := validatePerformanceBudgetKind(label, budget.Kind); err != nil {
+		return err
 	}
-	if budget.MaxBytes <= 0 {
-		return fmt.Errorf("%s.max_bytes must be positive", label)
+	if err := validatePerformanceBudgetLimit(label, budget); err != nil {
+		return err
 	}
 	if err := validateBudgetPath(label, budget.Path); err != nil {
 		return err
 	}
-	if budget.Asset != "" && budget.Kind != core.PerformanceBudgetKindBundleStats {
-		return fmt.Errorf("%s.asset only applies to kind %q", label, core.PerformanceBudgetKindBundleStats)
+	if err := validatePerformanceBudgetOptions(label, budget); err != nil {
+		return err
 	}
 	switch budget.Level {
 	case "", "warn", "fail":
 	default:
 		return fmt.Errorf("%s.level must be \"warn\" or \"fail\"", label)
+	}
+	return nil
+}
+
+func validatePerformanceBudgetKind(label string, kind string) error {
+	switch kind {
+	case core.PerformanceBudgetKindFileSize, core.PerformanceBudgetKindBundleStats, core.PerformanceBudgetKindClangTimeTrace:
+		return nil
+	default:
+		return fmt.Errorf("%s.kind must be %q, %q, or %q", label, core.PerformanceBudgetKindFileSize, core.PerformanceBudgetKindBundleStats, core.PerformanceBudgetKindClangTimeTrace)
+	}
+}
+
+func validatePerformanceBudgetLimit(label string, budget core.PerformanceBudgetConfig) error {
+	if budget.Kind == core.PerformanceBudgetKindClangTimeTrace {
+		if budget.MaxMilliseconds <= 0 {
+			return fmt.Errorf("%s.max_milliseconds must be positive", label)
+		}
+		return nil
+	}
+	if budget.MaxBytes <= 0 {
+		return fmt.Errorf("%s.max_bytes must be positive", label)
+	}
+	return nil
+}
+
+func validatePerformanceBudgetOptions(label string, budget core.PerformanceBudgetConfig) error {
+	if budget.Asset != "" && budget.Kind != core.PerformanceBudgetKindBundleStats {
+		return fmt.Errorf("%s.asset only applies to kind %q", label, core.PerformanceBudgetKindBundleStats)
+	}
+	if budget.Event != "" && budget.Kind != core.PerformanceBudgetKindClangTimeTrace {
+		return fmt.Errorf("%s.event only applies to kind %q", label, core.PerformanceBudgetKindClangTimeTrace)
 	}
 	return nil
 }

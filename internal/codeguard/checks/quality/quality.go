@@ -2,13 +2,16 @@ package quality
 
 import (
 	"context"
-	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
 func Run(ctx context.Context, env support.Context) core.SectionResult {
+	return runQualitySection(ctx, env)
+}
+
+func runQualitySection(ctx context.Context, env support.Context) core.SectionResult {
 	findings := support.CollectTargetFindings(ctx, env, qualityTargetFindings)
 	findings = append(findings, provenancePolicyFindings(env, findings)...) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
 	return env.FinalizeSection("quality", "Code Quality", findings)
@@ -30,21 +33,17 @@ func languageQualityFindings(ctx context.Context, env support.Context, target co
 	findings := make([]core.Finding, 0)
 	switch support.NormalizedLanguage(target.Language) {
 	case "", "go":
-		findings = append(findings, env.ScanTargetFiles(target, "quality", func(rel string) bool {
-			return strings.HasSuffix(rel, ".go")
-		}, func(file string, data []byte) []core.Finding {
+		findings = append(findings, support.ScanGoFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
 			return goFindingsForFile(env, file, data)
 		})...)
 	case "python", "py":
-		findings = append(findings, env.ScanTargetFiles(target, "quality", func(rel string) bool {
-			return strings.HasSuffix(strings.ToLower(rel), ".py")
-		}, func(file string, data []byte) []core.Finding {
+		findings = append(findings, support.ScanPythonFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
 			return pythonFindingsForFile(env, file, data)
 		})...)
 	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
 		findings = append(findings, typeScriptTargetFindings(ctx, env, target)...)
 	case "rust", "rs":
-		findings = append(findings, env.ScanTargetFiles(target, "quality", isRustFile, func(file string, data []byte) []core.Finding {
+		findings = append(findings, support.ScanRustFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
 			return rustFindingsForFile(env, file, data)
 		})...)
 	case "java":

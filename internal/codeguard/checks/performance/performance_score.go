@@ -1,9 +1,6 @@
 package performance
 
 import (
-	"sort"
-	"strings"
-
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
@@ -40,10 +37,12 @@ var performanceScoreWeights = map[string]int{
 	"performance.regex-compile-in-loop":    2,
 	"performance.go.defer-in-loop":         2,
 	"performance.go.sleep-in-loop":         2,
+	"performance.rust.sleep-in-loop":       2,
 	"performance.typescript.await-in-loop": 2,
 	"performance.javascript.await-in-loop": 2,
 
 	"performance.go.alloc-in-loop":      1,
+	"performance.rust.alloc-in-loop":    1,
 	"performance.string-concat-in-loop": 1,
 }
 
@@ -66,36 +65,9 @@ func maybePutPerformanceScoreArtifact(env support.Context, target core.TargetCon
 // contributes its rule's family weight, and the total saturates at 100 via
 // the same min(10*sum, 100) scaling the slop score uses.
 func performanceScoreArtifact(target core.TargetConfig, findings []core.Finding) (core.Artifact, bool) {
-	componentCounts := map[string]int{}
-	signals := 0
-	total := 0
-	for _, finding := range findings {
-		weight, ok := performanceScoreWeights[finding.RuleID]
-		if !ok {
-			continue
-		}
-		componentCounts[finding.RuleID]++
-		signals++
-		total += weight
-	}
-	if signals == 0 {
+	components, signals, total, ok := support.WeightedFindingComponents(findings, performanceScoreWeights)
+	if !ok {
 		return core.Artifact{}, false
-	}
-	componentIDs := make([]string, 0, len(componentCounts))
-	for ruleID := range componentCounts {
-		componentIDs = append(componentIDs, ruleID)
-	}
-	sort.Strings(componentIDs)
-	components := make([]core.SlopScoreComponent, 0, len(componentIDs))
-	for _, ruleID := range componentIDs {
-		weight := performanceScoreWeights[ruleID]
-		count := componentCounts[ruleID]
-		components = append(components, core.SlopScoreComponent{
-			RuleID:       ruleID,
-			Count:        count,
-			Weight:       weight,
-			Contribution: count * weight,
-		})
 	}
 	language := support.NormalizedLanguage(target.Language)
 	if language == "" {
@@ -106,7 +78,7 @@ func performanceScoreArtifact(target core.TargetConfig, findings []core.Finding)
 		score = 100
 	}
 	return support.NewPerformanceScoreArtifact(
-		"performance_score."+language+"."+performanceArtifactSafeID(target.Name),
+		"performance_score."+language+"."+support.ArtifactSafeID(target.Name),
 		language,
 		target.Path,
 		core.PerformanceScoreArtifact{
@@ -115,15 +87,4 @@ func performanceScoreArtifact(target core.TargetConfig, findings []core.Finding)
 			Components: components,
 		},
 	), true
-}
-
-// performanceArtifactSafeID mirrors quality.artifactSafeID for artifact ID
-// segments derived from target names.
-func performanceArtifactSafeID(value string) string {
-	replacer := strings.NewReplacer(" ", "-", "/", "-", "\\", "-", "_", "-")
-	out := strings.Trim(replacer.Replace(strings.ToLower(strings.TrimSpace(value))), "-")
-	if out == "" {
-		return "target"
-	}
-	return out
 }

@@ -31,6 +31,11 @@ This page lists the current `codeguard` feature surface and the main config entr
   - lockfile presence and drift validation
   - unpinned dependency detection
   - dependency and manifest license policy
+  - Cargo manifest hygiene for missing package licenses and non-hermetic dependency sources
+- `performance`
+  - N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, and unbounded concurrency
+  - Rust loop-smell coverage for `Regex::new(...)`, non-preallocated `String` growth, and polling sleeps
+  - benchmark regression, artifact-size budgets, and clang `-ftime-trace` budgets
 
 ## Agent-native features
 

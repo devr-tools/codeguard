@@ -1,10 +1,10 @@
 package benchregression
 
 import (
-	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/cachefile"
 )
 
 // baselineVersion guards the on-disk format; a mismatched file is treated as
@@ -44,15 +44,8 @@ func BaselinePathForBase(base string) string {
 // missing, unreadable, or from another format version — callers then treat
 // the current run as the first one and write a fresh baseline.
 func LoadBaseline(path string) (map[string]BaselineEntry, bool) {
-	if strings.TrimSpace(path) == "" {
-		return nil, false
-	}
-	data, err := os.ReadFile(path) //nolint:gosec // config-contained baseline artifact path
-	if err != nil {
-		return nil, false
-	}
 	var file baselineFile
-	if err := json.Unmarshal(data, &file); err != nil || file.Version != baselineVersion || file.Benchmarks == nil {
+	if !cachefile.Load(path, &file) || file.Version != baselineVersion || file.Benchmarks == nil {
 		return nil, false
 	}
 	return file.Benchmarks, true
@@ -96,12 +89,5 @@ func entryFromResult(result Result) BaselineEntry {
 
 func saveBaseline(path string, benchmarks map[string]BaselineEntry) error {
 	payload := baselineFile{Version: baselineVersion, Benchmarks: benchmarks}
-	data, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(data, '\n'), 0o600)
+	return cachefile.Write(path, payload)
 }

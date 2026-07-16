@@ -5,8 +5,9 @@ package core
 // sizes recorded in a bundler stats JSON file (esbuild metafile or webpack
 // stats).
 const (
-	PerformanceBudgetKindFileSize    = "file-size"
-	PerformanceBudgetKindBundleStats = "bundle-stats"
+	PerformanceBudgetKindFileSize       = "file-size"
+	PerformanceBudgetKindBundleStats    = "bundle-stats"
+	PerformanceBudgetKindClangTimeTrace = "clang-time-trace"
 )
 
 // PerformanceBudgetConfig is one entry of performance_rules.budgets: a named
@@ -26,8 +27,13 @@ type PerformanceBudgetConfig struct {
 	// Asset (bundle-stats only) budgets a single named asset/output from the
 	// stats file instead of the total across all of them.
 	Asset string `json:"asset,omitempty" yaml:"asset,omitempty"`
+	// Event (clang-time-trace only) budgets the summed duration of matching
+	// trace events instead of the whole trace span.
+	Event string `json:"event,omitempty" yaml:"event,omitempty"`
 	// MaxBytes is the budget; it must be positive.
 	MaxBytes int64 `json:"max_bytes" yaml:"max_bytes"`
+	// MaxMilliseconds applies to timing-based budgets such as clang-time-trace.
+	MaxMilliseconds int64 `json:"max_milliseconds,omitempty" yaml:"max_milliseconds,omitempty"`
 	// Level is the finding level when the budget is exceeded: "warn" (default)
 	// or "fail".
 	Level string `json:"level,omitempty" yaml:"level,omitempty"`
