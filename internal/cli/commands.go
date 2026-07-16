@@ -245,10 +245,26 @@ func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode
 	if err := service.WriteReport(stdout, report, cfg.Output.Format); err != nil {
 		return fmt.Errorf("write report: %w", err)
 	}
+	writePerformanceUpgradeHint(stdout, cfg)
 	if report.Summary.FailedSections > 0 {
 		return fmt.Errorf("one or more sections failed")
 	}
 	return nil
+}
+
+// writePerformanceUpgradeHint nudges configs that predate the performance
+// section (checks.performance absent, i.e. nil) to opt in. An explicit
+// performance: false is a deliberate choice and stays silent, as do the
+// machine-readable output formats.
+func writePerformanceUpgradeHint(stdout io.Writer, cfg service.Config) {
+	if cfg.Checks.Performance != nil {
+		return
+	}
+	if format := strings.TrimSpace(cfg.Output.Format); format != "" && format != "text" {
+		return
+	}
+	_, _ = fmt.Fprintln(stdout, "\nnote: this config predates the performance check section (N+1 queries, alloc-heavy loops, blocking I/O in handlers, unbounded concurrency).")
+	_, _ = fmt.Fprintln(stdout, "      enable it with `performance: true` under `checks:` in your codeguard config, or silence this note with `performance: false`. See docs/checks.md#performance.")
 }
 
 func writeScanMetadata(stdout io.Writer, format string, scanMode service.ScanMode, baseRef string) error {

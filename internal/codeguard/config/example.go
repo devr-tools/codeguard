@@ -28,8 +28,10 @@ func exampleChecks() core.CheckConfig {
 		Quality: true,
 		Design:  true,
 		// Performance is opt-in while the rules settle into their own section;
-		// they previously ran (enabled) inside quality under quality.* ids.
-		Performance:      false,
+		// they previously ran (enabled) inside quality under quality.* ids. The
+		// explicit false (vs nil) writes the key into generated configs so new
+		// users discover it, and suppresses the upgrade hint in scan output.
+		Performance:      boolPtr(false),
 		Security:         true,
 		Prompts:          true,
 		CI:               true,

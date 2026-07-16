@@ -54,7 +54,10 @@ type CheckConfig struct {
 	// loops, blocking I/O in request paths, unbounded concurrency). Off by
 	// default while the rules settle into their new section; the rules
 	// themselves previously ran inside the quality section under quality.* ids.
-	Performance bool `json:"performance,omitempty" yaml:"performance,omitempty"`
+	// A nil pointer also runs as off, but marks the config as predating the
+	// section so the scan output can suggest enabling it; an explicit false
+	// silences that hint.
+	Performance *bool `json:"performance,omitempty" yaml:"performance,omitempty"`
 	// SupplyChain toggles dependency-policy checks such as manifest hygiene,
 	// lockfile drift, license policy, and SBOM-oriented validation.
 	SupplyChain bool `json:"supply_chain,omitempty" yaml:"supply_chain,omitempty"`

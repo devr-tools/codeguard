@@ -419,6 +419,8 @@ The family is **opt-in** (`performance: false` by default). Within it, every rul
 
 Rules: `performance.n-plus-one-query`, `performance.go.alloc-in-loop`, `performance.sync-io-in-request-path`, `performance.unbounded-goroutines-in-loop`, `performance.typescript.sync-io-in-handler` / `performance.javascript.sync-io-in-handler`, `performance.typescript.unbounded-concurrency` / `performance.javascript.unbounded-concurrency`, and `performance.python.sync-io-in-async`.
 
+When a config omits the `performance` key entirely, text-format `scan` output appends a one-line note suggesting the upgrade; setting the key explicitly (`true` or `false`) silences it.
+
 **Migration note:** these rules previously ran inside the quality section under `quality.*` ids (`quality.n-plus-one-query`, `quality.go.alloc-in-loop`, `quality.sync-io-in-request-path`, `quality.unbounded-goroutines-in-loop`, the `quality.typescript.*`/`quality.javascript.*` mirrors, and `quality.python.sync-io-in-async`), gated by `quality_rules.detect_*` keys. There is no runtime aliasing: waivers, baselines, and configs that reference the old ids stop matching when you enable `checks.performance`, and `codeguard doctor` flags any waiver still pointing at a retired id with the replacement to use.
 
 ## Design

@@ -47,9 +47,13 @@ var sectionRegistry = []sectionDef{
 		},
 	},
 	{
-		id:      "performance",
-		name:    "Performance",
-		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.Performance },
+		id:   "performance",
+		name: "Performance",
+		// nil means "config predates the section" and runs as off; the scan
+		// output separately suggests enabling it (see cli.executeScan).
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Performance != nil && *sc.Cfg.Checks.Performance
+		},
 		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return performanceCheck.Run(ctx, checkEnv)
 		},

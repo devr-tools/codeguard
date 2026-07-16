@@ -68,6 +68,61 @@ func TestRunInteractiveScanUsesPromptedBaseRef(t *testing.T) {
 	}
 }
 
+// writeHintScanConfig writes a minimal all-checks-off scan config; checksJSON
+// is the raw JSON of the "checks" object so tests control exactly which keys
+// are present (the performance hint keys off key absence, not value).
+func writeHintScanConfig(t *testing.T, dir string, checksJSON string) string {
+	t.Helper()
+	configPath := filepath.Join(dir, "codeguard.json")
+	config := `{
+  "name": "performance-hint",
+  "targets": [{"name": "repo", "path": ".", "language": "go"}],
+  "checks": ` + checksJSON + `,
+  "output": {"format": "text"}
+}`
+	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatalf("write main.go: %v", err)
+	}
+	return configPath
+}
+
+func TestRunScanSuggestsPerformanceSectionWhenKeyAbsent(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeHintScanConfig(t, dir,
+		`{"quality": false, "design": false, "security": false, "prompts": false, "ci": false}`)
+
+	var stdout, stderr bytes.Buffer
+	code := cli.Run([]string{"scan", "-config", configPath}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("scan exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "predates the performance check section") {
+		t.Fatalf("expected performance upgrade hint for config without the key, got:\n%s", stdout.String())
+	}
+}
+
+func TestRunScanStaysSilentWhenPerformanceKeyExplicit(t *testing.T) {
+	for _, value := range []string{"true", "false"} {
+		t.Run("performance_"+value, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := writeHintScanConfig(t, dir,
+				`{"quality": false, "design": false, "security": false, "prompts": false, "ci": false, "performance": `+value+`}`)
+
+			var stdout, stderr bytes.Buffer
+			code := cli.Run([]string{"scan", "-config", configPath}, strings.NewReader(""), &stdout, &stderr)
+			if code != 0 {
+				t.Fatalf("scan exit code = %d, stderr = %s", code, stderr.String())
+			}
+			if strings.Contains(stdout.String(), "predates the performance check section") {
+				t.Fatalf("expected no upgrade hint for explicit performance: %s, got:\n%s", value, stdout.String())
+			}
+		})
+	}
+}
+
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func stripANSI(value string) string {

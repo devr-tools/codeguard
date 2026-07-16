@@ -14,7 +14,7 @@ func performanceConfig(name string, dir string, language string) codeguard.Confi
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = name
 	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: language}}
-	cfg.Checks.Performance = true
+	cfg.Checks.Performance = boolPtr(true)
 	cfg.Checks.Quality = false
 	cfg.Checks.Design = false
 	cfg.Checks.Security = false
@@ -37,7 +37,7 @@ func dispatch(items []int) {
 `)
 
 	cfg := performanceConfig("performance-default-off", dir, "go")
-	cfg.Checks.Performance = false
+	cfg.Checks.Performance = nil
 
 	report, err := codeguard.Run(context.Background(), cfg)
 	if err != nil {
@@ -249,7 +249,7 @@ func TestQualityCheckNoLongerEmitsPerformanceRules(t *testing.T) {
 		"package repo\n\nimport \"database/sql\"\n\nfunc UpdateAll(db *sql.DB, ids []int) error {\n\tfor _, id := range ids {\n\t\tif _, err := db.Exec(\"UPDATE items SET done = 1 WHERE id = ?\", id); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n\treturn nil\n}\n")
 
 	cfg := performanceConfig("quality-no-perf-rules", dir, "go")
-	cfg.Checks.Performance = false
+	cfg.Checks.Performance = boolPtr(false)
 	cfg.Checks.Quality = true
 
 	report, err := codeguard.Run(context.Background(), cfg)
