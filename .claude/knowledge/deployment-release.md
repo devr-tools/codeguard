@@ -8,6 +8,8 @@ How code gets to production. Release processes, environment promotion, rollback 
 - `release.yml` has **no `on: push: tags` trigger** — this is deliberate. Tags are minted only through the release-please approval flow (or a `create_missing_tag: true` call from the trusted `cd.yml` caller). Do not add a tag-push trigger; it would let anyone pushing a tag bypass the approval flow.
 - GoReleaser (`.goreleaser.yaml`) builds only **darwin + linux on amd64/arm64** — no Windows. Archives are `tar.gz` named `codeguard_v<version>_<os>_<arch>.tar.gz` (note the literal `v` before the version).
 
+- **cosign must stay on the v2 line** (`cosign-release: v2.6.3` pinned in `release.yml`'s cosign-installer step) until the goreleaser `signs` config migrates to the bundle format. cosign v3 — installed by default since cosign-installer v4 — enables `--new-bundle-format`, ignores the `--output-signature`/`--output-certificate` flags in `.goreleaser.yaml`, and fails with `create bundle file: open : no such file or directory` (this killed the v0.8.2 release after a Dependabot installer bump). The `.sig`/`.pem` outputs are a documented verification contract in `docs/security.md`; migrating to the single `.sigstore.json` bundle requires updating `.goreleaser.yaml` (`--bundle=${signature}`) and the docs recipe together, and un-pinning.
+
 ## npm + PyPI packaging (packaging/)
 
 - npm/PyPI ship thin wrappers around the prebuilt GoReleaser binaries — no Go toolchain at install time. `packaging/extract-binaries.sh` downloads release assets, `npm/build.sh` and `pypi/build_wheels.py` assemble artifacts. `publish-npm`/`publish-pypi` jobs in `release.yml` run for stable releases only. See `packaging/README.md`.
