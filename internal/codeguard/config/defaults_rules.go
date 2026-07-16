@@ -27,6 +27,7 @@ func applyPerformanceDefaults(dst *core.PerformanceRulesConfig) {
 		&dst.DetectUnboundedReads,
 	)
 	defaultBoolPtr(&dst.DetectPreallocInLoop, false)
+	applyPerformanceMeasurementDefaults(dst)
 }
 
 func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig) {

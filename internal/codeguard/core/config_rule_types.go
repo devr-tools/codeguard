@@ -50,6 +50,13 @@ type PerformanceRulesConfig struct {
 	// DetectUnboundedReads flags whole-input reads without a size bound:
 	// io.ReadAll in Go handlers/loops, .read()/.readlines() in Python loops.
 	DetectUnboundedReads *bool `json:"detect_unbounded_reads,omitempty" yaml:"detect_unbounded_reads,omitempty"`
+	// Budgets lists measured size gates over build artifacts (see
+	// PerformanceBudgetConfig); findings report as performance.budget.
+	Budgets []PerformanceBudgetConfig `json:"budgets,omitempty" yaml:"budgets,omitempty"`
+	// Benchmarks configures the opt-in benchmark-regression gate (see
+	// PerformanceBenchmarksConfig); findings report as
+	// performance.benchmark-regression.
+	Benchmarks PerformanceBenchmarksConfig `json:"benchmarks,omitempty" yaml:"benchmarks,omitempty"`
 }
 
 // AIChecksConfig toggles individual AI-quality heuristics. A nil pointer

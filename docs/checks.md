@@ -459,6 +459,61 @@ When a config omits the `performance` key entirely, text-format `scan` output ap
 
 **Migration note:** these rules previously ran inside the quality section under `quality.*` ids (`quality.n-plus-one-query`, `quality.go.alloc-in-loop`, `quality.sync-io-in-request-path`, `quality.unbounded-goroutines-in-loop`, the `quality.typescript.*`/`quality.javascript.*` mirrors, and `quality.python.sync-io-in-async`), gated by `quality_rules.detect_*` keys. There is no runtime aliasing: waivers, baselines, and configs that reference the old ids stop matching when you enable `checks.performance`, and `codeguard doctor` flags any waiver still pointing at a retired id with the replacement to use.
 
+### Performance budgets
+
+`performance.budget` compares real artifact sizes against configured byte budgets — a measurement-based gate, unlike the pattern rules above. Each `performance_rules.budgets` entry names one budget:
+
+```json
+{
+  "checks": {
+    "performance": true,
+    "performance_rules": {
+      "budgets": [
+        {"name": "cli-binary", "kind": "file-size", "path": "dist/codeguard", "max_bytes": 41943040},
+        {"name": "js-bundles", "kind": "file-size", "path": "dist/*.js", "max_bytes": 512000, "level": "fail"},
+        {"name": "bundle-total", "kind": "bundle-stats", "path": "build/meta.json", "max_bytes": 1048576},
+        {"name": "main-chunk", "kind": "bundle-stats", "path": "build/stats.json", "asset": "main.js", "max_bytes": 262144}
+      ]
+    }
+  }
+}
+```
+
+- `kind: file-size` budgets the on-disk size of a file, or the **summed** size of every file a glob matches.
+- `kind: bundle-stats` parses a bundler stats JSON — the common minimal shapes are supported: an esbuild metafile (`outputs.<name>.bytes`) and webpack stats (`assets[].size`) — and budgets the total across assets, or a single asset when `asset` names one.
+- `level` is `warn` (default) or `fail`; `max_bytes` must be positive and `name` non-empty (validated at config load).
+- A **missing artifact is a warn finding, never a hard error** — budgets on optional build outputs (a `dist/` that only exists after a release build) stay usable, and `level: fail` does not apply to absence.
+- `path` is resolved relative to the target directory and is contained within it: absolute paths and `..` segments are rejected at validation, and artifacts that resolve outside the target through a symlink are skipped with a warn finding. codeguard never reads outside the repository to measure a budget.
+- Budget findings carry the artifact path in the message rather than as a finding path, so they are reported in diff scans too (a built artifact is a repository-level gate, not a changed-line lint).
+
+### Benchmark regression
+
+`performance.benchmark-regression` runs `go test -run=^$ -bench=. -benchmem` over the configured packages and warns when a benchmark's ns/op regresses beyond the threshold relative to a stored baseline.
+
+```json
+{
+  "checks": {
+    "performance": true,
+    "performance_rules": {
+      "benchmarks": {
+        "enabled": true,
+        "packages": ["./internal/..."],
+        "max_regression_percent": 20,
+        "baseline_path": ".codeguard/cache.bench-baseline.json"
+      }
+    }
+  }
+}
+```
+
+- **Off by default** (`enabled: false`): the gate executes the repository's own test code via `go test`, so only enable it for repositories whose test suite you would run anyway. The `go` binary is codeguard's own fixed tool invocation (like `git`) — there is deliberately no config override for the command in this version, which keeps the added trust surface at zero.
+- `packages` must be explicit relative Go package patterns (`"."`, `"./..."`, `"./internal/..."`); anything flag-shaped, absolute, or containing `..` segments is rejected at validation. Full scans **require** an explicit list; diff scans default to the packages containing changed `.go` files (and benchmark nothing when the diff touches no Go files).
+- `max_regression_percent` (default 20) is the tolerated ns/op slowdown per benchmark.
+- `baseline_path` defaults to a sibling of the scan cache (`cache.path` with a `.bench-baseline` suffix, e.g. `.codeguard/cache.bench-baseline.json`) and, like the other config-controlled artifact paths, must stay inside the config directory. The **first run writes the baseline and reports nothing**; later runs compare against it, record newly appearing benchmarks, and never overwrite existing entries — delete the baseline file to accept a new cost and re-baseline. Benchmark names are stored with the `-GOMAXPROCS` suffix stripped so a core-count change does not orphan the baseline.
+- The run is bounded like every other subprocess: contained timeout, output capped, packages validated before they reach `go test`.
+
+**Future work:** pprof profile ingestion/fusion (attributing regressions to functions by diffing CPU/heap profiles) is deliberately out of scope for this version.
+
 ## Design
 
 Purpose:
