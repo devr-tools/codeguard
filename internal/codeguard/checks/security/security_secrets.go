@@ -1,6 +1,7 @@
 package security
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -54,23 +55,36 @@ func (s Scanner) Enabled() bool { return s.enabled }
 
 // BuildScanner compiles a Scanner from config. A nil config yields the default
 // enabled scanner with no allowlist, no custom patterns, and entropy disabled.
-func BuildScanner(cfg *core.SecretsRulesConfig) Scanner {
+// Entries that cannot be used (unparseable regexes, custom patterns without an
+// id) are skipped and reported as issues; config validation normally rejects
+// them before this point, so the issues are the backstop for callers scanning
+// with an unvalidated config.
+func BuildScanner(cfg *core.SecretsRulesConfig) (Scanner, []string) {
 	scanner := Scanner{enabled: true}
 	if cfg == nil {
-		return scanner
+		return scanner, nil
 	}
+	var issues []string
 	if cfg.Enabled != nil {
 		scanner.enabled = *cfg.Enabled
 	}
 	scanner.allowPaths = append([]string(nil), cfg.AllowPaths...)
-	for _, pattern := range cfg.AllowPatterns {
-		if re, err := regexp.Compile(pattern); err == nil {
-			scanner.allowRes = append(scanner.allowRes, re)
+	for idx, pattern := range cfg.AllowPatterns {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			issues = append(issues, fmt.Sprintf("secrets allow_patterns[%d] skipped: %v", idx, err))
+			continue
 		}
+		scanner.allowRes = append(scanner.allowRes, re)
 	}
 	for _, custom := range cfg.CustomPatterns {
+		if strings.TrimSpace(custom.ID) == "" {
+			issues = append(issues, "secrets custom_patterns entry with an empty id skipped")
+			continue
+		}
 		re, err := regexp.Compile(custom.Regex)
-		if err != nil || strings.TrimSpace(custom.ID) == "" {
+		if err != nil {
+			issues = append(issues, fmt.Sprintf("secrets custom_patterns[%q] skipped: %v", custom.ID, err))
 			continue
 		}
 		level := normalizeSecretLevel(custom.Level, "fail")
@@ -81,7 +95,7 @@ func BuildScanner(cfg *core.SecretsRulesConfig) Scanner {
 		scanner.customPatterns = append(scanner.customPatterns, compiledCustomPattern{id: custom.ID, re: re, level: level, msg: message})
 	}
 	scanner.entropy = buildEntropySettings(cfg.Entropy)
-	return scanner
+	return scanner, issues
 }
 
 // SkipPath reports whether the file is covered by an allow_paths glob.

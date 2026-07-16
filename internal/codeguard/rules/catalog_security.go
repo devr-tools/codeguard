@@ -30,6 +30,15 @@ var securityCatalog = map[string]core.RuleMetadata{
 		Description:    "Warns on the lower-confidence name-based heuristic: a secret/token/api_key/password identifier assigned a quoted literal.",
 		HowToFix:       "Remove the secret from the repository and load it from a secret manager or environment at runtime.",
 	},
+	"security.secrets-config": {
+		ID:             "security.secrets-config",
+		Section:        "Security",
+		DefaultLevel:   "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		Title:          "Invalid secret-scan configuration",
+		Description:    "Fails when a security_rules.secrets allow_pattern or custom_pattern cannot be compiled and had to be skipped, so the scan is running with less coverage than configured.",
+		HowToFix:       "Fix the regex (or the empty custom-pattern id) in security_rules.secrets so the pattern participates in the scan.",
+	},
 	"security.private-key": {
 		ID:             "security.private-key",
 		Section:        "Security",

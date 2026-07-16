@@ -2,6 +2,8 @@ package codeguard
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/security"
 	"github.com/devr-tools/codeguard/internal/codeguard/history"
@@ -25,7 +27,10 @@ type HistoryReport = history.Report
 // patterns, entropy). Findings that only exist in history still represent leaked
 // credentials that must be rotated.
 func ScanGitHistory(ctx context.Context, cfg Config, opts HistoryScanOptions) (HistoryReport, error) {
-	scanner := security.BuildScanner(cfg.Checks.SecurityRules.Secrets)
+	scanner, issues := security.BuildScanner(cfg.Checks.SecurityRules.Secrets)
+	if len(issues) > 0 {
+		return HistoryReport{}, fmt.Errorf("invalid secret scan config: %s", strings.Join(issues, "; "))
+	}
 	return history.Scan(ctx, history.Options{
 		RepoPath:   opts.RepoPath,
 		MaxCommits: opts.MaxCommits,

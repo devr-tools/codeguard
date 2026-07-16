@@ -50,9 +50,8 @@ func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 		return code
 	}
 
-	cfg, err := loadConfigWithProfile(*configPath, *profile)
-	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
+	cfg, ok := loadConfigOrFail(*configPath, *profile, stderr)
+	if !ok {
 		return exitError
 	}
 	if err := service.ValidateConfig(cfg); err != nil {
@@ -88,9 +87,8 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		return exitError
 	}
 
-	cfg, err := loadConfigWithProfile(*inputs.configPath, *flags.profile)
-	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
+	cfg, ok := loadConfigOrFail(*inputs.configPath, *flags.profile, stderr)
+	if !ok {
 		return exitError
 	}
 	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
@@ -125,9 +123,8 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 		return exitError
 	}
 
-	cfg, err := loadConfigWithProfile(*configPath, *profile)
-	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
+	cfg, ok := loadConfigOrFail(*configPath, *profile, stderr)
+	if !ok {
 		return exitError
 	}
 	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
@@ -164,9 +161,8 @@ func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	flags.applyTrustPolicy()
 
-	cfg, err := loadConfigWithProfile(*flags.configPath, *flags.profile)
-	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
+	cfg, ok := loadConfigOrFail(*flags.configPath, *flags.profile, stderr)
+	if !ok {
 		return exitError
 	}
 	cfg.Baseline.Path = ""

@@ -18,17 +18,16 @@ func runReport(args []string, stdout io.Writer, stderr io.Writer) int {
 	slopHistory := fs.Bool("slop-history", false, "print the persisted slop-score trend per target")
 	limit := fs.Int("limit", 0, "maximum history entries to print per target (0 = all)")
 	if err := fs.Parse(args); err != nil {
-		return 1
+		return exitError
 	}
 	if !*slopHistory {
 		_, _ = fmt.Fprintln(stderr, "report requires a mode flag: -slop-history")
-		return 1
+		return exitError
 	}
 
-	cfg, err := loadConfigWithProfile(*configPath, *profile)
-	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
-		return 1
+	cfg, ok := loadConfigOrFail(*configPath, *profile, stderr)
+	if !ok {
+		return exitError
 	}
 	return writeSlopHistoryReport(stdout, cfg, *limit)
 }
@@ -38,7 +37,7 @@ func writeSlopHistoryReport(stdout io.Writer, cfg service.Config, limit int) int
 	history := service.LoadSlopHistory(path)
 	if len(history) == 0 {
 		_, _ = fmt.Fprintf(stdout, "no slop-score history recorded at %s\n", path)
-		return 0
+		return exitOK
 	}
 	keys := make([]string, 0, len(history))
 	for key := range history {

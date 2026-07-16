@@ -12,6 +12,7 @@ var securityRuleOWASP = map[string]core.OWASPCategory{
 	"security.hardcoded-secret":     core.OWASPA07AuthFailures,
 	"security.high-entropy-string":  core.OWASPA07AuthFailures,
 	"security.private-key":          core.OWASPA02CryptographicFailures,
+	"security.secrets-config":       core.OWASPA05SecurityMisconfiguration,
 
 	// Transport security.
 	"security.insecure-tls":            core.OWASPA02CryptographicFailures,

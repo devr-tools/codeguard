@@ -22,22 +22,21 @@ func runFix(args []string, stdout io.Writer, stderr io.Writer) int {
 	line := fs.Int("line", 0, "optional 1-based line to target")
 	format := fs.String("format", "text", "output format: text or json")
 	if err := fs.Parse(args); err != nil {
-		return 1
+		return exitError
 	}
 	flags.applyTrustPolicy()
 	if !*enableAI {
 		_, _ = fmt.Fprintln(stderr, "fix requires -ai so unverified AI patch generation is never implicit")
-		return 1
+		return exitError
 	}
 	scanMode, err := parseScanMode(*flags.mode)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
-		return 1
+		return exitError
 	}
-	cfg, err := loadConfigWithProfile(*flags.configPath, *flags.profile)
-	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
-		return 1
+	cfg, ok := loadConfigOrFail(*flags.configPath, *flags.profile, stderr)
+	if !ok {
+		return exitError
 	}
 	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
 		Mode:     scanMode,
@@ -46,21 +45,21 @@ func runFix(args []string, stdout io.Writer, stderr io.Writer) int {
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
-		return 1
+		return exitError
 	}
 	finding, ok := selectFixFinding(report, strings.TrimSpace(*ruleID), strings.TrimSpace(*path), *line)
 	if !ok {
 		_, _ = fmt.Fprintln(stderr, "no matching finding available for fix generation")
-		return 1
+		return exitError
 	}
 	generator, available, err := internalfix.NewAIGenerator(cfg.AI)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "initialize ai generator: %v\n", err)
-		return 1
+		return exitError
 	}
 	if !available {
 		_, _ = fmt.Fprintln(stderr, "no AI provider is configured for fix generation")
-		return 1
+		return exitError
 	}
 	result, err := service.GenerateVerifiedFix(context.Background(), service.FixGenerateRequest{
 		Config:    cfg,
@@ -74,7 +73,7 @@ func runFix(args []string, stdout io.Writer, stderr io.Writer) int {
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "generate verified fix: %v\n", err)
-		return 1
+		return exitError
 	}
 	return writeFixResult(stdout, stderr, result, strings.TrimSpace(*format))
 }
@@ -115,18 +114,18 @@ func writeFixResult(stdout io.Writer, stderr io.Writer, result service.VerifiedF
 				_, _ = fmt.Fprintf(stdout, "- %s (%s)\n", firstNonEmpty(step.CheckName, step.Command), step.TargetName)
 			}
 		}
-		return 0
+		return exitOK
 	case "json":
 		data, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "marshal fix result: %v\n", err)
-			return 1
+			return exitError
 		}
 		_, _ = stdout.Write(append(data, '\n'))
-		return 0
+		return exitOK
 	default:
 		_, _ = fmt.Fprintf(stderr, "unsupported fix output format %q\n", format)
-		return 1
+		return exitError
 	}
 }
 

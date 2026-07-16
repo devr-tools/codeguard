@@ -57,6 +57,21 @@ func TestScanGitHistoryFindsRemovedSecret(t *testing.T) {
 	}
 }
 
+func TestScanGitHistoryRejectsInvalidSecretPatterns(t *testing.T) {
+	// ScanGitHistory does not run config validation, so an unusable pattern must
+	// surface as an error rather than silently scanning with less coverage.
+	cfg := codeguard.ExampleConfig()
+	cfg.Checks.SecurityRules.Secrets = &codeguard.SecretsRulesConfig{
+		Enabled:       boolPtr(true),
+		AllowPatterns: []string{`(`},
+	}
+
+	_, err := codeguard.ScanGitHistory(context.Background(), cfg, codeguard.HistoryScanOptions{RepoPath: t.TempDir()})
+	if err == nil {
+		t.Fatal("expected error for invalid allow_patterns regex")
+	}
+}
+
 func TestScanGitHistoryRespectsAllowPaths(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
