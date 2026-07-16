@@ -55,6 +55,8 @@ func rulePromptTemplate(ruleID string, frameworks []FrameworkRef) RulePromptTemp
 			Focus:     "Check whether changed branches, outputs, or failure paths appear unexercised by nearby changed or local tests.",
 			Threshold: "Emit only when the changed behavior has no clear nearby test exercise path.",
 		}
+	case PerformanceRuleID:
+		return performancePromptTemplate(frameworks)
 	default:
 		return RulePromptTemplate{RuleID: ruleID}
 	}

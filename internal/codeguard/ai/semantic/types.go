@@ -107,4 +107,9 @@ type CheckSelection struct {
 	MisleadingErrorMessages bool
 	TestBehaviorCoverage    bool
 	TestAdequacy            bool
+	// PerformanceReview adds the performance lens (performance.ai.semantic-perf)
+	// to the request. It is driven by checks.performance being enabled, so that
+	// requests are byte-identical to previous releases when the performance
+	// section is off.
+	PerformanceReview bool
 }

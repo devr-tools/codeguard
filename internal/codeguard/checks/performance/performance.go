@@ -17,7 +17,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 	return env.FinalizeSection("performance", "Performance", findings)
 }
 
-func performanceTargetFindings(_ context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+func performanceTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	findings := make([]core.Finding, 0)
 	switch support.NormalizedLanguage(target.Language) {
 	case "", "go":
@@ -35,6 +35,7 @@ func performanceTargetFindings(_ context.Context, env support.Context, target co
 	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
 		findings = append(findings, typeScriptPerformanceTargetFindings(env, target)...)
 	}
+	findings = append(findings, semanticPerformanceFindings(ctx, env, target)...)
 	return findings
 }
 
