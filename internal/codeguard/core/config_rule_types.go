@@ -50,6 +50,11 @@ type PerformanceRulesConfig struct {
 	// DetectUnboundedReads flags whole-input reads without a size bound:
 	// io.ReadAll in Go handlers/loops, .read()/.readlines() in Python loops.
 	DetectUnboundedReads *bool `json:"detect_unbounded_reads,omitempty" yaml:"detect_unbounded_reads,omitempty"`
+	// DetectComplexityRegression gates the diff-only loop-nesting regression
+	// check: it compares each changed function's maximum loop-nesting depth
+	// against the diff base ref and warns on increases. Full scans are
+	// unaffected (the rule only activates in diff mode).
+	DetectComplexityRegression *bool `json:"detect_complexity_regression,omitempty" yaml:"detect_complexity_regression,omitempty"`
 }
 
 // AIChecksConfig toggles individual AI-quality heuristics. A nil pointer
