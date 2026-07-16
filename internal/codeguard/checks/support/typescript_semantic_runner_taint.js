@@ -9,6 +9,13 @@
 // bodies, which keeps the analysis linear in program size and cycle-safe.
 // Chain length is capped by taint_max_depth; truncation emits a debug note.
 
+const TAINT_DEFAULT_MAX_DEPTH = 8;
+const TAINT_MAX_TAINTS_PER_EXPRESSION = 16;
+const TAINT_SOURCE_MEMBERS = ["query", "body", "params", "headers", "cookies"];
+const TAINT_SANITIZER_NAMES = new Set([
+  "sqlEscape", "shellQuote", "shellEscape", "htmlEncode", "htmlEscape", "encodeHTML",
+]);
+
 function configuredTaintMaxDepth() {
   const value = Number(input.taint_max_depth);
   if (!Number.isFinite(value) || value === 0) {

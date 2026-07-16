@@ -161,7 +161,7 @@ func (m *clikeMasker) maskCPPRawString() {
 	if m.idx >= len(m.src) {
 		return
 	}
-	delimiter := string(m.src[delimStart:m.idx])
+	delimiter := m.src[delimStart:m.idx]
 	m.maskBytes(1) // '('
 	closing := ")" + delimiter + `"`
 	for m.idx < len(m.src) {

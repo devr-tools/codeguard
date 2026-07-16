@@ -35,7 +35,7 @@ func buildRegressionFindings(ctx context.Context, env support.Context, target co
 
 func buildCommandFailureMessage(name string, output string, err error) string {
 	var message strings.Builder
-	message.WriteString(fmt.Sprintf("build command %q failed: ", name))
+	_, _ = fmt.Fprintf(&message, "build command %q failed: ", name)
 	if trimmed := support.TrimmedOutput(output); trimmed != "" {
 		message.WriteString(trimmed)
 		return message.String()

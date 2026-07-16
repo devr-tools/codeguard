@@ -17,9 +17,9 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 }
 
 func performanceTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0, 4)
 	findings = append(findings, complexityRegressionFindings(env, target)...)
-	findings = append(findings, scanLanguagePerformanceFindings(ctx, env, target)...)
+	findings = append(findings, scanLanguagePerformanceFindings(env, target)...)
 	findings = append(findings, semanticPerformanceFindings(ctx, env, target)...)
 	// Measurement-based gates: artifact size budgets are language-agnostic and
 	// run for every target; the benchmark-regression gate only applies to Go

@@ -39,7 +39,7 @@ func readClangTimeTrace(path string) (clangTimeTrace, error) {
 func readClangTimeTraceReport(path string) (float64, map[string]float64, error) {
 	trace, err := readClangTimeTrace(path)
 	if err != nil {
-		return 0, nil, fmt.Errorf("time trace %q: %v; budget skipped", path, err)
+		return 0, nil, fmt.Errorf("time trace %q: %w; budget skipped", path, err)
 	}
 	return trace.totalMillis, trace.events, nil
 }

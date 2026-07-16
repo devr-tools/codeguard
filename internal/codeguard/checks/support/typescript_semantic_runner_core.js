@@ -9,13 +9,6 @@ const results = { design: [], quality: [], security: [], debug: [] };
 const seen = new Set();
 const taintModel = normalizeTaintModel(input.taint_model);
 
-const TAINT_DEFAULT_MAX_DEPTH = 8;
-const TAINT_MAX_TAINTS_PER_EXPRESSION = 16;
-const TAINT_SOURCE_MEMBERS = ["query", "body", "params", "headers", "cookies"];
-const TAINT_SANITIZER_NAMES = new Set([
-  "sqlEscape", "shellQuote", "shellEscape", "htmlEncode", "htmlEscape", "encodeHTML",
-]);
-
 const directivePatterns = [
   { pattern: /^\s*(?:(?:\/\/)|(?:\/\*+)|\*)\s*@ts-ignore\b/, suffix: "ts-ignore", message: "suppression comment should be reviewed" },
   { pattern: /^\s*(?:(?:\/\/)|(?:\/\*+)|\*)\s*@ts-nocheck\b/, suffix: "ts-nocheck", message: "file-level type checking is disabled" },
@@ -202,6 +195,8 @@ function normalizedModuleName(relPath) {
   }
   return lower.slice(0, -path.extname(lower).length);
 }
+
+main();
 
 function analyzeDirectives(sourceFile, relPath, flavor) {
   const lines = sourceFile.text.replace(/\r\n/g, "\n").split("\n");

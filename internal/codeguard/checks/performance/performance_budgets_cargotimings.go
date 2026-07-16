@@ -43,7 +43,7 @@ func readCargoTimings(path string) (cargoTimingsReport, error) {
 func readCargoTimingsReport(path string) (float64, map[string]float64, error) {
 	report, err := readCargoTimings(path)
 	if err != nil {
-		return 0, nil, fmt.Errorf("cargo timings report %q: %v; budget skipped", path, err)
+		return 0, nil, fmt.Errorf("cargo timings report %q: %w; budget skipped", path, err)
 	}
 	return report.totalMillis, report.crateMillis, nil
 }

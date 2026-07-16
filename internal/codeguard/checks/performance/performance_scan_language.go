@@ -1,13 +1,11 @@
 package performance
 
 import (
-	"context"
-
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func scanLanguagePerformanceFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+func scanLanguagePerformanceFindings(env support.Context, target core.TargetConfig) []core.Finding {
 	return support.DispatchByLanguage(target.Language,
 		support.LanguageDispatch{
 			Aliases: []string{"", "go"},
