@@ -22,13 +22,6 @@ type docReference struct {
 	display string
 }
 
-// extractOptions controls how much of a document is mined for references.
-// Command fences (bash/sh/shell) are always parsed; commandFencesOnly limits
-// extraction to them, which is the README rule's scope.
-type extractOptions struct {
-	commandFencesOnly bool
-}
-
 var (
 	inlineCodePattern   = regexp.MustCompile("`([^`\n]+)`")
 	markdownLinkPattern = regexp.MustCompile(`\]\(([^)\s]+)\)`)
@@ -39,7 +32,10 @@ var (
 // references that can be positively resolved against the repository. Fenced
 // blocks other than shell command fences are skipped entirely: code samples,
 // JSON, and captured output are full of tokens that merely look like paths.
-func extractDocReferences(content string, opts extractOptions) []docReference {
+// Markdown link targets are not extracted here; they belong to the
+// doc-link-rot rule (see linkrot.go), which keeps the two rules from
+// reporting the same broken reference twice.
+func extractDocReferences(content string) []docReference {
 	var refs []docReference
 	seen := map[string]struct{}{}
 	fence := fenceState{}
@@ -51,7 +47,7 @@ func extractDocReferences(content string, opts extractOptions) []docReference {
 		switch {
 		case fence.inCommandFence():
 			refs = appendRefs(refs, seen, lineNo, commandLineReferences(line, &fence))
-		case fence.inFence() || opts.commandFencesOnly:
+		case fence.inFence():
 			continue
 		default:
 			refs = appendRefs(refs, seen, lineNo, proseLineReferences(line))
@@ -74,8 +70,9 @@ func appendRefs(refs []docReference, seen map[string]struct{}, lineNo int, found
 }
 
 // proseLineReferences extracts references from a line outside any fence:
-// inline code spans (commands or paths), markdown link targets, and bare
-// prose tokens that obviously denote files.
+// inline code spans (commands or paths) and bare prose tokens that obviously
+// denote files. Markdown link targets are stripped, not extracted — the
+// doc-link-rot rule owns them.
 func proseLineReferences(line string) []docReference {
 	var refs []docReference
 	stripped := line
@@ -88,11 +85,6 @@ func proseLineReferences(line string) []docReference {
 		}
 		if value, ok := pathToken(span, false); ok {
 			refs = append(refs, docReference{kind: refPath, value: value, display: span})
-		}
-	}
-	for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripped, -1) {
-		if value, ok := pathToken(strings.TrimPrefix(match[1], "#"), false); ok {
-			refs = append(refs, docReference{kind: refPath, value: value, display: match[1]})
 		}
 	}
 	for _, token := range strings.Fields(markdownLinkPattern.ReplaceAllString(stripped, " ")) {

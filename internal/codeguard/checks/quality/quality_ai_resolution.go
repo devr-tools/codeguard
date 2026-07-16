@@ -12,26 +12,7 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
-
-// aiTargetSourceFiles walks a target and returns the files whose lowercased
-// path ends with one of the given suffixes, honoring configured excludes.
-func aiTargetSourceFiles(env support.Context, target core.TargetConfig, suffixes ...string) []string {
-	files, err := runnersupport.WalkFiles(target.Path, env.Config.Exclude, func(rel string) bool {
-		lower := strings.ToLower(rel)
-		for _, suffix := range suffixes {
-			if strings.HasSuffix(lower, suffix) {
-				return true
-			}
-		}
-		return false
-	})
-	if err != nil {
-		return nil
-	}
-	return files
-}
 
 type packageManifest struct {
 	Name             string            `json:"name"`
@@ -40,11 +21,18 @@ type packageManifest struct {
 	PeerDependencies map[string]string `json:"peerDependencies"`
 }
 
+// readPackageManifest reads the root package.json directly rather than through
+// the corpus: the fixed filename is not walk-enumerated, so a direct uncapped
+// read preserves the historical behavior.
 func readPackageManifest(root string) (packageManifest, bool) {
 	data, err := os.ReadFile(filepath.Join(root, "package.json")) //nolint:gosec // fixed filename under the scan-target root
 	if err != nil {
 		return packageManifest{}, false
 	}
+	return parsePackageManifest(data)
+}
+
+func parsePackageManifest(data []byte) (packageManifest, bool) {
 	var manifest packageManifest
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		return packageManifest{}, false
@@ -69,16 +57,17 @@ func packageManifestDeps(manifest packageManifest) map[string]struct{} {
 	return deps
 }
 
-func readWorkspacePackageNames(root string, excludes []string) map[string]struct{} {
-	files, err := runnersupport.WalkFiles(root, excludes, func(rel string) bool {
+func readWorkspacePackageNames(env support.Context, target core.TargetConfig) map[string]struct{} {
+	files := listAITargetFiles(env, target, func(rel string) bool {
 		return filepath.Base(rel) == "package.json"
 	})
-	if err != nil {
-		return map[string]struct{}{}
-	}
 	names := map[string]struct{}{}
 	for _, rel := range files {
-		manifest, ok := readPackageManifest(filepath.Join(root, filepath.Dir(rel)))
+		data, err := readAITargetFile(env, target, rel)
+		if err != nil {
+			continue
+		}
+		manifest, ok := parsePackageManifest(data)
 		if !ok || strings.TrimSpace(manifest.Name) == "" {
 			continue
 		}

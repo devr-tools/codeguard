@@ -6,7 +6,7 @@ agent context — and reports pass/warn/fail findings per rule.
 
 ## Build, test, verify
 
-- `make build` → `dist/codeguard`; `make test`; `make lint` (vet) and `make lint-strict` (golangci-lint, CI-blocking, must be 0 issues)
+- `make build` → `dist/codeguard`; `make test`; `make fmt` (gofmt the tree); `make lint` (vet) and `make lint-strict` (golangci-lint, CI-blocking, must be 0 issues)
 - `make codeguard-ci` — validate + self-scan with `.codeguard/codeguard.yaml`
 - `make check` — the full CI gate (fmt-check, lint, test, codeguard-ci)
 - Scope gofmt to `gofmt -l cmd internal pkg tests changelog.go` (repo root picks up worktrees/module caches)

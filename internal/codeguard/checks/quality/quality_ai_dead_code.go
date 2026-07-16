@@ -115,10 +115,13 @@ func goFuncEligibleForUnusedCheck(rel string, fn *ast.FuncDecl) bool {
 	if strings.HasSuffix(rel, "_test.go") && hasGoTestEntrypointPrefix(name) {
 		return false
 	}
-	// Compiler directives such as go:linkname or cgo exports imply external use.
-	if fn.Doc != nil && strings.Contains(fn.Doc.Text(), "go:") {
-		return false
-	}
+	// NOTE: an earlier revision tried to exempt functions whose doc comment
+	// carries a compiler directive (go:linkname, cgo exports), but the AST it
+	// received was parsed without ParseComments, so fn.Doc was always nil and
+	// the exemption never fired. The parse now comes from the shared
+	// ParseComments corpus cache, which would have silently activated it and
+	// changed findings; the check stays out to keep the detector's output
+	// identical. Activating it is a candidate behavior fix, not an optimization.
 	return true
 }
 

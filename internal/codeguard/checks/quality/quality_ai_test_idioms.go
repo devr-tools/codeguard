@@ -2,19 +2,11 @@ package quality
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
-
-func dominantGoTestFramework(root string, files []string) string {
-	return dominantFramework(root, files, func(rel string, data string) (string, bool) {
-		return goTestFramework(data), strings.HasSuffix(rel, "_test.go")
-	})
-}
 
 func goTestFramework(source string) string {
 	switch {
@@ -41,26 +33,11 @@ func countMarkers(source string, markers []string) int {
 	return total
 }
 
-func dominantFramework(root string, files []string, detector func(string, string) (string, bool)) string {
-	counts := map[string]int{}
-	for _, rel := range files {
-		framework, include := readFrameworkFile(root, rel, func(string) bool { return true }, func(data string) string {
-			framework, _ := detector(rel, data)
-			return framework
-		})
-		if !include || framework == "" {
-			continue
-		}
-		counts[framework]++
-	}
-	return dominantFrameworkFromCounts(counts)
-}
-
-func readFrameworkFile(root string, rel string, include func(string) bool, detect func(string) string) (string, bool) {
+func readFrameworkFile(env support.Context, target core.TargetConfig, rel string, include func(string) bool, detect func(string) string) (string, bool) {
 	if !include(rel) {
 		return "", false
 	}
-	data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
+	data, err := readAITargetFile(env, target, rel)
 	if err != nil {
 		return "", false
 	}

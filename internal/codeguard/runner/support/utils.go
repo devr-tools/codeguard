@@ -1,6 +1,7 @@
 package support
 
 import (
+	"bytes"
 	"go/ast"
 	"io/fs"
 	"path/filepath"
@@ -164,8 +165,17 @@ func compilePattern(pattern string) (*regexp.Regexp, bool) {
 	return re, true
 }
 
+// CountLines reports how many lines data spans without allocating. It
+// preserves the exact semantics of the previous
+// strings.Split(strings.TrimRight(...))-based implementation: all trailing
+// newlines are ignored and empty input still counts as one line, so e.g.
+// "a\n" and "a\n\n" are 1 line and "" is 1 line.
 func CountLines(data []byte) int {
-	return len(strings.Split(strings.TrimRight(string(data), "\n"), "\n"))
+	end := len(data)
+	for end > 0 && data[end-1] == '\n' {
+		end--
+	}
+	return bytes.Count(data[:end], []byte{'\n'}) + 1
 }
 
 func TypeName(expr ast.Expr) string {

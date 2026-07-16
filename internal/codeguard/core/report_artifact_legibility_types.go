@@ -6,8 +6,10 @@ package core
 // README presence; Components carries the per-signal breakdown so the score
 // is explainable rather than a bare number.
 type RepoLegibilityArtifact struct {
-	Score      int                       `json:"score"`
-	Components []RepoLegibilityComponent `json:"components,omitempty"`
+	Score         int                       `json:"score"`
+	Components    []RepoLegibilityComponent `json:"components,omitempty"`
+	PreviousScore *int                      `json:"previous_score,omitempty"`
+	Delta         *int                      `json:"delta,omitempty"`
 }
 
 // RepoLegibilityComponent is one explainable slice of the legibility score:

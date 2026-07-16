@@ -137,8 +137,12 @@
       "detect_readme_drift": true,
       "detect_oversized_files": true,
       "detect_ambiguous_symbols": true,
+      "detect_undocumented_commands": true,
+      "detect_oversized_agent_docs": true,
+      "detect_doc_link_rot": true,
       "max_file_lines": 1500,
-      "ambiguous_symbol_threshold": 4
+      "ambiguous_symbol_threshold": 4,
+      "max_agent_doc_lines": 600
     }
   },
   "exclude": ["vendor/**", "**/testdata/**"],

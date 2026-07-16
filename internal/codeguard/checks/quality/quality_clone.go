@@ -72,11 +72,39 @@ func detectCloneCandidates(docs []cloneDocument, threshold int) []cloneCandidate
 	return candidates
 }
 
+// cloneWindowMultiplier is the odd multiplier for the polynomial rolling
+// window hash (Knuth's MMIX LCG constant). Multiplication by an odd constant
+// modulo 2^64 is invertible, which lets a window's hash be updated in O(1)
+// when the window slides by one token.
+const cloneWindowMultiplier uint64 = 6364136223846793005
+
+// cloneWindowIndex groups every threshold-token window by a rolling polynomial
+// hash over the per-token hashes computed at tokenize time. Compared with the
+// previous implementation (a fresh FNV over every token's bytes per window)
+// this allocates nothing and slides in O(1) per window instead of O(threshold).
+// Equal windows always collide (the hash is a deterministic function of the
+// normalized tokens), and unequal windows that collide are discarded by the
+// token-by-token verification in sharedCloneLength, so the resulting clone
+// candidates are identical to the old per-window byte hashing.
 func cloneWindowIndex(docs []cloneDocument, threshold int) cloneIndex {
 	index := make(cloneIndex)
+	// top = multiplier^(threshold-1), the weight of the token leaving the
+	// window on each slide.
+	top := uint64(1)
+	for i := 0; i < threshold-1; i++ {
+		top *= cloneWindowMultiplier
+	}
 	for docIdx, doc := range docs {
-		for tokenIdx := 0; tokenIdx+threshold <= len(doc.Tokens); tokenIdx++ {
-			hash := cloneWindowHash(doc.Tokens[tokenIdx : tokenIdx+threshold])
+		if len(doc.Tokens) < threshold {
+			continue
+		}
+		var hash uint64
+		for i := 0; i < threshold; i++ {
+			hash = hash*cloneWindowMultiplier + doc.Tokens[i].Hash
+		}
+		index[hash] = append(index[hash], cloneOccurrence{DocIndex: docIdx, TokenIndex: 0})
+		for tokenIdx := 1; tokenIdx+threshold <= len(doc.Tokens); tokenIdx++ {
+			hash = (hash-doc.Tokens[tokenIdx-1].Hash*top)*cloneWindowMultiplier + doc.Tokens[tokenIdx+threshold-1].Hash
 			index[hash] = append(index[hash], cloneOccurrence{DocIndex: docIdx, TokenIndex: tokenIdx})
 		}
 	}

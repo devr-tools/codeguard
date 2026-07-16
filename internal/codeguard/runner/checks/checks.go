@@ -150,6 +150,12 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 		VisitTargetFiles: func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
 			runnersupport.VisitTargetFiles(sc, target, include, visit)
 		},
+		ListTargetFiles: func(target core.TargetConfig) ([]string, error) {
+			return runnersupport.ListTargetFiles(sc, target)
+		},
+		ReadTargetFile: func(target core.TargetConfig, rel string) ([]byte, error) {
+			return runnersupport.ReadTargetFile(sc, target, rel)
+		},
 		DiffScope: func() map[string]core.ChangedLineRanges {
 			out := make(map[string]core.ChangedLineRanges, len(sc.Diff))
 			for path, ranges := range sc.Diff {
