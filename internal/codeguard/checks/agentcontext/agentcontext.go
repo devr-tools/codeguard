@@ -27,7 +27,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 // even when individual rules are muted.
 func targetFindings(env support.Context, target core.TargetConfig) []core.Finding {
 	rules := env.Config.Checks.ContextRules
-	assessment, driftFound := assessTarget(env, target)
+	assessment, driftFound, readiness := assessTarget(env, target)
 	findings := make([]core.Finding, 0)
 	if ruleEnabled(rules.DetectMissingAgentDocs) && len(assessment.agentDocs) == 0 {
 		findings = append(findings, missingAgentDocsFinding(env))
@@ -44,6 +44,15 @@ func targetFindings(env support.Context, target core.TargetConfig) []core.Findin
 	if ruleEnabled(rules.DetectAmbiguousSymbols) {
 		findings = append(findings, ambiguousBasenameFindings(env, assessment.inventory, ambiguousThreshold(rules))...)
 	}
+	if ruleEnabled(rules.DetectUndocumentedCommands) {
+		findings = append(findings, readiness.undocumentedCommands...)
+	}
+	if ruleEnabled(rules.DetectOversizedAgentDocs) {
+		findings = append(findings, readiness.oversizedAgentDocs...)
+	}
+	if ruleEnabled(rules.DetectDocLinkRot) {
+		findings = append(findings, readiness.docLinkRot...)
+	}
 	if env.PutArtifact != nil {
 		env.PutArtifact(legibilityArtifact(target, assessment))
 	}
@@ -57,10 +66,18 @@ type driftResults struct {
 	readme    []core.Finding
 }
 
-// assessTarget performs every measurement once: doc presence, drift
-// resolution, and the source inventory walk shared by the size and basename
-// rules and the legibility score.
-func assessTarget(env support.Context, target core.TargetConfig) (targetAssessment, driftResults) {
+// readinessResults carries the AI-and-human-readiness rules' findings, each
+// gated by its own toggle in targetFindings.
+type readinessResults struct {
+	undocumentedCommands []core.Finding
+	oversizedAgentDocs   []core.Finding
+	docLinkRot           []core.Finding
+}
+
+// assessTarget performs every measurement once: doc presence, drift and
+// readiness resolution, and the source inventory walk shared by the size and
+// basename rules and the legibility score.
+func assessTarget(env support.Context, target core.TargetConfig) (targetAssessment, driftResults, readinessResults) {
 	rules := env.Config.Checks.ContextRules
 	resolver := newRepoResolver(target.Path)
 	assessment := targetAssessment{
@@ -72,10 +89,15 @@ func assessTarget(env support.Context, target core.TargetConfig) (targetAssessme
 		agentDocs: agentDocsDriftFindings(env, resolver, assessment.agentDocs),
 		readme:    readmeDriftFindings(env, resolver),
 	}
+	readiness := readinessResults{
+		undocumentedCommands: undocumentedCommandFindings(env, resolver, assessment.agentDocs),
+		oversizedAgentDocs:   oversizedAgentDocFindings(env, resolver.root, assessment.agentDocs, maxAgentDocLinesBudget(rules)),
+		docLinkRot:           docLinkRotFindings(env, resolver, assessment.agentDocs),
+	}
 	assessment.driftReferences = len(drift.agentDocs) + len(drift.readme)
 	assessment.inventory = collectSourceInventory(env, target, assessment.maxFileLines)
 	assessment.ambiguousGroups = ambiguousBasenameGroups(assessment.inventory, ambiguousThreshold(rules))
-	return assessment, drift
+	return assessment, drift, readiness
 }
 
 // ruleEnabled treats a nil toggle as enabled: the family's rules are opt-out.

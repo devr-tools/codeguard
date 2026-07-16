@@ -176,6 +176,16 @@ type ContextRulesConfig struct {
 	DetectReadmeDrift      *bool `json:"detect_readme_drift,omitempty" yaml:"detect_readme_drift,omitempty"`
 	DetectOversizedFiles   *bool `json:"detect_oversized_files,omitempty" yaml:"detect_oversized_files,omitempty"`
 	DetectAmbiguousSymbols *bool `json:"detect_ambiguous_symbols,omitempty" yaml:"detect_ambiguous_symbols,omitempty"`
+	// DetectUndocumentedCommands warns when a high-signal Makefile target or
+	// package.json script is not mentioned by any agent instruction file or the
+	// root README. Silent when the repo has no agent docs at all.
+	DetectUndocumentedCommands *bool `json:"detect_undocumented_commands,omitempty" yaml:"detect_undocumented_commands,omitempty"`
+	// DetectOversizedAgentDocs warns when an agent instruction file exceeds
+	// MaxAgentDocLines, consuming the context budget it exists to save.
+	DetectOversizedAgentDocs *bool `json:"detect_oversized_agent_docs,omitempty" yaml:"detect_oversized_agent_docs,omitempty"`
+	// DetectDocLinkRot warns when a markdown link in an agent doc or the root
+	// README points at a repository path that does not exist.
+	DetectDocLinkRot *bool `json:"detect_doc_link_rot,omitempty" yaml:"detect_doc_link_rot,omitempty"`
 	// MaxFileLines is the agent context budget for a single source file.
 	// Distinct from quality_rules.max_file_lines: this threshold is about how
 	// much of an agent's context window one unit of work consumes, so its
@@ -184,6 +194,9 @@ type ContextRulesConfig struct {
 	// AmbiguousSymbolThreshold is the number of source files sharing one
 	// basename at which the basename is reported as ambiguous (default 4).
 	AmbiguousSymbolThreshold int `json:"ambiguous_symbol_threshold,omitempty" yaml:"ambiguous_symbol_threshold,omitempty"`
+	// MaxAgentDocLines is the line budget for a single agent instruction file
+	// (default 600); larger docs crowd out the working context they document.
+	MaxAgentDocLines int `json:"max_agent_doc_lines,omitempty" yaml:"max_agent_doc_lines,omitempty"`
 }
 
 type CommandCheckConfig struct {

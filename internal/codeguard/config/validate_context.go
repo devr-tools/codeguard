@@ -13,5 +13,8 @@ func validateContextRules(cfg core.ContextRulesConfig) error {
 	if cfg.AmbiguousSymbolThreshold < 0 || cfg.AmbiguousSymbolThreshold == 1 {
 		return errors.New("context_rules.ambiguous_symbol_threshold must be at least 2")
 	}
+	if cfg.MaxAgentDocLines < 0 {
+		return errors.New("context_rules.max_agent_doc_lines must be positive")
+	}
 	return nil
 }
