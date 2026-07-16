@@ -39,3 +39,4 @@ go.work.sum
 **/.codeguard/cache.slop-history.json
 **/.codeguard/cache.perf-history.json
 **/.codeguard/cache.rule-stats-history.json
+**/.codeguard/cache.legibility-history.json
