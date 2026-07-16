@@ -41,15 +41,16 @@ func TestRepoLegibilityArtifactExplainsPenalties(t *testing.T) {
 	}
 
 	artifact := requireRepoLegibilityArtifact(t, report)
-	// agent_docs 0/25, readme 10/10, doc_accuracy 16/20 (one broken
-	// reference), context_economy 25/25, navigability 20/20.
-	if artifact.RepoLegibility.Score != 71 {
-		t.Fatalf("score = %d, want 71: %+v", artifact.RepoLegibility.Score, artifact.RepoLegibility.Components)
+	// agent_docs 0/25, readme 10/10, doc_accuracy 0/20 (the single doc
+	// reference is broken, so 100% of the documentation is wrong),
+	// context_economy 25/25, navigability 20/20.
+	if artifact.RepoLegibility.Score != 55 {
+		t.Fatalf("score = %d, want 55: %+v", artifact.RepoLegibility.Score, artifact.RepoLegibility.Components)
 	}
 	if component := legibilityComponent(t, artifact, "agent_docs"); component.Score != 0 {
 		t.Fatalf("agent_docs score = %d, want 0", component.Score)
 	}
-	if component := legibilityComponent(t, artifact, "doc_accuracy"); component.Score != 16 || !strings.Contains(component.Detail, "1 unresolvable") {
+	if component := legibilityComponent(t, artifact, "doc_accuracy"); component.Score != 0 || !strings.Contains(component.Detail, "1 of 1 doc references unresolvable") {
 		t.Fatalf("unexpected doc_accuracy component: %+v", component)
 	}
 	if component := legibilityComponent(t, artifact, "readme"); component.Score != 10 {
@@ -101,8 +102,9 @@ func TestRepoLegibilityArtifactCountsOversizedAndAmbiguousRatios(t *testing.T) {
 	}
 
 	artifact := requireRepoLegibilityArtifact(t, report)
-	// 1 of 5 source files oversized: penalty min(25, 25*1*10/5) = 25.
-	if component := legibilityComponent(t, artifact, "context_economy"); component.Score != 0 || !strings.Contains(component.Detail, "1 of 5") {
+	// 1 of 5 source files oversized (20%): the linear ramp to zero at 25%
+	// yields penalty round(100*1/5) = 20, so 5 of 25 points remain.
+	if component := legibilityComponent(t, artifact, "context_economy"); component.Score != 5 || !strings.Contains(component.Detail, "1 of 5") {
 		t.Fatalf("unexpected context_economy component: %+v", component)
 	}
 	// 4 of 5 source files share a basename: penalty min(20, 20*4*5/5) = 20.
