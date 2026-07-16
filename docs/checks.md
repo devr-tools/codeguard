@@ -21,7 +21,7 @@ This file documents the current check categories in `codeguard` and the config k
 
 Each top-level boolean enables or disables an entire check family.
 
-`performance` is opt-in and covers N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, and unbounded concurrency; see [Performance](#performance) for the rule list and the migration note for the former `quality.*` ids.
+`performance` is opt-in and covers N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, unbounded concurrency, memory-pressure and framework-aware smells, diff-mode complexity regressions, and measurement gates (size budgets, benchmark regression); see [Performance](#performance) for the rule list and the migration note for the former `quality.*` ids.
 
 `context` covers agent-context legibility: when the key is omitted the family defaults to enabled in full scans and disabled in diff scans; see [Agent Context](#agent-context).
 
@@ -401,6 +401,10 @@ Purpose:
 - Sequential `await` in TS/JS loops that could batch through `Promise.all`
 - Memory-pressure patterns: `time.After` timers leaked in Go loops, `setInterval` without `clearInterval` and listeners added in TS/JS loops without cleanup, unbounded whole-input reads (`io.ReadAll` in Go handlers/loops, `.read()`/`.readlines()` in Python loops)
 - Framework-aware smells, gated on file-level framework evidence: Django relation access in queryset loops, Django/SQLAlchemy ORM point queries in loops, expensive per-render work in React components, CPU-heavy synchronous calls in Express middleware
+- Change intelligence (diff scans): loop-nesting complexity regressions in functions touched by the diff
+- Measurement gates: artifact size budgets and `go test -bench` regression detection against a stored baseline
+- An opt-in AI-assisted lens for judgment-call concerns (missing caching, algorithmic complexity) when the semantic runtime is configured
+- A `performance_score` artifact with per-target history so the smell trend is visible across scans
 
 Config keys:
 
