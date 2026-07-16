@@ -25,6 +25,7 @@ func applyPerformanceDefaults(dst *core.PerformanceRulesConfig) {
 		&dst.DetectAwaitInLoop,
 		&dst.DetectTimerLeaks,
 		&dst.DetectUnboundedReads,
+		&dst.DetectFrameworkPatterns,
 	)
 	defaultBoolPtr(&dst.DetectPreallocInLoop, false)
 }

@@ -50,6 +50,13 @@ type PerformanceRulesConfig struct {
 	// DetectUnboundedReads flags whole-input reads without a size bound:
 	// io.ReadAll in Go handlers/loops, .read()/.readlines() in Python loops.
 	DetectUnboundedReads *bool `json:"detect_unbounded_reads,omitempty" yaml:"detect_unbounded_reads,omitempty"`
+	// DetectFrameworkPatterns gates the framework-aware rules: Django relation
+	// access and ORM point queries in Python loops (Django/SQLAlchemy),
+	// expensive per-render work in React components, and CPU-heavy synchronous
+	// calls in Express middleware. Each rule additionally requires file-level
+	// framework evidence (imports or obvious idioms), so non-framework code
+	// never matches.
+	DetectFrameworkPatterns *bool `json:"detect_framework_patterns,omitempty" yaml:"detect_framework_patterns,omitempty"`
 }
 
 // AIChecksConfig toggles individual AI-quality heuristics. A nil pointer
