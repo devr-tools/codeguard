@@ -118,14 +118,15 @@ func TestAgentContextFlagsAgentDocsDrift(t *testing.T) {
 	assertFindingRuleAbsent(t, report, "Agent Context", "context.agent-docs-missing")
 }
 
-func TestAgentContextFlagsReadmeDriftOnlyInShellFences(t *testing.T) {
+func TestAgentContextFlagsReadmeDriftInProseAndShellFences(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "main.go"), "package main\n\nfunc main() {}\n")
 	writeFile(t, filepath.Join(dir, "Makefile"), "build:\n\techo build\n")
 	writeFile(t, filepath.Join(dir, "README.md"), strings.Join([]string{
 		"# fixture",
 		"",
-		"Prose mention of `./scripts/not-checked-in-prose.sh` stays inline-only.",
+		"Prose mention of `./scripts/not-checked-in-prose.sh` gets the same scrutiny as agent docs.",
+		"Entry point is `cmd/missing/main.go`.",
 		"",
 		"```bash",
 		"./scripts/setup.sh",
@@ -144,15 +145,17 @@ func TestAgentContextFlagsReadmeDriftOnlyInShellFences(t *testing.T) {
 
 	assertSectionStatus(t, report, "Agent Context", "warn")
 	messages := agentContextRuleMessages(report, "context.readme-drift")
-	if len(messages) != 2 {
-		t.Fatalf("readme-drift findings = %d, want 2: %v", len(messages), messages)
+	if len(messages) != 4 {
+		t.Fatalf("readme-drift findings = %d, want 4: %v", len(messages), messages)
 	}
 	joined := strings.Join(messages, "\n")
-	if !strings.Contains(joined, "./scripts/setup.sh") || !strings.Contains(joined, `make target "bootstrap"`) {
-		t.Fatalf("unexpected readme drift messages: %v", messages)
+	for _, needle := range []string{"./scripts/setup.sh", `make target "bootstrap"`, "not-checked-in-prose", "cmd/missing/main.go"} {
+		if !strings.Contains(joined, needle) {
+			t.Fatalf("readme drift messages missing %q: %v", needle, messages)
+		}
 	}
-	if strings.Contains(joined, "not-checked-in-prose") || strings.Contains(joined, "example-output") {
-		t.Fatalf("readme drift flagged out-of-scope references: %v", messages)
+	if strings.Contains(joined, "example-output") {
+		t.Fatalf("readme drift flagged references inside a non-shell fence: %v", messages)
 	}
 }
 

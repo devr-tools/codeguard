@@ -50,13 +50,17 @@ func exampleChecks() core.CheckConfig {
 
 func exampleContextRules() core.ContextRulesConfig {
 	return core.ContextRulesConfig{
-		DetectMissingAgentDocs:   boolPtr(true),
-		DetectAgentDocsDrift:     boolPtr(true),
-		DetectReadmeDrift:        boolPtr(true),
-		DetectOversizedFiles:     boolPtr(true),
-		DetectAmbiguousSymbols:   boolPtr(true),
-		MaxFileLines:             1500,
-		AmbiguousSymbolThreshold: 4,
+		DetectMissingAgentDocs:     boolPtr(true),
+		DetectAgentDocsDrift:       boolPtr(true),
+		DetectReadmeDrift:          boolPtr(true),
+		DetectOversizedFiles:       boolPtr(true),
+		DetectAmbiguousSymbols:     boolPtr(true),
+		DetectUndocumentedCommands: boolPtr(true),
+		DetectOversizedAgentDocs:   boolPtr(true),
+		DetectDocLinkRot:           boolPtr(true),
+		MaxFileLines:               1500,
+		AmbiguousSymbolThreshold:   4,
+		MaxAgentDocLines:           600,
 	}
 }
 

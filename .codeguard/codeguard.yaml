@@ -4,6 +4,7 @@ exclude:
   - .codeguard/cache.json
   - .codeguard/cache.slop-history.json
   - .codeguard/cache.perf-history.json
+  - .codeguard/cache.legibility-history.json
   - .gomodcache/**
   - tests/**/.codeguard/cache.json
   # Detection-precision fixtures: intentionally vulnerable-looking sample
@@ -77,6 +78,10 @@ checks:
         kind: file-size
         path: README.md
         max_bytes: 65536
+  context_rules:
+    # Enforceable AI-readiness gate: warn if the repo_legibility score drops
+    # below 85 (the repo currently scores 100; see docs/checks.md).
+    legibility_warn_threshold: 85
   ci_rules:
     require_workflow_dir: true
     required_workflow_files:

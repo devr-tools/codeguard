@@ -136,9 +136,13 @@ func applyContextDefaults(dst *core.ContextRulesConfig, def core.ContextRulesCon
 		&dst.DetectReadmeDrift,
 		&dst.DetectOversizedFiles,
 		&dst.DetectAmbiguousSymbols,
+		&dst.DetectUndocumentedCommands,
+		&dst.DetectOversizedAgentDocs,
+		&dst.DetectDocLinkRot,
 	)
 	defaultInt(&dst.MaxFileLines, def.MaxFileLines)
 	defaultInt(&dst.AmbiguousSymbolThreshold, def.AmbiguousSymbolThreshold)
+	defaultInt(&dst.MaxAgentDocLines, def.MaxAgentDocLines)
 }
 
 func applySupplyChainDefaults(dst *core.SupplyChainRulesConfig, def core.SupplyChainRulesConfig) {

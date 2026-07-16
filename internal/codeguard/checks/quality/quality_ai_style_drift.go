@@ -2,8 +2,6 @@ package quality
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -46,10 +44,6 @@ func goErrorStyleCounts(source string) map[string]int {
 	return counts
 }
 
-func dominantGoErrorStyle(root string, files []string) string {
-	return dominantStyle(root, files, goErrorStyleCounts)
-}
-
 // goErrorStyleDriftFinding is direction-aware: a file whose dominant style is
 // %w wrapping is never reported, because wrapping preserves the error chain
 // and adopting it in an unwrapped-error repository is an improvement, not
@@ -76,8 +70,8 @@ func scriptErrorStyleCounts(source string) map[string]int {
 	return counts
 }
 
-func dominantScriptErrorStyle(root string, files []string) string {
-	return dominantStyle(root, files, scriptErrorStyleCounts)
+func dominantScriptErrorStyle(env support.Context, target core.TargetConfig, files []string) string {
+	return dominantStyle(env, target, files, scriptErrorStyleCounts)
 }
 
 func scriptErrorStyleDriftFinding(env support.Context, file string, source string, dominant string) []core.Finding {
@@ -86,10 +80,10 @@ func scriptErrorStyleDriftFinding(env support.Context, file string, source strin
 
 // --- shared style machinery ---
 
-func dominantStyle(root string, files []string, counter func(string) map[string]int) string {
+func dominantStyle(env support.Context, target core.TargetConfig, files []string, counter func(string) map[string]int) string {
 	totals := map[string]int{}
 	for _, rel := range files {
-		data, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // file under the scan-target root
+		data, err := readAITargetFile(env, target, rel)
 		if err != nil {
 			continue
 		}
@@ -97,6 +91,12 @@ func dominantStyle(root string, files []string, counter func(string) map[string]
 			totals[style] += count
 		}
 	}
+	return dominantStyleFromTotals(totals)
+}
+
+// dominantStyleFromTotals picks the highest-count style, requiring a minimum
+// amount of repository-wide signal before declaring a dominant style.
+func dominantStyleFromTotals(totals map[string]int) string {
 	dominant := dominantFrameworkFromCounts(totals)
 	if totals[dominant] < 3 {
 		return ""

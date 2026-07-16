@@ -31,18 +31,18 @@ func typeScriptAITargetFindings(env support.Context, target core.TargetConfig) [
 	catalog := scriptImportCatalog{
 		hasManifest:      hasManifest,
 		deps:             packageManifestDeps(manifest),
-		workspacePackage: readWorkspacePackageNames(target.Path, env.Config.Exclude),
+		workspacePackage: readWorkspacePackageNames(env, target),
 	}
-	dominant := dominantScriptTestFramework(target.Path, files, manifest)
+	dominant := dominantScriptTestFramework(env, target, files, manifest)
 	input := scriptFileScanInput{
 		catalog:    catalog,
 		dominant:   dominant,
-		errorStyle: dominantScriptErrorStyle(target.Path, files),
-		naming:     dominantNamingConvention(target.Path, files, scriptDeclaredNames),
+		errorStyle: dominantScriptErrorStyle(env, target, files),
+		naming:     dominantNamingConvention(env, target, files, scriptDeclaredNames),
 	}
 	findings := make([]core.Finding, 0)
 	for _, rel := range files {
-		findings = append(findings, scriptFileAIQualityFindings(env, target.Path, rel, input)...)
+		findings = append(findings, scriptFileAIQualityFindings(env, target, rel, input)...)
 	}
 	return findings
 }
@@ -54,9 +54,8 @@ type scriptFileScanInput struct {
 	naming     string
 }
 
-func scriptFileAIQualityFindings(env support.Context, root string, rel string, input scriptFileScanInput) []core.Finding {
-	abs := filepath.Join(root, rel)
-	data, err := os.ReadFile(abs) //nolint:gosec // path resolved under the scan-target root
+func scriptFileAIQualityFindings(env support.Context, target core.TargetConfig, rel string, input scriptFileScanInput) []core.Finding {
+	data, err := readAITargetFile(env, target, rel)
 	if err != nil {
 		return nil
 	}
@@ -64,7 +63,7 @@ func scriptFileAIQualityFindings(env support.Context, root string, rel string, i
 	checks := env.Config.Checks.QualityRules.AIChecks
 	findings := make([]core.Finding, 0)
 	if aiCheckEnabled(checks.HallucinatedImport) {
-		findings = append(findings, scriptImportFindings(env, root, rel, source, input.catalog)...)
+		findings = append(findings, scriptImportFindings(env, target.Path, rel, source, input.catalog)...)
 	}
 	if aiCheckEnabled(checks.DeadCode) {
 		findings = append(findings, scriptDeadCodeFindings(env, rel, source)...)
