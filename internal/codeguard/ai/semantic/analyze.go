@@ -31,23 +31,16 @@ func Analyze(ctx context.Context, opts Options) ([]core.Finding, error) {
 	if !ok {
 		return nil, nil
 	}
-	cache := loadVerdictCache(opts.CachePath)
 	key := requestHash(req)
-	if key != "" {
-		if entry, ok := cache.entries[key]; ok {
-			return findingsFromResponse(opts.NewFinding, entry.Response), nil
-		}
+	if resp, ok := cachedResponse(opts.CachePath, key); ok {
+		return findingsFromResponse(opts.NewFinding, opts.EmitRule, resp), nil
 	}
-	resp, err := runCommand(ctx, opts.Command, req)
+	resp, err := runCommandShared(ctx, key, opts.Command, req)
 	if err != nil {
 		return nil, err
 	}
-	if key != "" {
-		cache.entries[key] = cacheEntry{Response: resp}
-		cache.dirty = true
-		_ = cache.save()
-	}
-	return findingsFromResponse(opts.NewFinding, resp), nil
+	storeCachedResponse(opts.CachePath, key, resp)
+	return findingsFromResponse(opts.NewFinding, opts.EmitRule, resp), nil
 }
 
 type Options struct {
@@ -59,5 +52,9 @@ type Options struct {
 	Command        string
 	Enabled        bool
 	CheckSelection CheckSelection
-	NewFinding     func(ruleID string, level string, path string, line int, message string) core.Finding
+	// EmitRule filters which verdict rule ids this caller emits as findings
+	// (nil emits every supported rule). The quality and performance sections
+	// share one combined request/response and demultiplex it by rule id here.
+	EmitRule   func(ruleID string) bool
+	NewFinding func(ruleID string, level string, path string, line int, message string) core.Finding
 }

@@ -13,6 +13,7 @@ var supportedRuleIDs = map[string]struct{}{
 	"quality.ai.semantic-error-message": {},
 	"quality.ai.semantic-test-coverage": {},
 	"quality.ai.semantic-test-adequacy": {},
+	PerformanceRuleID:                   {},
 }
 
 func buildRequest(opts Options) (Request, bool) {
@@ -88,13 +89,23 @@ func semanticCheckSpecs(selection CheckSelection) []CheckSpec {
 			Description: "Flag changed production behavior when nearby tests look weak or mismatched, including low-value assertions, over-mocking, happy-path-only coverage, missing negative-path checks, missing boundary checks, or risky changes without a matching test update.",
 		})
 	}
+	if selection.PerformanceReview {
+		checks = append(checks, CheckSpec{
+			RuleID:      PerformanceRuleID,
+			Title:       "AI-assisted performance review",
+			Description: "Flag changed functions with performance concerns a static rule cannot judge: repeated expensive calls that want caching or memoization, algorithmic complexity out of line with plausible input sizes, or obviously redundant work across the change.",
+		})
+	}
 	return checks
 }
 
-func findingsFromResponse(newFinding func(string, string, string, int, string) core.Finding, resp Response) []core.Finding {
+func findingsFromResponse(newFinding func(string, string, string, int, string) core.Finding, emitRule func(string) bool, resp Response) []core.Finding {
 	findings := make([]core.Finding, 0, len(resp.Verdicts))
 	for _, verdict := range resp.Verdicts {
 		if _, ok := supportedRuleIDs[verdict.RuleID]; !ok || strings.TrimSpace(verdict.Message) == "" {
+			continue
+		}
+		if emitRule != nil && !emitRule(verdict.RuleID) {
 			continue
 		}
 		level := verdict.Level

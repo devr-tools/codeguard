@@ -487,6 +487,42 @@ When a config omits the `performance` key entirely, text-format `scan` output ap
 
 **Migration note:** these rules previously ran inside the quality section under `quality.*` ids (`quality.n-plus-one-query`, `quality.go.alloc-in-loop`, `quality.sync-io-in-request-path`, `quality.unbounded-goroutines-in-loop`, the `quality.typescript.*`/`quality.javascript.*` mirrors, and `quality.python.sync-io-in-async`), gated by `quality_rules.detect_*` keys. There is no runtime aliasing: waivers, baselines, and configs that reference the old ids stop matching when you enable `checks.performance`, and `codeguard doctor` flags any waiver still pointing at a retired id with the replacement to use.
 
+### AI-assisted performance review
+
+When the command-backed semantic review runtime is available, the performance section gains an LLM-assisted lens over the changed functions. It is strictly opt-in and requires **all three** of:
+
+- the AI runtime enabled (or the `CODEGUARD_SEMANTIC_CHECKS` env gate set), the same guards the quality section's semantic review uses
+- a semantic command configured through `ai.provider.type=command` plus `ai.provider.command`/`args`, or through `CODEGUARD_SEMANTIC_COMMAND`
+- `checks.performance: true` — with the performance section disabled, semantic requests and scan output are byte-identical to a build without this lens
+
+Behavior:
+- emits `performance.ai.semantic-perf` (warn) when the semantic runtime finds a performance concern static rules cannot judge: repeated expensive calls that want caching or memoization, algorithmic complexity out of line with the input sizes the diff makes plausible, or obviously redundant work across the change; it is instructed **not** to flag micro-optimizations, style preferences, or anything without clear evidence in the diff
+- emits `performance.ai.semantic-runtime` at `fail` level when the lens is enabled but the semantic command is missing, crashes, or returns invalid JSON, instead of silently skipping coverage
+- diff-driven and cached: the lens reviews only changed files (patch input or a git diff against the scan base ref) and rides in the **same** semantic request as the quality lenses, so enabling it adds no extra runtime invocation, and verdicts are cached by hashed request content alongside the quality verdicts
+
+Repo-specific performance policies can also be expressed as natural-language custom rules (see [Custom rule packs](#custom-rule-packs)); these evaluate per file through `CODEGUARD_AI_RUNTIME_COMMAND` and are independent of the semantic lens above:
+
+```json
+{
+  "rule_packs": [
+    {
+      "name": "perf-policy",
+      "rules": [
+        {
+          "id": "custom.no-queries-in-loops",
+          "title": "No per-item database queries",
+          "severity": "warn",
+          "message": "database work inside a loop should be batched",
+          "how_to_fix": "Fetch the rows in one batched query before the loop.",
+          "paths": ["internal/**"],
+          "natural_language": "never issue a database query or remote API call once per element of a collection; batch the lookups before the loop instead"
+        }
+      ]
+    }
+  ]
+}
+```
+
 ## Design
 
 Purpose:
