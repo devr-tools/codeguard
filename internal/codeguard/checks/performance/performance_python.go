@@ -37,6 +37,15 @@ func pythonPerformanceFindings(env support.Context, file string, data []byte) []
 		limited:    pythonConcurrencyHint.MatchString(source),
 		frameworks: newPythonFrameworkScan(env.Config.Checks.PerformanceRules, source),
 	}
+	// N+1 detection prefers the tree-sitter path (query-shaped text inside
+	// comments and string literals cannot match a call node); when the tree
+	// is unavailable the line scan below keeps its regex check.
+	if toggleEnabled(scan.rules.DetectNPlusOneQuery) {
+		if treeFindings, ok := pythonNPlusOneTreeFindings(env, file, source); ok {
+			scan.nPlusOneByTree = true
+			scan.findings = append(scan.findings, treeFindings...)
+		}
+	}
 	for idx, line := range strings.Split(source, "\n") {
 		scan.consumeLine(idx+1, line)
 	}
@@ -44,15 +53,18 @@ func pythonPerformanceFindings(env support.Context, file string, data []byte) []
 }
 
 type pythonPerformanceScan struct {
-	env        support.Context
-	file       string
-	rules      core.PerformanceRulesConfig
-	limited    bool
-	stringVars map[string]struct{}
-	loops      []int
-	asyncDefs  []int
-	frameworks *pythonFrameworkScan
-	findings   []core.Finding
+	env     support.Context
+	file    string
+	rules   core.PerformanceRulesConfig
+	limited bool
+	// nPlusOneByTree records that the tree-sitter path already produced the
+	// performance.n-plus-one-query findings, so the regex check is skipped.
+	nPlusOneByTree bool
+	stringVars     map[string]struct{}
+	loops          []int
+	asyncDefs      []int
+	frameworks     *pythonFrameworkScan
+	findings       []core.Finding
 }
 
 func (s *pythonPerformanceScan) consumeLine(lineNo int, line string) {
@@ -80,9 +92,8 @@ func (s *pythonPerformanceScan) consumeLine(lineNo int, line string) {
 }
 
 func (s *pythonPerformanceScan) checkLine(lineNo int, line string, inLoop bool, inAsync bool) {
-	if inLoop && toggleEnabled(s.rules.DetectNPlusOneQuery) && pythonQueryCallPattern.MatchString(line) {
-		s.addFinding("performance.n-plus-one-query", lineNo,
-			"query or request call inside a loop suggests an N+1 pattern; batch the work or hoist the call out of the loop")
+	if inLoop && !s.nPlusOneByTree && toggleEnabled(s.rules.DetectNPlusOneQuery) && pythonQueryCallPattern.MatchString(line) {
+		s.addFinding("performance.n-plus-one-query", lineNo, pythonNPlusOneMessage)
 	}
 	if inAsync && toggleEnabled(s.rules.DetectSyncIOInHandlers) && pythonSyncInAsyncCall.MatchString(line) {
 		s.addFinding("performance.python.sync-io-in-async", lineNo,

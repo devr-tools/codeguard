@@ -1,19 +1,20 @@
 package core
 
 type Artifact struct {
-	ID              string                   `json:"id"`
-	Kind            string                   `json:"kind"`
-	Language        string                   `json:"language,omitempty"`
-	Target          string                   `json:"target,omitempty"`
-	DependencyGraph *DependencyGraphArtifact `json:"dependency_graph,omitempty"`
-	SupplyChain     *SupplyChainArtifact     `json:"supply_chain,omitempty"`
-	SlopScore       *SlopScoreArtifact       `json:"slop_score,omitempty"`
-	RuleStats       *RuleStatsArtifact       `json:"rule_stats,omitempty"`
-	ChangeRisk      *ChangeRiskArtifact      `json:"change_risk,omitempty"`
-	AIAnalysis      *AIAnalysisArtifact      `json:"ai_analysis,omitempty"`
-	AIFix           *AIFixArtifact           `json:"ai_fix,omitempty"`
-	ChangeImpact    *ChangeImpactArtifact    `json:"change_impact,omitempty"`
-	RepoLegibility  *RepoLegibilityArtifact  `json:"repo_legibility,omitempty"`
+	ID               string                    `json:"id"`
+	Kind             string                    `json:"kind"`
+	Language         string                    `json:"language,omitempty"`
+	Target           string                    `json:"target,omitempty"`
+	DependencyGraph  *DependencyGraphArtifact  `json:"dependency_graph,omitempty"`
+	SupplyChain      *SupplyChainArtifact      `json:"supply_chain,omitempty"`
+	SlopScore        *SlopScoreArtifact        `json:"slop_score,omitempty"`
+	PerformanceScore *PerformanceScoreArtifact `json:"performance_score,omitempty"`
+	RuleStats        *RuleStatsArtifact        `json:"rule_stats,omitempty"`
+	ChangeRisk       *ChangeRiskArtifact       `json:"change_risk,omitempty"`
+	AIAnalysis       *AIAnalysisArtifact       `json:"ai_analysis,omitempty"`
+	AIFix            *AIFixArtifact            `json:"ai_fix,omitempty"`
+	ChangeImpact     *ChangeImpactArtifact     `json:"change_impact,omitempty"`
+	RepoLegibility   *RepoLegibilityArtifact   `json:"repo_legibility,omitempty"`
 }
 
 type DependencyGraphArtifact struct {

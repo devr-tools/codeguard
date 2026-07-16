@@ -14,6 +14,8 @@ type (
 	ChangeRiskArtifact          = core.ChangeRiskArtifact
 	ChangeRiskComponent         = core.ChangeRiskComponent
 	SlopHistoryEntry            = core.SlopHistoryEntry
+	PerformanceScoreArtifact    = core.PerformanceScoreArtifact
+	PerformanceHistoryEntry     = core.PerformanceHistoryEntry
 	RuleStatsArtifact           = core.RuleStatsArtifact
 	RuleStatsEntry              = core.RuleStatsEntry
 	RuleStatsHistoryEntry       = core.RuleStatsHistoryEntry

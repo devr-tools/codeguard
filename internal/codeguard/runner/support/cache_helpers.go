@@ -46,11 +46,11 @@ func SectionConfigHashes(cfg core.Config, catalog map[string]core.RuleMetadata, 
 	checks := cfg.Checks
 	return map[string]string{
 		// quality reads both QualityRules and DesignRules, and its AI-quality
-		// findings depend on the AI config. quality and security both include
-		// cfg.Parsers because toggling parsers.treesitter changes their
-		// per-file script findings.
+		// findings depend on the AI config. quality, performance, and security
+		// include cfg.Parsers because toggling parsers.treesitter changes
+		// their per-file script findings.
 		"quality":     sectionFingerprint(prefix, "quality", catalog, cfg.AI, checks.QualityRules, checks.DesignRules, cfg.Parsers),
-		"performance": sectionFingerprint(prefix, "performance", catalog, checks.PerformanceRules),
+		"performance": sectionFingerprint(prefix, "performance", catalog, checks.PerformanceRules, cfg.Parsers),
 		"design":      sectionFingerprint(prefix, "design", catalog, checks.DesignRules),
 		"security":    sectionFingerprint(prefix, "security", catalog, checks.SecurityRules, cfg.Parsers),
 		"prompts":     sectionFingerprint(prefix, "prompts", catalog, checks.PromptRules),

@@ -483,6 +483,29 @@ Framework-aware rules (`detect_framework_patterns`): every rule requires file-le
 - `react-expensive-render` needs a component/custom-hook region (`function`/`const` named with a capital letter or `use*`) and flags only a chain of two or more `.sort`/`.filter`/`.map` calls on one line, `new Array(`, or `JSON.parse(`; anything on or inside a `useMemo`/`useCallback`/`useEffect`/`useLayoutEffect` wrapper is exempt. The heuristic does not distinguish event-handler callbacks declared in the component body (work there runs per event, not per render) and misses chains split across lines.
 - `express-sync-middleware` sticks to a fixed CPU-heavy shortlist (`bcrypt.hashSync`/`compareSync`, `crypto.pbkdf2Sync`/`scryptSync`, `zlib` `*Sync`, `child_process.execSync`, including destructured bare-name calls) inside `app.use(`/`router.use(` regions; it takes precedence over the generic `sync-io-in-handler` finding on the same line, and other `*Sync` calls (e.g. `fs.readFileSync`) stay with the generic rule.
 
+Parsers & precision: with `parsers.treesitter: "auto"`, Python `performance.n-plus-one-query` runs on the embedded tree-sitter Python grammar instead of the line regex — only genuine call expressions (`cursor.execute(...)`, `requests`/`httpx` HTTP verbs, `session.query(...)`) inside `for`/`while` statements match, so query-shaped text inside comments and string literals no longer fires, and tree-path findings report `confidence: high`. Rule ID, level, and message are identical on both paths. The regex scan remains the automatic fallback whenever the tree is unavailable (`parsers.treesitter: "off"` — the default — a build without the `grammar_subset_python` tag, oversized files, or a parse failure).
+
+### Performance score artifact
+
+When the performance section runs and produces findings, each target publishes a `performance_score` artifact (mirroring the quality section's `slop_score`): `score` is the weighted finding count scaled by 10 and capped at 100, `signals` is the number of contributing findings, and `components` breaks the total down per rule. Weights are assigned per rule family and are deliberately simple and stable:
+
+| Family | Rules | Weight |
+|---|---|---|
+| Query in loop (N+1) | `n-plus-one-query` | 5 |
+| Blocking I/O | `sync-io-in-request-path`, `{typescript,javascript}.sync-io-in-handler`, `python.sync-io-in-async` | 4 |
+| Unbounded concurrency | `unbounded-goroutines-in-loop`, `{typescript,javascript,python}.unbounded-concurrency` | 4 |
+| Memory pressure | `unbounded-read`, `go.timer-leak-in-loop`, `{typescript,javascript}.timer-listener-leak` | 3 |
+| Repeated loop work | `regex-compile-in-loop`, `go.defer-in-loop`, `go.sleep-in-loop`, `{typescript,javascript}.await-in-loop` | 2 |
+| Allocation churn | `go.alloc-in-loop`, `string-concat-in-loop` | 1 |
+
+The score trend is persisted per target next to the scan cache (`<cache>.perf-history.<ext>`) whenever the cache is enabled; subsequent scans annotate the artifact with `previous_score` and `delta`. `performance_rules.score_history: false` disables persistence and `performance_rules.score_history_limit` caps retained entries per target (default 100). Print the recorded trend with:
+
+```
+codeguard report -perf-history [-config path] [-limit n]
+```
+
+(mirroring `codeguard report -slop-history` for the slop-score trend).
+
 When a config omits the `performance` key entirely, text-format `scan` output appends a one-line note suggesting the upgrade; setting the key explicitly (`true` or `false`) silences it.
 
 **Migration note:** these rules previously ran inside the quality section under `quality.*` ids (`quality.n-plus-one-query`, `quality.go.alloc-in-loop`, `quality.sync-io-in-request-path`, `quality.unbounded-goroutines-in-loop`, the `quality.typescript.*`/`quality.javascript.*` mirrors, and `quality.python.sync-io-in-async`), gated by `quality_rules.detect_*` keys. There is no runtime aliasing: waivers, baselines, and configs that reference the old ids stop matching when you enable `checks.performance`, and `codeguard doctor` flags any waiver still pointing at a retired id with the replacement to use.

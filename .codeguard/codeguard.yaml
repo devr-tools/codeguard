@@ -3,6 +3,7 @@ exclude:
   - .claude/**
   - .codeguard/cache.json
   - .codeguard/cache.slop-history.json
+  - .codeguard/cache.perf-history.json
   - .gomodcache/**
   - tests/**/.codeguard/cache.json
   # Detection-precision fixtures: intentionally vulnerable-looking sample
