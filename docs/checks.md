@@ -8,6 +8,7 @@ This file documents the current check categories in `codeguard` and the config k
 {
   "checks": {
     "quality": true,
+    "performance": false,
     "design": true,
     "security": true,
     "prompts": true,
@@ -19,6 +20,8 @@ This file documents the current check categories in `codeguard` and the config k
 ```
 
 Each top-level boolean enables or disables an entire check family.
+
+`performance` is opt-in and covers N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, and unbounded concurrency; see [Performance](#performance) for the rule list and the migration note for the former `quality.*` ids.
 
 `context` covers agent-context legibility: when the key is omitted the family defaults to enabled in full scans and disabled in diff scans; see [Agent Context](#agent-context).
 
@@ -386,6 +389,37 @@ Behavior:
 - one finding per file whose changed-line coverage is below `min_changed_line_coverage` (default 60), listing the coverage percentage and the uncovered changed lines
 - findings warn by default and escalate to fail below `fail_under` (unset by default)
 - changed lines that are not measurable (comments, declarations, files absent from the coverage report) are excluded from the percentage; a failed coverage run produces a warn finding instead of aborting the scan
+
+## Performance
+
+Purpose:
+- N+1 query / remote-fetch patterns inside loops (Go, Python, TypeScript, JavaScript)
+- Allocation-heavy loops: string concatenation, `fmt.Sprintf` accumulation, and (opt-in) append without preallocation (Go)
+- Blocking I/O in request paths: synchronous file I/O in Go HTTP handlers, `*Sync` calls in TS/JS handlers, blocking calls in Python `async def` bodies
+- Unbounded concurrency: goroutines launched from loops (Go), promises created in loops without a limiter (TS/JS)
+
+Config keys:
+
+```json
+{
+  "checks": {
+    "performance": true,
+    "performance_rules": {
+      "detect_n_plus_one_query": true,
+      "detect_alloc_in_loop": true,
+      "detect_prealloc_in_loop": false,
+      "detect_sync_io_in_handlers": true,
+      "detect_unbounded_concurrency": true
+    }
+  }
+}
+```
+
+The family is **opt-in** (`performance: false` by default). Within it, every rule toggle defaults to enabled except `detect_prealloc_in_loop`, which stays opt-in because preallocating is a micro-optimization that idiomatic accumulation loops legitimately skip.
+
+Rules: `performance.n-plus-one-query`, `performance.go.alloc-in-loop`, `performance.sync-io-in-request-path`, `performance.unbounded-goroutines-in-loop`, `performance.typescript.sync-io-in-handler` / `performance.javascript.sync-io-in-handler`, `performance.typescript.unbounded-concurrency` / `performance.javascript.unbounded-concurrency`, and `performance.python.sync-io-in-async`.
+
+**Migration note:** these rules previously ran inside the quality section under `quality.*` ids (`quality.n-plus-one-query`, `quality.go.alloc-in-loop`, `quality.sync-io-in-request-path`, `quality.unbounded-goroutines-in-loop`, the `quality.typescript.*`/`quality.javascript.*` mirrors, and `quality.python.sync-io-in-async`), gated by `quality_rules.detect_*` keys. There is no runtime aliasing: waivers, baselines, and configs that reference the old ids stop matching when you enable `checks.performance`, and `codeguard doctor` flags any waiver still pointing at a retired id with the replacement to use.
 
 ## Design
 

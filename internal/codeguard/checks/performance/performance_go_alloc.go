@@ -1,4 +1,4 @@
-package quality
+package performance
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ type goAllocLoopScan struct {
 // loops legitimately skip.
 func goAllocInLoopFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
 	findings := make([]core.Finding, 0)
-	detectPrealloc := preallocToggleEnabled(env.Config.Checks.QualityRules.DetectPreallocInLoop)
+	detectPrealloc := preallocToggleEnabled(env.Config.Checks.PerformanceRules.DetectPreallocInLoop)
 	for _, decl := range parsed.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil {
@@ -86,7 +86,7 @@ func (scan goAllocLoopScan) assignFindings(assign *ast.AssignStmt, knowableBound
 
 func (scan goAllocLoopScan) finding(assign *ast.AssignStmt, message string) core.Finding {
 	pos := scan.fset.Position(assign.Pos())
-	return warnFinding(scan.env, "quality.go.alloc-in-loop", scan.file, pos.Line, pos.Column, message)
+	return warnFinding(scan.env, "performance.go.alloc-in-loop", scan.file, pos.Line, pos.Column, message)
 }
 
 func goStringGrowthMessage(assign *ast.AssignStmt) string {

@@ -49,13 +49,14 @@ func SectionConfigHashes(cfg core.Config, catalog map[string]core.RuleMetadata, 
 		// findings depend on the AI config. quality and security both include
 		// cfg.Parsers because toggling parsers.treesitter changes their
 		// per-file script findings.
-		"quality":   sectionFingerprint(prefix, "quality", catalog, cfg.AI, checks.QualityRules, checks.DesignRules, cfg.Parsers),
-		"design":    sectionFingerprint(prefix, "design", catalog, checks.DesignRules),
-		"security":  sectionFingerprint(prefix, "security", catalog, checks.SecurityRules, cfg.Parsers),
-		"prompts":   sectionFingerprint(prefix, "prompts", catalog, checks.PromptRules),
-		"ci":        sectionFingerprint(prefix, "ci", catalog, checks.CIRules),
-		"contracts": sectionFingerprint(prefix, "contracts", catalog, checks.ContractRules),
-		"":          sectionFingerprint(prefix, "all", catalog, cfg.AI, checks, cfg.Parsers),
+		"quality":     sectionFingerprint(prefix, "quality", catalog, cfg.AI, checks.QualityRules, checks.DesignRules, cfg.Parsers),
+		"performance": sectionFingerprint(prefix, "performance", catalog, checks.PerformanceRules),
+		"design":      sectionFingerprint(prefix, "design", catalog, checks.DesignRules),
+		"security":    sectionFingerprint(prefix, "security", catalog, checks.SecurityRules, cfg.Parsers),
+		"prompts":     sectionFingerprint(prefix, "prompts", catalog, checks.PromptRules),
+		"ci":          sectionFingerprint(prefix, "ci", catalog, checks.CIRules),
+		"contracts":   sectionFingerprint(prefix, "contracts", catalog, checks.ContractRules),
+		"":            sectionFingerprint(prefix, "all", catalog, cfg.AI, checks, cfg.Parsers),
 	}
 }
 
@@ -68,7 +69,7 @@ func sectionConfigFamily(sectionID string) string {
 		sectionID = sectionID[:i]
 	}
 	switch sectionID {
-	case "quality", "design", "security", "prompts", "ci", "contracts":
+	case "quality", "performance", "design", "security", "prompts", "ci", "contracts":
 		return sectionID
 	default:
 		return ""

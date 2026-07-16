@@ -1,4 +1,4 @@
-package quality
+package performance
 
 import (
 	"go/ast"

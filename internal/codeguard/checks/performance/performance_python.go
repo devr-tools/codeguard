@@ -1,4 +1,4 @@
-package quality
+package performance
 
 import (
 	"regexp"
@@ -16,7 +16,7 @@ var (
 )
 
 func pythonPerformanceFindings(env support.Context, file string, data []byte) []core.Finding {
-	scan := &pythonPerformanceScan{env: env, file: file, rules: env.Config.Checks.QualityRules}
+	scan := &pythonPerformanceScan{env: env, file: file, rules: env.Config.Checks.PerformanceRules}
 	for idx, line := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
 		scan.consumeLine(idx+1, line)
 	}
@@ -26,7 +26,7 @@ func pythonPerformanceFindings(env support.Context, file string, data []byte) []
 type pythonPerformanceScan struct {
 	env       support.Context
 	file      string
-	rules     core.QualityRulesConfig
+	rules     core.PerformanceRulesConfig
 	loops     []int
 	asyncDefs []int
 	findings  []core.Finding
@@ -50,12 +50,12 @@ func (s *pythonPerformanceScan) consumeLine(lineNo int, line string) {
 }
 
 func (s *pythonPerformanceScan) checkLine(lineNo int, line string, inLoop bool, inAsync bool) {
-	if inLoop && qualityToggleEnabled(s.rules.DetectNPlusOneQuery) && pythonQueryCallPattern.MatchString(line) {
-		s.addFinding("quality.n-plus-one-query", lineNo,
+	if inLoop && toggleEnabled(s.rules.DetectNPlusOneQuery) && pythonQueryCallPattern.MatchString(line) {
+		s.addFinding("performance.n-plus-one-query", lineNo,
 			"query or request call inside a loop suggests an N+1 pattern; batch the work or hoist the call out of the loop")
 	}
-	if inAsync && qualityToggleEnabled(s.rules.DetectSyncIOInHandlers) && pythonSyncInAsyncCall.MatchString(line) {
-		s.addFinding("quality.python.sync-io-in-async", lineNo,
+	if inAsync && toggleEnabled(s.rules.DetectSyncIOInHandlers) && pythonSyncInAsyncCall.MatchString(line) {
+		s.addFinding("performance.python.sync-io-in-async", lineNo,
 			"blocking call inside an async function stalls the event loop; use an async client or asyncio.sleep")
 	}
 }

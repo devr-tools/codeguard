@@ -1,4 +1,4 @@
-package quality
+package performance
 
 import (
 	"regexp"
@@ -32,7 +32,7 @@ func typeScriptPerformanceFindings(env support.Context, file string, data []byte
 		env:      env,
 		file:     file,
 		limited:  tsConcurrencyLimitHint.MatchString(source),
-		rules:    env.Config.Checks.QualityRules,
+		rules:    env.Config.Checks.PerformanceRules,
 		findings: make([]core.Finding, 0),
 	}
 	for idx, line := range strings.Split(code, "\n") {
@@ -45,7 +45,7 @@ type tsPerformanceScan struct {
 	env      support.Context
 	file     string
 	limited  bool
-	rules    core.QualityRulesConfig
+	rules    core.PerformanceRulesConfig
 	depth    int
 	loops    []int
 	handlers []int
@@ -73,17 +73,17 @@ func (s *tsPerformanceScan) consumeLine(lineNo int, line string) {
 }
 
 func (s *tsPerformanceScan) checkLine(lineNo int, line string, inLoop bool, inHandler bool) {
-	if inLoop && qualityToggleEnabled(s.rules.DetectNPlusOneQuery) && tsQueryCallPattern.MatchString(line) {
-		s.addFinding("quality.n-plus-one-query", "quality.n-plus-one-query", lineNo,
+	if inLoop && toggleEnabled(s.rules.DetectNPlusOneQuery) && tsQueryCallPattern.MatchString(line) {
+		s.addFinding("performance.n-plus-one-query", "performance.n-plus-one-query", lineNo,
 			"query or fetch call inside a loop suggests an N+1 pattern; batch requests or hoist the call out of the loop")
 	}
-	if inLoop && qualityToggleEnabled(s.rules.DetectUnboundedConcurrency) && !s.limited &&
+	if inLoop && toggleEnabled(s.rules.DetectUnboundedConcurrency) && !s.limited &&
 		!strings.Contains(line, "await ") && tsPromiseCreatePattern.MatchString(line) {
-		s.addFinding("quality.typescript.unbounded-concurrency", "quality.javascript.unbounded-concurrency", lineNo,
+		s.addFinding("performance.typescript.unbounded-concurrency", "performance.javascript.unbounded-concurrency", lineNo,
 			"promise created inside a loop without a concurrency limit; batch with Promise.all over chunks or use p-limit")
 	}
-	if inHandler && qualityToggleEnabled(s.rules.DetectSyncIOInHandlers) && tsSyncCallPattern.MatchString(line) {
-		s.addFinding("quality.typescript.sync-io-in-handler", "quality.javascript.sync-io-in-handler", lineNo,
+	if inHandler && toggleEnabled(s.rules.DetectSyncIOInHandlers) && tsSyncCallPattern.MatchString(line) {
+		s.addFinding("performance.typescript.sync-io-in-handler", "performance.javascript.sync-io-in-handler", lineNo,
 			"synchronous I/O call inside a request handler blocks the event loop; use the async API instead")
 	}
 }

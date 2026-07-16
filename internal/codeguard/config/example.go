@@ -25,13 +25,17 @@ func exampleTargets() []core.TargetConfig {
 
 func exampleChecks() core.CheckConfig {
 	return core.CheckConfig{
-		Quality:          true,
-		Design:           true,
+		Quality: true,
+		Design:  true,
+		// Performance is opt-in while the rules settle into their own section;
+		// they previously ran (enabled) inside quality under quality.* ids.
+		Performance:      false,
 		Security:         true,
 		Prompts:          true,
 		CI:               true,
 		SupplyChain:      false,
 		QualityRules:     exampleQualityRules(),
+		PerformanceRules: examplePerformanceRules(),
 		DesignRules:      exampleDesignRules(),
 		PromptRules:      examplePromptRules(),
 		CIRules:          exampleCIRules(),

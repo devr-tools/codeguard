@@ -13,7 +13,6 @@ func pythonFindingsForFile(env support.Context, file string, data []byte) []core
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
 	findings = append(findings, pythonAIQualityFindings(env, file, data)...)
-	findings = append(findings, pythonPerformanceFindings(env, file, data)...)
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 

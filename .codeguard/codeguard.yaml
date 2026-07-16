@@ -19,9 +19,15 @@ waivers:
   - rule: ci.test-without-assertion
     path: tests/**/trust_main_test.go
     reason: Go TestMain functions bootstrap package-wide trust policy and are not assertion-bearing tests
-  - rule: quality.unbounded-goroutines-in-loop
+  - rule: performance.unbounded-goroutines-in-loop
     path: internal/codeguard/runner/checks/checks.go
     reason: section workers are bounded by a NumCPU-sized semaphore before each goroutine is launched
+  - rule: performance.unbounded-goroutines-in-loop
+    path: internal/codeguard/runner/support/findings.go
+    reason: the per-file scan launches a fixed worker-count pool joined by a WaitGroup, which is the bounding the rule asks for
+  - rule: performance.unbounded-goroutines-in-loop
+    path: tests/support/rule_stats_collector_test.go
+    reason: the concurrency test launches a fixed 16 workers joined by a WaitGroup to prove race-freedom
   - rule: ci.test-file-location
     path: internal/codeguard/checks/support/treesitter/*_test.go
     reason: the tree-sitter design spike is an isolated Go module whose differential tests must live beside the prototype they validate (docs/treesitter-spike.md)
@@ -39,6 +45,7 @@ targets:
       - cmd/codeguard
 checks:
   quality: true
+  performance: true
   design: true
   security: false
   prompts: false

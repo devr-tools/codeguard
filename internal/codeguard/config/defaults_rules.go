@@ -8,6 +8,12 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	defaultInt(&dst.MaxParameters, def.MaxParameters)
 	defaultInt(&dst.MaxCyclomaticComplexity, def.MaxCyclomaticComplexity)
 	defaultInt(&dst.CloneTokenThreshold, def.CloneTokenThreshold)
+	defaultCommandMap(&dst.LanguageCommands, def.LanguageCommands)
+	applyAIChangeRiskDefaults(&dst.AIChangeRisk, def.AIChangeRisk)
+	applyCoverageDeltaDefaults(&dst.CoverageDelta)
+}
+
+func applyPerformanceDefaults(dst *core.PerformanceRulesConfig) {
 	applyDefaultBoolPtrs(
 		&dst.DetectNPlusOneQuery,
 		&dst.DetectAllocInLoop,
@@ -15,9 +21,6 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 		&dst.DetectUnboundedConcurrency,
 	)
 	defaultBoolPtr(&dst.DetectPreallocInLoop, false)
-	defaultCommandMap(&dst.LanguageCommands, def.LanguageCommands)
-	applyAIChangeRiskDefaults(&dst.AIChangeRisk, def.AIChangeRisk)
-	applyCoverageDeltaDefaults(&dst.CoverageDelta)
 }
 
 func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig) {

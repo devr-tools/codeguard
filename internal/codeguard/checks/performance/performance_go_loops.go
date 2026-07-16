@@ -1,4 +1,4 @@
-package quality
+package performance
 
 import (
 	"fmt"
@@ -18,16 +18,18 @@ var goQueryMethodNames = map[string]struct{}{
 	"ExecContext":     {},
 }
 
-func qualityToggleEnabled(value *bool) bool {
+// toggleEnabled treats a nil rule toggle as enabled, matching the rest of the
+// rule pack defaults.
+func toggleEnabled(value *bool) bool {
 	return value == nil || *value
 }
 
 func goPerformanceFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
 	findings := goCorePerformanceFindings(env, file, fset, parsed)
-	if qualityToggleEnabled(env.Config.Checks.QualityRules.DetectNPlusOneQuery) {
+	if toggleEnabled(env.Config.Checks.PerformanceRules.DetectNPlusOneQuery) {
 		findings = append(findings, goNPlusOneFindings(env, file, fset, parsed)...)
 	}
-	if qualityToggleEnabled(env.Config.Checks.QualityRules.DetectAllocInLoop) {
+	if toggleEnabled(env.Config.Checks.PerformanceRules.DetectAllocInLoop) {
 		findings = append(findings, goAllocInLoopFindings(env, file, fset, parsed)...)
 	}
 	return findings
@@ -69,7 +71,7 @@ func goNPlusOneFindings(env support.Context, file string, fset *token.FileSet, p
 				return true
 			}
 			seen[line] = struct{}{}
-			findings = append(findings, warnFinding(env, "quality.n-plus-one-query", file, line, fset.Position(call.Pos()).Column,
+			findings = append(findings, warnFinding(env, "performance.n-plus-one-query", file, line, fset.Position(call.Pos()).Column,
 				fmt.Sprintf("query call %s inside a loop suggests an N+1 query pattern; batch the query or hoist it out of the loop", sel.Sel.Name)))
 			return true
 		})

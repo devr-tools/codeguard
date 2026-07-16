@@ -7,18 +7,25 @@ type QualityRulesConfig struct {
 	MaxCyclomaticComplexity int                             `json:"max_cyclomatic_complexity" yaml:"max_cyclomatic_complexity"`
 	CloneTokenThreshold     int                             `json:"clone_token_threshold,omitempty" yaml:"clone_token_threshold,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
-	DetectNPlusOneQuery     *bool                           `json:"detect_n_plus_one_query,omitempty" yaml:"detect_n_plus_one_query,omitempty"`
-	DetectAllocInLoop       *bool                           `json:"detect_alloc_in_loop,omitempty" yaml:"detect_alloc_in_loop,omitempty"`
+	AIProvenance            AIProvenanceConfig              `json:"ai_provenance,omitempty" yaml:"ai_provenance,omitempty"`
+	AIChangeRisk            AIChangeRiskConfig              `json:"ai_change_risk,omitempty" yaml:"ai_change_risk,omitempty"`
+	AIChecks                AIChecksConfig                  `json:"ai_checks,omitempty" yaml:"ai_checks,omitempty"`
+	CoverageDelta           CoverageDeltaConfig             `json:"coverage_delta,omitempty" yaml:"coverage_delta,omitempty"`
+}
+
+// PerformanceRulesConfig tunes the performance section (checks.performance).
+// The detect_* toggles moved here from quality_rules when the performance
+// rules were promoted out of the quality section; nil toggles default to
+// enabled except detect_prealloc_in_loop.
+type PerformanceRulesConfig struct {
+	DetectNPlusOneQuery *bool `json:"detect_n_plus_one_query,omitempty" yaml:"detect_n_plus_one_query,omitempty"`
+	DetectAllocInLoop   *bool `json:"detect_alloc_in_loop,omitempty" yaml:"detect_alloc_in_loop,omitempty"`
 	// DetectPreallocInLoop gates the append-without-preallocation branch of
-	// quality.go.alloc-in-loop. Defaults to false: preallocating is a
+	// performance.go.alloc-in-loop. Defaults to false: preallocating is a
 	// micro-optimization, and idiomatic accumulation loops legitimately skip it.
-	DetectPreallocInLoop       *bool               `json:"detect_prealloc_in_loop,omitempty" yaml:"detect_prealloc_in_loop,omitempty"`
-	DetectSyncIOInHandlers     *bool               `json:"detect_sync_io_in_handlers,omitempty" yaml:"detect_sync_io_in_handlers,omitempty"`
-	DetectUnboundedConcurrency *bool               `json:"detect_unbounded_concurrency,omitempty" yaml:"detect_unbounded_concurrency,omitempty"`
-	AIProvenance               AIProvenanceConfig  `json:"ai_provenance,omitempty" yaml:"ai_provenance,omitempty"`
-	AIChangeRisk               AIChangeRiskConfig  `json:"ai_change_risk,omitempty" yaml:"ai_change_risk,omitempty"`
-	AIChecks                   AIChecksConfig      `json:"ai_checks,omitempty" yaml:"ai_checks,omitempty"`
-	CoverageDelta              CoverageDeltaConfig `json:"coverage_delta,omitempty" yaml:"coverage_delta,omitempty"`
+	DetectPreallocInLoop       *bool `json:"detect_prealloc_in_loop,omitempty" yaml:"detect_prealloc_in_loop,omitempty"`
+	DetectSyncIOInHandlers     *bool `json:"detect_sync_io_in_handlers,omitempty" yaml:"detect_sync_io_in_handlers,omitempty"`
+	DetectUnboundedConcurrency *bool `json:"detect_unbounded_concurrency,omitempty" yaml:"detect_unbounded_concurrency,omitempty"`
 }
 
 // AIChecksConfig toggles individual AI-quality heuristics. A nil pointer

@@ -50,6 +50,11 @@ type CheckConfig struct {
 	Security bool `json:"security" yaml:"security"`
 	Prompts  bool `json:"prompts" yaml:"prompts"`
 	CI       bool `json:"ci" yaml:"ci"`
+	// Performance toggles the performance section (N+1 queries, alloc-heavy
+	// loops, blocking I/O in request paths, unbounded concurrency). Off by
+	// default while the rules settle into their new section; the rules
+	// themselves previously ran inside the quality section under quality.* ids.
+	Performance bool `json:"performance,omitempty" yaml:"performance,omitempty"`
 	// SupplyChain toggles dependency-policy checks such as manifest hygiene,
 	// lockfile drift, license policy, and SBOM-oriented validation.
 	SupplyChain bool `json:"supply_chain,omitempty" yaml:"supply_chain,omitempty"`
@@ -65,6 +70,7 @@ type CheckConfig struct {
 	// PR regardless of the change under review.
 	Context          *bool                  `json:"context,omitempty" yaml:"context,omitempty"`
 	QualityRules     QualityRulesConfig     `json:"quality_rules" yaml:"quality_rules"`
+	PerformanceRules PerformanceRulesConfig `json:"performance_rules,omitempty" yaml:"performance_rules,omitempty"`
 	DesignRules      DesignRulesConfig      `json:"design_rules" yaml:"design_rules"`
 	PromptRules      PromptRulesConfig      `json:"prompt_rules" yaml:"prompt_rules"`
 	CIRules          CIRulesConfig          `json:"ci_rules" yaml:"ci_rules"`

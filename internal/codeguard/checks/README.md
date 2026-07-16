@@ -3,6 +3,7 @@
 Built-in checks live under `internal/codeguard/checks/` and are split by policy category:
 
 - `quality/`
+- `performance/`
 - `design/`
 - `security/`
 - `prompts/`
