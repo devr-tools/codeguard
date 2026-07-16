@@ -943,7 +943,7 @@ Purpose:
 - Drift between agent docs / README commands and the actual repository
 - Agent context budget for individual source files
 - Basename ambiguity that defeats filename-based navigation
-- A `repo_legibility` artifact scoring how legible the repository is to AI agents
+- A `repo_legibility` artifact scoring how legible the repository is to AI agents, with an enforceable score threshold and a persisted per-scan trend
 
 Config keys:
 
@@ -958,7 +958,12 @@ Config keys:
       "detect_oversized_files": true,
       "detect_ambiguous_symbols": true,
       "max_file_lines": 1500,
-      "ambiguous_symbol_threshold": 4
+      "ambiguous_symbol_threshold": 4,
+      "ambiguous_symbol_ignore": ["index.ts", "__init__.py"],
+      "legibility_warn_threshold": 0,
+      "legibility_fail_threshold": 0,
+      "legibility_history": true,
+      "legibility_history_limit": 100
     }
   }
 }
@@ -971,7 +976,8 @@ Current behavior:
 - `context.agent-docs-drift` warns when an agent instruction file references a file or directory path, a `make` target, or an npm/pnpm/yarn `run` script that provably does not exist
 - `context.readme-drift` applies the same resolution to fenced `bash`/`sh`/`shell` blocks in the root README.md: `./`-prefixed paths, make targets, and run scripts that resolve nowhere
 - `context.oversized-context-unit` warns when a source file exceeds `context_rules.max_file_lines` (default 1500); the message is framed as agent context cost, distinct from `quality.max-file-lines` maintainability thresholds; generated and vendored files are skipped
-- `context.ambiguous-symbol` warns once per source-file basename shared by at least `context_rules.ambiguous_symbol_threshold` files (default 4), listing up to five locations
+- `context.ambiguous-symbol` warns once per source-file basename shared by at least `context_rules.ambiguous_symbol_threshold` files (default 4), listing up to five locations; conventional basenames in the ignore list (below) never fire
+- `context.legibility-threshold` enforces the `repo_legibility` score: because legibility is good-high (the inverse of the slop score), the finding fires when the computed score falls **below** a configured floor — `warn` below `context_rules.legibility_warn_threshold`, `fail` below `context_rules.legibility_fail_threshold` (the fail level takes precedence when both match). `0` (the default) disables each threshold, and when both are set the fail threshold must be less than or equal to the warn threshold. The finding message carries the full component breakdown (e.g. `agent_docs 10/25, readme 10/10, ...`) so the weakest signal is immediately visible
 
 Drift resolution is deliberately conservative — precision over recall. It only flags references it can positively prove broken, and skips:
 - URLs, module/domain paths (`github.com/...`), absolute paths, and `..` traversals
@@ -981,16 +987,37 @@ Drift resolution is deliberately conservative — precision over recall. It only
 - make targets when no root Makefile exists or the Makefile uses `include` or pattern rules
 - npm scripts when there is no root package.json or it declares workspaces
 
+Conventional-basename ignore list:
+
+Basenames imposed by a language or framework convention are expected to repeat, so they neither fire `context.ambiguous-symbol` findings nor count against the `navigability` score component. The default set:
+- JS/TS module entrypoints: `index.ts`, `index.tsx`, `index.js`, `index.jsx`, `index.mjs`, `index.cjs`
+- file-system routers: `route.ts`, `routes.ts`, `page.tsx`, `layout.tsx`
+- Python package markers: `__init__.py`, `__main__.py`
+- Rust module layout: `mod.rs`, `lib.rs`, `main.rs`
+- Go idioms: `main.go`, `doc.go`, `types.go`
+
+Setting `context_rules.ambiguous_symbol_ignore` **replaces** the default list entirely (matching is case-insensitive): re-list the defaults plus your own names to extend it, or set it to `[]` to disable ignoring altogether.
+
 `repo_legibility` artifact:
 
 Every context run publishes one `repo_legibility` artifact per target with a 0-100 score (higher is more legible) and an explainable component breakdown:
-- `agent_docs` (25): any agent instruction file present
+- `agent_docs` (25): agent instruction files must exist *and* have substance — credit is `25 x min(non-blank lines, 10) / 10` measured on the largest agent doc (an empty CLAUDE.md scores 0, full credit from 10 non-blank lines), minus 2 points per unresolvable reference inside the agent docs (capped at 10); the component detail spells out both terms
 - `readme` (10): root README.md present
-- `doc_accuracy` (20): minus 4 points per unresolvable doc/README reference
-- `context_economy` (25): scaled down by the share of source files over the context budget (10% oversized zeroes it)
-- `navigability` (20): scaled down by the share of source files caught in ambiguous basename groups (20% affected zeroes it)
+- `doc_accuracy` (20): scaled by the share of doc/README references that resolve — penalty `round(20 x broken/total)`, so 2 broken of 10 costs 4 points while a doc set that is mostly wrong loses all 20; with no references the component stays at 20
+- `context_economy` (25): scaled by the share of source files over the context budget, ramping linearly to zero at 25% oversized (penalty `round(25 x share x 4)`, capped at 25)
+- `navigability` (20): scaled down by the share of source files caught in ambiguous basename groups (20% affected zeroes it), computed after removing conventional basenames per the ignore list above
 
-The artifact is emitted even when individual rules are toggled off, so the score always reports reality.
+The artifact is emitted even when individual rules are toggled off, so the score always reports reality. The `context.legibility-threshold` rule (above) turns the score into a warn/fail gate.
+
+Score history:
+
+The legibility score trend is persisted per target next to the scan cache (`<cache>.legibility-history.<ext>`, e.g. `cache.legibility-history.json`) whenever the cache is enabled; subsequent scans annotate the artifact with `previous_score` and `delta`. `context_rules.legibility_history: false` disables persistence and `context_rules.legibility_history_limit` caps retained entries per target (default 100). Print the recorded trend with:
+
+```bash
+codeguard report -legibility-history [-config path] [-limit n]
+```
+
+(mirroring `codeguard report -slop-history` and `codeguard report -perf-history`).
 
 ## Output
 
