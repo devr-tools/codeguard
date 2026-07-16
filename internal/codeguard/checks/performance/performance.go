@@ -19,6 +19,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 
 func performanceTargetFindings(_ context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	findings := make([]core.Finding, 0)
+	findings = append(findings, complexityRegressionFindings(env, target)...)
 	switch support.NormalizedLanguage(target.Language) {
 	case "", "go":
 		findings = append(findings, env.ScanTargetFiles(target, "performance", func(rel string) bool {

@@ -418,7 +418,8 @@ Config keys:
       "detect_sleep_in_loop": true,
       "detect_await_in_loop": true,
       "detect_timer_leaks": true,
-      "detect_unbounded_reads": true
+      "detect_unbounded_reads": true,
+      "detect_complexity_regression": true
     }
   }
 }
@@ -446,6 +447,7 @@ Rules:
 | `performance.go.timer-leak-in-loop` | Go | `detect_timer_leaks` |
 | `performance.{typescript,javascript}.timer-listener-leak` | TS, JS | `detect_timer_leaks` |
 | `performance.unbounded-read` | Go, Python | `detect_unbounded_reads` |
+| `performance.complexity-regression` | Go | `detect_complexity_regression` (diff scans only) |
 
 Notes on precision:
 - `regex-compile-in-loop` fires only on **literal** patterns: compiling a variable pattern in a loop usually means the pattern differs per iteration (e.g. compiling config-supplied patterns), which is not hoistable.
@@ -454,6 +456,18 @@ Notes on precision:
 - `unbounded-read` does not fire when the reader is already bounded (`io.LimitReader`, `http.MaxBytesReader`, `read(n)`).
 - The TS/JS timer/listener rule treats any `clearInterval` in the file as interval cleanup, and any `removeEventListener`/`AbortSignal` usage as listener cleanup.
 - Python task creation is exempt when the file shows a bounding construct (`asyncio.Semaphore`, `TaskGroup`, `aiolimiter`, `anyio.CapacityLimiter`).
+
+### Complexity regression (diff scans only)
+
+`performance.complexity-regression` compares each function touched by the diff against the same function at the base ref and warns when its **maximum loop-nesting depth increased** (e.g. a changed function went from one loop to a loop inside a loop). The message names the function and both depths, so review can focus on whether the added iteration runs over unbounded data.
+
+Behavior and precision:
+- **Diff scans only.** The rule needs a base ref to compare against, so it activates only in diff mode (`--diff`); full scans never emit it. The toggle (`detect_complexity_regression`) defaults to enabled, which is safe precisely because full scans are unaffected.
+- Functions are matched by name (methods by `ReceiverType.Name`). Functions that do not exist at the base ref — new or renamed — are skipped: there is no baseline to regress from, and the absolute-depth rules cover new code.
+- Only functions whose lines intersect the diff's changed ranges are compared; untouched functions are never re-litigated.
+- Nesting depth is syntactic and includes function literals at their nesting position: a closure that loops, launched per loop iteration, still multiplies the iteration space.
+- Files that are added, deleted, or unparseable at either revision are skipped.
+- **Language coverage: Go only** in this version (the comparison parses both revisions via `go/ast`). Python and TypeScript/JavaScript changes are not checked.
 
 When a config omits the `performance` key entirely, text-format `scan` output appends a one-line note suggesting the upgrade; setting the key explicitly (`true` or `false`) silences it.
 
