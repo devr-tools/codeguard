@@ -54,10 +54,12 @@ func goCorePerformanceFindings(env support.Context, file string, fset *token.Fil
 		stack = append(stack, n)
 		switch node := n.(type) {
 		case *ast.GoStmt:
-			if detectGoroutines && hasLoopAncestor(stack[:len(stack)-1]) {
-				pos := fset.Position(node.Go)
-				findings = append(findings, warnFinding(env, "performance.unbounded-goroutines-in-loop", file, pos.Line, pos.Column,
-					"goroutine launched inside a loop should be bounded or queued explicitly"))
+			if detectGoroutines {
+				if loop := nearestLoopAncestor(stack[:len(stack)-1]); loop != nil && !loopLaunchesBoundedWorkers(loop) {
+					pos := fset.Position(node.Go)
+					findings = append(findings, warnFinding(env, "performance.unbounded-goroutines-in-loop", file, pos.Line, pos.Column,
+						"goroutine launched inside a loop should be bounded or queued explicitly"))
+				}
 			}
 		case *ast.CallExpr:
 			if !detectSyncIO {
@@ -80,13 +82,79 @@ func goCorePerformanceFindings(env support.Context, file string, fset *token.Fil
 }
 
 func hasLoopAncestor(stack []ast.Node) bool {
+	return nearestLoopAncestor(stack) != nil
+}
+
+func nearestLoopAncestor(stack []ast.Node) ast.Node {
 	for i := len(stack) - 1; i >= 0; i-- {
 		switch stack[i].(type) {
 		case *ast.ForStmt, *ast.RangeStmt:
-			return true
+			return stack[i]
 		}
 	}
-	return false
+	return nil
+}
+
+// loopLaunchesBoundedWorkers recognizes worker-pool construction, where a loop
+// launching goroutines is bounded by design rather than data-driven:
+//   - a counted loop (`for range n` with no iteration variables, or a classic
+//     `for i := 0; i < n; i++` whose bound is a literal or plain identifier —
+//     not len()/cap() of a collection) creates a fixed number of workers
+//   - a loop whose body acquires a struct{} channel semaphore (`sem <- struct{}{}`)
+//     before launching bounds its in-flight goroutines explicitly
+func loopLaunchesBoundedWorkers(loop ast.Node) bool {
+	switch node := loop.(type) {
+	case *ast.RangeStmt:
+		if node.Key == nil && node.Value == nil {
+			return true
+		}
+		return bodyAcquiresSemaphore(node.Body)
+	case *ast.ForStmt:
+		if cond, ok := node.Cond.(*ast.BinaryExpr); ok && (cond.Op == token.LSS || cond.Op == token.LEQ) {
+			if isFixedCountBound(cond.Y) {
+				return true
+			}
+		}
+		return bodyAcquiresSemaphore(node.Body)
+	default:
+		return false
+	}
+}
+
+// isFixedCountBound reports a loop bound that is a fixed count rather than a
+// collection measurement: an integer literal or a plain identifier. len()/cap()
+// bounds stay data-driven and are not exempt.
+func isFixedCountBound(expr ast.Expr) bool {
+	switch bound := expr.(type) {
+	case *ast.BasicLit:
+		return bound.Kind == token.INT
+	case *ast.Ident:
+		return true
+	default:
+		return false
+	}
+}
+
+// bodyAcquiresSemaphore reports a `ch <- struct{}{}` send in the loop body —
+// the canonical channel-semaphore acquire that bounds in-flight goroutines.
+func bodyAcquiresSemaphore(body *ast.BlockStmt) bool {
+	if body == nil {
+		return false
+	}
+	acquired := false
+	ast.Inspect(body, func(node ast.Node) bool {
+		send, ok := node.(*ast.SendStmt)
+		if !ok {
+			return !acquired
+		}
+		if lit, isLit := send.Value.(*ast.CompositeLit); isLit {
+			if structType, isStruct := lit.Type.(*ast.StructType); isStruct && len(structType.Fields.List) == 0 {
+				acquired = true
+			}
+		}
+		return !acquired
+	})
+	return acquired
 }
 
 func enclosingFunc(stack []ast.Node) *ast.FuncDecl {

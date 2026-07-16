@@ -460,6 +460,8 @@ Rules:
 | `performance.{typescript,javascript}.express-sync-middleware` | TS, JS | `detect_framework_patterns` |
 
 Notes on precision:
+- `unbounded-goroutines-in-loop` recognizes bounded worker-pool construction and stays silent for it: counted loops (`for range n` with no iteration variables, or `for i := 0; i < n; i++` with a literal/identifier bound — `len()`/`cap()` bounds stay data-driven and still fire) and loops whose body acquires a `struct{}` channel semaphore (`sem <- struct{}{}`) before launching.
+- `go.sleep-in-loop` exempts `_test.go` files: polling with a short sleep between readiness probes is the idiomatic test pattern.
 - `regex-compile-in-loop` fires only on **literal** patterns: compiling a variable pattern in a loop usually means the pattern differs per iteration (e.g. compiling config-supplied patterns), which is not hoistable.
 - `defer-in-loop` scopes to the enclosing function: `defer wg.Done()` inside a goroutine launched from a loop runs per goroutine and is not flagged.
 - `await-in-loop` exempts `for await` streams and any file using a concurrency limiter (`p-limit`/`p-queue`); keep the loop (or disable the toggle) when iterations genuinely depend on each other.
