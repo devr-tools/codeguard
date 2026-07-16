@@ -394,9 +394,12 @@ Behavior:
 
 Purpose:
 - N+1 query / remote-fetch patterns inside loops (Go, Python, TypeScript, JavaScript)
-- Allocation-heavy loops: string concatenation, `fmt.Sprintf` accumulation, and (opt-in) append without preallocation (Go)
+- Allocation-heavy loops: string concatenation and `fmt.Sprintf` accumulation (Go, Python, TS/JS) and (opt-in) append without preallocation (Go)
+- Repeated work inside loops: regex compilation (Go, Python, TS/JS), `defer` accumulation (Go), polling sleeps (Go)
 - Blocking I/O in request paths: synchronous file I/O in Go HTTP handlers, `*Sync` calls in TS/JS handlers, blocking calls in Python `async def` bodies
-- Unbounded concurrency: goroutines launched from loops (Go), promises created in loops without a limiter (TS/JS)
+- Unbounded concurrency: goroutines launched from loops (Go), promises created in loops without a limiter (TS/JS), `asyncio` tasks created in loops without a semaphore (Python)
+- Sequential `await` in TS/JS loops that could batch through `Promise.all`
+- Memory-pressure patterns: `time.After` timers leaked in Go loops, `setInterval` without `clearInterval` and listeners added in TS/JS loops without cleanup, unbounded whole-input reads (`io.ReadAll` in Go handlers/loops, `.read()`/`.readlines()` in Python loops)
 
 Config keys:
 
@@ -409,7 +412,13 @@ Config keys:
       "detect_alloc_in_loop": true,
       "detect_prealloc_in_loop": false,
       "detect_sync_io_in_handlers": true,
-      "detect_unbounded_concurrency": true
+      "detect_unbounded_concurrency": true,
+      "detect_regex_compile_in_loop": true,
+      "detect_defer_in_loop": true,
+      "detect_sleep_in_loop": true,
+      "detect_await_in_loop": true,
+      "detect_timer_leaks": true,
+      "detect_unbounded_reads": true
     }
   }
 }
@@ -417,7 +426,34 @@ Config keys:
 
 The family is **opt-in** (`performance: false` by default). Within it, every rule toggle defaults to enabled except `detect_prealloc_in_loop`, which stays opt-in because preallocating is a micro-optimization that idiomatic accumulation loops legitimately skip.
 
-Rules: `performance.n-plus-one-query`, `performance.go.alloc-in-loop`, `performance.sync-io-in-request-path`, `performance.unbounded-goroutines-in-loop`, `performance.typescript.sync-io-in-handler` / `performance.javascript.sync-io-in-handler`, `performance.typescript.unbounded-concurrency` / `performance.javascript.unbounded-concurrency`, and `performance.python.sync-io-in-async`.
+Rules:
+
+| Rule | Languages | Toggle |
+|---|---|---|
+| `performance.n-plus-one-query` | Go, Python, TS, JS | `detect_n_plus_one_query` |
+| `performance.go.alloc-in-loop` | Go | `detect_alloc_in_loop` (+ `detect_prealloc_in_loop`) |
+| `performance.string-concat-in-loop` | Python, TS, JS | `detect_alloc_in_loop` |
+| `performance.regex-compile-in-loop` | Go, Python, TS, JS | `detect_regex_compile_in_loop` |
+| `performance.go.defer-in-loop` | Go | `detect_defer_in_loop` |
+| `performance.go.sleep-in-loop` | Go | `detect_sleep_in_loop` |
+| `performance.sync-io-in-request-path` | Go | `detect_sync_io_in_handlers` |
+| `performance.{typescript,javascript}.sync-io-in-handler` | TS, JS | `detect_sync_io_in_handlers` |
+| `performance.python.sync-io-in-async` | Python | `detect_sync_io_in_handlers` |
+| `performance.unbounded-goroutines-in-loop` | Go | `detect_unbounded_concurrency` |
+| `performance.{typescript,javascript}.unbounded-concurrency` | TS, JS | `detect_unbounded_concurrency` |
+| `performance.python.unbounded-concurrency` | Python | `detect_unbounded_concurrency` |
+| `performance.{typescript,javascript}.await-in-loop` | TS, JS | `detect_await_in_loop` |
+| `performance.go.timer-leak-in-loop` | Go | `detect_timer_leaks` |
+| `performance.{typescript,javascript}.timer-listener-leak` | TS, JS | `detect_timer_leaks` |
+| `performance.unbounded-read` | Go, Python | `detect_unbounded_reads` |
+
+Notes on precision:
+- `regex-compile-in-loop` fires only on **literal** patterns: compiling a variable pattern in a loop usually means the pattern differs per iteration (e.g. compiling config-supplied patterns), which is not hoistable.
+- `defer-in-loop` scopes to the enclosing function: `defer wg.Done()` inside a goroutine launched from a loop runs per goroutine and is not flagged.
+- `await-in-loop` exempts `for await` streams and any file using a concurrency limiter (`p-limit`/`p-queue`); keep the loop (or disable the toggle) when iterations genuinely depend on each other.
+- `unbounded-read` does not fire when the reader is already bounded (`io.LimitReader`, `http.MaxBytesReader`, `read(n)`).
+- The TS/JS timer/listener rule treats any `clearInterval` in the file as interval cleanup, and any `removeEventListener`/`AbortSignal` usage as listener cleanup.
+- Python task creation is exempt when the file shows a bounding construct (`asyncio.Semaphore`, `TaskGroup`, `aiolimiter`, `anyio.CapacityLimiter`).
 
 When a config omits the `performance` key entirely, text-format `scan` output appends a one-line note suggesting the upgrade; setting the key explicitly (`true` or `false`) silences it.
 

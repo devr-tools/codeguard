@@ -18,14 +18,38 @@ type QualityRulesConfig struct {
 // rules were promoted out of the quality section; nil toggles default to
 // enabled except detect_prealloc_in_loop.
 type PerformanceRulesConfig struct {
+	// DetectNPlusOneQuery gates query/fetch-in-loop detection across languages.
 	DetectNPlusOneQuery *bool `json:"detect_n_plus_one_query,omitempty" yaml:"detect_n_plus_one_query,omitempty"`
-	DetectAllocInLoop   *bool `json:"detect_alloc_in_loop,omitempty" yaml:"detect_alloc_in_loop,omitempty"`
+	// DetectAllocInLoop gates allocation-heavy loop detection: Go string growth
+	// and fmt.Sprintf accumulation, plus string concatenation in Python and
+	// TypeScript/JavaScript loops.
+	DetectAllocInLoop *bool `json:"detect_alloc_in_loop,omitempty" yaml:"detect_alloc_in_loop,omitempty"`
 	// DetectPreallocInLoop gates the append-without-preallocation branch of
 	// performance.go.alloc-in-loop. Defaults to false: preallocating is a
 	// micro-optimization, and idiomatic accumulation loops legitimately skip it.
-	DetectPreallocInLoop       *bool `json:"detect_prealloc_in_loop,omitempty" yaml:"detect_prealloc_in_loop,omitempty"`
-	DetectSyncIOInHandlers     *bool `json:"detect_sync_io_in_handlers,omitempty" yaml:"detect_sync_io_in_handlers,omitempty"`
+	DetectPreallocInLoop   *bool `json:"detect_prealloc_in_loop,omitempty" yaml:"detect_prealloc_in_loop,omitempty"`
+	DetectSyncIOInHandlers *bool `json:"detect_sync_io_in_handlers,omitempty" yaml:"detect_sync_io_in_handlers,omitempty"`
+	// DetectUnboundedConcurrency gates goroutines-in-loop (Go), promise
+	// creation in loops (TS/JS), and asyncio task creation in loops (Python).
 	DetectUnboundedConcurrency *bool `json:"detect_unbounded_concurrency,omitempty" yaml:"detect_unbounded_concurrency,omitempty"`
+	// DetectRegexCompileInLoop flags regex compilation inside loop bodies
+	// (regexp.Compile/MustCompile, re.compile, new RegExp).
+	DetectRegexCompileInLoop *bool `json:"detect_regex_compile_in_loop,omitempty" yaml:"detect_regex_compile_in_loop,omitempty"`
+	// DetectDeferInLoop flags Go defer statements inside loop bodies, where
+	// they accumulate until function exit.
+	DetectDeferInLoop *bool `json:"detect_defer_in_loop,omitempty" yaml:"detect_defer_in_loop,omitempty"`
+	// DetectSleepInLoop flags time.Sleep inside Go loop bodies, which usually
+	// marks a poll that wants a ticker, channel, or backoff helper.
+	DetectSleepInLoop *bool `json:"detect_sleep_in_loop,omitempty" yaml:"detect_sleep_in_loop,omitempty"`
+	// DetectAwaitInLoop flags await inside TS/JS loop bodies, which serializes
+	// work that could run concurrently via Promise.all.
+	DetectAwaitInLoop *bool `json:"detect_await_in_loop,omitempty" yaml:"detect_await_in_loop,omitempty"`
+	// DetectTimerLeaks flags timer/listener leaks: time.After in Go loops,
+	// setInterval without clearInterval and addEventListener in TS/JS loops.
+	DetectTimerLeaks *bool `json:"detect_timer_leaks,omitempty" yaml:"detect_timer_leaks,omitempty"`
+	// DetectUnboundedReads flags whole-input reads without a size bound:
+	// io.ReadAll in Go handlers/loops, .read()/.readlines() in Python loops.
+	DetectUnboundedReads *bool `json:"detect_unbounded_reads,omitempty" yaml:"detect_unbounded_reads,omitempty"`
 }
 
 // AIChecksConfig toggles individual AI-quality heuristics. A nil pointer

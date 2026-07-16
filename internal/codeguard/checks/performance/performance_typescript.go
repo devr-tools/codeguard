@@ -15,6 +15,26 @@ var (
 	tsSyncCallPattern      = regexp.MustCompile(`\b\w+Sync\s*\(`)
 	tsPromiseCreatePattern = regexp.MustCompile(`new\s+Promise\s*\(|\.push\s*\(\s*(?:fetch\s*\(|axios\b)`)
 	tsConcurrencyLimitHint = regexp.MustCompile(`p-limit|p-queue|pLimit\s*\(`)
+	tsAwaitPattern         = regexp.MustCompile(`(?:^|[^\w$])await\s`)
+	tsForAwaitPattern      = regexp.MustCompile(`\bfor\s+await\s*\(`)
+	// tsRegexCompilePattern requires a literal pattern (matched on the raw
+	// line, since the stripper blanks quotes): a variable argument usually
+	// varies per iteration, which is not the hoistable smell.
+	tsRegexCompilePattern = regexp.MustCompile(`new\s+RegExp\s*\(\s*["'` + "`" + `]`)
+	// tsStringConcat matches "name += <string-ish>": a quote, backtick, or
+	// String(...) start keeps numeric accumulators out. It runs on the RAW
+	// line (the stripper blanks quote delimiters), guarded by the stripped
+	// line still containing += so comment text cannot match. Augmented
+	// assignment to a variable initialized from a string literal (tracked by
+	// tsStringInit) is caught separately, covering out += row + "\n".
+	tsStringConcat        = regexp.MustCompile(`[\w$\]]\s*\+=\s*(?:["'` + "`" + `]|String\s*\()`)
+	tsStringInit          = regexp.MustCompile(`\b(?:let|var)\s+([\w$]+)\s*(?::\s*string\s*)?=\s*["'` + "`" + `]`)
+	tsAugmentedAssign     = regexp.MustCompile(`(?:^|[^\w$.])([\w$]+)\s*\+=`)
+	tsSetIntervalPattern  = regexp.MustCompile(`\bsetInterval\s*\(`)
+	tsClearInterval       = regexp.MustCompile(`\bclearInterval\s*\(`)
+	tsAddListenerPattern  = regexp.MustCompile(`\baddEventListener\s*\(`)
+	tsRemoveListenerCall  = regexp.MustCompile(`\bremoveEventListener\s*\(`)
+	tsAbortSignalListener = regexp.MustCompile(`\bsignal\s*[:=]`)
 )
 
 func typeScriptPerformanceTargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
@@ -29,33 +49,53 @@ func typeScriptPerformanceFindings(env support.Context, file string, data []byte
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
 	code := support.StripTypeScriptCommentsAndStrings(source)
 	scan := &tsPerformanceScan{
-		env:      env,
-		file:     file,
-		limited:  tsConcurrencyLimitHint.MatchString(source),
-		rules:    env.Config.Checks.PerformanceRules,
-		findings: make([]core.Finding, 0),
+		env:              env,
+		file:             file,
+		limited:          tsConcurrencyLimitHint.MatchString(source),
+		listenersCleaned: tsRemoveListenerCall.MatchString(code) || tsAbortSignalListener.MatchString(code),
+		rules:            env.Config.Checks.PerformanceRules,
+		findings:         make([]core.Finding, 0),
 	}
+	rawLines := strings.Split(source, "\n")
 	for idx, line := range strings.Split(code, "\n") {
-		scan.consumeLine(idx+1, line)
+		scan.consumeLine(idx+1, line, rawLines[idx])
+	}
+	// setInterval leaks are a file-level judgment: any clearInterval in the
+	// file counts as cleanup, so the findings are emitted after the pass.
+	if toggleEnabled(scan.rules.DetectTimerLeaks) && !scan.intervalsCleaned {
+		for _, lineNo := range scan.intervalLines {
+			scan.addFinding("performance.typescript.timer-listener-leak", "performance.javascript.timer-listener-leak", lineNo,
+				"setInterval without any clearInterval in the file keeps the callback and its captures alive forever; store the handle and clear it")
+		}
 	}
 	return scan.findings
 }
 
 type tsPerformanceScan struct {
-	env      support.Context
-	file     string
-	limited  bool
-	rules    core.PerformanceRulesConfig
-	depth    int
-	loops    []int
-	handlers []int
-	findings []core.Finding
+	env              support.Context
+	file             string
+	limited          bool
+	listenersCleaned bool
+	intervalsCleaned bool
+	intervalLines    []int
+	stringVars       map[string]struct{}
+	rules            core.PerformanceRulesConfig
+	depth            int
+	loops            []int
+	handlers         []int
+	findings         []core.Finding
 }
 
-func (s *tsPerformanceScan) consumeLine(lineNo int, line string) {
+func (s *tsPerformanceScan) consumeLine(lineNo int, line string, rawLine string) {
+	if m := tsStringInit.FindStringSubmatch(rawLine); m != nil {
+		if s.stringVars == nil {
+			s.stringVars = map[string]struct{}{}
+		}
+		s.stringVars[m[1]] = struct{}{}
+	}
 	startsLoop := tsLoopStartPattern.MatchString(line)
 	startsHandler := tsHandlerStartPattern.MatchString(line)
-	s.checkLine(lineNo, line, len(s.loops) > 0 || startsLoop, len(s.handlers) > 0 || startsHandler)
+	s.checkLine(lineNo, line, rawLine, len(s.loops) > 0 || startsLoop, len(s.handlers) > 0 || startsHandler)
 	next := s.depth + strings.Count(line, "{") - strings.Count(line, "}")
 	if startsLoop && next > s.depth {
 		s.loops = append(s.loops, s.depth)
@@ -72,7 +112,13 @@ func (s *tsPerformanceScan) consumeLine(lineNo int, line string) {
 	s.depth = next
 }
 
-func (s *tsPerformanceScan) checkLine(lineNo int, line string, inLoop bool, inHandler bool) {
+func (s *tsPerformanceScan) checkLine(lineNo int, line string, rawLine string, inLoop bool, inHandler bool) {
+	if tsSetIntervalPattern.MatchString(line) {
+		s.intervalLines = append(s.intervalLines, lineNo)
+	}
+	if tsClearInterval.MatchString(line) {
+		s.intervalsCleaned = true
+	}
 	if inLoop && toggleEnabled(s.rules.DetectNPlusOneQuery) && tsQueryCallPattern.MatchString(line) {
 		s.addFinding("performance.n-plus-one-query", "performance.n-plus-one-query", lineNo,
 			"query or fetch call inside a loop suggests an N+1 pattern; batch requests or hoist the call out of the loop")
@@ -86,6 +132,43 @@ func (s *tsPerformanceScan) checkLine(lineNo int, line string, inLoop bool, inHa
 		s.addFinding("performance.typescript.sync-io-in-handler", "performance.javascript.sync-io-in-handler", lineNo,
 			"synchronous I/O call inside a request handler blocks the event loop; use the async API instead")
 	}
+	if !inLoop {
+		return
+	}
+	if toggleEnabled(s.rules.DetectAwaitInLoop) && !s.limited &&
+		tsAwaitPattern.MatchString(line) && !tsForAwaitPattern.MatchString(line) {
+		s.addFinding("performance.typescript.await-in-loop", "performance.javascript.await-in-loop", lineNo,
+			"await inside a loop serializes independent work; collect the promises and await Promise.all over chunks")
+	}
+	if toggleEnabled(s.rules.DetectRegexCompileInLoop) && strings.Contains(line, "RegExp") &&
+		tsRegexCompilePattern.MatchString(rawLine) {
+		s.addFinding("performance.regex-compile-in-loop", "performance.regex-compile-in-loop", lineNo,
+			"new RegExp inside a loop recompiles the pattern every iteration; hoist it out of the loop or use a literal")
+	}
+	if toggleEnabled(s.rules.DetectAllocInLoop) && strings.Contains(line, "+=") && s.isStringConcat(line, rawLine) {
+		s.addFinding("performance.string-concat-in-loop", "performance.string-concat-in-loop", lineNo,
+			"string built by += inside a loop copies the whole value each iteration; collect parts in an array and join them")
+	}
+	if toggleEnabled(s.rules.DetectTimerLeaks) && !s.listenersCleaned && tsAddListenerPattern.MatchString(line) {
+		s.addFinding("performance.typescript.timer-listener-leak", "performance.javascript.timer-listener-leak", lineNo,
+			"addEventListener inside a loop with no removeEventListener or AbortSignal in the file accumulates listeners; deduplicate or clean them up")
+	}
+}
+
+// isStringConcat reports += growth of a string: either a string-ish
+// right-hand side on the raw line, or an augmented assignment (on the
+// stripped line, so comments cannot match) to a variable initialized from a
+// string literal.
+func (s *tsPerformanceScan) isStringConcat(line string, rawLine string) bool {
+	if tsStringConcat.MatchString(rawLine) {
+		return true
+	}
+	m := tsAugmentedAssign.FindStringSubmatch(line)
+	if m == nil {
+		return false
+	}
+	_, isString := s.stringVars[m[1]]
+	return isString
 }
 
 func (s *tsPerformanceScan) addFinding(tsRuleID string, jsRuleID string, lineNo int, message string) {

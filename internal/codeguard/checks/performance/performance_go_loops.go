@@ -26,6 +26,7 @@ func toggleEnabled(value *bool) bool {
 
 func goPerformanceFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
 	findings := goCorePerformanceFindings(env, file, fset, parsed)
+	findings = append(findings, goLoopCallFindings(env, file, fset, parsed)...)
 	if toggleEnabled(env.Config.Checks.PerformanceRules.DetectNPlusOneQuery) {
 		findings = append(findings, goNPlusOneFindings(env, file, fset, parsed)...)
 	}

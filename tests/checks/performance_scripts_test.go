@@ -101,6 +101,96 @@ func TestPerformanceCheckWarnsForPythonBlockingCallInAsync(t *testing.T) {
 	assertFindingRulePresent(t, report, "Performance", "performance.python.sync-io-in-async")
 }
 
+func TestPerformanceCheckWarnsForTypeScriptAwaitInLoop(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "serial.ts"),
+		"export async function loadUsers(ids: string[]) {\n  const users = [];\n  for (const id of ids) {\n    const user = await loadUser(id);\n    users.push(user);\n  }\n  return users;\n}\n")
+
+	report, err := codeguard.Run(context.Background(), performanceConfig("performance-ts-await-loop", dir, "typescript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertFindingRulePresent(t, report, "Performance", "performance.typescript.await-in-loop")
+}
+
+func TestPerformanceCheckSkipsForAwaitStreams(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "stream.ts"),
+		"export async function drain(stream: AsyncIterable<string>) {\n  for await (const chunk of stream) {\n    consume(chunk);\n  }\n}\n")
+
+	report, err := codeguard.Run(context.Background(), performanceConfig("performance-ts-for-await", dir, "typescript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertFindingRuleAbsent(t, report, "Performance", "performance.typescript.await-in-loop")
+}
+
+func TestPerformanceCheckWarnsForTypeScriptRegexAndConcatInLoop(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "render.ts"),
+		"export function render(rows: string[]) {\n  let out = \"\";\n  for (const row of rows) {\n    const re = new RegExp(\"[0-9]+\");\n    if (re.test(row)) {\n      out += row + \"\\n\";\n    }\n  }\n  return out;\n}\n")
+
+	report, err := codeguard.Run(context.Background(), performanceConfig("performance-ts-regex-concat", dir, "typescript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertFindingRulePresent(t, report, "Performance", "performance.regex-compile-in-loop")
+	assertFindingRulePresent(t, report, "Performance", "performance.string-concat-in-loop")
+}
+
+func TestPerformanceCheckWarnsForTypeScriptTimerAndListenerLeaks(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "poll.ts"),
+		"export function start(items: Element[]) {\n  setInterval(refresh, 1000);\n  for (const el of items) {\n    el.addEventListener(\"click\", onClick);\n  }\n}\n")
+
+	report, err := codeguard.Run(context.Background(), performanceConfig("performance-ts-leaks", dir, "typescript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertFindingRulePresent(t, report, "Performance", "performance.typescript.timer-listener-leak")
+}
+
+func TestPerformanceCheckSkipsCleanedUpTimersAndListeners(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "poll.ts"),
+		"export function start(items: Element[]) {\n  const handle = setInterval(refresh, 1000);\n  const controller = new AbortController();\n  for (const el of items) {\n    el.addEventListener(\"click\", onClick, { signal: controller.signal });\n  }\n  return () => {\n    clearInterval(handle);\n    controller.abort();\n  };\n}\n")
+
+	report, err := codeguard.Run(context.Background(), performanceConfig("performance-ts-leaks-cleaned", dir, "typescript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertFindingRuleAbsent(t, report, "Performance", "performance.typescript.timer-listener-leak")
+}
+
+func TestPerformanceCheckWarnsForPythonRegexConcatTasksReads(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "app", "batch.py"),
+		"import asyncio\nimport re\n\n\nasync def process(files, urls, lines):\n    out = \"\"\n    for line in lines:\n        pattern = re.compile(r\"\\d+\")\n        if pattern.match(line):\n            out += line\n    for url in urls:\n        asyncio.create_task(fetch(url))\n    for f in files:\n        data = f.read()\n        use(data)\n    return out\n")
+
+	report, err := codeguard.Run(context.Background(), performanceConfig("performance-py-batch", dir, "python"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertFindingRulePresent(t, report, "Performance", "performance.regex-compile-in-loop")
+	assertFindingRulePresent(t, report, "Performance", "performance.string-concat-in-loop")
+	assertFindingRulePresent(t, report, "Performance", "performance.python.unbounded-concurrency")
+	assertFindingRulePresent(t, report, "Performance", "performance.unbounded-read")
+}
+
+func TestPerformanceCheckSkipsBoundedPythonPatterns(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "app", "clean_batch.py"),
+		"import asyncio\n\nsem = asyncio.Semaphore(8)\n\n\nasync def process(files, urls, counts):\n    total = 0\n    for n in counts:\n        total += n\n    for url in urls:\n        asyncio.create_task(bounded_fetch(url))\n    for f in files:\n        data = f.read(65536)\n        use(data)\n    return total\n")
+
+	report, err := codeguard.Run(context.Background(), performanceConfig("performance-py-bounded", dir, "python"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertFindingRuleAbsent(t, report, "Performance", "performance.string-concat-in-loop")
+	assertFindingRuleAbsent(t, report, "Performance", "performance.python.unbounded-concurrency")
+	assertFindingRuleAbsent(t, report, "Performance", "performance.unbounded-read")
+}
+
 func TestPerformanceCheckSkipsPythonPerformanceSmellsOutsideRegions(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "app", "clean.py"),

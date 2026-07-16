@@ -28,6 +28,12 @@ waivers:
   - rule: performance.unbounded-goroutines-in-loop
     path: tests/support/rule_stats_collector_test.go
     reason: the concurrency test launches a fixed 16 workers joined by a WaitGroup to prove race-freedom
+  - rule: performance.go.defer-in-loop
+    path: internal/codeguard/checks/support/treesitter/bench_cgo_test.go
+    reason: the design-spike benchmark defers parser cleanup per iteration deliberately; the spike module is excluded from the production build
+  - rule: performance.go.sleep-in-loop
+    path: tests/mcp/http_test.go
+    reason: the HTTP helper-process test polls /healthz for server readiness; a short sleep between probes is the intended pattern
   - rule: ci.test-file-location
     path: internal/codeguard/checks/support/treesitter/*_test.go
     reason: the tree-sitter design spike is an isolated Go module whose differential tests must live beside the prototype they validate (docs/treesitter-spike.md)
