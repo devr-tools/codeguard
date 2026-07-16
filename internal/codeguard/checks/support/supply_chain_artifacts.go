@@ -17,15 +17,17 @@ func NewSupplyChainArtifact(id string, target string, manifests []core.SupplyCha
 			deps[i].LicenseCandidates = append([]core.SupplyChainLicenseCandidate(nil), deps[i].LicenseCandidates...)
 		}
 		lockfiles := append([]string(nil), manifest.Lockfiles...)
+		limitations := append([]string(nil), manifest.AnalysisLimitations...)
 		cloned = append(cloned, core.SupplyChainManifest{
-			Ecosystem:      manifest.Ecosystem,
-			Path:           manifest.Path,
-			Name:           manifest.Name,
-			License:        manifest.License,
-			LicenseLine:    manifest.LicenseLine,
-			PackageManager: manifest.PackageManager,
-			Lockfiles:      lockfiles,
-			Dependencies:   deps,
+			Ecosystem:           manifest.Ecosystem,
+			Path:                manifest.Path,
+			Name:                manifest.Name,
+			License:             manifest.License,
+			LicenseLine:         manifest.LicenseLine,
+			PackageManager:      manifest.PackageManager,
+			Lockfiles:           lockfiles,
+			Dependencies:        deps,
+			AnalysisLimitations: limitations,
 		})
 	}
 	return core.Artifact{

@@ -11,7 +11,7 @@ var (
 	javaDeclAssignPattern = regexp.MustCompile(`^[ \t]*(?:final[ \t]+)?(?:[\w<>\[\],.?&]+(?:[ \t]+[\w<>\[\],.?&]+)*[ \t]+)?([A-Za-z_]\w*)[ \t]*=[ \t]*([^=].*)$`)
 	cppDeclAssignPattern  = regexp.MustCompile(`^[ \t]*(?:constexpr[ \t]+|static[ \t]+|inline[ \t]+|const[ \t]+|volatile[ \t]+|mutable[ \t]+)*(?:[\w:<>[\],.?&*]+(?:[ \t]+[\w:<>[\],.?&*]+)*)[ \t]+([A-Za-z_]\w*)[ \t]*=[ \t]*([^=].*)$`)
 	plainAssignPattern    = regexp.MustCompile(`^[ \t]*([A-Za-z_$][\w$]*)[ \t]*([-+*/%&|^]?)=[ \t]*([^=].*)$`)
-	clikeCallPattern      = regexp.MustCompile(`([A-Za-z_$][\w$]*(?:(?:\.|::)[A-Za-z_$][\w$]*)*)[ \t]*\(`)
+	clikeCallPattern      = regexp.MustCompile(`([A-Za-z_$][\w$]*(?:[ \t]*(?:\.|::|->)[ \t]*[A-Za-z_$][\w$]*)*)[ \t]*\(`)
 )
 
 // clikeAssignments extracts declarations and reassignments from one masked
@@ -44,7 +44,7 @@ func declAssignPatternFor(lang CLikeLanguage) *regexp.Regexp {
 func clikeCalls(text string, startLine int) []ParsedCall {
 	calls := make([]ParsedCall, 0, 2)
 	for _, match := range clikeCallPattern.FindAllStringSubmatchIndex(text, -1) {
-		callee := text[match[2]:match[3]]
+		callee := normalizeCLikeCallee(text[match[2]:match[3]])
 		base := callee
 		if cut := strings.IndexAny(base, ".:"); cut >= 0 {
 			base = base[:cut]
@@ -57,6 +57,18 @@ func clikeCalls(text string, startLine int) []ParsedCall {
 		calls = append(calls, ParsedCall{Callee: callee, Args: args, Line: line})
 	}
 	return calls
+}
+
+// ExtractCLikeCalls extracts call expressions from already-masked C-like
+// source. It is useful to lightweight semantic checks that operate on a
+// single expression rather than a whole ParsedFile.
+func ExtractCLikeCalls(text string, startLine int) []ParsedCall {
+	return clikeCalls(text, startLine)
+}
+
+func normalizeCLikeCallee(callee string) string {
+	callee = strings.ReplaceAll(callee, " ", "")
+	return strings.ReplaceAll(callee, "\t", "")
 }
 
 func isCLikeKeyword(word string) bool {

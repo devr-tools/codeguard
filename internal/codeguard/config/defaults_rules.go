@@ -1,6 +1,10 @@
 package config
 
-import "github.com/devr-tools/codeguard/internal/codeguard/core"
+import (
+	"strings"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
+)
 
 func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesConfig) {
 	defaultInt(&dst.MaxFileLines, def.MaxFileLines)
@@ -11,6 +15,24 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	defaultCommandMap(&dst.LanguageCommands, def.LanguageCommands)
 	applyAIChangeRiskDefaults(&dst.AIChangeRisk, def.AIChangeRisk)
 	applyCoverageDeltaDefaults(&dst.CoverageDelta)
+	applyCPPToolingDefaults(&dst.CPPTooling)
+}
+
+func applyCPPToolingDefaults(dst *core.CPPToolingConfig) {
+	dst.ClangFormatMode = strings.ToLower(strings.TrimSpace(dst.ClangFormatMode))
+	if dst.ClangFormatMode == "" {
+		dst.ClangFormatMode = core.ExternalToolModeOff
+	}
+	dst.CompilerMode = strings.ToLower(strings.TrimSpace(dst.CompilerMode))
+	if dst.CompilerMode == "" {
+		dst.CompilerMode = core.ExternalToolModeOff
+	}
+	if strings.TrimSpace(dst.ClangFormatCommand) == "" {
+		dst.ClangFormatCommand = "clang-format"
+	}
+	if strings.TrimSpace(dst.CompilerCommand) == "" {
+		dst.CompilerCommand = "clang++"
+	}
 }
 
 func applyPerformanceDefaults(dst *core.PerformanceRulesConfig) {
@@ -95,12 +117,7 @@ func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRules
 	if dst.GovulncheckMode == "" {
 		dst.GovulncheckMode = def.GovulncheckMode
 	}
-	if dst.TaintGo == nil {
-		dst.TaintGo = boolPtr(true)
-	}
-	if dst.TaintPython == nil {
-		dst.TaintPython = boolPtr(true)
-	}
+	applyTaintDefaults(dst)
 	if dst.DemoteFixtureFindings == nil {
 		dst.DemoteFixtureFindings = boolPtr(true)
 	}
@@ -119,6 +136,12 @@ func applySecurityDefaults(dst *core.SecurityRulesConfig, def core.SecurityRules
 	if dst.Secrets.Enabled == nil {
 		dst.Secrets.Enabled = boolPtr(true)
 	}
+}
+
+func applyTaintDefaults(dst *core.SecurityRulesConfig) {
+	defaultBoolPtr(&dst.TaintGo, true)
+	defaultBoolPtr(&dst.TaintPython, true)
+	defaultBoolPtr(&dst.TaintCPP, true)
 }
 
 func applyAIChangeRiskDefaults(dst *core.AIChangeRiskConfig, def core.AIChangeRiskConfig) {

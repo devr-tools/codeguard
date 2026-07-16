@@ -56,6 +56,7 @@ var securityRuleOWASP = map[string]core.OWASPCategory{
 	"security.javascript.untrusted-input-flow": core.OWASPA03Injection,
 	"security.taint.go":                        core.OWASPA03Injection,
 	"security.taint.python":                    core.OWASPA03Injection,
+	"security.taint.cpp":                       core.OWASPA03Injection,
 
 	// Cross-origin message access control.
 	"security.typescript.postmessage-wildcard": core.OWASPA01BrokenAccessControl,
@@ -84,6 +85,7 @@ var securityRuleOWASP = map[string]core.OWASPCategory{
 	// Server-side request forgery (A10).
 	"security.ssrf.go":     core.OWASPA10SSRF,
 	"security.ssrf.python": core.OWASPA10SSRF,
+	"security.ssrf.cpp":    core.OWASPA10SSRF,
 }
 
 // withSecurityOWASP returns a copy of catalog with OWASP Top 10 categories

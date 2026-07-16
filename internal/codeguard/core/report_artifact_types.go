@@ -48,6 +48,9 @@ type SupplyChainManifest struct {
 	PackageManager string                  `json:"package_manager,omitempty"`
 	Lockfiles      []string                `json:"lockfiles,omitempty"`
 	Dependencies   []SupplyChainDependency `json:"dependencies,omitempty"`
+	// AnalysisLimitations records dependency declarations that were intentionally
+	// not evaluated because resolving them would require executing project code.
+	AnalysisLimitations []string `json:"analysis_limitations,omitempty"`
 }
 
 type SupplyChainDependency struct {

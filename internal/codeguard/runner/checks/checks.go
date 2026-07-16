@@ -10,7 +10,6 @@ import (
 
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	govulncheckrunner "github.com/devr-tools/codeguard/internal/codeguard/runner/govulncheck"
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
@@ -200,9 +199,9 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 		IsPromptFile: func(rel string) bool {
 			return runnersupport.IsPromptFile(sc, rel)
 		},
-		RunGovulncheck: func(ctx context.Context, dir string, cmdName string) ([]core.Finding, error) {
-			return govulncheckrunner.Run(ctx, dir, cmdName, sc)
-		},
+		RunGovulncheck:         govulncheckCallback(sc),
+		RunCPPFormat:           runCPPFormat,
+		RunCPPSyntax:           runCPPSyntax,
 		RunCommandCheck:        runnersupport.RunCommandCheck,
 		RunCommandCheckWithEnv: runnersupport.RunCommandCheckWithEnv,
 		RunDiffCommandCheck: func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error) {

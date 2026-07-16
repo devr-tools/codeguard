@@ -17,6 +17,11 @@ var (
 	tomlKeyPattern            = regexp.MustCompile(`^\s*(?:"([^"]+)"|([A-Za-z0-9._-]+))\s*=`)
 	quotedStringPattern       = regexp.MustCompile(`["']([^"']+)["']`)
 	cargoInlineVersionPattern = regexp.MustCompile(`(?:^|[,{\s])version\s*=\s*["']([^"']+)["']`)
+	knownManifestNames        = map[string]bool{
+		"go.mod": true, "package.json": true, "pyproject.toml": true,
+		"cargo.toml": true, "vcpkg.json": true, "conanfile.txt": true,
+		"conanfile.py": true,
+	}
 )
 
 func IsSupplyChainManifest(rel string) bool {
@@ -24,25 +29,8 @@ func IsSupplyChainManifest(rel string) bool {
 	if isInstalledDependencyMetadataPath(normalized) {
 		return false
 	}
-	base := strings.ToLower(path.Base(filepath.ToSlash(rel)))
-	switch {
-	case base == "go.mod":
-		return true
-	case base == "package.json":
-		return true
-	case base == "pyproject.toml":
-		return true
-	case base == "cargo.toml":
-		return true
-	case base == "vcpkg.json":
-		return true
-	case base == "conanfile.txt":
-		return true
-	case strings.HasPrefix(base, "requirements") && strings.HasSuffix(base, ".txt"):
-		return true
-	default:
-		return false
-	}
+	base := strings.ToLower(path.Base(normalized))
+	return knownManifestNames[base] || isCMakeManifestName(base) || isRequirementsManifestName(base)
 }
 
 func CollectSupplyChainManifests(env Context, target core.TargetConfig) []core.SupplyChainManifest {
@@ -89,12 +77,32 @@ func parseSupplyChainManifest(root string, rel string, data []byte) (core.Supply
 		return parseVCPKGManifest(root, rel, data)
 	case "conanfile.txt":
 		return parseConanTextManifest(root, rel, data), true
+	case "conanfile.py":
+		return parseConanPythonManifest(root, rel, data), true
 	default:
-		if strings.HasPrefix(strings.ToLower(path.Base(rel)), "requirements") && strings.HasSuffix(strings.ToLower(path.Base(rel)), ".txt") {
-			return parseRequirementsManifest(root, rel, data), true
-		}
+		return parseOtherSupplyChainManifest(root, rel, data)
+	}
+}
+
+func parseOtherSupplyChainManifest(root, rel string, data []byte) (core.SupplyChainManifest, bool) {
+	base := strings.ToLower(path.Base(rel))
+	if isCMakeManifestName(base) {
+		manifest := parseCMakeManifest(root, rel, data)
+		complete := base == "cmakelists.txt" || len(manifest.Dependencies) > 0 || len(manifest.AnalysisLimitations) > 0
+		return manifest, complete
+	}
+	if isRequirementsManifestName(base) {
+		return parseRequirementsManifest(root, rel, data), true
 	}
 	return core.SupplyChainManifest{}, false
+}
+
+func isCMakeManifestName(base string) bool {
+	return base == "cmakelists.txt" || strings.HasSuffix(base, ".cmake")
+}
+
+func isRequirementsManifestName(base string) bool {
+	return strings.HasPrefix(base, "requirements") && strings.HasSuffix(base, ".txt")
 }
 
 func isInstalledDependencyMetadataPath(rel string) bool {

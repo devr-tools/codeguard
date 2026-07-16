@@ -10,6 +10,7 @@ This page lists the current `codeguard` feature surface and the main config entr
   - language-native quality heuristics for Go, Python, TypeScript, JavaScript, Rust, Java, C++, C#, and Ruby
   - AI-quality heuristics such as swallowed errors, narrative comments, hallucinated imports, dead code, over-mocked tests, idiom drift, semantic review, provenance policy, and change-risk rollups
   - changed-line coverage gating in diff mode
+  - opt-in `clang-format` and sanitized `clang++ -fsyntax-only` validation backed by safe `compile_commands.json` metadata
 - `design`
   - layering and boundary rules
   - import cycle and god-module detection
@@ -20,6 +21,7 @@ This page lists the current `codeguard` feature surface and the main config entr
   - Go, Python, TypeScript, and JavaScript taint-style flow checks
   - insecure API heuristics
   - C++ insecure TLS, shell execution, and unsafe C string API checks
+  - C++ same-file taint-flow and SSRF analysis for common process and networking APIs
   - optional `govulncheck`
 - `prompts`
   - prompt-asset governance
@@ -29,7 +31,7 @@ This page lists the current `codeguard` feature surface and the main config entr
   - workflow/release policy
   - test-quality heuristics, including GoogleTest, Catch2/doctest, and Boost.Test
 - `supply_chain`
-  - manifest normalization, including `vcpkg.json` and declarative `conanfile.txt`
+  - manifest normalization, including `vcpkg.json`, `conanfile.txt`, statically analyzed `conanfile.py`, and CMake dependency declarations
   - lockfile presence and drift validation
   - unpinned dependency detection
   - dependency and manifest license policy

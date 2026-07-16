@@ -4,8 +4,10 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/cpp/compdb"
 )
 
 var (
@@ -59,12 +61,13 @@ func BuildCPPDependencyGraph(env Context, target core.TargetConfig) *CPPDependen
 		return nil
 	}
 	seen := make(map[string]map[string]bool, len(nodes))
+	includeRoots := cppTargetIncludeRoots(env, target)
 	for _, dependency := range pending {
 		to := ""
 		if dependency.named {
 			to = moduleFiles[dependency.target]
 		} else {
-			to = resolveCPPInclude(nodes, dependency.from, dependency.target)
+			to = resolveCPPInclude(nodes, dependency.from, dependency.target, includeRoots)
 		}
 		if to == "" || to == dependency.from {
 			continue
@@ -83,16 +86,54 @@ func BuildCPPDependencyGraph(env Context, target core.TargetConfig) *CPPDependen
 	return &CPPDependencyGraph{Graph: NewDependencyGraph(nodes), FileToModule: fileToModule}
 }
 
-func resolveCPPInclude(nodes map[string]DependencyNode, from string, imported string) string {
+func resolveCPPInclude(nodes map[string]DependencyNode, from string, imported string, includeRoots []string) string {
 	imported = filepath.ToSlash(imported)
-	candidates := []string{
+	candidates := make([]string, 0, 2+len(includeRoots))
+	candidates = append(candidates,
 		path.Clean(path.Join(path.Dir(from), imported)),
 		path.Clean(imported),
+	)
+	for _, root := range includeRoots {
+		candidates = append(candidates, path.Clean(path.Join(root, imported)))
 	}
+	resolved := ""
 	for _, candidate := range candidates {
 		if _, ok := nodes[candidate]; ok {
-			return candidate
+			if resolved != "" && resolved != candidate {
+				return ""
+			}
+			resolved = candidate
 		}
 	}
-	return ""
+	return resolved
+}
+
+func cppTargetIncludeRoots(env Context, target core.TargetConfig) []string {
+	db, err := compdb.Load(target.Path, env.Config.Checks.QualityRules.CPPTooling.CompileCommands)
+	if err != nil {
+		return nil
+	}
+	root, err := filepath.Abs(target.Path)
+	if err != nil {
+		return nil
+	}
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
+	seen := make(map[string]bool)
+	result := make([]string, 0)
+	for _, entry := range db.Entries {
+		for _, include := range entry.IncludeDirs {
+			rel, err := filepath.Rel(root, include)
+			if err != nil || rel == "." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				continue
+			}
+			rel = filepath.ToSlash(rel)
+			if !seen[rel] {
+				seen[rel] = true
+				result = append(result, rel)
+			}
+		}
+	}
+	return result
 }

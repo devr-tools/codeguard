@@ -230,9 +230,9 @@ Current inference behavior:
 
 | Family | Go | C++ | Python | TypeScript | Rust | Java | C# | Ruby |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Quality | `gofmt`, parseability, maintainability thresholds | maintainability thresholds across sources, headers, templates, and modules | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, `explicit any`, double assertions, non-null assertions, `debugger` statements | maintainability thresholds | maintainability thresholds | maintainability thresholds | maintainability thresholds |
+| Quality | `gofmt`, parseability, maintainability thresholds | maintainability thresholds across sources, headers, templates, and modules; optional `clang-format` and sanitized `clang++` validation | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, `explicit any`, double assertions, non-null assertions, `debugger` statements | maintainability thresholds | maintainability thresholds | maintainability thresholds | maintainability thresholds |
 | Design | boundary rules, generic package names, type/interface/file-size heuristics | include/module cycles, graph impact, generic filenames, qualified method counts | public-imports-private, public-imports-cli, generic module names | generic module names, max methods per class, max members per interface/object type | module cycles and graph impact | import cycles and graph impact | - | - |
-| Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, unsafe C string APIs | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
+| Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, unsafe C string APIs, taint flow, SSRF | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
 | Commands | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config |
 
 TypeScript semantic runtime:
@@ -295,6 +295,7 @@ Current behavior:
 - semantic review request payloads also include a structured `prompt` template with per-rule focus and framework-specific reasoning guidance, so command-backed runtimes do not have to invent their own contract-drift or test-adequacy instructions from scratch
 - TypeScript and JavaScript quality built-ins use AST-derived function metrics and compiler-parsed syntax when the semantic runtime is available
 - includes native maintainability heuristics for Python, TypeScript, JavaScript, Rust, C++, Java, C#, and Ruby targets
+- explicit C++ targets can opt into `clang-format` and sanitized `clang++ -fsyntax-only` validation through `quality_rules.cpp_tooling`
 - TypeScript and JavaScript targets also warn on `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, explicit `any`, double assertions, non-null assertions, and committed `debugger` statements
 - can run language-specific quality commands based on `targets[].language`
 
@@ -358,6 +359,35 @@ Language command example:
   }
 }
 ```
+
+### C++ Clang tooling
+
+Explicit C++ targets can enable built-in formatter and compiler validation without placing executable command lines in `compile_commands.json`:
+
+```json
+{
+  "checks": {
+    "quality": true,
+    "quality_rules": {
+      "cpp_tooling": {
+        "clang_format_mode": "auto",
+        "compiler_mode": "auto",
+        "compile_commands": "build/compile_commands.json"
+      }
+    }
+  }
+}
+```
+
+Both modes accept `off`, `auto`, or `required` and default to `off`:
+
+- `off` never invokes the tool.
+- `auto` runs when the binary and, for compiler validation, a compilation database are available; absence is skipped.
+- `required` reports an actionable failure when the tool or database is unavailable.
+
+`compile_commands.json` is searched at the target root, `build/`, `cmake-build-debug/`, and `cmake-build-release/` unless a target-relative path is configured. The database is treated as untrusted metadata: CodeGuard never runs its compiler, wrapper, response files, plugins, or arbitrary flags. It rebuilds a fixed `clang++ -fsyntax-only` invocation from the target-local source plus an allowlist of `-std`, target-contained include directories, and `-D`/`-U` metadata. Configured command overrides still require the normal config-command trust opt-in.
+
+Target-contained include roots from the database also improve C++ include-graph resolution. Ambiguous or external include paths are ignored.
 
 ### Coverage delta (diff mode)
 
@@ -721,8 +751,10 @@ Notes on Cargo precision:
 Notes on C++ dependency precision:
 - `vcpkg.json` dependencies are treated as pinned when the manifest has a valid 40-character `builtin-baseline` or an exact override for the dependency.
 - `conanfile.txt` parses `[requires]` and `[tool_requires]`; exact references are pinned, version ranges are not, and `conan.lock` is required when lockfiles are enforced.
+- `conanfile.py` is statically analyzed for literal/list/tuple constants, class-level `requires`/`tool_requires`, and `self.requires()`/`self.tool_requires()` calls. The recipe is never imported or executed.
+- `CMakeLists.txt` and dependency-bearing `*.cmake` files are statically analyzed for `find_package`, `FetchContent_Declare`, `ExternalProject_Add`, `CPMAddPackage`, and same-file `set()` indirection. Exact revisions, hashes, and versioned URLs count as pinned.
 - Conan lockfile drift checks support Conan 2 top-level requirement arrays and Conan 1 `graph_lock.nodes[*].ref` entries.
-- Executable `conanfile.py` and dynamic CMake dependency declarations are intentionally not evaluated.
+- Dynamic CMake/Python expressions, custom wrappers, cross-file variable propagation, and imported helpers are not evaluated. Unresolved declarations are exposed in the supply-chain artifact as `analysis_limitations`; repository code is never executed to resolve them.
 
 ## API Contracts
 
@@ -932,7 +964,7 @@ Current behavior:
 - Python targets include insecure TLS review, shell execution review, and dynamic code review markers
 - TypeScript and JavaScript targets include insecure TLS review, shell execution review, dynamic code review markers, string timer execution review, wildcard `postMessage` review, Node `vm` execution review, and unsafe HTML sink review
 - Rust, Java, and C# targets include insecure TLS review and shell execution review markers
-- C++ targets include insecure TLS review for common libcurl/OpenSSL/Boost.Asio/cpprestsdk settings, shell execution review, and unsafe unbounded C string API warnings
+- C++ targets include insecure TLS review for common libcurl/OpenSSL/Boost.Asio/cpprestsdk settings, shell execution review, unsafe unbounded C string API warnings, and bounded same-file taint/SSRF analysis
 - Ruby targets include insecure TLS review, shell execution review, and dynamic code review markers
 
 Config keys:
@@ -943,7 +975,8 @@ Config keys:
     "security": true,
     "security_rules": {
       "govulncheck_mode": "auto",
-      "govulncheck_command": "govulncheck"
+      "govulncheck_command": "govulncheck",
+      "taint_cpp": true
     }
   }
 }
@@ -960,6 +993,7 @@ Current behavior:
 - can surface per-vulnerability findings from `govulncheck`
 - includes native Python, TypeScript, C++, Rust, Java, C#, and Ruby security heuristics for shell execution and insecure TLS settings
 - includes dynamic code review heuristics for Python, TypeScript, and Ruby
+- C++ taint analysis follows obvious environment, process-argument, standard-input, and recognized request values through local assignments and same-file function summaries into process or outbound-network sinks; it intentionally does not claim pointer/field aliasing, macro expansion, or a cross-file call graph
 - TypeScript and JavaScript security built-ins resolve imports, aliases, and call sites through compiler-parsed AST analysis when the semantic runtime is available
 - can run language-specific security commands based on `targets[].language`
 - only runs `govulncheck` for Go targets

@@ -19,18 +19,7 @@ var (
 // stripPySanitizers removes shlex.quote(...), int(...), and float(...)
 // spans so sanitized values stop carrying taint.
 func stripPySanitizers(text string) string {
-	for {
-		match := pySanitizerCallPattern.FindStringSubmatchIndex(text)
-		if match == nil {
-			return text
-		}
-		openParen := match[3] - 1
-		closeParen := matchingParenOffset(text, openParen)
-		if closeParen < 0 {
-			return text[:match[2]] + text[match[3]:]
-		}
-		text = text[:match[2]] + text[closeParen+1:]
-	}
+	return stripTaintSanitizerCalls(text, pySanitizerCallPattern)
 }
 
 func matchingParenOffset(text string, open int) int {

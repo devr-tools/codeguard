@@ -11,6 +11,7 @@ type QualityRulesConfig struct {
 	AIChangeRisk            AIChangeRiskConfig              `json:"ai_change_risk,omitempty" yaml:"ai_change_risk,omitempty"`
 	AIChecks                AIChecksConfig                  `json:"ai_checks,omitempty" yaml:"ai_checks,omitempty"`
 	CoverageDelta           CoverageDeltaConfig             `json:"coverage_delta,omitempty" yaml:"coverage_delta,omitempty"`
+	CPPTooling              CPPToolingConfig                `json:"cpp_tooling,omitempty" yaml:"cpp_tooling,omitempty"`
 }
 
 // PerformanceRulesConfig tunes the performance section (checks.performance).
@@ -158,6 +159,7 @@ type SecurityRulesConfig struct {
 	GovulncheckCommand      string                          `json:"govulncheck_command,omitempty" yaml:"govulncheck_command,omitempty"`
 	TaintGo                 *bool                           `json:"taint_go,omitempty" yaml:"taint_go,omitempty"`
 	TaintPython             *bool                           `json:"taint_python,omitempty" yaml:"taint_python,omitempty"`
+	TaintCPP                *bool                           `json:"taint_cpp,omitempty" yaml:"taint_cpp,omitempty"`
 	TypeScriptTaintMaxDepth int                             `json:"typescript_taint_max_depth,omitempty" yaml:"typescript_taint_max_depth,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
 	Secrets                 *SecretsRulesConfig             `json:"secrets,omitempty" yaml:"secrets,omitempty"`
