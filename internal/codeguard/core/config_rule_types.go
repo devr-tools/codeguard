@@ -50,6 +50,12 @@ type PerformanceRulesConfig struct {
 	// DetectUnboundedReads flags whole-input reads without a size bound:
 	// io.ReadAll in Go handlers/loops, .read()/.readlines() in Python loops.
 	DetectUnboundedReads *bool `json:"detect_unbounded_reads,omitempty" yaml:"detect_unbounded_reads,omitempty"`
+	// ScoreHistory gates persistence of the performance_score trend next to
+	// the scan cache (nil = enabled, mirroring ai_checks.slop_history).
+	ScoreHistory *bool `json:"score_history,omitempty" yaml:"score_history,omitempty"`
+	// ScoreHistoryLimit caps retained performance_score history entries per
+	// target (0 = default limit).
+	ScoreHistoryLimit int `json:"score_history_limit,omitempty" yaml:"score_history_limit,omitempty"`
 }
 
 // AIChecksConfig toggles individual AI-quality heuristics. A nil pointer

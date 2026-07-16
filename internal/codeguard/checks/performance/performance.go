@@ -35,6 +35,7 @@ func performanceTargetFindings(_ context.Context, env support.Context, target co
 	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
 		findings = append(findings, typeScriptPerformanceTargetFindings(env, target)...)
 	}
+	maybePutPerformanceScoreArtifact(env, target, findings)
 	return findings
 }
 

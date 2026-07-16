@@ -4,6 +4,7 @@ import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 const ArtifactKindDependencyGraph = "dependency_graph"
 const ArtifactKindSlopScore = "slop_score"
+const ArtifactKindPerformanceScore = "performance_score"
 const ArtifactKindChangeRisk = "change_risk"
 const ArtifactKindRepoLegibility = "repo_legibility"
 
@@ -47,6 +48,22 @@ func NewSlopScoreArtifact(id string, language string, target string, score core.
 		Language: language,
 		Target:   target,
 		SlopScore: &core.SlopScoreArtifact{
+			Score:      score.Score,
+			Signals:    score.Signals,
+			Components: components,
+		},
+	}
+}
+
+func NewPerformanceScoreArtifact(id string, language string, target string, score core.PerformanceScoreArtifact) core.Artifact {
+	components := make([]core.SlopScoreComponent, 0, len(score.Components))
+	components = append(components, score.Components...)
+	return core.Artifact{
+		ID:       id,
+		Kind:     ArtifactKindPerformanceScore,
+		Language: language,
+		Target:   target,
+		PerformanceScore: &core.PerformanceScoreArtifact{
 			Score:      score.Score,
 			Signals:    score.Signals,
 			Components: components,

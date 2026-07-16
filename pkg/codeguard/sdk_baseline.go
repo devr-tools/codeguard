@@ -16,6 +16,18 @@ func LoadSlopHistory(path string) map[string][]SlopHistoryEntry {
 	return runner.LoadSlopHistory(path)
 }
 
+// PerfScoreHistoryPath derives the performance-score history file path for a
+// config.
+func PerfScoreHistoryPath(cfg Config) string {
+	return runner.PerfScoreHistoryPath(cfg)
+}
+
+// LoadPerfScoreHistory reads the persisted performance-score trend, keyed by
+// artifact ID.
+func LoadPerfScoreHistory(path string) map[string][]PerformanceHistoryEntry {
+	return runner.LoadPerfScoreHistory(path)
+}
+
 func BaselineEntriesFromReport(rep Report) []BaselineEntry {
 	return runner.BaselineEntriesFromReport(rep)
 }
