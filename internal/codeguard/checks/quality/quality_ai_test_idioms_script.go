@@ -14,10 +14,10 @@ func isScriptTestFile(rel string) bool {
 	return scriptTestFilePattern.MatchString(filepath.ToSlash(rel))
 }
 
-func dominantScriptTestFramework(root string, files []string, manifest packageManifest) string {
+func dominantScriptTestFramework(env support.Context, target core.TargetConfig, files []string, manifest packageManifest) string {
 	counts := frameworkSeedCounts(manifest)
 	for _, rel := range files {
-		framework, include := readFrameworkFile(root, rel, isScriptTestFile, scriptTestFramework)
+		framework, include := readFrameworkFile(env, target, rel, isScriptTestFile, scriptTestFramework)
 		if !include || framework == "" {
 			continue
 		}

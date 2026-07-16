@@ -1,7 +1,6 @@
 package quality
 
 import (
-	"hash/fnv"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -75,26 +74,71 @@ func tokenizeNormalizedCloneText(source string) []cloneToken {
 	prev := 0
 	for _, match := range matches {
 		line += strings.Count(source[prev:match[0]], "\n")
-		value := strings.ToLower(source[match[0]:match[1]])
-		tokens = append(tokens, cloneToken{Value: value, Line: line})
+		// Slice the source directly instead of materializing a lowercased
+		// copy per token; normalization happens in the hash and in the
+		// case-folding comparison, both of which equal the historical
+		// lowercase semantics because tokens are ASCII by construction.
+		value := source[match[0]:match[1]]
+		tokens = append(tokens, cloneToken{Value: value, Hash: cloneTokenHash(value), Line: line})
 		prev = match[1]
 	}
 	return tokens
 }
 
-func cloneWindowHash(tokens []cloneToken) uint64 {
-	hasher := fnv.New64a()
-	for _, token := range tokens {
-		_, _ = hasher.Write([]byte(token.Value))
-		_, _ = hasher.Write([]byte{0})
+// FNV-1a constants (hash/fnv is not used directly so token hashing can fold
+// ASCII case inline without allocating a lowercased copy of each token).
+const (
+	fnvOffset64 uint64 = 14695981039346694211
+	fnvPrime64  uint64 = 1099511628211
+)
+
+// cloneTokenHash hashes a token's text with FNV-1a, lowercasing ASCII letters
+// on the fly. Tokens only ever contain ASCII (see cloneTokenPattern), so this
+// equals hashing strings.ToLower(text).
+func cloneTokenHash(text string) uint64 {
+	hash := fnvOffset64
+	for i := 0; i < len(text); i++ {
+		b := text[i]
+		if 'A' <= b && b <= 'Z' {
+			b += 'a' - 'A'
+		}
+		hash ^= uint64(b)
+		hash *= fnvPrime64
 	}
-	return hasher.Sum64()
+	return hash
+}
+
+// cloneTokenTextEqual reports whether two token texts are equal ignoring ASCII
+// case — exactly the historical comparison of lowercased token values, since
+// token text is ASCII-only.
+func cloneTokenTextEqual(a string, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		ca, cb := a[i], b[i]
+		if 'A' <= ca && ca <= 'Z' {
+			ca += 'a' - 'A'
+		}
+		if 'A' <= cb && cb <= 'Z' {
+			cb += 'a' - 'A'
+		}
+		if ca != cb {
+			return false
+		}
+	}
+	return true
 }
 
 func sharedCloneLength(left []cloneToken, leftStart int, right []cloneToken, rightStart int) int {
 	length := 0
 	for leftStart+length < len(left) && rightStart+length < len(right) {
-		if left[leftStart+length].Value != right[rightStart+length].Value {
+		l, r := left[leftStart+length], right[rightStart+length]
+		// Equal normalized text implies equal hashes, so a hash mismatch is a
+		// definitive inequality; the text comparison then guards against hash
+		// collisions, keeping the match semantics identical to comparing
+		// lowercased token values.
+		if l.Hash != r.Hash || !cloneTokenTextEqual(l.Value, r.Value) {
 			break
 		}
 		length++

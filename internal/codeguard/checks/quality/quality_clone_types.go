@@ -1,8 +1,14 @@
 package quality
 
 type cloneToken struct {
+	// Value is the token's original source text (always ASCII: the token
+	// pattern matches ASCII characters only). Comparisons fold ASCII case so
+	// behavior matches the historical lowercased-token equality.
 	Value string
-	Line  int
+	// Hash is the FNV-1a hash of the ASCII-lowercased token text, computed
+	// once at tokenize time so window hashing never rehashes token bytes.
+	Hash uint64
+	Line int
 }
 
 type cloneDocument struct {
