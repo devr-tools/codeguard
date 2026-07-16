@@ -96,6 +96,45 @@ func dispatch(items []int) {
 	assertFindingRulePresent(t, report, "Performance", "performance.unbounded-goroutines-in-loop")
 }
 
+func TestPerformanceCheckSkipsBoundedWorkerPools(t *testing.T) {
+	// Counted loops and semaphore-acquiring loops construct bounded worker
+	// pools; the unbounded rule targets data-driven goroutine fan-out.
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "pool.go"),
+		"package pool\n\nimport \"sync\"\n\nfunc CountedRange(workers int) {\n\tvar wg sync.WaitGroup\n\tfor range workers {\n\t\twg.Add(1)\n\t\tgo func() { defer wg.Done() }()\n\t}\n\twg.Wait()\n}\n\nfunc CountedFor(workers int) {\n\tvar wg sync.WaitGroup\n\tfor i := 0; i < workers; i++ {\n\t\twg.Add(1)\n\t\tgo func() { defer wg.Done() }()\n\t}\n\twg.Wait()\n}\n\nfunc SemaphoreBounded(jobs []func()) {\n\tsem := make(chan struct{}, 4)\n\tvar wg sync.WaitGroup\n\tfor _, job := range jobs {\n\t\twg.Add(1)\n\t\tsem <- struct{}{}\n\t\tgo func(run func()) {\n\t\t\tdefer wg.Done()\n\t\t\tdefer func() { <-sem }()\n\t\t\trun()\n\t\t}(job)\n\t}\n\twg.Wait()\n}\n")
+
+	report, err := codeguard.Run(context.Background(), performanceConfig("performance-bounded-pools", dir, "go"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertFindingRuleAbsent(t, report, "Performance", "performance.unbounded-goroutines-in-loop")
+}
+
+func TestPerformanceCheckStillFlagsDataDrivenCountedBound(t *testing.T) {
+	// A len()-bounded counted loop is data-driven fan-out, not a worker pool.
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "fanout.go"),
+		"package fanout\n\nfunc Dispatch(items []int) {\n\tfor i := 0; i < len(items); i++ {\n\t\tgo process(items[i])\n\t}\n}\n\nfunc process(int) {}\n")
+
+	report, err := codeguard.Run(context.Background(), performanceConfig("performance-len-bound", dir, "go"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertFindingRulePresent(t, report, "Performance", "performance.unbounded-goroutines-in-loop")
+}
+
+func TestPerformanceCheckSkipsSleepInLoopInTests(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "wait_test.go"),
+		"package wait\n\nimport \"time\"\n\nfunc waitReady(ready func() bool) {\n\tfor !ready() {\n\t\ttime.Sleep(10 * time.Millisecond)\n\t}\n}\n")
+
+	report, err := codeguard.Run(context.Background(), performanceConfig("performance-sleep-test-exempt", dir, "go"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertFindingRuleAbsent(t, report, "Performance", "performance.go.sleep-in-loop")
+}
+
 func TestPerformanceCheckGoTogglesGateGoRules(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "worker.go"), `package sample

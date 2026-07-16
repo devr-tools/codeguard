@@ -3,6 +3,7 @@ package performance
 import (
 	"go/ast"
 	"go/token"
+	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -72,7 +73,9 @@ func goLoopCallFindings(env support.Context, file string, fset *token.FileSet, p
 			case inLoop && detectRegex && aliasHas(regexAliases, alias) && nameIn(regexCompileNames, name) && literalPatternArg(node):
 				warn("performance.regex-compile-in-loop", pos,
 					"regular expression compiled inside a loop; compile it once before the loop or as a package-level variable")
-			case inLoop && detectSleep && aliasHas(timeAliases, alias) && name == "Sleep":
+			// Test files are exempt from the sleep rule: polling with a short
+			// sleep between readiness probes is the idiomatic test pattern.
+			case inLoop && detectSleep && !strings.HasSuffix(file, "_test.go") && aliasHas(timeAliases, alias) && name == "Sleep":
 				warn("performance.go.sleep-in-loop", pos,
 					"time.Sleep inside a loop usually marks polling; prefer a time.Ticker, a channel signal, or a backoff helper")
 			case inLoop && detectTimer && aliasHas(timeAliases, alias) && name == "After":
