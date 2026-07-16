@@ -18,7 +18,7 @@ builds:
     # full ~206-grammar registry: ~+4 MB binary delta instead of ~+22 MB.
     # See docs/treesitter-spike.md §5.3.
     flags:
-      - -tags=grammar_subset,grammar_subset_typescript,grammar_subset_tsx,grammar_subset_javascript
+      - -tags=grammar_subset,grammar_subset_typescript,grammar_subset_tsx,grammar_subset_javascript,grammar_subset_python
     ldflags:
       - -s -w -X github.com/devr-tools/codeguard/internal/version.Number=v{{ .Version }}
 

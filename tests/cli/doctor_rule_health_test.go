@@ -54,6 +54,12 @@ func TestRunDoctorWaiverHealth(t *testing.T) {
 			wantMessage: "matches no catalog rule",
 		},
 		{
+			name:        "retired_performance_waiver_gets_migration_hint",
+			waivers:     `{"rule": "quality.n-plus-one-query"}`,
+			wantLine:    "[WARN] waiver:quality.n-plus-one-query:",
+			wantMessage: "rule moved to the performance section as performance.n-plus-one-query",
+		},
+		{
 			name:        "expired_waiver_warns",
 			waivers:     `{"rule": "quality.gofmt", "expires_on": "2020-01-01"}`,
 			wantLine:    "[WARN] waiver:quality.gofmt:",

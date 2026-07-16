@@ -1,0 +1,14 @@
+package rules
+
+import "github.com/devr-tools/codeguard/internal/codeguard/core"
+
+// performanceFrameworkFixTemplates covers the framework-aware performance
+// rules (performance_rules.detect_framework_patterns).
+var performanceFrameworkFixTemplates = map[string]core.FixTemplate{
+	"performance.python.django-nplusone-relation":    {Kind: guided, Text: "Load the relation with the initial query instead of per row.\n\nBefore:\nfor order in Order.objects.all():\n    send(order.customer.email)  # one query per order\n\nAfter:\nfor order in Order.objects.select_related(\"customer\"):\n    send(order.customer.email)  # customer joined in the initial query\n# reverse/many-to-many relations: Order.objects.prefetch_related(\"item_set\")"},
+	"performance.python.orm-query-in-loop":           {Kind: guided, Text: "Batch the per-iteration lookups into one query before the loop.\n\nBefore:\nfor pk in ids:\n    articles.append(Article.objects.get(pk=pk))\n\nAfter:\nby_id = Article.objects.in_bulk(ids)  # one query\narticles = [by_id[pk] for pk in ids]\n# or: Article.objects.filter(pk__in=ids)\n# SQLAlchemy: session.scalars(select(Article).where(Article.id.in_(ids)))"},
+	"performance.typescript.react-expensive-render":  {Kind: guided, Text: "Memoize per-render computation so it only reruns when its inputs change.\n\nBefore:\nfunction ItemList({ items }: Props) {\n  const rows = items.filter((i) => i.active).map(render); // every render\n  return <ul>{rows}</ul>;\n}\n\nAfter:\nfunction ItemList({ items }: Props) {\n  const rows = useMemo(() => items.filter((i) => i.active).map(render), [items]);\n  return <ul>{rows}</ul>;\n}"},
+	"performance.javascript.react-expensive-render":  {Kind: guided, Text: "Memoize per-render computation so it only reruns when its inputs change.\n\nBefore:\nfunction ItemList({ items }) {\n  const rows = items.filter((i) => i.active).map(render); // every render\n  return <ul>{rows}</ul>;\n}\n\nAfter:\nfunction ItemList({ items }) {\n  const rows = useMemo(() => items.filter((i) => i.active).map(render), [items]);\n  return <ul>{rows}</ul>;\n}"},
+	"performance.typescript.express-sync-middleware": {Kind: guided, Text: "Use the async API inside middleware so the event loop is not blocked per request.\n\nBefore:\napp.use((req, res, next) => {\n  req.token = bcrypt.hashSync(req.body.secret, 10); // blocks every request\n  next();\n});\n\nAfter:\napp.use(async (req, res, next) => {\n  req.token = await bcrypt.hash(req.body.secret, 10);\n  next();\n});"},
+	"performance.javascript.express-sync-middleware": {Kind: guided, Text: "Use the async API inside middleware so the event loop is not blocked per request.\n\nBefore:\napp.use((req, res, next) => {\n  req.token = bcrypt.hashSync(req.body.secret, 10); // blocks every request\n  next();\n});\n\nAfter:\napp.use(async (req, res, next) => {\n  req.token = await bcrypt.hash(req.body.secret, 10);\n  next();\n});"},
+}

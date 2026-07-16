@@ -62,6 +62,7 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 		cfg.Checks.Context = def.Checks.Context
 	}
 	applyQualityDefaults(&cfg.Checks.QualityRules, def.Checks.QualityRules)
+	applyPerformanceDefaults(&cfg.Checks.PerformanceRules)
 	applyDesignDefaults(&cfg.Checks.DesignRules, def.Checks.DesignRules)
 	applyPromptDefaults(&cfg.Checks.PromptRules, def.Checks.PromptRules)
 	applyCIDefaults(&cfg.Checks.CIRules, def.Checks.CIRules)

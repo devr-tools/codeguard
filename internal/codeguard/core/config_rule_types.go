@@ -7,18 +7,74 @@ type QualityRulesConfig struct {
 	MaxCyclomaticComplexity int                             `json:"max_cyclomatic_complexity" yaml:"max_cyclomatic_complexity"`
 	CloneTokenThreshold     int                             `json:"clone_token_threshold,omitempty" yaml:"clone_token_threshold,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
-	DetectNPlusOneQuery     *bool                           `json:"detect_n_plus_one_query,omitempty" yaml:"detect_n_plus_one_query,omitempty"`
-	DetectAllocInLoop       *bool                           `json:"detect_alloc_in_loop,omitempty" yaml:"detect_alloc_in_loop,omitempty"`
+	AIProvenance            AIProvenanceConfig              `json:"ai_provenance,omitempty" yaml:"ai_provenance,omitempty"`
+	AIChangeRisk            AIChangeRiskConfig              `json:"ai_change_risk,omitempty" yaml:"ai_change_risk,omitempty"`
+	AIChecks                AIChecksConfig                  `json:"ai_checks,omitempty" yaml:"ai_checks,omitempty"`
+	CoverageDelta           CoverageDeltaConfig             `json:"coverage_delta,omitempty" yaml:"coverage_delta,omitempty"`
+}
+
+// PerformanceRulesConfig tunes the performance section (checks.performance).
+// The detect_* toggles moved here from quality_rules when the performance
+// rules were promoted out of the quality section; nil toggles default to
+// enabled except detect_prealloc_in_loop.
+type PerformanceRulesConfig struct {
+	// DetectNPlusOneQuery gates query/fetch-in-loop detection across languages.
+	DetectNPlusOneQuery *bool `json:"detect_n_plus_one_query,omitempty" yaml:"detect_n_plus_one_query,omitempty"`
+	// DetectAllocInLoop gates allocation-heavy loop detection: Go string growth
+	// and fmt.Sprintf accumulation, plus string concatenation in Python and
+	// TypeScript/JavaScript loops.
+	DetectAllocInLoop *bool `json:"detect_alloc_in_loop,omitempty" yaml:"detect_alloc_in_loop,omitempty"`
 	// DetectPreallocInLoop gates the append-without-preallocation branch of
-	// quality.go.alloc-in-loop. Defaults to false: preallocating is a
+	// performance.go.alloc-in-loop. Defaults to false: preallocating is a
 	// micro-optimization, and idiomatic accumulation loops legitimately skip it.
-	DetectPreallocInLoop       *bool               `json:"detect_prealloc_in_loop,omitempty" yaml:"detect_prealloc_in_loop,omitempty"`
-	DetectSyncIOInHandlers     *bool               `json:"detect_sync_io_in_handlers,omitempty" yaml:"detect_sync_io_in_handlers,omitempty"`
-	DetectUnboundedConcurrency *bool               `json:"detect_unbounded_concurrency,omitempty" yaml:"detect_unbounded_concurrency,omitempty"`
-	AIProvenance               AIProvenanceConfig  `json:"ai_provenance,omitempty" yaml:"ai_provenance,omitempty"`
-	AIChangeRisk               AIChangeRiskConfig  `json:"ai_change_risk,omitempty" yaml:"ai_change_risk,omitempty"`
-	AIChecks                   AIChecksConfig      `json:"ai_checks,omitempty" yaml:"ai_checks,omitempty"`
-	CoverageDelta              CoverageDeltaConfig `json:"coverage_delta,omitempty" yaml:"coverage_delta,omitempty"`
+	DetectPreallocInLoop   *bool `json:"detect_prealloc_in_loop,omitempty" yaml:"detect_prealloc_in_loop,omitempty"`
+	DetectSyncIOInHandlers *bool `json:"detect_sync_io_in_handlers,omitempty" yaml:"detect_sync_io_in_handlers,omitempty"`
+	// DetectUnboundedConcurrency gates goroutines-in-loop (Go), promise
+	// creation in loops (TS/JS), and asyncio task creation in loops (Python).
+	DetectUnboundedConcurrency *bool `json:"detect_unbounded_concurrency,omitempty" yaml:"detect_unbounded_concurrency,omitempty"`
+	// DetectRegexCompileInLoop flags regex compilation inside loop bodies
+	// (regexp.Compile/MustCompile, re.compile, new RegExp).
+	DetectRegexCompileInLoop *bool `json:"detect_regex_compile_in_loop,omitempty" yaml:"detect_regex_compile_in_loop,omitempty"`
+	// DetectDeferInLoop flags Go defer statements inside loop bodies, where
+	// they accumulate until function exit.
+	DetectDeferInLoop *bool `json:"detect_defer_in_loop,omitempty" yaml:"detect_defer_in_loop,omitempty"`
+	// DetectSleepInLoop flags time.Sleep inside Go loop bodies, which usually
+	// marks a poll that wants a ticker, channel, or backoff helper.
+	DetectSleepInLoop *bool `json:"detect_sleep_in_loop,omitempty" yaml:"detect_sleep_in_loop,omitempty"`
+	// DetectAwaitInLoop flags await inside TS/JS loop bodies, which serializes
+	// work that could run concurrently via Promise.all.
+	DetectAwaitInLoop *bool `json:"detect_await_in_loop,omitempty" yaml:"detect_await_in_loop,omitempty"`
+	// DetectTimerLeaks flags timer/listener leaks: time.After in Go loops,
+	// setInterval without clearInterval and addEventListener in TS/JS loops.
+	DetectTimerLeaks *bool `json:"detect_timer_leaks,omitempty" yaml:"detect_timer_leaks,omitempty"`
+	// DetectUnboundedReads flags whole-input reads without a size bound:
+	// io.ReadAll in Go handlers/loops, .read()/.readlines() in Python loops.
+	DetectUnboundedReads *bool `json:"detect_unbounded_reads,omitempty" yaml:"detect_unbounded_reads,omitempty"`
+	// DetectComplexityRegression gates the diff-only loop-nesting regression
+	// check: it compares each changed function's maximum loop-nesting depth
+	// against the diff base ref and warns on increases. Full scans are
+	// unaffected (the rule only activates in diff mode).
+	DetectComplexityRegression *bool `json:"detect_complexity_regression,omitempty" yaml:"detect_complexity_regression,omitempty"`
+	// DetectFrameworkPatterns gates the framework-aware rules: Django relation
+	// access and ORM point queries in Python loops (Django/SQLAlchemy),
+	// expensive per-render work in React components, and CPU-heavy synchronous
+	// calls in Express middleware. Each rule additionally requires file-level
+	// framework evidence (imports or obvious idioms), so non-framework code
+	// never matches.
+	DetectFrameworkPatterns *bool `json:"detect_framework_patterns,omitempty" yaml:"detect_framework_patterns,omitempty"`
+	// Budgets lists measured size gates over build artifacts (see
+	// PerformanceBudgetConfig); findings report as performance.budget.
+	Budgets []PerformanceBudgetConfig `json:"budgets,omitempty" yaml:"budgets,omitempty"`
+	// Benchmarks configures the opt-in benchmark-regression gate (see
+	// PerformanceBenchmarksConfig); findings report as
+	// performance.benchmark-regression.
+	Benchmarks PerformanceBenchmarksConfig `json:"benchmarks,omitempty" yaml:"benchmarks,omitempty"`
+	// ScoreHistory gates persistence of the performance_score trend next to
+	// the scan cache (nil = enabled, mirroring ai_checks.slop_history).
+	ScoreHistory *bool `json:"score_history,omitempty" yaml:"score_history,omitempty"`
+	// ScoreHistoryLimit caps retained performance_score history entries per
+	// target (0 = default limit).
+	ScoreHistoryLimit int `json:"score_history_limit,omitempty" yaml:"score_history_limit,omitempty"`
 }
 
 // AIChecksConfig toggles individual AI-quality heuristics. A nil pointer

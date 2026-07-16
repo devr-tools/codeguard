@@ -43,7 +43,7 @@ var menuGroups = []menuGroup{
 		title: "Fix & report",
 		items: []menuItem{
 			{"fix", "AI-assisted fix for a specific finding"},
-			{"report", "Print the slop / AI-risk history report"},
+			{"report", "Print the slop / performance history report"},
 		},
 	},
 	{

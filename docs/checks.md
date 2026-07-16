@@ -8,6 +8,7 @@ This file documents the current check categories in `codeguard` and the config k
 {
   "checks": {
     "quality": true,
+    "performance": false,
     "design": true,
     "security": true,
     "prompts": true,
@@ -19,6 +20,8 @@ This file documents the current check categories in `codeguard` and the config k
 ```
 
 Each top-level boolean enables or disables an entire check family.
+
+`performance` is opt-in and covers N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, unbounded concurrency, memory-pressure and framework-aware smells, diff-mode complexity regressions, and measurement gates (size budgets, benchmark regression); see [Performance](#performance) for the rule list and the migration note for the former `quality.*` ids.
 
 `context` covers agent-context legibility: when the key is omitted the family defaults to enabled in full scans and disabled in diff scans; see [Agent Context](#agent-context).
 
@@ -386,6 +389,221 @@ Behavior:
 - one finding per file whose changed-line coverage is below `min_changed_line_coverage` (default 60), listing the coverage percentage and the uncovered changed lines
 - findings warn by default and escalate to fail below `fail_under` (unset by default)
 - changed lines that are not measurable (comments, declarations, files absent from the coverage report) are excluded from the percentage; a failed coverage run produces a warn finding instead of aborting the scan
+
+## Performance
+
+Purpose:
+- N+1 query / remote-fetch patterns inside loops (Go, Python, TypeScript, JavaScript)
+- Allocation-heavy loops: string concatenation and `fmt.Sprintf` accumulation (Go, Python, TS/JS) and (opt-in) append without preallocation (Go)
+- Repeated work inside loops: regex compilation (Go, Python, TS/JS), `defer` accumulation (Go), polling sleeps (Go)
+- Blocking I/O in request paths: synchronous file I/O in Go HTTP handlers, `*Sync` calls in TS/JS handlers, blocking calls in Python `async def` bodies
+- Unbounded concurrency: goroutines launched from loops (Go), promises created in loops without a limiter (TS/JS), `asyncio` tasks created in loops without a semaphore (Python)
+- Sequential `await` in TS/JS loops that could batch through `Promise.all`
+- Memory-pressure patterns: `time.After` timers leaked in Go loops, `setInterval` without `clearInterval` and listeners added in TS/JS loops without cleanup, unbounded whole-input reads (`io.ReadAll` in Go handlers/loops, `.read()`/`.readlines()` in Python loops)
+- Framework-aware smells, gated on file-level framework evidence: Django relation access in queryset loops, Django/SQLAlchemy ORM point queries in loops, expensive per-render work in React components, CPU-heavy synchronous calls in Express middleware
+- Change intelligence (diff scans): loop-nesting complexity regressions in functions touched by the diff
+- Measurement gates: artifact size budgets and `go test -bench` regression detection against a stored baseline
+- An opt-in AI-assisted lens for judgment-call concerns (missing caching, algorithmic complexity) when the semantic runtime is configured
+- A `performance_score` artifact with per-target history so the smell trend is visible across scans
+
+Config keys:
+
+```json
+{
+  "checks": {
+    "performance": true,
+    "performance_rules": {
+      "detect_n_plus_one_query": true,
+      "detect_alloc_in_loop": true,
+      "detect_prealloc_in_loop": false,
+      "detect_sync_io_in_handlers": true,
+      "detect_unbounded_concurrency": true,
+      "detect_regex_compile_in_loop": true,
+      "detect_defer_in_loop": true,
+      "detect_sleep_in_loop": true,
+      "detect_await_in_loop": true,
+      "detect_timer_leaks": true,
+      "detect_unbounded_reads": true,
+      "detect_complexity_regression": true,
+      "detect_framework_patterns": true
+    }
+  }
+}
+```
+
+The family is **opt-in** (`performance: false` by default). Within it, every rule toggle defaults to enabled except `detect_prealloc_in_loop`, which stays opt-in because preallocating is a micro-optimization that idiomatic accumulation loops legitimately skip.
+
+Rules:
+
+| Rule | Languages | Toggle |
+|---|---|---|
+| `performance.n-plus-one-query` | Go, Python, TS, JS | `detect_n_plus_one_query` |
+| `performance.go.alloc-in-loop` | Go | `detect_alloc_in_loop` (+ `detect_prealloc_in_loop`) |
+| `performance.string-concat-in-loop` | Python, TS, JS | `detect_alloc_in_loop` |
+| `performance.regex-compile-in-loop` | Go, Python, TS, JS | `detect_regex_compile_in_loop` |
+| `performance.go.defer-in-loop` | Go | `detect_defer_in_loop` |
+| `performance.go.sleep-in-loop` | Go | `detect_sleep_in_loop` |
+| `performance.sync-io-in-request-path` | Go | `detect_sync_io_in_handlers` |
+| `performance.{typescript,javascript}.sync-io-in-handler` | TS, JS | `detect_sync_io_in_handlers` |
+| `performance.python.sync-io-in-async` | Python | `detect_sync_io_in_handlers` |
+| `performance.unbounded-goroutines-in-loop` | Go | `detect_unbounded_concurrency` |
+| `performance.{typescript,javascript}.unbounded-concurrency` | TS, JS | `detect_unbounded_concurrency` |
+| `performance.python.unbounded-concurrency` | Python | `detect_unbounded_concurrency` |
+| `performance.{typescript,javascript}.await-in-loop` | TS, JS | `detect_await_in_loop` |
+| `performance.go.timer-leak-in-loop` | Go | `detect_timer_leaks` |
+| `performance.{typescript,javascript}.timer-listener-leak` | TS, JS | `detect_timer_leaks` |
+| `performance.unbounded-read` | Go, Python | `detect_unbounded_reads` |
+| `performance.complexity-regression` | Go | `detect_complexity_regression` (diff scans only) |
+| `performance.python.django-nplusone-relation` | Python | `detect_framework_patterns` |
+| `performance.python.orm-query-in-loop` | Python | `detect_framework_patterns` |
+| `performance.{typescript,javascript}.react-expensive-render` | TS, JS | `detect_framework_patterns` |
+| `performance.{typescript,javascript}.express-sync-middleware` | TS, JS | `detect_framework_patterns` |
+
+Notes on precision:
+- `regex-compile-in-loop` fires only on **literal** patterns: compiling a variable pattern in a loop usually means the pattern differs per iteration (e.g. compiling config-supplied patterns), which is not hoistable.
+- `defer-in-loop` scopes to the enclosing function: `defer wg.Done()` inside a goroutine launched from a loop runs per goroutine and is not flagged.
+- `await-in-loop` exempts `for await` streams and any file using a concurrency limiter (`p-limit`/`p-queue`); keep the loop (or disable the toggle) when iterations genuinely depend on each other.
+- `unbounded-read` does not fire when the reader is already bounded (`io.LimitReader`, `http.MaxBytesReader`, `read(n)`).
+- The TS/JS timer/listener rule treats any `clearInterval` in the file as interval cleanup, and any `removeEventListener`/`AbortSignal` usage as listener cleanup.
+- Python task creation is exempt when the file shows a bounding construct (`asyncio.Semaphore`, `TaskGroup`, `aiolimiter`, `anyio.CapacityLimiter`).
+
+### Complexity regression (diff scans only)
+
+`performance.complexity-regression` compares each function touched by the diff against the same function at the base ref and warns when its **maximum loop-nesting depth increased** (e.g. a changed function went from one loop to a loop inside a loop). The message names the function and both depths, so review can focus on whether the added iteration runs over unbounded data.
+
+Behavior and precision:
+- **Diff scans only.** The rule needs a base ref to compare against, so it activates only in diff mode (`--diff`); full scans never emit it. The toggle (`detect_complexity_regression`) defaults to enabled, which is safe precisely because full scans are unaffected.
+- Functions are matched by name (methods by `ReceiverType.Name`). Functions that do not exist at the base ref — new or renamed — are skipped: there is no baseline to regress from, and the absolute-depth rules cover new code.
+- Only functions whose lines intersect the diff's changed ranges are compared; untouched functions are never re-litigated.
+- Nesting depth is syntactic and includes function literals at their nesting position: a closure that loops, launched per loop iteration, still multiplies the iteration space.
+- Files that are added, deleted, or unparseable at either revision are skipped.
+- **Language coverage: Go only** in this version (the comparison parses both revisions via `go/ast`). Python and TypeScript/JavaScript changes are not checked.
+
+### Framework-aware rules
+
+Framework-aware rules (`detect_framework_patterns`): every rule requires file-level framework evidence before any pattern is tried, so non-framework code never matches — a Django import or `.objects.` manager usage for `django-nplusone-relation` and the Django half of `orm-query-in-loop`, a SQLAlchemy import for `session.get` (so `requests.Session().get(url)` loops never match), a `react` import/require for `react-expensive-render`, and an `express` import/require for `express-sync-middleware`. Precision notes and honest limits:
+- `django-nplusone-relation` only fires inside a loop whose iterable is queryset-shaped (contains `.objects.` or a variable assigned from one), stays quiet for the whole file once `select_related`/`prefetch_related` appears anywhere, and skips chains whose final segment is immediately called (`item.name.strip()` reads as a scalar method, not a relation load) — so relation-loading *method* chains like `item.author.get_absolute_url()` are deliberately missed, except through the always-flagged `item.relation_set.` reverse-manager form. A scalar attribute chain that is not a relation (`item.profile.bio` where `profile` is a plain object) can still false-positive; add `select_related` or waive.
+- `orm-query-in-loop` covers only the ORM call shapes the generic `performance.n-plus-one-query` pattern misses (`.objects.get(`, `.objects.filter(`, SQLAlchemy `session.get(`), and skips loop headers plus any line the generic pattern matches, so one line never reports under both rules.
+- `react-expensive-render` needs a component/custom-hook region (`function`/`const` named with a capital letter or `use*`) and flags only a chain of two or more `.sort`/`.filter`/`.map` calls on one line, `new Array(`, or `JSON.parse(`; anything on or inside a `useMemo`/`useCallback`/`useEffect`/`useLayoutEffect` wrapper is exempt. The heuristic does not distinguish event-handler callbacks declared in the component body (work there runs per event, not per render) and misses chains split across lines.
+- `express-sync-middleware` sticks to a fixed CPU-heavy shortlist (`bcrypt.hashSync`/`compareSync`, `crypto.pbkdf2Sync`/`scryptSync`, `zlib` `*Sync`, `child_process.execSync`, including destructured bare-name calls) inside `app.use(`/`router.use(` regions; it takes precedence over the generic `sync-io-in-handler` finding on the same line, and other `*Sync` calls (e.g. `fs.readFileSync`) stay with the generic rule.
+
+Parsers & precision: with `parsers.treesitter: "auto"`, Python `performance.n-plus-one-query` runs on the embedded tree-sitter Python grammar instead of the line regex — only genuine call expressions (`cursor.execute(...)`, `requests`/`httpx` HTTP verbs, `session.query(...)`) inside `for`/`while` statements match, so query-shaped text inside comments and string literals no longer fires, and tree-path findings report `confidence: high`. Rule ID, level, and message are identical on both paths. The regex scan remains the automatic fallback whenever the tree is unavailable (`parsers.treesitter: "off"` — the default — a build without the `grammar_subset_python` tag, oversized files, or a parse failure).
+
+### Performance score artifact
+
+When the performance section runs and produces findings, each target publishes a `performance_score` artifact (mirroring the quality section's `slop_score`): `score` is the weighted finding count scaled by 10 and capped at 100, `signals` is the number of contributing findings, and `components` breaks the total down per rule. Weights are assigned per rule family and are deliberately simple and stable:
+
+| Family | Rules | Weight |
+|---|---|---|
+| Query in loop (N+1) | `n-plus-one-query` | 5 |
+| Blocking I/O | `sync-io-in-request-path`, `{typescript,javascript}.sync-io-in-handler`, `python.sync-io-in-async` | 4 |
+| Unbounded concurrency | `unbounded-goroutines-in-loop`, `{typescript,javascript,python}.unbounded-concurrency` | 4 |
+| Memory pressure | `unbounded-read`, `go.timer-leak-in-loop`, `{typescript,javascript}.timer-listener-leak` | 3 |
+| Repeated loop work | `regex-compile-in-loop`, `go.defer-in-loop`, `go.sleep-in-loop`, `{typescript,javascript}.await-in-loop` | 2 |
+| Allocation churn | `go.alloc-in-loop`, `string-concat-in-loop` | 1 |
+
+The score trend is persisted per target next to the scan cache (`<cache>.perf-history.<ext>`) whenever the cache is enabled; subsequent scans annotate the artifact with `previous_score` and `delta`. `performance_rules.score_history: false` disables persistence and `performance_rules.score_history_limit` caps retained entries per target (default 100). Print the recorded trend with:
+
+```
+codeguard report -perf-history [-config path] [-limit n]
+```
+
+(mirroring `codeguard report -slop-history` for the slop-score trend).
+
+When a config omits the `performance` key entirely, text-format `scan` output appends a one-line note suggesting the upgrade; setting the key explicitly (`true` or `false`) silences it.
+
+**Migration note:** these rules previously ran inside the quality section under `quality.*` ids (`quality.n-plus-one-query`, `quality.go.alloc-in-loop`, `quality.sync-io-in-request-path`, `quality.unbounded-goroutines-in-loop`, the `quality.typescript.*`/`quality.javascript.*` mirrors, and `quality.python.sync-io-in-async`), gated by `quality_rules.detect_*` keys. There is no runtime aliasing: waivers, baselines, and configs that reference the old ids stop matching when you enable `checks.performance`, and `codeguard doctor` flags any waiver still pointing at a retired id with the replacement to use.
+
+### AI-assisted performance review
+
+When the command-backed semantic review runtime is available, the performance section gains an LLM-assisted lens over the changed functions. It is strictly opt-in and requires **all three** of:
+
+- the AI runtime enabled (or the `CODEGUARD_SEMANTIC_CHECKS` env gate set), the same guards the quality section's semantic review uses
+- a semantic command configured through `ai.provider.type=command` plus `ai.provider.command`/`args`, or through `CODEGUARD_SEMANTIC_COMMAND`
+- `checks.performance: true` — with the performance section disabled, semantic requests and scan output are byte-identical to a build without this lens
+
+Behavior:
+- emits `performance.ai.semantic-perf` (warn) when the semantic runtime finds a performance concern static rules cannot judge: repeated expensive calls that want caching or memoization, algorithmic complexity out of line with the input sizes the diff makes plausible, or obviously redundant work across the change; it is instructed **not** to flag micro-optimizations, style preferences, or anything without clear evidence in the diff
+- emits `performance.ai.semantic-runtime` at `fail` level when the lens is enabled but the semantic command is missing, crashes, or returns invalid JSON, instead of silently skipping coverage
+- diff-driven and cached: the lens reviews only changed files (patch input or a git diff against the scan base ref) and rides in the **same** semantic request as the quality lenses, so enabling it adds no extra runtime invocation, and verdicts are cached by hashed request content alongside the quality verdicts
+
+Repo-specific performance policies can also be expressed as natural-language custom rules (see [Custom rule packs](#custom-rule-packs)); these evaluate per file through `CODEGUARD_AI_RUNTIME_COMMAND` and are independent of the semantic lens above:
+
+```json
+{
+  "rule_packs": [
+    {
+      "name": "perf-policy",
+      "rules": [
+        {
+          "id": "custom.no-queries-in-loops",
+          "title": "No per-item database queries",
+          "severity": "warn",
+          "message": "database work inside a loop should be batched",
+          "how_to_fix": "Fetch the rows in one batched query before the loop.",
+          "paths": ["internal/**"],
+          "natural_language": "never issue a database query or remote API call once per element of a collection; batch the lookups before the loop instead"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Performance budgets
+
+`performance.budget` compares real artifact sizes against configured byte budgets — a measurement-based gate, unlike the pattern rules above. Each `performance_rules.budgets` entry names one budget:
+
+```json
+{
+  "checks": {
+    "performance": true,
+    "performance_rules": {
+      "budgets": [
+        {"name": "cli-binary", "kind": "file-size", "path": "dist/codeguard", "max_bytes": 41943040},
+        {"name": "js-bundles", "kind": "file-size", "path": "dist/*.js", "max_bytes": 512000, "level": "fail"},
+        {"name": "bundle-total", "kind": "bundle-stats", "path": "build/meta.json", "max_bytes": 1048576},
+        {"name": "main-chunk", "kind": "bundle-stats", "path": "build/stats.json", "asset": "main.js", "max_bytes": 262144}
+      ]
+    }
+  }
+}
+```
+
+- `kind: file-size` budgets the on-disk size of a file, or the **summed** size of every file a glob matches.
+- `kind: bundle-stats` parses a bundler stats JSON — the common minimal shapes are supported: an esbuild metafile (`outputs.<name>.bytes`) and webpack stats (`assets[].size`) — and budgets the total across assets, or a single asset when `asset` names one.
+- `level` is `warn` (default) or `fail`; `max_bytes` must be positive and `name` non-empty (validated at config load).
+- A **missing artifact is a warn finding, never a hard error** — budgets on optional build outputs (a `dist/` that only exists after a release build) stay usable, and `level: fail` does not apply to absence.
+- `path` is resolved relative to the target directory and is contained within it: absolute paths and `..` segments are rejected at validation, and artifacts that resolve outside the target through a symlink are skipped with a warn finding. codeguard never reads outside the repository to measure a budget.
+- Budget findings carry the artifact path in the message rather than as a finding path, so they are reported in diff scans too (a built artifact is a repository-level gate, not a changed-line lint).
+
+### Benchmark regression
+
+`performance.benchmark-regression` runs `go test -run=^$ -bench=. -benchmem` over the configured packages and warns when a benchmark's ns/op regresses beyond the threshold relative to a stored baseline.
+
+```json
+{
+  "checks": {
+    "performance": true,
+    "performance_rules": {
+      "benchmarks": {
+        "enabled": true,
+        "packages": ["./internal/..."],
+        "max_regression_percent": 20,
+        "baseline_path": ".codeguard/cache.bench-baseline.json"
+      }
+    }
+  }
+}
+```
+
+- **Off by default** (`enabled: false`): the gate executes the repository's own test code via `go test`, so only enable it for repositories whose test suite you would run anyway. The `go` binary is codeguard's own fixed tool invocation (like `git`) — there is deliberately no config override for the command in this version, which keeps the added trust surface at zero.
+- `packages` must be explicit relative Go package patterns (`"."`, `"./..."`, `"./internal/..."`); anything flag-shaped, absolute, or containing `..` segments is rejected at validation. Full scans **require** an explicit list; diff scans default to the packages containing changed `.go` files (and benchmark nothing when the diff touches no Go files).
+- `max_regression_percent` (default 20) is the tolerated ns/op slowdown per benchmark.
+- `baseline_path` defaults to a sibling of the scan cache (`cache.path` with a `.bench-baseline` suffix, e.g. `.codeguard/cache.bench-baseline.json`) and, like the other config-controlled artifact paths, must stay inside the config directory. The **first run writes the baseline and reports nothing**; later runs compare against it, record newly appearing benchmarks, and never overwrite existing entries — delete the baseline file to accept a new cost and re-baseline. Benchmark names are stored with the `-GOMAXPROCS` suffix stripped so a core-count change does not orphan the baseline.
+- The run is bounded like every other subprocess: contained timeout, output capped, packages validated before they reach `go test`.
+
+**Future work:** pprof profile ingestion/fusion (attributing regressions to functions by diffing CPU/heap profiles) is deliberately out of scope for this version.
 
 ## Design
 

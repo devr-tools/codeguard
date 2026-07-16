@@ -7,6 +7,7 @@ import (
 	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
 	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
 	designCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/design"
+	performanceCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/performance"
 	promptsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/prompts"
 	qualityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/quality"
 	securityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/security"
@@ -43,6 +44,18 @@ var sectionRegistry = []sectionDef{
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.Quality },
 		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return qualityCheck.Run(ctx, checkEnv)
+		},
+	},
+	{
+		id:   "performance",
+		name: "Performance",
+		// nil means "config predates the section" and runs as off; the scan
+		// output separately suggests enabling it (see cli.executeScan).
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Performance != nil && *sc.Cfg.Checks.Performance
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return performanceCheck.Run(ctx, checkEnv)
 		},
 	},
 	{

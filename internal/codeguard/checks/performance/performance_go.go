@@ -1,4 +1,4 @@
-package quality
+package performance
 
 import (
 	"bytes"
@@ -33,6 +33,12 @@ var syncIOOperationsByImportPath = map[string]map[string]struct{}{
 
 func goCorePerformanceFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
 	findings := make([]core.Finding, 0)
+	rules := env.Config.Checks.PerformanceRules
+	detectGoroutines := toggleEnabled(rules.DetectUnboundedConcurrency)
+	detectSyncIO := toggleEnabled(rules.DetectSyncIOInHandlers)
+	if !detectGoroutines && !detectSyncIO {
+		return findings
+	}
 	httpAliases := importAliasesForPath(parsed, "net/http")
 	syncIOAliases := syncIOAliases(parsed)
 
@@ -48,18 +54,21 @@ func goCorePerformanceFindings(env support.Context, file string, fset *token.Fil
 		stack = append(stack, n)
 		switch node := n.(type) {
 		case *ast.GoStmt:
-			if hasLoopAncestor(stack[:len(stack)-1]) {
+			if detectGoroutines && hasLoopAncestor(stack[:len(stack)-1]) {
 				pos := fset.Position(node.Go)
-				findings = append(findings, warnFinding(env, "quality.unbounded-goroutines-in-loop", file, pos.Line, pos.Column,
+				findings = append(findings, warnFinding(env, "performance.unbounded-goroutines-in-loop", file, pos.Line, pos.Column,
 					"goroutine launched inside a loop should be bounded or queued explicitly"))
 			}
 		case *ast.CallExpr:
+			if !detectSyncIO {
+				return true
+			}
 			fn := enclosingFunc(stack[:len(stack)-1])
 			if fn == nil || !isLikelyHTTPHandler(fn, httpAliases) || !isSyncIOCall(node, syncIOAliases) {
 				return true
 			}
 			pos := fset.Position(node.Pos())
-			findings = append(findings, warnFinding(env, "quality.sync-io-in-request-path", file, pos.Line, pos.Column,
+			findings = append(findings, warnFinding(env, "performance.sync-io-in-request-path", file, pos.Line, pos.Column,
 				"synchronous file I/O in an HTTP request path can add tail latency"))
 		}
 		return true

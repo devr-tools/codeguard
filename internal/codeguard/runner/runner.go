@@ -79,6 +79,19 @@ func LoadSlopHistory(path string) map[string][]core.SlopHistoryEntry {
 	return runnersupport.LoadSlopHistory(path)
 }
 
+// PerfScoreHistoryPath derives the performance-score history file path for a
+// config.
+func PerfScoreHistoryPath(cfg core.Config) string {
+	config.ApplyDefaults(&cfg)
+	return runnersupport.PerfScoreHistoryPathForBase(cfg.Cache.Path)
+}
+
+// LoadPerfScoreHistory reads the persisted performance-score trend, keyed by
+// artifact ID.
+func LoadPerfScoreHistory(path string) map[string][]core.PerformanceHistoryEntry {
+	return runnersupport.LoadPerfScoreHistory(path)
+}
+
 // RuleStatsHistoryPath derives the rule-stats history file path for a config.
 func RuleStatsHistoryPath(cfg core.Config) string {
 	config.ApplyDefaults(&cfg)

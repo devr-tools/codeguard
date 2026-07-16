@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/rules"
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
@@ -43,6 +44,10 @@ func waiverDoctorChecks(cfg service.Config, today time.Time) []doctorCheck {
 
 func waiverHealthCheck(waiver service.WaiverConfig, catalog map[string]bool, today time.Time) (doctorCheck, bool) {
 	if waiver.Rule != "*" && !catalog[waiver.Rule] {
+		if renamed, retired := rules.RetiredPerformanceRuleIDs()[waiver.Rule]; retired {
+			return warnDoctorCheck("waiver:"+waiver.Rule,
+				fmt.Sprintf("rule moved to the performance section as %s; update the waiver's rule id (the section is opt-in via checks.performance)", renamed)), true
+		}
 		return warnDoctorCheck("waiver:"+waiver.Rule, "waiver matches no catalog rule and never suppresses anything; remove it or fix the rule id"), true
 	}
 	if waiverExpired(waiver.ExpiresOn, today) {

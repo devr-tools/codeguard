@@ -17,6 +17,11 @@ const (
 var fixTemplates = mergeFixTemplates(
 	qualityFixTemplates,
 	qualityAIFixTemplates,
+	performanceFixTemplates,
+	performanceRegressionFixTemplates,
+	performanceFrameworkFixTemplates,
+	performanceAIFixTemplates,
+	performanceMeasuredFixTemplates,
 	securityFixTemplates,
 	securityLanguageFixTemplates,
 	designFixTemplates,

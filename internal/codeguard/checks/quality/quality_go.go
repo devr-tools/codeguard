@@ -57,7 +57,6 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 	findings = append(findings, importFindings(env, file, fset, parsed)...)
 	findings = append(findings, goFunctionFindings(env, file, fset, parsed)...)
 	findings = append(findings, goAIQualityFindings(env, file, fset, parsed, data)...)
-	findings = append(findings, goPerformanceFindings(env, file, fset, parsed)...)
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 
