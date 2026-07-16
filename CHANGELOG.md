@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.3](https://github.com/devr-tools/codeguard/compare/v0.8.2...v0.8.3) (2026-07-16)
+
+
+### Bug Fixes
+
+* **ci:** pin cosign to the v2 line so release signing keeps the .sig/.pem contract ([9ee93c4](https://github.com/devr-tools/codeguard/commit/9ee93c49f54d6d596ed2cbf62bef8f5bc14561b8))
+* **ci:** pin cosign to v2 line to unbreak release signing ([#39](https://github.com/devr-tools/codeguard/issues/39)) ([218f078](https://github.com/devr-tools/codeguard/commit/218f078a1162fc3f2480f7e672de971d2aa72057))
+
 ## [0.8.2](https://github.com/devr-tools/codeguard/compare/v0.8.1...v0.8.2) (2026-07-16)
 
 
