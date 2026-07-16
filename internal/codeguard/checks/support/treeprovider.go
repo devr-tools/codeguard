@@ -18,13 +18,14 @@ const (
 	ScriptLangTypeScript ScriptLanguage = "typescript"
 	ScriptLangTSX        ScriptLanguage = "tsx"
 	ScriptLangJavaScript ScriptLanguage = "javascript"
+	ScriptLangPython     ScriptLanguage = "python"
 )
 
 // ScriptLanguageForPath maps a file path onto the grammar that parses it:
 // .ts/.mts/.cts use the TypeScript grammar, .tsx the TSX grammar (JSX and
 // type annotations are grammatically incompatible, so upstream ships two),
-// and .js/.jsx/.mjs/.cjs the JavaScript grammar (which includes JSX). It
-// returns "" for non-script files.
+// .js/.jsx/.mjs/.cjs the JavaScript grammar (which includes JSX), and .py
+// the Python grammar. It returns "" for non-script files.
 func ScriptLanguageForPath(path string) ScriptLanguage {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".ts", ".mts", ".cts":
@@ -33,6 +34,8 @@ func ScriptLanguageForPath(path string) ScriptLanguage {
 		return ScriptLangTSX
 	case ".js", ".jsx", ".mjs", ".cjs":
 		return ScriptLangJavaScript
+	case ".py":
+		return ScriptLangPython
 	default:
 		return ""
 	}
@@ -75,7 +78,18 @@ func ScriptSyntaxTree(env Context, file string, source string) *SyntaxTree {
 // scriptGrammar returns the gotreesitter language for a ScriptLanguage. The
 // grammar registry caches decoded grammars process-wide, so repeated lookups
 // are cheap after the first (which decodes the embedded blob).
+//
+// Each case here must have a matching grammar_subset_<lang> build tag in the
+// release tag set (Makefile GRAMMAR_TAGS and .goreleaser.yaml): under a
+// grammar_subset build a grammar whose tag is absent is not registered or
+// embedded, and its accessor PANICS rather than returning nil — hence the
+// registry probe below, which turns a missing grammar into an error so every
+// rule using it takes its regex fallback instead of losing the section to
+// the safeRun panic recovery.
 func scriptGrammar(lang ScriptLanguage) (*gotreesitter.Language, error) {
+	if grammars.DetectLanguageByName(string(lang)) == nil {
+		return nil, fmt.Errorf("tree-sitter grammar %q is not embedded in this build", lang)
+	}
 	var language *gotreesitter.Language
 	switch lang {
 	case ScriptLangTypeScript:
@@ -84,6 +98,8 @@ func scriptGrammar(lang ScriptLanguage) (*gotreesitter.Language, error) {
 		language = grammars.TsxLanguage()
 	case ScriptLangJavaScript:
 		language = grammars.JavascriptLanguage()
+	case ScriptLangPython:
+		language = grammars.PythonLanguage()
 	default:
 		return nil, fmt.Errorf("no tree-sitter grammar for script language %q", lang)
 	}
