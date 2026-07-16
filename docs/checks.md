@@ -520,6 +520,33 @@ When a config omits the `performance` key entirely, text-format `scan` output ap
 
 **Migration note:** these rules previously ran inside the quality section under `quality.*` ids (`quality.n-plus-one-query`, `quality.go.alloc-in-loop`, `quality.sync-io-in-request-path`, `quality.unbounded-goroutines-in-loop`, the `quality.typescript.*`/`quality.javascript.*` mirrors, and `quality.python.sync-io-in-async`), gated by `quality_rules.detect_*` keys. There is no runtime aliasing: waivers, baselines, and configs that reference the old ids stop matching when you enable `checks.performance`, and `codeguard doctor` flags any waiver still pointing at a retired id with the replacement to use.
 
+### Go rebuild-cascade analysis
+
+The Go performance pass also inspects the in-repo package import graph and emits two graph-backed warnings when `performance_rules.detect_rebuild_cascade` is enabled (default on):
+
+- `performance.go.hot-package`: a package exceeds `performance_rules.hot_package_importer_threshold` direct importers (default `8`), making ordinary edits fan out rebuilds broadly.
+- `performance.go.rebuild-amplifier`: a package exceeds `performance_rules.rebuild_amplifier_threshold` transitive dependents (default `20`), so edits there amplify rebuild cascades across the target.
+
+Behavior:
+- full scans evaluate every in-repo Go package under the target
+- diff scans only evaluate packages containing changed non-test `.go` files, so unrelated hot spots do not repeat on every PR
+- package discovery is module-local: imports are resolved through the target's `go.mod`, and only packages present under the target root participate in the graph
+
+Config example:
+
+```json
+{
+  "checks": {
+    "performance": true,
+    "performance_rules": {
+      "detect_rebuild_cascade": true,
+      "hot_package_importer_threshold": 6,
+      "rebuild_amplifier_threshold": 15
+    }
+  }
+}
+```
+
 ### AI-assisted performance review
 
 When the command-backed semantic review runtime is available, the performance section gains an LLM-assisted lens over the changed functions. It is strictly opt-in and requires **all three** of:
@@ -571,7 +598,9 @@ Repo-specific performance policies can also be expressed as natural-language cus
         {"name": "bundle-total", "kind": "bundle-stats", "path": "build/meta.json", "max_bytes": 1048576},
         {"name": "main-chunk", "kind": "bundle-stats", "path": "build/stats.json", "asset": "main.js", "max_bytes": 262144},
         {"name": "frontend-compile", "kind": "clang-time-trace", "path": "build/trace.json", "max_milliseconds": 250},
-        {"name": "frontend-pass-total", "kind": "clang-time-trace", "path": "build/*.json", "event": "Frontend", "max_milliseconds": 900}
+        {"name": "frontend-pass-total", "kind": "clang-time-trace", "path": "build/*.json", "event": "Frontend", "max_milliseconds": 900},
+        {"name": "rust-build", "kind": "cargo-timings", "path": "target/cargo-timings/cargo-timing.html", "max_milliseconds": 15000},
+        {"name": "serde-build", "kind": "cargo-timings", "path": "target/cargo-timings/cargo-timing.html", "crate": "serde", "max_milliseconds": 1500}
       ]
     }
   }
@@ -581,12 +610,44 @@ Repo-specific performance policies can also be expressed as natural-language cus
 - `kind: file-size` budgets the on-disk size of a file, or the **summed** size of every file a glob matches.
 - `kind: bundle-stats` parses a bundler stats JSON — the common minimal shapes are supported: an esbuild metafile (`outputs.<name>.bytes`) and webpack stats (`assets[].size`) — and budgets the total across assets, or a single asset when `asset` names one.
 - `kind: clang-time-trace` parses a Clang `-ftime-trace` / Chrome-tracing-compatible JSON file and budgets either the whole trace span or the summed duration of events whose `name` matches `event`. Multiple matched files are summed.
+- `kind: cargo-timings` parses the embedded `UNIT_DATA` payload from Cargo’s `--timings` HTML report and budgets either the whole build span or the summed duration of one crate when `crate` names it. Multiple matched reports are summed.
 - `level` is `warn` (default) or `fail`; `max_bytes` must be positive and `name` non-empty (validated at config load).
-- `max_milliseconds` applies to timing-based budgets such as `clang-time-trace`.
+- `max_milliseconds` applies to timing-based budgets such as `clang-time-trace` and `cargo-timings`.
 - A **missing artifact is a warn finding, never a hard error** — budgets on optional build outputs (a `dist/` that only exists after a release build) stay usable, and `level: fail` does not apply to absence.
 - `path` is resolved relative to the target directory and is contained within it: absolute paths and `..` segments are rejected at validation, and artifacts that resolve outside the target through a symlink are skipped with a warn finding. codeguard never reads outside the repository to measure a budget.
 - Budget findings carry the artifact path in the message rather than as a finding path, so they are reported in diff scans too (a built artifact is a repository-level gate, not a changed-line lint).
-- Official Cargo documentation describes `cargo --timings` output as HTML for human consumption rather than a stable machine-readable format, so CodeGuard does **not** ingest Cargo timings files directly in this version; use benchmark regression for active measurement, or supply Clang-style trace JSON when your build tool produces it.
+- Cargo timings ingestion is best-effort: CodeGuard reads the HTML report’s embedded `UNIT_DATA` payload as emitted by current Cargo versions. If Cargo changes that HTML/JS payload, the budget reports a warn-level parse issue instead of failing the scan.
+
+### Build regression
+
+`performance.build-regression` runs the configured build commands, measures each command's wall-clock duration, and warns when a command regresses beyond the threshold relative to a stored baseline.
+
+```json
+{
+  "checks": {
+    "performance": true,
+    "performance_rules": {
+      "build_regression": {
+        "enabled": true,
+        "commands": [
+          {"name": "web-build", "command": "npm", "args": ["run", "build"]},
+          {"name": "typecheck", "command": "pnpm", "args": ["tsc", "--noEmit"]}
+        ],
+        "max_regression_percent": 20,
+        "baseline_path": ".codeguard/cache.build-baseline.json"
+      }
+    }
+  }
+}
+```
+
+- The gate is **generic across toolchains**: it times whatever commands you configure instead of parsing tool-specific logs.
+- `commands` must be explicit and each `name` must be unique within the list because the baseline is keyed by command name.
+- `max_regression_percent` (default 20) is the tolerated wall-clock slowdown per command.
+- `baseline_path` defaults to a sibling of the scan cache (`cache.path` with a `.build-baseline` suffix, e.g. `.codeguard/cache.build-baseline.json`) and, like the other config-controlled artifact paths, must stay inside the config directory.
+- The **first run writes the baseline and reports nothing**; later runs compare against it, record newly appearing commands, and never overwrite existing entries. Delete the baseline file to accept a new cost and re-baseline.
+- Because the commands come from repository configuration, this gate requires config-command execution to be trusted and enabled (`CODEGUARD_ALLOW_CONFIG_COMMANDS=1` or `--allow-config-commands`).
+- Findings are pathless repository-level diagnostics, so they appear in diff scans too.
 
 ### Benchmark regression
 

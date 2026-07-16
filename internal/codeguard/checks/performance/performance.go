@@ -19,27 +19,13 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 func performanceTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	findings := make([]core.Finding, 0)
 	findings = append(findings, complexityRegressionFindings(env, target)...)
-	switch support.NormalizedLanguage(target.Language) {
-	case "", "go":
-		findings = append(findings, support.ScanGoFiles(env, target, "performance", func(file string, data []byte) []core.Finding {
-			return goFindingsForFile(env, file, data)
-		})...)
-	case "python", "py":
-		findings = append(findings, support.ScanPythonFiles(env, target, "performance", func(file string, data []byte) []core.Finding {
-			return pythonPerformanceFindings(env, file, data)
-		})...)
-	case "rust", "rs":
-		findings = append(findings, support.ScanRustFiles(env, target, "performance", func(file string, data []byte) []core.Finding {
-			return rustPerformanceFindings(env, file, data)
-		})...)
-	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
-		findings = append(findings, typeScriptPerformanceTargetFindings(env, target)...)
-	}
+	findings = append(findings, scanLanguagePerformanceFindings(ctx, env, target)...)
 	findings = append(findings, semanticPerformanceFindings(ctx, env, target)...)
 	// Measurement-based gates: artifact size budgets are language-agnostic and
 	// run for every target; the benchmark-regression gate only applies to Go
 	// targets (it shells out to go test -bench).
 	findings = append(findings, budgetFindings(env, target)...)
+	findings = append(findings, buildRegressionFindings(ctx, env, target)...)
 	findings = append(findings, benchmarkFindings(ctx, env, target)...)
 	maybePutPerformanceScoreArtifact(env, target, findings)
 	return findings

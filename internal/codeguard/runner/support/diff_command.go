@@ -25,18 +25,10 @@ func prepareDiffCommandEnv(ctx context.Context, dir string, baseRef string) (dif
 		return diffCommandEnv{}, func() {}, err
 	}
 
-	relativeTarget, err := filepath.Rel(repoRoot, dir)
-	if err != nil {
-		return diffCommandEnv{}, func() {}, fmt.Errorf("resolve target path: %w", err)
-	}
-
-	tempRoot, err := os.MkdirTemp("", "codeguard-diff-check-*")
+	relativeTarget, tempRoot, headRoot, baseWorktree, err := newDiffWorkspace(repoRoot, dir)
 	if err != nil {
 		return diffCommandEnv{}, func() {}, err
 	}
-
-	headRoot := filepath.Join(tempRoot, "head")
-	baseWorktree := filepath.Join(tempRoot, "base-worktree")
 	// Cleanup deliberately uses context.Background(): it runs via defer and
 	// must still remove the worktree after the caller's ctx is cancelled.
 	cleanup := func() { //nolint:contextcheck // see comment above
@@ -69,6 +61,20 @@ func prepareDiffCommandEnv(ctx context.Context, dir string, baseRef string) (dif
 		baseDir: baseDir,
 		headDir: headRoot,
 	}, cleanup, nil
+}
+
+func newDiffWorkspace(repoRoot string, dir string) (string, string, string, string, error) {
+	relativeTarget, err := filepath.Rel(repoRoot, dir)
+	if err != nil {
+		return "", "", "", "", fmt.Errorf("resolve target path: %w", err)
+	}
+	tempRoot, err := os.MkdirTemp("", "codeguard-diff-check-*")
+	if err != nil {
+		return "", "", "", "", err
+	}
+	headRoot := filepath.Join(tempRoot, "head")
+	baseWorktree := filepath.Join(tempRoot, "base-worktree")
+	return relativeTarget, tempRoot, headRoot, baseWorktree, nil
 }
 
 func resolveDiffPaths(ctx context.Context, dir string) (string, string, error) {

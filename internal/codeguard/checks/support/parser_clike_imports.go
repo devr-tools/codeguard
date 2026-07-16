@@ -14,12 +14,15 @@ var (
 	javaImportPattern     = regexp.MustCompile(`(?m)^[ \t]*import[ \t]+(?:static[ \t]+)?([\w.]+(?:\.\*)?)[ \t]*;`)
 	rustUsePattern        = regexp.MustCompile(`(?m)^[ \t]*(?:pub(?:\([^)\n]*\))?[ \t]+)?use[ \t]+([^;]+);`)
 	rustUseGroupedPattern = regexp.MustCompile(`^(.*)::\{(.*)\}$`)
+	cppIncludePattern     = regexp.MustCompile(`(?m)^[ \t]*#include[ \t]+([<"][^>\n"]+[>"])`)
 )
 
 func clikeImports(source string, masked string, lang CLikeLanguage) []ParsedImport {
 	switch lang {
 	case CLikeJava:
 		return javaImports(masked)
+	case CLikeCPP:
+		return cppImports(source)
 	case CLikeRust:
 		return rustImports(masked)
 	default:
@@ -123,4 +126,22 @@ func rustUseImport(path string, line int) ParsedImport {
 		alias = segments[len(segments)-1]
 	}
 	return ParsedImport{Module: path, Alias: alias, Line: line}
+}
+
+func cppImports(source string) []ParsedImport {
+	imports := make([]ParsedImport, 0, 4)
+	for _, match := range cppIncludePattern.FindAllStringSubmatchIndex(source, -1) {
+		path := source[match[2]:match[3]]
+		path = strings.Trim(path, `<> "`)
+		alias := path
+		if slash := strings.LastIndexAny(alias, `/\`); slash >= 0 {
+			alias = alias[slash+1:]
+		}
+		imports = append(imports, ParsedImport{
+			Module: path,
+			Alias:  alias,
+			Line:   LineNumberForOffset(source, match[0]),
+		})
+	}
+	return imports
 }

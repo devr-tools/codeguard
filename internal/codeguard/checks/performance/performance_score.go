@@ -37,11 +37,13 @@ var performanceScoreWeights = map[string]int{
 	"performance.regex-compile-in-loop":    2,
 	"performance.go.defer-in-loop":         2,
 	"performance.go.sleep-in-loop":         2,
+	"performance.cpp.sleep-in-loop":        2,
 	"performance.rust.sleep-in-loop":       2,
 	"performance.typescript.await-in-loop": 2,
 	"performance.javascript.await-in-loop": 2,
 
 	"performance.go.alloc-in-loop":      1,
+	"performance.cpp.alloc-in-loop":     1,
 	"performance.rust.alloc-in-loop":    1,
 	"performance.string-concat-in-loop": 1,
 }

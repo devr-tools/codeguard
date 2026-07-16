@@ -60,6 +60,15 @@ type PerformanceRulesConfig struct {
 	// framework evidence (imports or obvious idioms), so non-framework code
 	// never matches.
 	DetectFrameworkPatterns *bool `json:"detect_framework_patterns,omitempty" yaml:"detect_framework_patterns,omitempty"`
+	// DetectRebuildCascade flags Go packages whose import graph position makes
+	// them rebuild hot spots or rebuild-cascade amplifiers.
+	DetectRebuildCascade *bool `json:"detect_rebuild_cascade,omitempty" yaml:"detect_rebuild_cascade,omitempty"`
+	// HotPackageImporterThreshold is the direct importer count above which
+	// performance.go.hot-package fires. Zero means use the default threshold.
+	HotPackageImporterThreshold int `json:"hot_package_importer_threshold,omitempty" yaml:"hot_package_importer_threshold,omitempty"`
+	// RebuildAmplifierThreshold is the transitive dependent count above which
+	// performance.go.rebuild-amplifier fires. Zero means use the default threshold.
+	RebuildAmplifierThreshold int `json:"rebuild_amplifier_threshold,omitempty" yaml:"rebuild_amplifier_threshold,omitempty"`
 	// Budgets lists measured size gates over build artifacts (see
 	// PerformanceBudgetConfig); findings report as performance.budget.
 	Budgets []PerformanceBudgetConfig `json:"budgets,omitempty" yaml:"budgets,omitempty"`
@@ -67,6 +76,10 @@ type PerformanceRulesConfig struct {
 	// PerformanceBenchmarksConfig); findings report as
 	// performance.benchmark-regression.
 	Benchmarks PerformanceBenchmarksConfig `json:"benchmarks,omitempty" yaml:"benchmarks,omitempty"`
+	// BuildRegression configures the opt-in build-time regression gate (see
+	// PerformanceBuildRegressionConfig); findings report as
+	// performance.build-regression.
+	BuildRegression PerformanceBuildRegressionConfig `json:"build_regression,omitempty" yaml:"build_regression,omitempty"`
 	// ScoreHistory gates persistence of the performance_score trend next to
 	// the scan cache (nil = enabled, mirroring ai_checks.slop_history).
 	ScoreHistory *bool `json:"score_history,omitempty" yaml:"score_history,omitempty"`

@@ -48,11 +48,11 @@ func (provider openAIProvider) baseURL() string {
 }
 
 func decodeVerdicts(resp *http.Response) (map[string]providerVerdict, error) {
-	return decodeJSONVerdicts(resp, func(decoder *json.Decoder) (string, error) {
+	return decodeTextVerdicts(resp, func(decoder *json.Decoder) (openAIResponse, error) {
 		var decoded openAIResponse
-		if err := decoder.Decode(&decoded); err != nil {
-			return "", err
-		}
+		err := decoder.Decode(&decoded)
+		return decoded, err
+	}, func(decoded openAIResponse) (string, error) {
 		if len(decoded.Choices) == 0 {
 			return "", errNoChoices
 		}

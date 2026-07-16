@@ -3,8 +3,6 @@ package performance
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -18,49 +16,32 @@ type clangTimeTrace struct {
 }
 
 func clangTimeTraceBudgetFindings(env support.Context, target core.TargetConfig, budget core.PerformanceBudgetConfig) []core.Finding {
-	paths, finding := resolveBudgetArtifacts(env, target, budget)
-	if finding != nil {
-		return []core.Finding{*finding}
-	}
-	var total float64
-	for _, path := range paths {
-		trace, err := readClangTimeTrace(path)
-		if err != nil {
-			return []core.Finding{budgetIssueFinding(env, budget, fmt.Sprintf("time trace %q: %v; budget skipped", budget.Path, err))}
-		}
-		if budget.Event != "" {
-			total += trace.events[budget.Event]
-			continue
-		}
-		total += trace.totalMillis
-	}
-	if total <= float64(budget.MaxMilliseconds) {
-		return nil
-	}
-	if budget.Event != "" {
-		return []core.Finding{buildTimeExceededFinding(env, budget, fmt.Sprintf("events named %q total %.1f ms", budget.Event, total))}
-	}
-	return []core.Finding{buildTimeExceededFinding(env, budget, fmt.Sprintf("%q totals %.1f ms", budget.Path, total))}
+	return budgetMeasurementFindings(env, target, budget, budgetMeasurementSpec{
+		read: readClangTimeTraceReport,
+		key:  budget.Event,
+		label: func(total float64) string {
+			if budget.Event != "" {
+				return fmt.Sprintf("events named %q total %.1f ms", budget.Event, total)
+			}
+			return fmt.Sprintf("%q totals %.1f ms", budget.Path, total)
+		},
+	})
 }
 
 func readClangTimeTrace(path string) (clangTimeTrace, error) {
-	info, err := os.Stat(path) //nolint:gosec // containment verified by caller
-	if err != nil {
-		return clangTimeTrace{}, err
-	}
-	if info.Size() > maxTimeTraceFileBytes {
-		return clangTimeTrace{}, fmt.Errorf("time trace is %d bytes, larger than the %d byte limit", info.Size(), maxTimeTraceFileBytes)
-	}
-	f, err := os.Open(path) //nolint:gosec // containment verified by caller
-	if err != nil {
-		return clangTimeTrace{}, err
-	}
-	defer func() { _ = f.Close() }()
-	data, err := io.ReadAll(io.LimitReader(f, maxTimeTraceFileBytes))
+	data, err := readLimitedFile(path, maxTimeTraceFileBytes, "time trace")
 	if err != nil {
 		return clangTimeTrace{}, err
 	}
 	return parseClangTimeTrace(data)
+}
+
+func readClangTimeTraceReport(path string) (float64, map[string]float64, error) {
+	trace, err := readClangTimeTrace(path)
+	if err != nil {
+		return 0, nil, fmt.Errorf("time trace %q: %v; budget skipped", path, err)
+	}
+	return trace.totalMillis, trace.events, nil
 }
 
 func parseClangTimeTrace(data []byte) (clangTimeTrace, error) {

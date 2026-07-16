@@ -58,14 +58,7 @@ func (s *rustPerformanceScan) consumeLine(lineNo int, line string, rawLine strin
 	}
 	startsLoop := rustLoopStartPattern.MatchString(line)
 	s.checkLine(lineNo, line, rawLine, len(s.loops) > 0 || startsLoop)
-	next := s.depth + strings.Count(line, "{") - strings.Count(line, "}")
-	if startsLoop && next > s.depth {
-		s.loops = append(s.loops, s.depth)
-	}
-	for len(s.loops) > 0 && next <= s.loops[len(s.loops)-1] {
-		s.loops = s.loops[:len(s.loops)-1]
-	}
-	s.depth = next
+	s.depth, s.loops = consumeBraceLoopLine(s.depth, s.loops, line, startsLoop)
 }
 
 func (s *rustPerformanceScan) checkLine(lineNo int, line string, rawLine string, inLoop bool) {

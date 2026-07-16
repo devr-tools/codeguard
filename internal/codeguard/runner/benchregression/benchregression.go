@@ -15,10 +15,8 @@
 package benchregression
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -54,17 +52,7 @@ func RunBenchmarks(ctx context.Context, dir string, packages []string) (string, 
 	}
 	ctx, cancel := context.WithTimeout(ctx, runTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "go", args...) //nolint:gosec // fixed `go` binary from PATH; package args validated above
-	cmd.Dir = dir
-	var buf bytes.Buffer
-	limited := runnersupport.NewLimitedBufferWriter(&buf, maxOutputBytes)
-	cmd.Stdout = limited
-	cmd.Stderr = limited
-	err := cmd.Run()
-	if limited.Truncated() {
-		return "", fmt.Errorf("benchmark output exceeded %d bytes", maxOutputBytes)
-	}
-	text := buf.String()
+	text, err := runnersupport.RunLimitedCommand(ctx, dir, maxOutputBytes, "go", args...)
 	if err != nil {
 		return text, fmt.Errorf("go test -bench failed: %w", err)
 	}

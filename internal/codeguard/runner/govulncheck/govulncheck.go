@@ -1,10 +1,8 @@
 package govulncheck
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -36,17 +34,7 @@ func Run(ctx context.Context, dir string, cmdName string, sc runnersupport.Conte
 			return nil, err
 		}
 	}
-	cmd := exec.CommandContext(ctx, cmdName, "./...") //nolint:gosec // config override gated by trust.GuardConfigCommand above; default resolves from PATH
-	cmd.Dir = dir
-	var buf bytes.Buffer
-	limited := runnersupport.NewLimitedBufferWriter(&buf, maxOutputBytes)
-	cmd.Stdout = limited
-	cmd.Stderr = limited
-	err := cmd.Run()
-	if limited.Truncated() {
-		return nil, fmt.Errorf("govulncheck output exceeded %d bytes", maxOutputBytes)
-	}
-	text := buf.String()
+	text, err := runnersupport.RunLimitedCommand(ctx, dir, maxOutputBytes, cmdName, "./...")
 	parsed := parseOutput(text, sc)
 	if len(parsed) > 0 {
 		return parsed, nil

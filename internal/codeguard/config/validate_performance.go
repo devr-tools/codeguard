@@ -18,12 +18,21 @@ import (
 var benchmarkPackagePattern = regexp.MustCompile(`^(\.|\./[A-Za-z0-9_./-]*)$`)
 
 func validatePerformanceRules(rules core.PerformanceRulesConfig) error {
+	if rules.HotPackageImporterThreshold < 0 {
+		return fmt.Errorf("performance_rules.hot_package_importer_threshold must not be negative")
+	}
+	if rules.RebuildAmplifierThreshold < 0 {
+		return fmt.Errorf("performance_rules.rebuild_amplifier_threshold must not be negative")
+	}
 	for idx, budget := range rules.Budgets {
 		if err := validatePerformanceBudget(idx, budget); err != nil {
 			return err
 		}
 	}
-	return validatePerformanceBenchmarks(rules.Benchmarks)
+	if err := validatePerformanceBenchmarks(rules.Benchmarks); err != nil {
+		return err
+	}
+	return validatePerformanceBuildRegression(rules.BuildRegression)
 }
 
 func validatePerformanceBudget(idx int, budget core.PerformanceBudgetConfig) error {
@@ -53,15 +62,15 @@ func validatePerformanceBudget(idx int, budget core.PerformanceBudgetConfig) err
 
 func validatePerformanceBudgetKind(label string, kind string) error {
 	switch kind {
-	case core.PerformanceBudgetKindFileSize, core.PerformanceBudgetKindBundleStats, core.PerformanceBudgetKindClangTimeTrace:
+	case core.PerformanceBudgetKindFileSize, core.PerformanceBudgetKindBundleStats, core.PerformanceBudgetKindClangTimeTrace, core.PerformanceBudgetKindCargoTimings:
 		return nil
 	default:
-		return fmt.Errorf("%s.kind must be %q, %q, or %q", label, core.PerformanceBudgetKindFileSize, core.PerformanceBudgetKindBundleStats, core.PerformanceBudgetKindClangTimeTrace)
+		return fmt.Errorf("%s.kind must be %q, %q, %q, or %q", label, core.PerformanceBudgetKindFileSize, core.PerformanceBudgetKindBundleStats, core.PerformanceBudgetKindClangTimeTrace, core.PerformanceBudgetKindCargoTimings)
 	}
 }
 
 func validatePerformanceBudgetLimit(label string, budget core.PerformanceBudgetConfig) error {
-	if budget.Kind == core.PerformanceBudgetKindClangTimeTrace {
+	if budget.Kind == core.PerformanceBudgetKindClangTimeTrace || budget.Kind == core.PerformanceBudgetKindCargoTimings {
 		if budget.MaxMilliseconds <= 0 {
 			return fmt.Errorf("%s.max_milliseconds must be positive", label)
 		}
@@ -79,6 +88,9 @@ func validatePerformanceBudgetOptions(label string, budget core.PerformanceBudge
 	}
 	if budget.Event != "" && budget.Kind != core.PerformanceBudgetKindClangTimeTrace {
 		return fmt.Errorf("%s.event only applies to kind %q", label, core.PerformanceBudgetKindClangTimeTrace)
+	}
+	if budget.Crate != "" && budget.Kind != core.PerformanceBudgetKindCargoTimings {
+		return fmt.Errorf("%s.crate only applies to kind %q", label, core.PerformanceBudgetKindCargoTimings)
 	}
 	return nil
 }
@@ -114,6 +126,30 @@ func validatePerformanceBenchmarks(benchmarks core.PerformanceBenchmarksConfig) 
 		if containsDotDotSegment(pkg) {
 			return fmt.Errorf("performance_rules.benchmarks.packages[%d]: %q must not contain \"..\" path segments", idx, pkg)
 		}
+	}
+	return nil
+}
+
+func validatePerformanceBuildRegression(build core.PerformanceBuildRegressionConfig) error {
+	if build.Enabled != nil && *build.Enabled && len(build.Commands) == 0 {
+		return fmt.Errorf("performance_rules.build_regression.commands must list at least one command when enabled")
+	}
+	if build.MaxRegressionPercent < 0 {
+		return fmt.Errorf("performance_rules.build_regression.max_regression_percent must not be negative")
+	}
+	seen := make(map[string]struct{}, len(build.Commands))
+	for idx, check := range build.Commands {
+		label := fmt.Sprintf("performance_rules.build_regression.commands[%d]", idx)
+		if strings.TrimSpace(check.Name) == "" {
+			return fmt.Errorf("%s.name is required", label)
+		}
+		if strings.TrimSpace(check.Command) == "" {
+			return fmt.Errorf("%s.command is required", label)
+		}
+		if _, ok := seen[check.Name]; ok {
+			return fmt.Errorf("%s.name %q duplicates another build regression command name", label, check.Name)
+		}
+		seen[check.Name] = struct{}{}
 	}
 	return nil
 }

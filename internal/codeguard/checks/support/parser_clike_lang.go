@@ -7,6 +7,7 @@ var (
 	tsArrowHead    = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?(?:const|let|var)[ \t]+([A-Za-z_$][\w$]*)[^=\n]*=[ \t]*(?:async[ \t]*)?\(`)
 	tsMethodHead   = regexp.MustCompile(`(?m)^[ \t]*(?:(?:public|private|protected|static|readonly|async|override)[ \t]+)*([A-Za-z_$][\w$]*)[ \t]*(?:<[^>\n]*>)?[ \t]*\(`)
 	javaMethodHead = regexp.MustCompile(`(?m)^[ \t]*(?:@\w+(?:\([^)\n]*\))?[ \t\n]*)*(?:(?:public|protected|private|static|final|abstract|synchronized|native|default|strictfp)[ \t]+)+[\w<>\[\],.?& \t]+?[ \t]([A-Za-z_]\w*)[ \t]*\(`)
+	cppMethodHead  = regexp.MustCompile(`(?m)^[ \t]*(?:template[ \t]*<[^>\n]+>[ \t]*)?(?:(?:inline|constexpr|consteval|constinit|explicit|virtual|static|friend|extern|mutable|typename|using|auto|decltype\([^)]+\)|const|volatile|unsigned|signed|short|long|class|struct|enum|noexcept|[[\]_A-Za-z0-9:<>,*&~ \t]+)\s+)?([~A-Za-z_]\w*(?:::[~A-Za-z_]\w*)*)[ \t]*\(`)
 	rustFnHead     = regexp.MustCompile(`(?m)^[ \t]*(?:pub(?:\([^)\n]*\))?[ \t]+)?(?:const[ \t]+)?(?:async[ \t]+)?(?:unsafe[ \t]+)?(?:extern[ \t]+\S+[ \t]+)?fn[ \t]+([A-Za-z_]\w*)`)
 )
 
@@ -14,6 +15,8 @@ func clikeFunctionSpans(masked string, lang CLikeLanguage) []clikeSpan {
 	switch lang {
 	case CLikeJava:
 		return headSpans(masked, javaMethodHead, nil, false)
+	case CLikeCPP:
+		return headSpans(masked, cppMethodHead, isCPPNonMethodName, false)
 	case CLikeRust:
 		return rustSpans(masked)
 	default:
@@ -133,6 +136,16 @@ func isTypeScriptNonMethodName(name string) bool {
 	switch name {
 	case "if", "for", "while", "switch", "catch", "constructor", "function",
 		"return", "new", "typeof", "await", "do", "else", "case", "throw", "super", "in", "of":
+		return true
+	default:
+		return false
+	}
+}
+
+func isCPPNonMethodName(name string) bool {
+	switch name {
+	case "if", "for", "while", "switch", "catch", "return", "new", "delete",
+		"sizeof", "alignof", "typeid", "requires":
 		return true
 	default:
 		return false

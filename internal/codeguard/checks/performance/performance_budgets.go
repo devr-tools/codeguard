@@ -34,6 +34,8 @@ func evaluateBudget(env support.Context, target core.TargetConfig, budget core.P
 		return bundleStatsBudgetFindings(env, target, budget)
 	case core.PerformanceBudgetKindClangTimeTrace:
 		return clangTimeTraceBudgetFindings(env, target, budget)
+	case core.PerformanceBudgetKindCargoTimings:
+		return cargoTimingsBudgetFindings(env, target, budget)
 	default:
 		// Config validation rejects unknown kinds; a programmatically built
 		// config that skipped validation still gets a diagnostic, not a panic.

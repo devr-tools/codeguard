@@ -46,11 +46,11 @@ func (provider anthropicProvider) baseURL() string {
 }
 
 func decodeAnthropicVerdicts(resp *http.Response) (map[string]providerVerdict, error) {
-	return decodeJSONVerdicts(resp, func(decoder *json.Decoder) (string, error) {
+	return decodeTextVerdicts(resp, func(decoder *json.Decoder) (anthropicResponse, error) {
 		var decoded anthropicResponse
-		if err := decoder.Decode(&decoded); err != nil {
-			return "", err
-		}
+		err := decoder.Decode(&decoded)
+		return decoded, err
+	}, func(decoded anthropicResponse) (string, error) {
 		if len(decoded.Content) == 0 {
 			return "", errNoContentBlocks
 		}
