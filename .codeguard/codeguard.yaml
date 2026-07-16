@@ -62,6 +62,20 @@ checks:
     max_function_lines: 80
     max_parameters: 5
     max_cyclomatic_complexity: 10
+  performance_rules:
+    # Dogfood the measured budget gate on artifacts that always exist in the
+    # repository (dist/ is not built in CI, so a binary budget would only ever
+    # report "not found"): the user-facing rule reference must stay readable
+    # in one sitting.
+    budgets:
+      - name: checks-doc
+        kind: file-size
+        path: docs/checks.md
+        max_bytes: 204800
+      - name: readme
+        kind: file-size
+        path: README.md
+        max_bytes: 65536
   ci_rules:
     require_workflow_dir: true
     required_workflow_files:

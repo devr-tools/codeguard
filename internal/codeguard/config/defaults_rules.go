@@ -29,6 +29,7 @@ func applyPerformanceDefaults(dst *core.PerformanceRulesConfig) {
 		&dst.DetectFrameworkPatterns,
 	)
 	defaultBoolPtr(&dst.DetectPreallocInLoop, false)
+	applyPerformanceMeasurementDefaults(dst)
 }
 
 func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig) {

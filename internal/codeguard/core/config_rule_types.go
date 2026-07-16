@@ -62,6 +62,13 @@ type PerformanceRulesConfig struct {
 	// framework evidence (imports or obvious idioms), so non-framework code
 	// never matches.
 	DetectFrameworkPatterns *bool `json:"detect_framework_patterns,omitempty" yaml:"detect_framework_patterns,omitempty"`
+	// Budgets lists measured size gates over build artifacts (see
+	// PerformanceBudgetConfig); findings report as performance.budget.
+	Budgets []PerformanceBudgetConfig `json:"budgets,omitempty" yaml:"budgets,omitempty"`
+	// Benchmarks configures the opt-in benchmark-regression gate (see
+	// PerformanceBenchmarksConfig); findings report as
+	// performance.benchmark-regression.
+	Benchmarks PerformanceBenchmarksConfig `json:"benchmarks,omitempty" yaml:"benchmarks,omitempty"`
 }
 
 // AIChecksConfig toggles individual AI-quality heuristics. A nil pointer

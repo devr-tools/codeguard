@@ -37,6 +37,11 @@ func performanceTargetFindings(ctx context.Context, env support.Context, target 
 		findings = append(findings, typeScriptPerformanceTargetFindings(env, target)...)
 	}
 	findings = append(findings, semanticPerformanceFindings(ctx, env, target)...)
+	// Measurement-based gates: artifact size budgets are language-agnostic and
+	// run for every target; the benchmark-regression gate only applies to Go
+	// targets (it shells out to go test -bench).
+	findings = append(findings, budgetFindings(env, target)...)
+	findings = append(findings, benchmarkFindings(ctx, env, target)...)
 	return findings
 }
 
