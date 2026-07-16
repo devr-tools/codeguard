@@ -54,6 +54,7 @@ func typeScriptPerformanceFindings(env support.Context, file string, data []byte
 		limited:          tsConcurrencyLimitHint.MatchString(source),
 		listenersCleaned: tsRemoveListenerCall.MatchString(code) || tsAbortSignalListener.MatchString(code),
 		rules:            env.Config.Checks.PerformanceRules,
+		frameworks:       newTSFrameworkScan(env.Config.Checks.PerformanceRules, source),
 		findings:         make([]core.Finding, 0),
 	}
 	rawLines := strings.Split(source, "\n")
@@ -80,6 +81,7 @@ type tsPerformanceScan struct {
 	intervalLines    []int
 	stringVars       map[string]struct{}
 	rules            core.PerformanceRulesConfig
+	frameworks       *tsFrameworkScan
 	depth            int
 	loops            []int
 	handlers         []int
@@ -97,6 +99,7 @@ func (s *tsPerformanceScan) consumeLine(lineNo int, line string, rawLine string)
 	startsHandler := tsHandlerStartPattern.MatchString(line)
 	s.checkLine(lineNo, line, rawLine, len(s.loops) > 0 || startsLoop, len(s.handlers) > 0 || startsHandler)
 	next := s.depth + strings.Count(line, "{") - strings.Count(line, "}")
+	s.frameworks.observe(s, lineNo, line, next)
 	if startsLoop && next > s.depth {
 		s.loops = append(s.loops, s.depth)
 	}
@@ -128,9 +131,13 @@ func (s *tsPerformanceScan) checkLine(lineNo int, line string, rawLine string, i
 		s.addFinding("performance.typescript.unbounded-concurrency", "performance.javascript.unbounded-concurrency", lineNo,
 			"promise created inside a loop without a concurrency limit; batch with Promise.all over chunks or use p-limit")
 	}
-	if inHandler && toggleEnabled(s.rules.DetectSyncIOInHandlers) && tsSyncCallPattern.MatchString(line) {
-		s.addFinding("performance.typescript.sync-io-in-handler", "performance.javascript.sync-io-in-handler", lineNo,
-			"synchronous I/O call inside a request handler blocks the event loop; use the async API instead")
+	if inHandler && tsSyncCallPattern.MatchString(line) {
+		// The framework-aware express middleware rule takes precedence over
+		// the generic sync-io rule so a single line never reports twice.
+		if !s.frameworks.reportExpressSyncMiddleware(s, lineNo, line) && toggleEnabled(s.rules.DetectSyncIOInHandlers) {
+			s.addFinding("performance.typescript.sync-io-in-handler", "performance.javascript.sync-io-in-handler", lineNo,
+				"synchronous I/O call inside a request handler blocks the event loop; use the async API instead")
+		}
 	}
 	if !inLoop {
 		return

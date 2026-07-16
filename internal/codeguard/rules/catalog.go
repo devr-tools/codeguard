@@ -6,6 +6,7 @@ var catalog = withSecurityOWASP(mergeRuleCatalogs(
 	qualityCatalog,
 	performanceCatalog,
 	performanceRegressionCatalog,
+	performanceFrameworksCatalog,
 	designCatalog,
 	designGraphCatalog,
 	securityCatalog,

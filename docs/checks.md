@@ -400,6 +400,7 @@ Purpose:
 - Unbounded concurrency: goroutines launched from loops (Go), promises created in loops without a limiter (TS/JS), `asyncio` tasks created in loops without a semaphore (Python)
 - Sequential `await` in TS/JS loops that could batch through `Promise.all`
 - Memory-pressure patterns: `time.After` timers leaked in Go loops, `setInterval` without `clearInterval` and listeners added in TS/JS loops without cleanup, unbounded whole-input reads (`io.ReadAll` in Go handlers/loops, `.read()`/`.readlines()` in Python loops)
+- Framework-aware smells, gated on file-level framework evidence: Django relation access in queryset loops, Django/SQLAlchemy ORM point queries in loops, expensive per-render work in React components, CPU-heavy synchronous calls in Express middleware
 
 Config keys:
 
@@ -419,7 +420,8 @@ Config keys:
       "detect_await_in_loop": true,
       "detect_timer_leaks": true,
       "detect_unbounded_reads": true,
-      "detect_complexity_regression": true
+      "detect_complexity_regression": true,
+      "detect_framework_patterns": true
     }
   }
 }
@@ -448,6 +450,10 @@ Rules:
 | `performance.{typescript,javascript}.timer-listener-leak` | TS, JS | `detect_timer_leaks` |
 | `performance.unbounded-read` | Go, Python | `detect_unbounded_reads` |
 | `performance.complexity-regression` | Go | `detect_complexity_regression` (diff scans only) |
+| `performance.python.django-nplusone-relation` | Python | `detect_framework_patterns` |
+| `performance.python.orm-query-in-loop` | Python | `detect_framework_patterns` |
+| `performance.{typescript,javascript}.react-expensive-render` | TS, JS | `detect_framework_patterns` |
+| `performance.{typescript,javascript}.express-sync-middleware` | TS, JS | `detect_framework_patterns` |
 
 Notes on precision:
 - `regex-compile-in-loop` fires only on **literal** patterns: compiling a variable pattern in a loop usually means the pattern differs per iteration (e.g. compiling config-supplied patterns), which is not hoistable.
@@ -468,6 +474,14 @@ Behavior and precision:
 - Nesting depth is syntactic and includes function literals at their nesting position: a closure that loops, launched per loop iteration, still multiplies the iteration space.
 - Files that are added, deleted, or unparseable at either revision are skipped.
 - **Language coverage: Go only** in this version (the comparison parses both revisions via `go/ast`). Python and TypeScript/JavaScript changes are not checked.
+
+### Framework-aware rules
+
+Framework-aware rules (`detect_framework_patterns`): every rule requires file-level framework evidence before any pattern is tried, so non-framework code never matches — a Django import or `.objects.` manager usage for `django-nplusone-relation` and the Django half of `orm-query-in-loop`, a SQLAlchemy import for `session.get` (so `requests.Session().get(url)` loops never match), a `react` import/require for `react-expensive-render`, and an `express` import/require for `express-sync-middleware`. Precision notes and honest limits:
+- `django-nplusone-relation` only fires inside a loop whose iterable is queryset-shaped (contains `.objects.` or a variable assigned from one), stays quiet for the whole file once `select_related`/`prefetch_related` appears anywhere, and skips chains whose final segment is immediately called (`item.name.strip()` reads as a scalar method, not a relation load) — so relation-loading *method* chains like `item.author.get_absolute_url()` are deliberately missed, except through the always-flagged `item.relation_set.` reverse-manager form. A scalar attribute chain that is not a relation (`item.profile.bio` where `profile` is a plain object) can still false-positive; add `select_related` or waive.
+- `orm-query-in-loop` covers only the ORM call shapes the generic `performance.n-plus-one-query` pattern misses (`.objects.get(`, `.objects.filter(`, SQLAlchemy `session.get(`), and skips loop headers plus any line the generic pattern matches, so one line never reports under both rules.
+- `react-expensive-render` needs a component/custom-hook region (`function`/`const` named with a capital letter or `use*`) and flags only a chain of two or more `.sort`/`.filter`/`.map` calls on one line, `new Array(`, or `JSON.parse(`; anything on or inside a `useMemo`/`useCallback`/`useEffect`/`useLayoutEffect` wrapper is exempt. The heuristic does not distinguish event-handler callbacks declared in the component body (work there runs per event, not per render) and misses chains split across lines.
+- `express-sync-middleware` sticks to a fixed CPU-heavy shortlist (`bcrypt.hashSync`/`compareSync`, `crypto.pbkdf2Sync`/`scryptSync`, `zlib` `*Sync`, `child_process.execSync`, including destructured bare-name calls) inside `app.use(`/`router.use(` regions; it takes precedence over the generic `sync-io-in-handler` finding on the same line, and other `*Sync` calls (e.g. `fs.readFileSync`) stay with the generic rule.
 
 When a config omits the `performance` key entirely, text-format `scan` output appends a one-line note suggesting the upgrade; setting the key explicitly (`true` or `false`) silences it.
 

@@ -31,10 +31,11 @@ var (
 func pythonPerformanceFindings(env support.Context, file string, data []byte) []core.Finding {
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
 	scan := &pythonPerformanceScan{
-		env:     env,
-		file:    file,
-		rules:   env.Config.Checks.PerformanceRules,
-		limited: pythonConcurrencyHint.MatchString(source),
+		env:        env,
+		file:       file,
+		rules:      env.Config.Checks.PerformanceRules,
+		limited:    pythonConcurrencyHint.MatchString(source),
+		frameworks: newPythonFrameworkScan(env.Config.Checks.PerformanceRules, source),
 	}
 	for idx, line := range strings.Split(source, "\n") {
 		scan.consumeLine(idx+1, line)
@@ -50,6 +51,7 @@ type pythonPerformanceScan struct {
 	stringVars map[string]struct{}
 	loops      []int
 	asyncDefs  []int
+	frameworks *pythonFrameworkScan
 	findings   []core.Finding
 }
 
@@ -68,6 +70,7 @@ func (s *pythonPerformanceScan) consumeLine(lineNo int, line string) {
 	s.asyncDefs = popIndentRegions(s.asyncDefs, indent)
 	startsLoop := pythonLoopStartPattern.MatchString(line)
 	s.checkLine(lineNo, line, len(s.loops) > 0 || startsLoop, len(s.asyncDefs) > 0)
+	s.frameworks.observe(s, lineNo, line, indent, len(s.loops) > 0 || startsLoop)
 	if startsLoop {
 		s.loops = append(s.loops, indent)
 	}

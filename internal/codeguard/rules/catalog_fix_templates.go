@@ -19,6 +19,7 @@ var fixTemplates = mergeFixTemplates(
 	qualityAIFixTemplates,
 	performanceFixTemplates,
 	performanceRegressionFixTemplates,
+	performanceFrameworkFixTemplates,
 	securityFixTemplates,
 	securityLanguageFixTemplates,
 	designFixTemplates,
