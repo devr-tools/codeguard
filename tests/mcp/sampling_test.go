@@ -147,3 +147,40 @@ func TestMCPHTTPRootsConfinement(t *testing.T) {
 	}
 	assertNoSecondRootsRequest(t, streamReader)
 }
+
+func TestMCPHTTPStreamDisconnectPreservesSessionState(t *testing.T) {
+	dir := t.TempDir()
+	cfg := writeFixtureConfig(t, dir)
+	base := startHTTPServer(t, "")
+
+	session := initializeHTTPSession(t, base, `{"roots":{}}`)
+	streamReader, streamBody := openClosableSessionStream(t, base, session)
+	firstDone := validateHTTPConfig(t, base, session, cfg)
+	waitForRootsRequest(t, streamReader, base, session, dir)
+	assertValidateConfigAllowed(t, <-firstDone)
+
+	if err := streamBody.Close(); err != nil {
+		t.Fatalf("close stream: %v", err)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	assertValidateConfigAllowed(t, <-validateHTTPConfig(t, base, session, cfg))
+}
+
+func validateHTTPConfig(t *testing.T, base string, session string, cfg string) <-chan string {
+	t.Helper()
+	done := make(chan string, 1)
+	go func() {
+		req := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"validate_config","arguments":{"config_path":"` + cfg + `"}}}`
+		_, body := mcpPost(t, base, map[string]string{"Mcp-Session-Id": session}, req)
+		done <- body
+	}()
+	return done
+}
+
+func assertValidateConfigAllowed(t *testing.T, body string) {
+	t.Helper()
+	if strings.Contains(body, "not within an allowed root") {
+		t.Fatalf("validate_config rejected cached session roots: %s", body)
+	}
+}
