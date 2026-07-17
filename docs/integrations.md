@@ -21,7 +21,7 @@ This repository also ships the GitHub Marketplace action `Devr Codeguard` from `
 
 ```yaml
 - name: Devr Codeguard
-  uses: devr-tools/codeguard@v0.2.0
+  uses: devr-tools/codeguard@v1.1.1
   with:
     config: codeguard.yaml
     profile: strict
@@ -36,7 +36,7 @@ For pull request workflows, the action can also publish a sticky fix-oriented co
 
 ```yaml
 - name: Devr Codeguard
-  uses: devr-tools/codeguard@v0.2.0
+  uses: devr-tools/codeguard@v1.1.1
   with:
     config: codeguard.yaml
     mode: diff

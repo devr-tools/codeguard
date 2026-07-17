@@ -3,16 +3,10 @@ package support
 import (
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	"github.com/devr-tools/codeguard/internal/codeguard/cpp/compdb"
-)
-
-var (
-	cppModuleDeclarationPattern = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?module[ \t]+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?::[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)?)[ \t]*;`)
-	cppModuleImportPattern      = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?import[ \t]+((?:[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?::[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)?)|(?::[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*))[ \t]*;`)
 )
 
 // CPPDependencyGraph captures target-local #include and C++20 named-module
@@ -48,11 +42,11 @@ func BuildCPPDependencyGraph(env Context, target core.TargetConfig) *CPPDependen
 		for _, imported := range parsed.Imports {
 			pending = append(pending, pendingCPPDependency{from: rel, target: imported.Module, line: imported.Line})
 		}
-		if match := cppModuleDeclarationPattern.FindStringSubmatch(parsed.Masked); match != nil {
+		if match := CPPModuleDeclarationPattern.FindStringSubmatch(parsed.Masked); match != nil {
 			declaredModules[rel] = match[1]
 			moduleFiles[match[1]] = rel
 		}
-		for _, match := range cppModuleImportPattern.FindAllStringSubmatchIndex(parsed.Masked, -1) {
+		for _, match := range CPPModuleImportPattern.FindAllStringSubmatchIndex(parsed.Masked, -1) {
 			pending = append(pending, pendingCPPDependency{
 				from: rel, target: parsed.Masked[match[2]:match[3]],
 				line: LineNumberForOffset(parsed.Masked, match[0]), named: true,
@@ -67,7 +61,7 @@ func BuildCPPDependencyGraph(env Context, target core.TargetConfig) *CPPDependen
 	for _, dependency := range pending {
 		to := ""
 		if dependency.named {
-			dependency.target = qualifyCPPModuleImport(dependency.target, declaredModules[dependency.from])
+			dependency.target = QualifyCPPModuleImport(dependency.target, declaredModules[dependency.from])
 			to = moduleFiles[dependency.target]
 		} else {
 			to = resolveCPPInclude(nodes, dependency.from, dependency.target, includeRoots)
@@ -87,28 +81,6 @@ func BuildCPPDependencyGraph(env Context, target core.TargetConfig) *CPPDependen
 		nodes[dependency.from] = node
 	}
 	return &CPPDependencyGraph{Graph: NewDependencyGraph(nodes), FileToModule: fileToModule}
-}
-
-func qualifyCPPModuleImport(specifier string, declaredModule string) string {
-	if !strings.HasPrefix(specifier, ":") {
-		return specifier
-	}
-	primary := cppPrimaryModuleName(declaredModule)
-	if primary == "" {
-		return ""
-	}
-	return primary + specifier
-}
-
-func cppPrimaryModuleName(module string) string {
-	module = strings.TrimSpace(module)
-	if module == "" {
-		return ""
-	}
-	if cut := strings.IndexByte(module, ':'); cut >= 0 {
-		return module[:cut]
-	}
-	return module
 }
 
 func resolveCPPInclude(nodes map[string]DependencyNode, from string, imported string, includeRoots []string) string {

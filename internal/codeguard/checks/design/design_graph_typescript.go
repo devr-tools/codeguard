@@ -45,9 +45,9 @@ func buildTypeScriptImportGraph(env support.Context, target core.TargetConfig) *
 	})
 	resolver := newTypeScriptImportResolver(graph)
 	env.VisitTargetFiles(target, isTypeScriptResolverMetadataFile, func(rel string, data []byte) {
-		resolver.indexMetadata(rel, data)
+		indexTypeScriptResolverMetadata(resolver, rel, data)
 	})
-	resolver.finalizeConfigs()
+	finalizeTypeScriptResolverConfigs(resolver)
 	for _, edge := range pending {
 		resolved := resolveTypeScriptImport(resolver, edge.from, edge.to)
 		graph.addImport(edge.from, resolved, edge.file, edge.to, edge.line)
@@ -90,5 +90,5 @@ func resolveTypeScriptImport(resolver *typeScriptImportResolver, fromModule stri
 	if resolver == nil {
 		return ""
 	}
-	return resolver.resolve(fromModule, specifier)
+	return resolveTypeScriptModuleImport(resolver, fromModule, specifier)
 }

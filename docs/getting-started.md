@@ -18,7 +18,7 @@ Or in GitHub Actions from GitHub Marketplace:
 
 ```yaml
 - name: Devr Codeguard
-  uses: devr-tools/codeguard@v0.2.0
+  uses: devr-tools/codeguard@v1.1.1
 ```
 
 For SDK consumers:

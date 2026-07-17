@@ -3,40 +3,19 @@ package design
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-var (
-	rustTraitPattern       = regexp.MustCompile(`^\s*(?:pub(?:\([^)]*\))?\s+)?(?:unsafe\s+)?trait\s+([A-Za-z_]\w*)\b`)
-	rustImplPattern        = regexp.MustCompile(`^\s*impl\b`)
-	rustMethodPattern      = regexp.MustCompile(`^\s*(?:pub(?:\([^)]*\))?\s+)?(?:default\s+)?(?:async\s+)?(?:const\s+)?(?:unsafe\s+)?fn\s+([A-Za-z_]\w*)\b`)
-	rustTraitMemberPattern = regexp.MustCompile(`^\s*(?:(?:default\s+)?(?:async\s+)?(?:const\s+)?(?:unsafe\s+)?fn\s+[A-Za-z_]\w*\b|type\s+[A-Za-z_]\w*\b|const\s+[A-Za-z_]\w*\b)`)
-)
-
-type rustBlockKind int
-
-const (
-	rustBlockImpl rustBlockKind = iota
-	rustBlockTrait
-)
-
-type rustBlock struct {
-	kind      rustBlockKind
-	name      string
-	header    string
-	line      int
-	bodyDepth int
-	waiting   bool
-	count     int
-}
-
-type rustCountSummary struct {
-	line  int
-	count int
+type rustFileScan struct {
+	env          support.Context
+	file         string
+	findings     []core.Finding
+	active       *rustBlock
+	depth        int
+	methodCounts map[string]rustCountSummary
 }
 
 func rustTargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
@@ -54,29 +33,30 @@ func RustFindingsForFile(env support.Context, file string, data []byte) []core.F
 }
 
 func rustFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	findings := rustGenericModuleNameFindings(env, file)
+	scan := rustFileScan{
+		env:          env,
+		file:         file,
+		findings:     rustGenericModuleNameFindings(env, file),
+		methodCounts: map[string]rustCountSummary{},
+	}
 	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
-	methodCounts := map[string]rustCountSummary{}
-
-	depth := 0
-	var active *rustBlock
 
 	for idx, raw := range lines {
 		line := stripLineComment(raw)
-		active = nextRustBlock(active, depth, line, idx+1)
-		updateRustBlockHeader(active, line)
-		countRustBlockMember(active, depth, line)
-		depth += braceDelta(line)
-		openRustBlock(active, depth, line)
-		findings, active = closeRustBlock(findings, env, file, active, depth, methodCounts)
+		scan.active = nextRustBlock(scan.active, scan.depth, line, idx+1)
+		updateRustBlockHeader(scan.active, line)
+		countRustBlockMember(scan.active, scan.depth, line)
+		scan.depth += braceDelta(line)
+		openRustBlock(scan.active, scan.depth, line)
+		closeRustBlock(&scan)
 	}
 
-	if active != nil && !active.waiting {
-		findings = append(findings, finalizeRustBlock(env, file, *active, methodCounts)...)
+	if scan.active != nil && !scan.active.waiting {
+		scan.findings = append(scan.findings, finalizeRustBlock(scan.env, scan.file, *scan.active, scan.methodCounts)...)
 	}
 
-	findings = append(findings, rustMethodFindings(env, file, methodCounts)...)
-	return findings
+	scan.findings = append(scan.findings, rustMethodFindings(scan.env, scan.file, scan.methodCounts)...)
+	return scan.findings
 }
 
 func rustGenericModuleNameFindings(env support.Context, file string) []core.Finding {
@@ -113,179 +93,4 @@ func normalizedRustModuleName(path string) string {
 	default:
 		return base
 	}
-}
-
-func nextRustBlock(active *rustBlock, depth int, line string, lineNo int) *rustBlock {
-	if active != nil || depth != 0 {
-		return active
-	}
-	if match := rustTraitPattern.FindStringSubmatch(line); len(match) == 2 {
-		return &rustBlock{kind: rustBlockTrait, name: match[1], line: lineNo, waiting: true}
-	}
-	if rustImplPattern.MatchString(line) {
-		return &rustBlock{kind: rustBlockImpl, line: lineNo, waiting: true}
-	}
-	return nil
-}
-
-func updateRustBlockHeader(active *rustBlock, line string) {
-	if active == nil || !active.waiting {
-		return
-	}
-	trimmed := strings.TrimSpace(line)
-	if trimmed == "" {
-		return
-	}
-	if active.header != "" {
-		active.header += " "
-	}
-	active.header += trimmed
-}
-
-func countRustBlockMember(active *rustBlock, depth int, line string) {
-	if active == nil || active.waiting || depth != active.bodyDepth {
-		return
-	}
-	trimmed := strings.TrimSpace(line)
-	if trimmed == "" || trimmed == "}" {
-		return
-	}
-	switch active.kind {
-	case rustBlockImpl:
-		if rustMethodPattern.MatchString(trimmed) {
-			active.count++
-		}
-	case rustBlockTrait:
-		if rustTraitMemberPattern.MatchString(trimmed) {
-			active.count++
-		}
-	}
-}
-
-func openRustBlock(active *rustBlock, depth int, line string) {
-	if active == nil || !active.waiting || !strings.Contains(line, "{") {
-		return
-	}
-	if active.kind == rustBlockImpl {
-		active.name = rustImplTargetName(active.header)
-	}
-	active.waiting = false
-	active.bodyDepth = depth
-}
-
-func closeRustBlock(findings []core.Finding, env support.Context, file string, active *rustBlock, depth int, methodCounts map[string]rustCountSummary) ([]core.Finding, *rustBlock) {
-	if active == nil || active.waiting || depth >= active.bodyDepth {
-		return findings, active
-	}
-	findings = append(findings, finalizeRustBlock(env, file, *active, methodCounts)...)
-	return findings, nil
-}
-
-func finalizeRustBlock(env support.Context, file string, block rustBlock, methodCounts map[string]rustCountSummary) []core.Finding {
-	switch block.kind {
-	case rustBlockImpl:
-		if block.name == "" || block.count == 0 {
-			return nil
-		}
-		summary := methodCounts[block.name]
-		if summary.line == 0 {
-			summary.line = block.line
-		}
-		summary.count += block.count
-		methodCounts[block.name] = summary
-	case rustBlockTrait:
-		if block.name == "" || block.count <= env.Config.Checks.DesignRules.MaxInterfaceMethods {
-			return nil
-		}
-		return []core.Finding{env.NewFinding(support.FindingInput{
-			RuleID:  "design.rust.max-trait-members",
-			Level:   "warn",
-			Path:    file,
-			Line:    block.line,
-			Column:  1,
-			Message: fmt.Sprintf("trait %s exposes %d members; max is %d", block.name, block.count, env.Config.Checks.DesignRules.MaxInterfaceMethods),
-		})}
-	}
-	return nil
-}
-
-func rustMethodFindings(env support.Context, file string, methodCounts map[string]rustCountSummary) []core.Finding {
-	findings := make([]core.Finding, 0)
-	for typeName, summary := range methodCounts {
-		if summary.count <= env.Config.Checks.DesignRules.MaxMethodsPerType {
-			continue
-		}
-		line := summary.line
-		if line == 0 {
-			line = 1
-		}
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "design.rust.max-methods-per-type",
-			Level:   "warn",
-			Path:    file,
-			Line:    line,
-			Column:  1,
-			Message: fmt.Sprintf("type %s has %d impl methods in this file; max is %d", typeName, summary.count, env.Config.Checks.DesignRules.MaxMethodsPerType),
-		}))
-	}
-	return findings
-}
-
-func rustImplTargetName(header string) string {
-	header = strings.Join(strings.Fields(strings.Split(header, "{")[0]), " ")
-	header = strings.TrimSpace(strings.TrimPrefix(header, "impl"))
-	header = strings.TrimSpace(trimRustGenericPrefix(header))
-	if header == "" {
-		return ""
-	}
-	if idx := strings.LastIndex(header, " for "); idx >= 0 {
-		header = header[idx+5:]
-	}
-	if idx := strings.Index(header, " where "); idx >= 0 {
-		header = header[:idx]
-	}
-	return rustPrimaryTypeName(strings.TrimSpace(header))
-}
-
-func trimRustGenericPrefix(header string) string {
-	if !strings.HasPrefix(header, "<") {
-		return header
-	}
-	depth := 0
-	for idx, char := range header {
-		switch char {
-		case '<':
-			depth++
-		case '>':
-			depth--
-			if depth == 0 {
-				return strings.TrimSpace(header[idx+1:])
-			}
-		}
-	}
-	return header
-}
-
-func rustPrimaryTypeName(target string) string {
-	target = strings.TrimSpace(target)
-	for {
-		target = strings.TrimSpace(strings.TrimPrefix(target, "&"))
-		target = strings.TrimSpace(strings.TrimPrefix(target, "mut "))
-		target = strings.TrimSpace(strings.TrimPrefix(target, "dyn "))
-		fields := strings.Fields(target)
-		if len(fields) > 0 && strings.HasPrefix(fields[0], "'") {
-			target = strings.TrimSpace(strings.Join(fields[1:], " "))
-			continue
-		}
-		break
-	}
-	for _, sep := range []string{"<", " ", "(", "[", "{"} {
-		if idx := strings.Index(target, sep); idx >= 0 {
-			target = target[:idx]
-		}
-	}
-	if idx := strings.LastIndex(target, "::"); idx >= 0 {
-		target = target[idx+2:]
-	}
-	return strings.TrimSpace(target)
 }

@@ -1,16 +1,10 @@
 package design
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-)
-
-var (
-	cppBoundaryModuleDeclarationPattern = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?module[ \t]+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?::[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)?)[ \t]*;`)
-	cppBoundaryModuleImportPattern      = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?import[ \t]+((?:[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?::[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)?)|(?::[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*))[ \t]*;`)
 )
 
 type cppBoundaryNamedImport struct {
@@ -46,34 +40,20 @@ func buildCPPImportGraph(env support.Context, target core.TargetConfig) *moduleG
 			}
 			graph.addImport(rel, resolved, rel, imported.Module, imported.Line)
 		}
-		if match := cppBoundaryModuleDeclarationPattern.FindStringSubmatch(parsed.Masked); len(match) == 2 {
+		if match := support.CPPModuleDeclarationPattern.FindStringSubmatch(parsed.Masked); len(match) == 2 {
 			declaredModules[rel] = match[1]
 			namedModules[match[1]] = rel
 		}
-		for _, match := range cppBoundaryModuleImportPattern.FindAllStringSubmatchIndex(parsed.Masked, -1) {
+		for _, match := range support.CPPModuleImportPattern.FindAllStringSubmatchIndex(parsed.Masked, -1) {
 			specifier := strings.TrimSpace(parsed.Masked[match[2]:match[3]])
 			namedImports = append(namedImports, cppBoundaryNamedImport{from: rel, specifier: specifier, line: support.LineNumberForOffset(parsed.Masked, match[0])})
 		}
 	})
 	for _, imported := range namedImports {
-		resolvedSpecifier := supportQualifyCPPModuleImport(imported.specifier, declaredModules[imported.from])
+		resolvedSpecifier := support.QualifyCPPModuleImport(imported.specifier, declaredModules[imported.from])
 		graph.addImport(imported.from, namedModules[resolvedSpecifier], imported.from, imported.specifier, imported.line)
 	}
 	return graph
-}
-
-func supportQualifyCPPModuleImport(specifier string, declaredModule string) string {
-	if !strings.HasPrefix(specifier, ":") {
-		return specifier
-	}
-	primary := declaredModule
-	if cut := strings.IndexByte(primary, ':'); cut >= 0 {
-		primary = primary[:cut]
-	}
-	if primary == "" {
-		return ""
-	}
-	return primary + specifier
 }
 
 func cppGraphEdgeAtLine(graph *moduleGraph, from string, line int) string {
