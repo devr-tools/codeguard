@@ -17,9 +17,7 @@ func Write(w io.Writer, report core.Report, format string) error {
 	case "", "text":
 		return writeText(w, report)
 	case "json":
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "  ")
-		return enc.Encode(report)
+		return writeJSON(w, report)
 	case "sarif":
 		return writeSARIF(w, report)
 	case "github":
@@ -29,6 +27,19 @@ func Write(w io.Writer, report core.Report, format string) error {
 	default:
 		return fmt.Errorf("unsupported report format %q", format)
 	}
+}
+
+func writeJSON(w io.Writer, report core.Report) error {
+	payload := struct {
+		CodeGuardVersion string `json:"codeguard_version"`
+		core.Report
+	}{
+		CodeGuardVersion: version.Number,
+		Report:           report,
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(payload)
 }
 
 func writeText(w io.Writer, report core.Report) error {
@@ -54,6 +65,9 @@ func writeText(w io.Writer, report core.Report) error {
 }
 
 func writeGitHubAnnotations(w io.Writer, report core.Report) error {
+	if _, err := fmt.Fprintf(w, "::notice title=CodeGuard::version %s\n", escapeGitHubAnnotation(version.Number)); err != nil {
+		return err
+	}
 	for _, section := range report.Sections {
 		for _, finding := range section.Findings {
 			level := "warning"

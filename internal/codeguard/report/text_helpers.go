@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/version"
 )
 
 func writeTextHeader(w io.Writer, report core.Report) error {
@@ -14,6 +15,9 @@ func writeTextHeader(w io.Writer, report core.Report) error {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "%s\n", report.Name); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "CodeGuard version: %s\n", version.Number); err != nil {
 		return err
 	}
 	if report.Profile == "" {

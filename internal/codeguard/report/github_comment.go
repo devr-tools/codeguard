@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/version"
 )
 
 const githubCommentFindingLimit = 50
@@ -18,12 +19,12 @@ func writeGitHubComment(w io.Writer, report core.Report) error {
 }
 
 func writeGitHubCommentClean(w io.Writer, report core.Report) error {
-	_, err := fmt.Fprintf(w, "## CodeGuard Fix Suggestions\n\nNo policy findings in this scan.\n\n%s\n", githubCommentSummary(report))
+	_, err := fmt.Fprintf(w, "## CodeGuard Fix Suggestions\n\n_CodeGuard version %s_\n\nNo policy findings in this scan.\n\n%s\n", version.Number, githubCommentSummary(report))
 	return err
 }
 
 func writeGitHubCommentFindings(w io.Writer, report core.Report) error {
-	if _, err := fmt.Fprintf(w, "## CodeGuard Fix Suggestions\n\n%s\n\n", githubCommentSummary(report)); err != nil {
+	if _, err := fmt.Fprintf(w, "## CodeGuard Fix Suggestions\n\n_CodeGuard version %s_\n\n%s\n\n", version.Number, githubCommentSummary(report)); err != nil {
 		return err
 	}
 
