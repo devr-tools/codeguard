@@ -25,6 +25,7 @@ var fixTemplates = mergeFixTemplates(
 	securityFixTemplates,
 	securityLanguageFixTemplates,
 	designFixTemplates,
+	designPolicyFixTemplates,
 	miscFixTemplates,
 	contextFixTemplates,
 	contextReadinessFixTemplates,

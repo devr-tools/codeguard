@@ -75,6 +75,7 @@ type CheckConfig struct {
 	Context          *bool                  `json:"context,omitempty" yaml:"context,omitempty"`
 	QualityRules     QualityRulesConfig     `json:"quality_rules" yaml:"quality_rules"`
 	PerformanceRules PerformanceRulesConfig `json:"performance_rules,omitempty" yaml:"performance_rules,omitempty"`
+	DesignRulesFile  string                 `json:"design_rules_file,omitempty" yaml:"design_rules_file,omitempty"`
 	DesignRules      DesignRulesConfig      `json:"design_rules" yaml:"design_rules"`
 	PromptRules      PromptRulesConfig      `json:"prompt_rules" yaml:"prompt_rules"`
 	CIRules          CIRulesConfig          `json:"ci_rules" yaml:"ci_rules"`

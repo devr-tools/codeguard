@@ -13,6 +13,7 @@ import (
 type pythonImportGraph struct {
 	graph       support.DependencyGraph
 	entrypoints map[string]struct{}
+	nodes       map[string]pythonGraphNode
 }
 
 type pythonGraphNode struct {
@@ -52,6 +53,7 @@ func buildPythonImportGraph(env support.Context, target core.TargetConfig) pytho
 		}
 	}
 	graph.graph = support.NewDependencyGraph(dependencyNodes)
+	graph.nodes = nodes
 	if env.PutArtifact != nil {
 		env.PutArtifact(support.NewDependencyGraphArtifact(pythonDependencyGraphArtifactID(target), "python", target.Path, graph.graph))
 	}

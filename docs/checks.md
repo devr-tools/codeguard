@@ -787,7 +787,12 @@ The contracts family needs a base revision, so it runs in diff mode. When `check
 ## Design
 
 Purpose:
-- Layer boundary enforcement
+
+- Language-neutral architecture boundary enforcement
+- Domain and data ownership protection
+- Capability and public-surface encapsulation
+- Production/test isolation
+- Entrypoint reachability and dependency stability warnings
 - Separation of concerns heuristics
 - Clean-code naming heuristics
 - SOLID-oriented heuristics
@@ -821,7 +826,10 @@ Config keys:
 ```
 
 Current behavior:
-- fails on architecture boundary violations
+
+- fails on configured layer, domain, data-ownership, capability, public-surface, and production/test boundary violations
+- can require every module to belong to a configured layer and domain
+- warns on configured unreachable modules and stability-direction inversions
 - Go targets keep the existing package, import-boundary, declaration-count, type-size, and interface-size heuristics
 - Python targets fail on public-to-private imports, direct or transitive entrypoint coupling, and internal import cycles, and warn on overly generic module names
 - TypeScript targets warn on overly generic module names, oversized classes, and oversized interfaces or object types using compiler-parsed AST analysis when the semantic runtime is available
@@ -852,6 +860,81 @@ Language command example:
   }
 }
 ```
+
+### Standalone design policy
+
+Large architecture policies can live outside the main config as a top-level
+`DesignRulesConfig` document. Codeguard automatically looks for
+`.codeguard/design_rules.yml`, then `.codeguard/design_rules.yaml`, relative to the
+project/config root. When the main config is already inside `.codeguard`, the policy is
+discovered beside it. A missing auto-discovered file is ignored.
+
+To choose another file, set `checks.design_rules_file`. Relative paths are resolved from
+the directory containing the main config:
+
+```yaml
+checks:
+  design: true
+  design_rules_file: policies/architecture.yml
+  design_rules:
+    # Optional local overrides of the shared policy.
+    stability:
+      enabled: false
+```
+
+An explicit file must exist and must remain within the project/config root, including
+after symlinks are resolved. The external file contains the design-rule fields directly;
+do not wrap them in `checks.design_rules`:
+
+```yaml
+require_boundary_assignment: true
+layers:
+  - name: domain
+    paths: ["internal/domain/**"]
+    may_depend_on: [contracts]
+  - name: contracts
+    paths: ["internal/contracts/**"]
+```
+
+The external policy is the base. Each top-level field explicitly present in inline
+`checks.design_rules` replaces the corresponding external field, including explicit
+`false`, `0`, and empty list values. Profile defaults fill fields that remain unspecified.
+If both auto-discovery names exist, `design_rules.yml` takes precedence; keep only one to
+avoid ambiguity. See the complete [standalone policy template](../examples/design_rules.yml).
+
+All architecture policies are opt-in and run only when `checks.design` is enabled. A
+non-empty `layers`, `domains`, `capabilities`, or `public_surfaces` list enables that
+policy. `production_test`, `reachability`, and `stability` become active when their
+section is present unless `enabled: false` is set. `require_boundary_assignment` runs only
+when explicitly true. Existing design heuristics and graph rules retain their normal
+defaults.
+
+Paths use forward-slash, target-relative matching. A path without glob syntax matches
+that path and its descendants; `*`, `?`, character classes, and `**` globs are supported.
+External-import policies also match the language's import specifier.
+
+Architecture policy fields:
+
+| Policy | Fields | Behavior |
+|---|---|---|
+| Layer dependencies | `layers[].name`, `paths`, `may_depend_on`, `deny_depend_on`, `denied_external` | Restricts local dependencies by layer and denies selected external imports. Imports within the same layer are allowed. An empty `may_depend_on` does not create an allowlist. |
+| Boundary assignment | `require_boundary_assignment` | Fails modules not covered by every configured boundary dimension: layer, domain, or both. |
+| Domains and data ownership | `domains[].name`, `paths`, `public_paths`, `data_paths`, `may_depend_on` | Cross-domain imports must target an allowed domain's public path. Another domain's data paths always remain private. An empty `may_depend_on` denies cross-domain imports. |
+| Capabilities | `capabilities[].name`, `imports`, `allowed_paths` | Limits database, network, filesystem, cloud SDK, or other sensitive imports to approved adapters. |
+| Public surfaces | `public_surfaces[].name`, `paths`, `entrypoints` | Prevents consumers outside a component from deep-importing its private modules. Imports originating inside that surface are allowed. |
+| Production/test isolation | `production_test.enabled`, `production_paths`, `test_paths` | Prevents production modules from importing test helpers, mocks, fixtures, or other test-only modules. |
+| Reachability | `reachability.enabled`, `entrypoints`, `ignore_paths` | Warns when a production module cannot be reached from a configured entrypoint. `targets[].entrypoints` are included automatically. |
+| Stability direction | `stability.enabled`, `minimum_fan_in`, `max_instability_delta`, `ignore_paths` | Warns when a stable, widely depended-on module imports a substantially less stable module. Defaults are fan-in `3` and instability delta `0.35`. |
+
+To migrate an existing inline policy:
+
+1. Copy the contents of `checks.design_rules` into `.codeguard/design_rules.yml`, without
+   the `checks` or `design_rules` wrapper.
+2. Remove the copied inline fields. Auto-discovery needs no additional main-config key;
+   set `checks.design_rules_file` only for a different filename or location.
+3. Keep small repository- or environment-specific inline fields when they should override
+   the shared policy, then run a full scan before enabling
+   `require_boundary_assignment` or reachability.
 
 ## Security
 

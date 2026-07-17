@@ -27,6 +27,7 @@ func Validate(cfg core.Config) error {
 		validateCoverageDelta(cfg.Checks.QualityRules.CoverageDelta),
 		validateCPPTooling(cfg.Checks.QualityRules.CPPTooling),
 		validateGraphThresholds(cfg.Checks.DesignRules),
+		validateDesignArchitectureRules(cfg.Checks.DesignRules),
 		validatePerformanceRules(cfg.Checks.PerformanceRules),
 		validateSecretsRules(cfg.Checks.SecurityRules.Secrets),
 		validateParsers(cfg.Parsers),

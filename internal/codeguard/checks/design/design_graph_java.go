@@ -35,7 +35,7 @@ func buildJavaImportGraph(env support.Context, target core.TargetConfig) *module
 		pending[module] = append(pending[module], imports...)
 	})
 	for module, imports := range pending {
-		addJavaImportEdges(graph, packageModules, module, imports)
+		addJavaImportEdges(graph, packageModules, module, graph.modules[module].file, imports)
 	}
 	return graph
 }
@@ -70,17 +70,21 @@ func javaModuleName(pkg string, rel string) string {
 	return pkg + "." + base
 }
 
-func addJavaImportEdges(graph *moduleGraph, packageModules map[string][]string, module string, imports []javaImportStatement) {
+func addJavaImportEdges(graph *moduleGraph, packageModules map[string][]string, module string, file string, imports []javaImportStatement) {
 	for _, statement := range imports {
 		if statement.wildcard {
+			resolved := ""
 			for _, member := range packageModules[statement.target] {
-				graph.addEdge(module, member, statement.line)
+				graph.addImport(module, member, file, statement.target+".*", statement.line)
+				resolved = member
+			}
+			if resolved == "" {
+				graph.addImport(module, "", file, statement.target+".*", statement.line)
 			}
 			continue
 		}
-		if resolved := resolveJavaImport(graph, statement); resolved != "" {
-			graph.addEdge(module, resolved, statement.line)
-		}
+		resolved := resolveJavaImport(graph, statement)
+		graph.addImport(module, resolved, file, statement.target, statement.line)
 	}
 }
 

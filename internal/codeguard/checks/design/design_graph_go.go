@@ -24,10 +24,11 @@ func buildGoImportGraph(env support.Context, target core.TargetConfig) *moduleGr
 	env.VisitTargetFiles(target, isGoSourceFile, func(rel string, data []byte) {
 		pkg := path.Dir(filepath.ToSlash(rel))
 		graph.addModule(pkg, rel)
-		pending = append(pending, goImportEdges(pkg, rel, data, modulePrefix)...)
+		pending = append(pending, goImportEdges(pkg, rel, data)...)
 	})
 	for _, edge := range pending {
-		graph.addEdge(edge.from, edge.to, edge.line)
+		local := goLocalPackageDir(edge.to, modulePrefix)
+		graph.addImport(edge.from, local, edge.file, edge.to, edge.line)
 	}
 	return graph
 }
@@ -36,7 +37,7 @@ func isGoSourceFile(rel string) bool {
 	return strings.HasSuffix(rel, ".go") && !strings.HasSuffix(rel, "_test.go")
 }
 
-func goImportEdges(pkg string, rel string, data []byte, modulePrefix string) []pendingGraphEdge {
+func goImportEdges(pkg string, rel string, data []byte) []pendingGraphEdge {
 	fset := token.NewFileSet()
 	parsed, err := parser.ParseFile(fset, rel, data, parser.ImportsOnly)
 	if err != nil {
@@ -45,11 +46,7 @@ func goImportEdges(pkg string, rel string, data []byte, modulePrefix string) []p
 	edges := make([]pendingGraphEdge, 0, len(parsed.Imports))
 	for _, imp := range parsed.Imports {
 		importPath := strings.Trim(imp.Path.Value, `"`)
-		local := goLocalPackageDir(importPath, modulePrefix)
-		if local == "" {
-			continue
-		}
-		edges = append(edges, pendingGraphEdge{from: pkg, to: local, line: fset.Position(imp.Pos()).Line})
+		edges = append(edges, pendingGraphEdge{from: pkg, to: importPath, file: rel, line: fset.Position(imp.Pos()).Line})
 	}
 	return edges
 }

@@ -28,6 +28,7 @@ type scriptImport struct {
 type pendingGraphEdge struct {
 	from string
 	to   string
+	file string
 	line int
 }
 
@@ -39,14 +40,12 @@ func buildTypeScriptImportGraph(env support.Context, target core.TargetConfig) *
 		graph.addModule(module, rel)
 		source := strings.ReplaceAll(string(data), "\r\n", "\n")
 		for _, imp := range typeScriptImportSpecifiers(source) {
-			pending = append(pending, pendingGraphEdge{from: module, to: imp.specifier, line: imp.line})
+			pending = append(pending, pendingGraphEdge{from: module, to: imp.specifier, file: rel, line: imp.line})
 		}
 	})
 	for _, edge := range pending {
 		resolved := resolveTypeScriptImport(graph, edge.from, edge.to)
-		if resolved != "" {
-			graph.addEdge(edge.from, resolved, edge.line)
-		}
+		graph.addImport(edge.from, resolved, edge.file, edge.to, edge.line)
 	}
 	return graph
 }

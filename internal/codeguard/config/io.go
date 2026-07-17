@@ -38,16 +38,27 @@ func LoadFile(path string) (core.Config, error) {
 	}
 
 	var cfg core.Config
-	if err := unmarshalConfig(data, resolvedPath, &cfg); err != nil {
+	err = unmarshalConfig(data, resolvedPath, &cfg)
+	if err != nil {
+		return core.Config{}, err
+	}
+	designOverlay, err := loadExternalDesignRules(&cfg, data, resolvedPath)
+	if err != nil {
 		return core.Config{}, err
 	}
 	baseDir := filepath.Dir(resolvedPath)
 	resolveRelativePaths(&cfg, baseDir)
 	ApplyDefaults(&cfg)
-	if err := containConfigArtifactPaths(&cfg, baseDir); err != nil {
+	// Applying defaults intentionally treats numeric zero as unset. When an
+	// external design policy is used, however, explicitly present inline fields
+	// must win even when their value is zero, false, or empty.
+	designOverlay.apply(&cfg.Checks.DesignRules)
+	err = containConfigArtifactPaths(&cfg, baseDir)
+	if err != nil {
 		return core.Config{}, err
 	}
-	if err := Validate(cfg); err != nil {
+	err = Validate(cfg)
+	if err != nil {
 		return core.Config{}, err
 	}
 	return cfg, nil
