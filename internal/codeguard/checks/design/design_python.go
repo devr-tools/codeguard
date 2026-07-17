@@ -9,8 +9,9 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func pythonTargetFindings(env support.Context, _ core.TargetConfig, graph pythonImportGraph) []core.Finding {
+func pythonTargetFindings(env support.Context, target core.TargetConfig, graph pythonImportGraph) []core.Finding {
 	findings := make([]core.Finding, 0, len(graph.graph.Order))
+	findings = append(findings, pythonStructuralFindings(env, target)...)
 	for _, module := range graph.graph.Order {
 		node := graph.graph.Nodes[module]
 		findings = append(findings, genericPythonModuleNameFindings(env, node.Path)...)

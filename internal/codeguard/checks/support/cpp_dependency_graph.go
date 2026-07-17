@@ -3,16 +3,10 @@ package support
 import (
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	"github.com/devr-tools/codeguard/internal/codeguard/cpp/compdb"
-)
-
-var (
-	cppModuleDeclarationPattern = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?module[ \t]+([A-Za-z_]\w*(?::[A-Za-z_]\w*)*)[ \t]*;`)
-	cppModuleImportPattern      = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?import[ \t]+([A-Za-z_]\w*(?::[A-Za-z_]\w*)*)[ \t]*;`)
 )
 
 // CPPDependencyGraph captures target-local #include and C++20 named-module
@@ -36,6 +30,7 @@ type pendingCPPDependency struct {
 func BuildCPPDependencyGraph(env Context, target core.TargetConfig) *CPPDependencyGraph {
 	nodes := make(map[string]DependencyNode)
 	fileToModule := make(map[string]string)
+	declaredModules := make(map[string]string)
 	moduleFiles := make(map[string]string)
 	pending := make([]pendingCPPDependency, 0)
 	env.VisitTargetFiles(target, func(rel string) bool { return IsCPPPath(rel, true) }, func(rel string, data []byte) {
@@ -47,10 +42,11 @@ func BuildCPPDependencyGraph(env Context, target core.TargetConfig) *CPPDependen
 		for _, imported := range parsed.Imports {
 			pending = append(pending, pendingCPPDependency{from: rel, target: imported.Module, line: imported.Line})
 		}
-		if match := cppModuleDeclarationPattern.FindStringSubmatch(parsed.Masked); match != nil {
+		if match := CPPModuleDeclarationPattern.FindStringSubmatch(parsed.Masked); match != nil {
+			declaredModules[rel] = match[1]
 			moduleFiles[match[1]] = rel
 		}
-		for _, match := range cppModuleImportPattern.FindAllStringSubmatchIndex(parsed.Masked, -1) {
+		for _, match := range CPPModuleImportPattern.FindAllStringSubmatchIndex(parsed.Masked, -1) {
 			pending = append(pending, pendingCPPDependency{
 				from: rel, target: parsed.Masked[match[2]:match[3]],
 				line: LineNumberForOffset(parsed.Masked, match[0]), named: true,
@@ -65,6 +61,7 @@ func BuildCPPDependencyGraph(env Context, target core.TargetConfig) *CPPDependen
 	for _, dependency := range pending {
 		to := ""
 		if dependency.named {
+			dependency.target = QualifyCPPModuleImport(dependency.target, declaredModules[dependency.from])
 			to = moduleFiles[dependency.target]
 		} else {
 			to = resolveCPPInclude(nodes, dependency.from, dependency.target, includeRoots)

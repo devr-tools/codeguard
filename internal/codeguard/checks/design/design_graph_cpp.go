@@ -1,16 +1,10 @@
 package design
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-)
-
-var (
-	cppBoundaryModuleDeclarationPattern = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?module[ \t]+([A-Za-z_]\w*(?::[A-Za-z_]\w*)*)[ \t]*;`)
-	cppBoundaryModuleImportPattern      = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?import[ \t]+([A-Za-z_]\w*(?::[A-Za-z_]\w*)*)[ \t]*;`)
 )
 
 type cppBoundaryNamedImport struct {
@@ -35,6 +29,7 @@ func buildCPPImportGraph(env support.Context, target core.TargetConfig) *moduleG
 		}
 	}
 	namedModules := make(map[string]string)
+	declaredModules := make(map[string]string)
 	namedImports := make([]cppBoundaryNamedImport, 0)
 	env.VisitTargetFiles(target, func(rel string) bool { return support.IsCPPPath(rel, true) }, func(rel string, data []byte) {
 		parsed := support.ParseCLike(string(data), support.CLikeCPP)
@@ -45,16 +40,18 @@ func buildCPPImportGraph(env support.Context, target core.TargetConfig) *moduleG
 			}
 			graph.addImport(rel, resolved, rel, imported.Module, imported.Line)
 		}
-		if match := cppBoundaryModuleDeclarationPattern.FindStringSubmatch(parsed.Masked); len(match) == 2 {
+		if match := support.CPPModuleDeclarationPattern.FindStringSubmatch(parsed.Masked); len(match) == 2 {
+			declaredModules[rel] = match[1]
 			namedModules[match[1]] = rel
 		}
-		for _, match := range cppBoundaryModuleImportPattern.FindAllStringSubmatchIndex(parsed.Masked, -1) {
+		for _, match := range support.CPPModuleImportPattern.FindAllStringSubmatchIndex(parsed.Masked, -1) {
 			specifier := strings.TrimSpace(parsed.Masked[match[2]:match[3]])
 			namedImports = append(namedImports, cppBoundaryNamedImport{from: rel, specifier: specifier, line: support.LineNumberForOffset(parsed.Masked, match[0])})
 		}
 	})
 	for _, imported := range namedImports {
-		graph.addImport(imported.from, namedModules[imported.specifier], imported.from, imported.specifier, imported.line)
+		resolvedSpecifier := support.QualifyCPPModuleImport(imported.specifier, declaredModules[imported.from])
+		graph.addImport(imported.from, namedModules[resolvedSpecifier], imported.from, imported.specifier, imported.line)
 	}
 	return graph
 }

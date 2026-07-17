@@ -34,6 +34,19 @@ func TestDesignCheckFailsForCPPNamedModuleCycle(t *testing.T) {
 	assertFindingRulePresent(t, report, "Design Patterns", "design.cpp.import-cycle")
 }
 
+func TestDesignCheckFailsForCPPModulePartitionCycle(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "alpha.cppm"), "export module alpha;\nimport :detail;\nexport int alpha_value();\n")
+	writeFile(t, filepath.Join(dir, "src", "alpha-detail.cppm"), "module alpha:detail;\nimport alpha;\nint detail_value();\n")
+
+	report, err := codeguard.Run(context.Background(), graphTestConfig("design-cpp-partition-cycle", dir, "cpp"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.cpp.import-cycle")
+}
+
 func TestDesignCheckUsesCPPGraphForGodModules(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "include", "common.hpp"), "#pragma once\n")
@@ -64,6 +77,52 @@ func TestDesignCheckWarnsForCPPGenericNameAndQualifiedMethodCount(t *testing.T) 
 
 	assertFindingRulePresent(t, report, "Design Patterns", "design.cpp.generic-module-name")
 	assertFindingRulePresent(t, report, "Design Patterns", "design.cpp.max-methods-per-type")
+}
+
+func TestDesignCheckWarnsForCPPHeaderContractSurface(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "include", "service.hpp"), "#pragma once\nclass Service {\npublic:\n  void one();\n  void two();\n  void three();\n};\n")
+
+	cfg := graphTestConfig("design-cpp-header-contract", dir, "cpp")
+	cfg.Checks.DesignRules.MaxMethodsPerType = 2
+	cfg.Checks.DesignRules.MaxInterfaceMethods = 2
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.cpp.max-methods-per-type")
+	assertFindingRulePresent(t, report, "Design Patterns", "design.cpp.max-interface-methods")
+}
+
+func TestDesignCheckWarnsForCPPDeclsPerFile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "decls.cpp"), "struct Alpha {};\nstruct Beta {};\nint one() { return 1; }\nint two() { return 2; }\nint three() { return 3; }\n")
+
+	cfg := graphTestConfig("design-cpp-decls", dir, "cpp")
+	cfg.Checks.DesignRules.MaxDeclsPerFile = 4
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.cpp.max-decls-per-file")
+}
+
+func TestDesignCheckCountsOnlyPublicCPPContractMethods(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "include", "service.hpp"), "#pragma once\nclass Service {\npublic:\n  void one();\n  void two();\nprivate:\n  void helper();\n  void cache();\n  void reload();\n};\n")
+
+	cfg := graphTestConfig("design-cpp-public-contract", dir, "cpp")
+	cfg.Checks.DesignRules.MaxMethodsPerType = 4
+	cfg.Checks.DesignRules.MaxInterfaceMethods = 2
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.cpp.max-methods-per-type")
+	assertFindingRuleAbsent(t, report, "Design Patterns", "design.cpp.max-interface-methods")
 }
 
 func TestDiffModeUsesCPPGraphForHighImpactChanges(t *testing.T) {

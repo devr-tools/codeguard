@@ -14,8 +14,13 @@ This page lists the current `codeguard` feature surface and the main config entr
 - `design`
   - layering and boundary rules
   - import cycle and god-module detection
+  - reachability and stability policy warnings over language graphs
   - high-impact-change analysis and dependency graph artifacts
-  - C++ target-local include and named-module graphs, generic filename checks, and qualified method-count limits
+  - Go package-boundary checks plus declarations-per-file, methods-per-type, and interface-size heuristics
+  - Python public/private and entrypoint coupling checks, import-cycle detection, generic module names, class-size heuristics, and protocol-size heuristics
+  - TypeScript generic-module, class-size, and interface-size heuristics plus graph resolution through relative imports, `tsconfig` paths, package `imports`, and workspace package exports
+  - Rust module graphs plus generic-module, methods-per-type, and trait-size heuristics
+  - C++ target-local include and named-module graphs for cycles, reachability, stability, change impact, and boundary policy enforcement, plus generic filename, declarations-per-file, method-count, and contract-surface heuristics
 - `security`
   - hardcoded secrets and private keys
   - Go, Python, TypeScript, and JavaScript taint-style flow checks

@@ -43,8 +43,13 @@ func buildTypeScriptImportGraph(env support.Context, target core.TargetConfig) *
 			pending = append(pending, pendingGraphEdge{from: module, to: imp.specifier, file: rel, line: imp.line})
 		}
 	})
+	resolver := newTypeScriptImportResolver(graph)
+	env.VisitTargetFiles(target, isTypeScriptResolverMetadataFile, func(rel string, data []byte) {
+		indexTypeScriptResolverMetadata(resolver, rel, data)
+	})
+	finalizeTypeScriptResolverConfigs(resolver)
 	for _, edge := range pending {
-		resolved := resolveTypeScriptImport(graph, edge.from, edge.to)
+		resolved := resolveTypeScriptImport(resolver, edge.from, edge.to)
 		graph.addImport(edge.from, resolved, edge.file, edge.to, edge.line)
 	}
 	return graph
@@ -78,18 +83,12 @@ func typeScriptModuleKey(rel string) string {
 	return rel
 }
 
-// resolveTypeScriptImport resolves a relative import specifier to a known
-// module key; external package imports return an empty string.
-func resolveTypeScriptImport(graph *moduleGraph, fromModule string, specifier string) string {
-	if !strings.HasPrefix(specifier, "./") && !strings.HasPrefix(specifier, "../") && specifier != "." && specifier != ".." {
+// resolveTypeScriptImport resolves a script import specifier to a known local
+// module key using relative imports, tsconfig aliases/baseUrl, and local
+// workspace package manifests. External package imports return an empty string.
+func resolveTypeScriptImport(resolver *typeScriptImportResolver, fromModule string, specifier string) string {
+	if resolver == nil {
 		return ""
 	}
-	joined := path.Clean(path.Join(path.Dir(fromModule), specifier))
-	joined = typeScriptModuleKey(joined)
-	for _, candidate := range []string{joined, joined + "/index"} {
-		if _, ok := graph.modules[candidate]; ok {
-			return candidate
-		}
-	}
-	return ""
+	return resolveTypeScriptModuleImport(resolver, fromModule, specifier)
 }

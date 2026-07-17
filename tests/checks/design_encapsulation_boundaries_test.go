@@ -92,6 +92,50 @@ func TestDesignProductionTestPolicyCanBeDisabled(t *testing.T) {
 	assertFindingRuleAbsent(t, report, "Design Patterns", "design.production-imports-test")
 }
 
+func TestDesignPublicSurfaceRejectsCPPDeepInclude(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "app.cpp"), "#include \"../include/auth/internal/token.hpp\"\n")
+	writeFile(t, filepath.Join(dir, "include", "auth", "auth.hpp"), "#pragma once\n#include \"internal/token.hpp\"\n")
+	writeFile(t, filepath.Join(dir, "include", "auth", "internal", "token.hpp"), "#pragma once\nint parse_token();\n")
+
+	cfg := graphTestConfig("design-cpp-public-surface", dir, "cpp")
+	cfg.Checks.DesignRules.PublicSurfaces = []codeguard.DesignPublicSurfaceConfig{{
+		Name:        "auth",
+		Paths:       []string{"include/auth/**"},
+		Entrypoints: []string{"include/auth/auth.hpp"},
+	}}
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	finding := findFinding(t, report, "Design Patterns", "design.private-module-import")
+	if finding.Path != "src/app.cpp" || finding.Line != 1 {
+		t.Fatalf("finding location = %s:%d, want src/app.cpp:1", finding.Path, finding.Line)
+	}
+}
+
+func TestDesignProductionCodeRejectsCPPTestInclude(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "app.cpp"), "#include \"../tests/support/fake_clock.hpp\"\n")
+	writeFile(t, filepath.Join(dir, "tests", "support", "fake_clock.hpp"), "#pragma once\nint fake_clock();\n")
+
+	cfg := graphTestConfig("design-cpp-production-test", dir, "cpp")
+	cfg.Checks.DesignRules.ProductionTest = &codeguard.DesignProductionTestConfig{
+		ProductionPaths: []string{"src/**"},
+		TestPaths:       []string{"tests/**"},
+	}
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	finding := findFinding(t, report, "Design Patterns", "design.production-imports-test")
+	if finding.Path != "src/app.cpp" || finding.Line != 1 {
+		t.Fatalf("finding location = %s:%d, want src/app.cpp:1", finding.Path, finding.Line)
+	}
+}
+
 func TestDesignEncapsulationPoliciesUseGoImportSourceLocation(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/app\n\ngo 1.22\n")
