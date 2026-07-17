@@ -97,7 +97,7 @@ func (c goHotPathConfig) binaryFinding(expr *ast.BinaryExpr, stack []ast.Node, f
 	if left == "" || right == "" {
 		return nil
 	}
-	if !((outerVars[left] && innerVars[right]) || (outerVars[right] && innerVars[left])) {
+	if (!outerVars[left] || !innerVars[right]) && (!outerVars[right] || !innerVars[left]) {
 		return nil
 	}
 	pos := fset.Position(expr.Pos())

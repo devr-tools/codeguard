@@ -47,7 +47,7 @@ help:
 	@printf "  make test       Run the Go test suite\n"
 	@printf "  make codeguard-ci  Validate and scan this repository with codeguard\n"
 	@printf "  make check      Run fmt-check, lint, test, and codeguard-ci\n"
-	@printf "  make ci         Run the local CI gate\n"
+	@printf "  make ci         Run the full local CI gate, including golangci-lint\n"
 	@printf "  make build      Build the codeguard CLI\n"
 	@printf "  make release    Build snapshot release artifacts with GoReleaser\n"
 	@printf "  make release-check  Validate GoReleaser config without publishing\n"
@@ -76,7 +76,7 @@ lint:
 	$(GO) vet ./...
 
 lint-strict:
-	golangci-lint run
+	env -u GOROOT golangci-lint run
 
 test:
 	@set -o pipefail; $(GO) test ./... 2>&1 | grep -v '\[no test files\]'
@@ -87,7 +87,7 @@ codeguard-ci: build
 
 check: fmt-check lint test codeguard-ci
 
-ci: check
+ci: fmt-check lint lint-strict test codeguard-ci
 
 build:
 	@mkdir -p dist
