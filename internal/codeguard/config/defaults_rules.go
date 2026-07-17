@@ -48,6 +48,7 @@ func applyPerformanceDefaults(dst *core.PerformanceRulesConfig) {
 		&dst.DetectTimerLeaks,
 		&dst.DetectUnboundedReads,
 		&dst.DetectComplexityRegression,
+		&dst.DetectHotPathPatterns,
 		&dst.DetectFrameworkPatterns,
 		&dst.DetectRebuildCascade,
 	)
