@@ -33,11 +33,12 @@ func scanLanguagePerformanceFindings(env support.Context, target core.TargetConf
 			},
 		},
 		support.LanguageDispatch{
-			Aliases: []string{"c++", "cpp", "cxx"},
+			Aliases: []string{"c++", "cpp", "cxx", "cc"},
 			Run: func() []core.Finding {
-				return support.ScanCPPFiles(env, target, "performance", func(file string, data []byte) []core.Finding {
+				findings := cppRebuildCascadeFindings(env, target)
+				return append(findings, support.ScanCPPFiles(env, target, "performance", func(file string, data []byte) []core.Finding {
 					return cppPerformanceFindings(env, file, data)
-				})
+				})...)
 			},
 		},
 		support.LanguageDispatch{

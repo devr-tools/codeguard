@@ -21,6 +21,12 @@ func exampleQualityRules() core.QualityRulesConfig {
 			WarnThreshold: 30,
 			FailThreshold: 60,
 		},
+		CPPTooling: core.CPPToolingConfig{
+			ClangFormatMode:    core.ExternalToolModeOff,
+			ClangFormatCommand: "clang-format",
+			CompilerMode:       core.ExternalToolModeOff,
+			CompilerCommand:    "clang++",
+		},
 	}
 }
 

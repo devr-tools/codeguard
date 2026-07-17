@@ -46,6 +46,23 @@ var (
 			`|\bexpect\s*\(\s*(?:true|1|` + literalPattern + `\s*===?\s*` + literalPattern + `)\s*\)\s*\.\s*(?:toBeTruthy|toBeDefined|toBeFalsy)\s*\(\s*\)` +
 			`|\bassert\s*\(\s*(?:true|1)\s*\)`)
 
+	cppAssertionPattern = regexp.MustCompile(
+		`\b(?:EXPECT|ASSERT)_[A-Z0-9_]+\s*\(` +
+			`|\b(?:CHECK|REQUIRE)(?:_[A-Z0-9_]+)?\s*\(` +
+			`|\bBOOST_(?:CHECK|REQUIRE|WARN)(?:_[A-Z0-9_]+)?\s*\(` +
+			`|\b(?:ADD_FAILURE|FAIL|FAIL_CHECK|SUCCEED)\s*\(` +
+			`|\bBOOST_(?:ERROR|FAIL)\s*\(` +
+			`|\bassert\s*\(`)
+	cppIdiomaticPattern = regexp.MustCompile(`\b(?:ADD_FAILURE|FAIL|FAIL_CHECK)\s*\(|\bBOOST_(?:ERROR|FAIL)\s*\(`)
+	cppConstantPattern  = regexp.MustCompile(
+		`\b(?:EXPECT|ASSERT)_TRUE\s*\(\s*(?:true|1)\s*\)` +
+			`|\b(?:EXPECT|ASSERT)_FALSE\s*\(\s*(?:false|0)\s*\)` +
+			`|\b(?:CHECK|REQUIRE)(?:_MESSAGE)?\s*\(\s*(?:true|1)\s*[,)]` +
+			`|\b(?:CHECK|REQUIRE)_FALSE\s*\(\s*(?:false|0)\s*\)` +
+			`|\bBOOST_(?:CHECK|REQUIRE|WARN)(?:_MESSAGE)?\s*\(\s*(?:true|1)\s*[,)]` +
+			`|\bassert\s*\(\s*(?:true|1)\s*\)` +
+			`|\bSUCCEED\s*\(`)
+
 	braceConditionalOpener  = regexp.MustCompile(`^\s*\}?\s*(?:else\s+)?if\b`)
 	pythonConditionalOpener = regexp.MustCompile(`^\s*if\b.*:`)
 
@@ -64,6 +81,8 @@ func testQualityPatternsFor(language string) (testQualityPatterns, bool) {
 		return testQualityPatterns{assertion: pythonAssertionPattern, idiomatic: pythonIdiomaticPattern, constant: pythonConstantPattern}, true
 	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
 		return testQualityPatterns{assertion: jsAssertionPattern, constant: jsConstantPattern, braceBased: true}, true
+	case "c++", "cpp", "cxx", "cc":
+		return testQualityPatterns{assertion: cppAssertionPattern, idiomatic: cppIdiomaticPattern, constant: cppConstantPattern, braceBased: true}, true
 	default:
 		return testQualityPatterns{}, false
 	}

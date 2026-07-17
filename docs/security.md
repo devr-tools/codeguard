@@ -66,15 +66,15 @@ Example:
 OWASP Top 10 (2021) coverage: 9/10 categories have rules
 
 [ok  ] A01:2021-Broken Access Control (2 rules)
-[ok  ] A02:2021-Cryptographic Failures (11 rules)
-[ok  ] A03:2021-Injection (24 rules)
+[ok  ] A02:2021-Cryptographic Failures (12 rules)
+[ok  ] A03:2021-Injection (27 rules)
 [gap ] A04:2021-Insecure Design (0 rules)
-[ok  ] A05:2021-Security Misconfiguration (4 rules)
+[ok  ] A05:2021-Security Misconfiguration (5 rules)
 [ok  ] A06:2021-Vulnerable and Outdated Components (1 rules)
-[ok  ] A07:2021-Identification and Authentication Failures (1 rules)
+[ok  ] A07:2021-Identification and Authentication Failures (3 rules)
 [ok  ] A08:2021-Software and Data Integrity Failures (1 rules)
 [ok  ] A09:2021-Security Logging and Monitoring Failures (2 rules)
-[ok  ] A10:2021-Server-Side Request Forgery (SSRF) (2 rules)
+[ok  ] A10:2021-Server-Side Request Forgery (SSRF) (3 rules)
 ```
 
 `A04` (Insecure Design) is left as an explicit gap: it is a design-level risk
@@ -103,6 +103,8 @@ taint engine and default to `fail`.
 | `security.log-secret-exposure` | A09 | secret-named identifiers (password, token, api_key, …) inside the argument list of a Go/Python/TS/JS logging call, secret-named structured-log keys, and secret-labeled string literals concatenated or format-directed into log output |
 | `security.unsanitized-error-response` | A09 | raw error values written directly into HTTP responses: Go `http.Error(w, err.Error(), …)` / `fmt.Fprintf(w, …, err)`, TS/JS `res.send(err)` / `res.json(err)` / `res.status(…).send(err.stack \|\| err.message)`, Python `return str(e)` / `HttpResponse(str(e))` inside `except` blocks |
 | `security.ssrf.go` / `security.ssrf.python` | A10 | untrusted input flowing into an outbound HTTP request URL |
+| `security.taint.cpp` | A03 | environment, argv/stdin, or recognized request input flowing into process execution through bounded same-file summaries |
+| `security.ssrf.cpp` | A10 | untrusted input flowing into libcurl, cpr, Boost resolver, cpprestsdk, or Poco outbound destinations |
 
 ## Release integrity (supply chain)
 

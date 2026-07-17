@@ -14,6 +14,7 @@ This file documents the current check categories in `codeguard` and the config k
     "prompts": true,
     "ci": true,
     "supply_chain": false,
+    "contracts": true,
     "context": true
   }
 }
@@ -26,6 +27,8 @@ Each top-level boolean enables or disables an entire check family.
 `context` covers agent-context legibility: when the key is omitted the family defaults to enabled in full scans and disabled in diff scans; see [Agent Context](#agent-context).
 
 `supply_chain` is opt-in and currently covers normalized manifest parsing plus initial policy checks for missing lockfiles, content-based lockfile drift validation, unpinned dependencies, dependency license policy resolved from local manifest and installed metadata where available, and Cargo manifest hygiene for missing package licenses and non-hermetic dependency sources.
+
+`contracts` covers API compatibility against a diff base. When omitted, it is enabled in diff scans and disabled in full scans. It checks exported Go declarations, public C++ headers, OpenAPI documents, protobuf schemas, and destructive migrations.
 
 For ecosystems where local metadata is not present, `supply_chain_rules.license_commands` can provide an opt-in per-ecosystem command that prints JSON license mappings for unresolved dependencies.
 
@@ -225,12 +228,12 @@ Current inference behavior:
 
 ## Built-in language coverage snapshot
 
-| Family | Go | Python | TypeScript | Rust | Java | C# | Ruby |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Quality | `gofmt`, parseability, maintainability thresholds | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, `explicit any`, double assertions, non-null assertions, `debugger` statements | maintainability thresholds | maintainability thresholds | maintainability thresholds | maintainability thresholds |
-| Design | boundary rules, generic package names, type/interface/file-size heuristics | public-imports-private, public-imports-cli, generic module names | generic module names, max methods per class, max members per interface/object type | - | - | - | - |
-| Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
-| Commands | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config |
+| Family | Go | C++ | Python | TypeScript | Rust | Java | C# | Ruby |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Quality | `gofmt`, parseability, maintainability thresholds | maintainability thresholds across sources, headers, templates, and modules; optional `clang-format` and sanitized `clang++` validation | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, `explicit any`, double assertions, non-null assertions, `debugger` statements | maintainability thresholds | maintainability thresholds | maintainability thresholds | maintainability thresholds |
+| Design | boundary rules, generic package names, type/interface/file-size heuristics | include/module cycles, graph impact, generic filenames, qualified method counts | public-imports-private, public-imports-cli, generic module names | generic module names, max methods per class, max members per interface/object type | module cycles and graph impact | import cycles and graph impact | - | - |
+| Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, unsafe C string APIs, taint flow, SSRF | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
+| Commands | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config |
 
 TypeScript semantic runtime:
 - native TypeScript and JavaScript built-ins use the TypeScript compiler API when `typescript.js` is available
@@ -291,7 +294,8 @@ Current behavior:
 - semantic review request payloads now include lightweight framework metadata plus contract hints for changed Express handlers and middleware, React components, and Next.js route/component files so external semantic runtimes can reason with handler-aware and component-aware context
 - semantic review request payloads also include a structured `prompt` template with per-rule focus and framework-specific reasoning guidance, so command-backed runtimes do not have to invent their own contract-drift or test-adequacy instructions from scratch
 - TypeScript and JavaScript quality built-ins use AST-derived function metrics and compiler-parsed syntax when the semantic runtime is available
-- includes native maintainability heuristics for Python, TypeScript, JavaScript, Rust, Java, C#, and Ruby targets
+- includes native maintainability heuristics for Python, TypeScript, JavaScript, Rust, C++, Java, C#, and Ruby targets
+- explicit C++ targets can opt into `clang-format` and sanitized `clang++ -fsyntax-only` validation through `quality_rules.cpp_tooling`
 - TypeScript and JavaScript targets also warn on `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, explicit `any`, double assertions, non-null assertions, and committed `debugger` statements
 - can run language-specific quality commands based on `targets[].language`
 
@@ -356,6 +360,35 @@ Language command example:
 }
 ```
 
+### C++ Clang tooling
+
+Explicit C++ targets can enable built-in formatter and compiler validation without placing executable command lines in `compile_commands.json`:
+
+```json
+{
+  "checks": {
+    "quality": true,
+    "quality_rules": {
+      "cpp_tooling": {
+        "clang_format_mode": "auto",
+        "compiler_mode": "auto",
+        "compile_commands": "build/compile_commands.json"
+      }
+    }
+  }
+}
+```
+
+Both modes accept `off`, `auto`, or `required` and default to `off`:
+
+- `off` never invokes the tool.
+- `auto` runs when the binary and, for compiler validation, a compilation database are available; absence is skipped.
+- `required` reports an actionable failure when the tool or database is unavailable.
+
+`compile_commands.json` is searched at the target root, `build/`, `cmake-build-debug/`, and `cmake-build-release/` unless a target-relative path is configured. The database is treated as untrusted metadata: CodeGuard never runs its compiler, wrapper, response files, plugins, or arbitrary flags. It rebuilds a fixed `clang++ -fsyntax-only` invocation from the target-local source plus an allowlist of `-std`, target-contained include directories, and `-D`/`-U` metadata. Configured command overrides still require the normal config-command trust opt-in.
+
+Target-contained include roots from the database also improve C++ include-graph resolution. Ambiguous or external include paths are ignored.
+
 ### Coverage delta (diff mode)
 
 `quality.coverage-delta` gates the test coverage of changed lines during `scan -diff`. It is **opt-in and disabled by default** because it runs the target's test suite as part of the scan, which can be expensive. It only activates in diff mode.
@@ -394,15 +427,16 @@ Behavior:
 
 Purpose:
 - N+1 query / remote-fetch patterns inside loops (Go, Python, TypeScript, JavaScript)
-- Allocation-heavy loops: string concatenation and `fmt.Sprintf` accumulation (Go, Python, TS/JS), non-preallocated `String` growth (Rust), and (opt-in) append without preallocation (Go)
-- Repeated work inside loops: regex compilation (Go, Python, TS/JS, Rust), `defer` accumulation (Go), polling sleeps (Go, Rust)
+- Allocation-heavy loops: string concatenation and `fmt.Sprintf` accumulation (Go, Python, TS/JS), non-preallocated string growth (Rust and C++), and (opt-in) append without preallocation (Go)
+- Repeated work inside loops: regex compilation (Go, Python, TS/JS, Rust, C++), `defer` accumulation (Go), polling sleeps (Go, Rust, C++)
 - Blocking I/O in request paths: synchronous file I/O in Go HTTP handlers, `*Sync` calls in TS/JS handlers, blocking calls in Python `async def` bodies
-- Unbounded concurrency: goroutines launched from loops (Go), promises created in loops without a limiter (TS/JS), `asyncio` tasks created in loops without a semaphore (Python)
+- Unbounded concurrency: goroutines launched from loops (Go), accumulated/detached threads or tasks (C++), promises created in loops without a limiter (TS/JS), `asyncio` tasks created in loops without a semaphore (Python)
 - Sequential `await` in TS/JS loops that could batch through `Promise.all`
 - Memory-pressure patterns: `time.After` timers leaked in Go loops, `setInterval` without `clearInterval` and listeners added in TS/JS loops without cleanup, unbounded whole-input reads (`io.ReadAll` in Go handlers/loops, `.read()`/`.readlines()` in Python loops)
 - Framework-aware smells, gated on file-level framework evidence: Django relation access in queryset loops, Django/SQLAlchemy ORM point queries in loops, expensive per-render work in React components, CPU-heavy synchronous calls in Express middleware
 - Change intelligence (diff scans): loop-nesting complexity regressions in functions touched by the diff
 - Measurement gates: artifact size budgets, clang `-ftime-trace` budgets, and `go test -bench` regression detection against a stored baseline
+- Dependency-graph rebuild analysis for hot Go packages and C++ headers/modules that amplify recompilation
 - An opt-in AI-assisted lens for judgment-call concerns (missing caching, algorithmic complexity) when the semantic runtime is configured
 - A `performance_score` artifact with per-target history so the smell trend is visible across scans
 
@@ -425,7 +459,8 @@ Config keys:
       "detect_timer_leaks": true,
       "detect_unbounded_reads": true,
       "detect_complexity_regression": true,
-      "detect_framework_patterns": true
+      "detect_framework_patterns": true,
+      "detect_rebuild_cascade": true
     }
   }
 }
@@ -440,17 +475,20 @@ Rules:
 | `performance.n-plus-one-query` | Go, Python, TS, JS | `detect_n_plus_one_query` |
 | `performance.go.alloc-in-loop` | Go | `detect_alloc_in_loop` (+ `detect_prealloc_in_loop`) |
 | `performance.rust.alloc-in-loop` | Rust | `detect_alloc_in_loop` |
+| `performance.cpp.alloc-in-loop` | C++ | `detect_alloc_in_loop` |
 | `performance.string-concat-in-loop` | Python, TS, JS | `detect_alloc_in_loop` |
-| `performance.regex-compile-in-loop` | Go, Python, TS, JS, Rust | `detect_regex_compile_in_loop` |
+| `performance.regex-compile-in-loop` | Go, Python, TS, JS, Rust, C++ | `detect_regex_compile_in_loop` |
 | `performance.go.defer-in-loop` | Go | `detect_defer_in_loop` |
 | `performance.go.sleep-in-loop` | Go | `detect_sleep_in_loop` |
 | `performance.rust.sleep-in-loop` | Rust | `detect_sleep_in_loop` |
+| `performance.cpp.sleep-in-loop` | C++ | `detect_sleep_in_loop` |
 | `performance.sync-io-in-request-path` | Go | `detect_sync_io_in_handlers` |
 | `performance.{typescript,javascript}.sync-io-in-handler` | TS, JS | `detect_sync_io_in_handlers` |
 | `performance.python.sync-io-in-async` | Python | `detect_sync_io_in_handlers` |
 | `performance.unbounded-goroutines-in-loop` | Go | `detect_unbounded_concurrency` |
 | `performance.{typescript,javascript}.unbounded-concurrency` | TS, JS | `detect_unbounded_concurrency` |
 | `performance.python.unbounded-concurrency` | Python | `detect_unbounded_concurrency` |
+| `performance.cpp.unbounded-concurrency` | C++ | `detect_unbounded_concurrency` |
 | `performance.{typescript,javascript}.await-in-loop` | TS, JS | `detect_await_in_loop` |
 | `performance.go.timer-leak-in-loop` | Go | `detect_timer_leaks` |
 | `performance.{typescript,javascript}.timer-listener-leak` | TS, JS | `detect_timer_leaks` |
@@ -460,6 +498,8 @@ Rules:
 | `performance.python.orm-query-in-loop` | Python | `detect_framework_patterns` |
 | `performance.{typescript,javascript}.react-expensive-render` | TS, JS | `detect_framework_patterns` |
 | `performance.{typescript,javascript}.express-sync-middleware` | TS, JS | `detect_framework_patterns` |
+| `performance.go.{hot-package,rebuild-amplifier}` | Go | `detect_rebuild_cascade` |
+| `performance.cpp.{hot-header,rebuild-amplifier}` | C++ | `detect_rebuild_cascade` |
 
 Notes on precision:
 - `unbounded-goroutines-in-loop` recognizes bounded worker-pool construction and stays silent for it: counted loops (`for range n` with no iteration variables, or `for i := 0; i < n; i++` with a literal/identifier bound — `len()`/`cap()` bounds stay data-driven and still fire) and loops whose body acquires a `struct{}` channel semaphore (`sem <- struct{}{}`) before launching.
@@ -467,6 +507,7 @@ Notes on precision:
 - `regex-compile-in-loop` fires only on **literal** patterns: compiling a variable pattern in a loop usually means the pattern differs per iteration (e.g. compiling config-supplied patterns), which is not hoistable.
 - `rust.alloc-in-loop` is intentionally conservative: it looks only for obvious `String` growth (`+=`, `x = x + ...`, `push_str`) on variables initialized from `String::new`, `String::from`, or `format!`, and stays silent when the variable was initialized with `String::with_capacity(...)`.
 - `rust.sleep-in-loop` targets `std::thread::sleep` / `thread::sleep`; async-runtime sleeps are out of scope for this version.
+- C++ loop checks operate on comment/string-masked source. The concurrency rule intentionally limits itself to accumulated `std::thread`/`std::jthread`/`std::async` work and detached temporary threads; it does not attempt whole-program worker-pool inference.
 - `defer-in-loop` scopes to the enclosing function: `defer wg.Done()` inside a goroutine launched from a loop runs per goroutine and is not flagged.
 - `await-in-loop` exempts `for await` streams and any file using a concurrency limiter (`p-limit`/`p-queue`); keep the loop (or disable the toggle) when iterations genuinely depend on each other.
 - `unbounded-read` does not fire when the reader is already bounded (`io.LimitReader`, `http.MaxBytesReader`, `read(n)`).
@@ -503,10 +544,10 @@ When the performance section runs and produces findings, each target publishes a
 |---|---|---|
 | Query in loop (N+1) | `n-plus-one-query` | 5 |
 | Blocking I/O | `sync-io-in-request-path`, `{typescript,javascript}.sync-io-in-handler`, `python.sync-io-in-async` | 4 |
-| Unbounded concurrency | `unbounded-goroutines-in-loop`, `{typescript,javascript,python}.unbounded-concurrency` | 4 |
+| Unbounded concurrency | `unbounded-goroutines-in-loop`, `cpp.unbounded-concurrency`, `{typescript,javascript,python}.unbounded-concurrency` | 4 |
 | Memory pressure | `unbounded-read`, `go.timer-leak-in-loop`, `{typescript,javascript}.timer-listener-leak` | 3 |
-| Repeated loop work | `regex-compile-in-loop`, `go.defer-in-loop`, `go.sleep-in-loop`, `rust.sleep-in-loop`, `{typescript,javascript}.await-in-loop` | 2 |
-| Allocation churn | `go.alloc-in-loop`, `rust.alloc-in-loop`, `string-concat-in-loop` | 1 |
+| Repeated loop work | `regex-compile-in-loop`, `go.defer-in-loop`, `{go,rust,cpp}.sleep-in-loop`, `{typescript,javascript}.await-in-loop` | 2 |
+| Allocation churn | `{go,rust,cpp}.alloc-in-loop`, `string-concat-in-loop` | 1 |
 
 The score trend is persisted per target next to the scan cache (`<cache>.perf-history.<ext>`) whenever the cache is enabled; subsequent scans annotate the artifact with `previous_score` and `delta`. `performance_rules.score_history: false` disables persistence and `performance_rules.score_history_limit` caps retained entries per target (default 100). Print the recorded trend with:
 
@@ -520,17 +561,23 @@ When a config omits the `performance` key entirely, text-format `scan` output ap
 
 **Migration note:** these rules previously ran inside the quality section under `quality.*` ids (`quality.n-plus-one-query`, `quality.go.alloc-in-loop`, `quality.sync-io-in-request-path`, `quality.unbounded-goroutines-in-loop`, the `quality.typescript.*`/`quality.javascript.*` mirrors, and `quality.python.sync-io-in-async`), gated by `quality_rules.detect_*` keys. There is no runtime aliasing: waivers, baselines, and configs that reference the old ids stop matching when you enable `checks.performance`, and `codeguard doctor` flags any waiver still pointing at a retired id with the replacement to use.
 
-### Go rebuild-cascade analysis
+### Go and C++ rebuild-cascade analysis
 
 The Go performance pass also inspects the in-repo package import graph and emits two graph-backed warnings when `performance_rules.detect_rebuild_cascade` is enabled (default on):
 
 - `performance.go.hot-package`: a package exceeds `performance_rules.hot_package_importer_threshold` direct importers (default `8`), making ordinary edits fan out rebuilds broadly.
 - `performance.go.rebuild-amplifier`: a package exceeds `performance_rules.rebuild_amplifier_threshold` transitive dependents (default `20`), so edits there amplify rebuild cascades across the target.
 
+The C++ pass applies the same thresholds to target-local include and C++20 named-module graphs:
+
+- `performance.cpp.hot-header`: a header, source, or named module has too many direct target-local dependents.
+- `performance.cpp.rebuild-amplifier`: a C++ graph node has too many transitive dependents.
+
 Behavior:
 - full scans evaluate every in-repo Go package under the target
 - diff scans only evaluate packages containing changed non-test `.go` files, so unrelated hot spots do not repeat on every PR
 - package discovery is module-local: imports are resolved through the target's `go.mod`, and only packages present under the target root participate in the graph
+- C++ resolution is target-local and conservative: quoted includes resolve relative to the including file or target root, named modules resolve to declarations in the target, and system/compiler include paths are ignored unless their files are already target-local
 
 Config example:
 
@@ -680,7 +727,7 @@ Repo-specific performance policies can also be expressed as natural-language cus
 ## Supply Chain
 
 Purpose:
-- Manifest normalization across supported ecosystems
+- Manifest normalization across Go, npm, Python, Cargo, vcpkg, and Conan ecosystems
 - Lockfile presence and drift validation
 - Unpinned dependency detection
 - Dependency license policy resolved from manifest, lockfile, installed metadata, or configured license commands
@@ -700,6 +747,42 @@ Rules:
 Notes on Cargo precision:
 - `cargo.missing-package-license` looks only at the manifest package metadata (`package.license` in `Cargo.toml`); it does not infer intent from README text or dependency licenses.
 - `cargo.non-hermetic-source` warns on `path = ...`, `branch = ...`, or `git = ...` without `rev = ...` in dependency specs. A git dependency pinned to an exact `rev` stays silent.
+
+Notes on C++ dependency precision:
+- `vcpkg.json` dependencies are treated as pinned when the manifest has a valid 40-character `builtin-baseline` or an exact override for the dependency.
+- `conanfile.txt` parses `[requires]` and `[tool_requires]`; exact references are pinned, version ranges are not, and `conan.lock` is required when lockfiles are enforced.
+- `conanfile.py` is statically analyzed for literal/list/tuple constants, class-level `requires`/`tool_requires`, and `self.requires()`/`self.tool_requires()` calls. The recipe is never imported or executed.
+- `CMakeLists.txt` and dependency-bearing `*.cmake` files are statically analyzed for `find_package`, `FetchContent_Declare`, `ExternalProject_Add`, `CPMAddPackage`, and same-file `set()` indirection. Exact revisions, hashes, and versioned URLs count as pinned.
+- Conan lockfile drift checks support Conan 2 top-level requirement arrays and Conan 1 `graph_lock.nodes[*].ref` entries.
+- Dynamic CMake/Python expressions, custom wrappers, cross-file variable propagation, and imported helpers are not evaluated. Unresolved declarations are exposed in the supply-chain artifact as `analysis_limitations`; repository code is never executed to resolve them.
+
+## API Contracts
+
+Purpose:
+- Detect source-compatible API breaks against the diff base
+- Protect exported Go declarations and public C++ headers
+- Validate OpenAPI, protobuf, and database migration compatibility
+
+Config keys:
+
+```json
+{
+  "checks": {
+    "contracts": true,
+    "contract_rules": {
+      "go_exported_breaking": true,
+      "cpp_public_breaking": true,
+      "openapi_breaking": true,
+      "proto_breaking": true,
+      "migration_destructive": true
+    }
+  }
+}
+```
+
+`contracts.cpp-public-breaking` compares changed or deleted `.h`, `.hh`, `.hpp`, `.hxx`, and `.h++` files under an `include`, `public`, or `api` directory with the base ref. It conservatively reports removed/renamed types and aliases plus removed or changed function declarations. Private implementation headers outside those public roots are ignored.
+
+The contracts family needs a base revision, so it runs in diff mode. When `checks.contracts` is omitted it defaults to enabled for diff scans and disabled for full scans.
 
 ## Design
 
@@ -742,6 +825,7 @@ Current behavior:
 - Go targets keep the existing package, import-boundary, declaration-count, type-size, and interface-size heuristics
 - Python targets fail on public-to-private imports, direct or transitive entrypoint coupling, and internal import cycles, and warn on overly generic module names
 - TypeScript targets warn on overly generic module names, oversized classes, and oversized interfaces or object types using compiler-parsed AST analysis when the semantic runtime is available
+- C++ targets build a target-local include/named-module graph for cycles, god modules, and diff impact; they also warn on generic filenames and excessive qualified out-of-line methods for one type
 - can run language-specific design commands based on `targets[].language`
 - language command failures surface as `design.command-check`
 
@@ -880,6 +964,7 @@ Current behavior:
 - Python targets include insecure TLS review, shell execution review, and dynamic code review markers
 - TypeScript and JavaScript targets include insecure TLS review, shell execution review, dynamic code review markers, string timer execution review, wildcard `postMessage` review, Node `vm` execution review, and unsafe HTML sink review
 - Rust, Java, and C# targets include insecure TLS review and shell execution review markers
+- C++ targets include insecure TLS review for common libcurl/OpenSSL/Boost.Asio/cpprestsdk settings, shell execution review, unsafe unbounded C string API warnings, and bounded same-file taint/SSRF analysis
 - Ruby targets include insecure TLS review, shell execution review, and dynamic code review markers
 
 Config keys:
@@ -890,7 +975,8 @@ Config keys:
     "security": true,
     "security_rules": {
       "govulncheck_mode": "auto",
-      "govulncheck_command": "govulncheck"
+      "govulncheck_command": "govulncheck",
+      "taint_cpp": true
     }
   }
 }
@@ -905,8 +991,9 @@ Current behavior:
 - fails on blocking security findings
 - warns on reviewable findings
 - can surface per-vulnerability findings from `govulncheck`
-- includes native Python, TypeScript, Rust, Java, C#, and Ruby security heuristics for shell execution and insecure TLS settings
+- includes native Python, TypeScript, C++, Rust, Java, C#, and Ruby security heuristics for shell execution and insecure TLS settings
 - includes dynamic code review heuristics for Python, TypeScript, and Ruby
+- C++ taint analysis follows obvious environment, process-argument, standard-input, and recognized request values through local assignments and same-file function summaries into process or outbound-network sinks; it intentionally does not claim pointer/field aliasing, macro expansion, or a cross-file call graph
 - TypeScript and JavaScript security built-ins resolve imports, aliases, and call sites through compiler-parsed AST analysis when the semantic runtime is available
 - can run language-specific security commands based on `targets[].language`
 - only runs `govulncheck` for Go targets
@@ -1007,11 +1094,11 @@ Config keys:
 Current behavior:
 - fails when required workflow, release, or automation files are missing
 - fails when required workflow content markers are missing
-- fails when detected Go, Python, TypeScript, Rust, Java, C#, or Ruby test files live outside the configured test directories
+- fails when detected Go, Python, TypeScript, C++, Rust, Java, C#, or Ruby test files live outside the configured test directories
 
 ### Test quality
 
-Regex-based assertion checks run against Go, Python, TypeScript, and JavaScript test files. They are enabled by default and can be tuned via `ci_rules.test_quality`:
+Regex-based assertion checks run against Go, Python, TypeScript/JavaScript, and C++ test files. C++ recognition covers GoogleTest, Catch2/doctest, Boost.Test, and conventional `assert` calls. The checks are enabled by default and can be tuned via `ci_rules.test_quality`:
 
 ```json
 {

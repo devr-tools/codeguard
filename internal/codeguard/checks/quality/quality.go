@@ -19,6 +19,7 @@ func runQualitySection(ctx context.Context, env support.Context) core.SectionRes
 
 func qualityTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	findings := languageQualityFindings(ctx, env, target)
+	findings = append(findings, cppToolingFindings(ctx, env, target)...)
 	findings = append(findings, cloneFindingsForTarget(env, target)...)
 	findings = append(findings, aiTargetFindings(env, target)...)
 	findings = append(findings, semanticFindings(ctx, env, target)...)

@@ -23,6 +23,12 @@
       "max_function_lines": 80,
       "max_parameters": 5,
       "max_cyclomatic_complexity": 10,
+      "cpp_tooling": {
+        "clang_format_mode": "off",
+        "clang_format_command": "clang-format",
+        "compiler_mode": "off",
+        "compiler_command": "clang++"
+      },
       "language_commands": {
         "typescript": [
           {

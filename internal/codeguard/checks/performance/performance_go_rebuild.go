@@ -24,48 +24,17 @@ func goRebuildCascadeFindings(env support.Context, target core.TargetConfig) []c
 	if graph == nil || len(graph.Graph.Nodes) == 0 {
 		return nil
 	}
-	hotThreshold := env.Config.Checks.PerformanceRules.HotPackageImporterThreshold
-	if hotThreshold <= 0 {
-		hotThreshold = defaultHotPackageImporterThreshold
-	}
-	amplifierThreshold := env.Config.Checks.PerformanceRules.RebuildAmplifierThreshold
-	if amplifierThreshold <= 0 {
-		amplifierThreshold = defaultRebuildAmplifierThreshold
-	}
-
-	reverse := support.ReverseDependencyMap(graph.Graph)
 	candidates := rebuildCascadeCandidatePackages(env, graph)
-	findings := make([]core.Finding, 0)
-	for _, pkg := range candidates {
-		node, ok := graph.Graph.Nodes[pkg]
-		if !ok {
-			continue
-		}
-		importers := append([]string(nil), reverse[pkg]...)
-		slices.Sort(importers)
-		if len(importers) > hotThreshold {
-			findings = append(findings, env.NewFinding(support.FindingInput{
-				RuleID:  "performance.go.hot-package",
-				Level:   "warn",
-				Path:    node.Path,
-				Line:    0,
-				Column:  1,
-				Message: fmt.Sprintf("Go package %q is imported by %d packages; max is %d, so edits here fan out rebuilds broadly%s", pkg, len(importers), hotThreshold, rebuildCascadeSample(importers)),
-			}))
-		}
-		dependents := support.TransitiveDependents(reverse, pkg)
-		if len(dependents) > amplifierThreshold {
-			findings = append(findings, env.NewFinding(support.FindingInput{
-				RuleID:  "performance.go.rebuild-amplifier",
-				Level:   "warn",
-				Path:    node.Path,
-				Line:    0,
-				Column:  1,
-				Message: fmt.Sprintf("Go package %q has %d transitive dependents; max is %d, so changes here amplify rebuild cascades%s", pkg, len(dependents), amplifierThreshold, rebuildCascadeSample(dependents)),
-			}))
-		}
-	}
-	return findings
+	return dependencyRebuildCascadeFindings(env, graph.Graph, candidates, rebuildCascadeSpec{
+		hotRuleID:       "performance.go.hot-package",
+		amplifierRuleID: "performance.go.rebuild-amplifier",
+		hotMessage: func(pkg string, count int, threshold int, sample string) string {
+			return fmt.Sprintf("Go package %q is imported by %d packages; max is %d, so edits here fan out rebuilds broadly%s", pkg, count, threshold, sample)
+		},
+		amplifierMessage: func(pkg string, count int, threshold int, sample string) string {
+			return fmt.Sprintf("Go package %q has %d transitive dependents; max is %d, so changes here amplify rebuild cascades%s", pkg, count, threshold, sample)
+		},
+	})
 }
 
 func rebuildCascadeCandidatePackages(env support.Context, graph *support.GoPackageImportGraph) []string {

@@ -162,3 +162,75 @@ func TestSupplyChainWarnsForNonHermeticCargoSources(t *testing.T) {
 		t.Fatalf("expected 2 non-hermetic Cargo findings, got %d: %v", len(messages), messages)
 	}
 }
+
+func TestSupplyChainParsesVCPKGBaselineAndOverrides(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "vcpkg.json"), `{
+  "name": "native-app",
+  "builtin-baseline": "0123456789abcdef0123456789abcdef01234567",
+  "dependencies": ["fmt", {"name": "cmake", "host": true}],
+  "overrides": [{"name": "fmt", "version": "10.2.1"}]
+}`)
+
+	report, err := codeguard.Run(context.Background(), supplyChainTestConfig(dir, "vcpkg-pinned"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertSectionStatus(t, report, "Supply Chain", "pass")
+}
+
+func TestSupplyChainWarnsForVCPKGWithoutBaseline(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "vcpkg.json"), `{
+  "name": "native-app",
+  "dependencies": ["fmt", {"name": "openssl", "version>=": "3.0.0"}]
+}`)
+
+	report, err := codeguard.Run(context.Background(), supplyChainTestConfig(dir, "vcpkg-unpinned"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertSectionStatus(t, report, "Supply Chain", "warn")
+	messages := supplyChainRuleMessages(report, "supply_chain.unpinned-dependency")
+	if len(messages) != 2 {
+		t.Fatalf("unpinned vcpkg findings = %d, want 2: %v", len(messages), messages)
+	}
+}
+
+func TestSupplyChainConanRequiresLockfileAndDetectsRanges(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "conanfile.txt"), "[requires]\nfmt/10.2.1\nopenssl/[>=3.0 <4]\n\n[tool_requires]\ncmake/3.29.0\n")
+
+	report, err := codeguard.Run(context.Background(), supplyChainTestConfig(dir, "conan-policy"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertSectionStatus(t, report, "Supply Chain", "fail")
+	assertFindingRulePresent(t, report, "Supply Chain", "supply_chain.missing-lockfile")
+	messages := supplyChainRuleMessages(report, "supply_chain.unpinned-dependency")
+	if len(messages) != 1 || !strings.Contains(messages[0], "openssl") {
+		t.Fatalf("unexpected Conan unpinned findings: %v", messages)
+	}
+}
+
+func TestSupplyChainDetectsConanLockfileDrift(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "conanfile.txt"), "[requires]\nfmt/10.2.1\nopenssl/3.2.1\n")
+	writeFile(t, filepath.Join(dir, "conan.lock"), `{
+  "version": "0.5",
+  "requires": [
+    "fmt/10.2.1#recipe-revision%1700000000",
+    "openssl/3.1.4#recipe-revision%1700000000"
+  ]
+}`)
+
+	report, err := codeguard.Run(context.Background(), supplyChainTestConfig(dir, "conan-lock-drift"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertSectionStatus(t, report, "Supply Chain", "fail")
+	messages := supplyChainRuleMessages(report, "supply_chain.lockfile-drift")
+	if len(messages) != 1 || !strings.Contains(messages[0], "openssl") {
+		t.Fatalf("unexpected Conan lockfile drift findings: %v", messages)
+	}
+}

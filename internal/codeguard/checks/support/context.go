@@ -21,6 +21,17 @@ type FindingInput struct {
 	Confidence string `json:"confidence,omitempty"`
 }
 
+type CPPToolIssue struct {
+	Path    string
+	Message string
+}
+
+type CPPToolResult struct {
+	Issues      []CPPToolIssue
+	Unavailable bool
+	Err         error
+}
+
 type Context struct {
 	Config           core.Config
 	AIEnabled        bool
@@ -61,6 +72,8 @@ type Context struct {
 	IsSDKFacadeFile        func(path string) bool
 	IsPromptFile           func(rel string) bool
 	RunGovulncheck         func(ctx context.Context, dir string, cmdName string) ([]core.Finding, error)
+	RunCPPFormat           func(ctx context.Context, dir string, cfg core.CPPToolingConfig, files []string) CPPToolResult
+	RunCPPSyntax           func(ctx context.Context, dir string, cfg core.CPPToolingConfig) CPPToolResult
 	RunCommandCheck        func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error)
 	RunCommandCheckWithEnv func(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error)
 	RunDiffCommandCheck    func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error)

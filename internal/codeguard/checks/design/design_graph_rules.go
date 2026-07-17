@@ -21,6 +21,8 @@ func graphCycleRuleID(language string, file string) string {
 		return "design.rust.import-cycle"
 	case "java":
 		return "design.java.import-cycle"
+	case "cpp":
+		return "design.cpp.import-cycle"
 	default:
 		return ""
 	}

@@ -3,6 +3,26 @@ package rules
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 var qualityCatalog = map[string]core.RuleMetadata{
+	"quality.cpp.clang-format": {
+		ID:               "quality.cpp.clang-format",
+		Section:          "Code Quality",
+		DefaultLevel:     "fail",
+		ExecutionModel:   core.RuleExecutionModelCommandDriven,
+		LanguageCoverage: core.FixedRuleLanguageCoverage(core.RuleLanguageCPP),
+		Title:            "C++ clang-format validation",
+		Description:      "Fails when an explicitly configured C++ target is not clang-format clean or the required formatter cannot run.",
+		HowToFix:         "Run clang-format on the reported file, or install/configure clang-format when the integration is required.",
+	},
+	"quality.cpp.compiler-parse": {
+		ID:               "quality.cpp.compiler-parse",
+		Section:          "Code Quality",
+		DefaultLevel:     "fail",
+		ExecutionModel:   core.RuleExecutionModelCommandDriven,
+		LanguageCoverage: core.FixedRuleLanguageCoverage(core.RuleLanguageCPP),
+		Title:            "C++ compiler syntax validation",
+		Description:      "Validates target-local compilation database entries with a sanitized clang++ syntax-only invocation.",
+		HowToFix:         "Fix the reported compiler diagnostic and ensure compile_commands.json is available when compiler validation is required.",
+	},
 	"quality.gofmt": {
 		ID:             "quality.gofmt",
 		Section:        "Code Quality",

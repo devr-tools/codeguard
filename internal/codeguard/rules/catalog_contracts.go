@@ -13,6 +13,16 @@ var contractsCatalog = map[string]core.RuleMetadata{
 		Description:      "Fails in diff mode when exported Go functions, methods, types, or consts are removed or renamed, or when an exported function signature changes against the base ref.",
 		HowToFix:         "Restore the exported declaration or signature, or ship the break deliberately with a deprecation path and a major version bump.",
 	},
+	"contracts.cpp-public-breaking": {
+		ID:               "contracts.cpp-public-breaking",
+		Section:          "API Contracts",
+		DefaultLevel:     "fail",
+		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.FixedRuleLanguageCoverage(core.RuleLanguageCPP),
+		Title:            "C++ public-header breaking change",
+		Description:      "Fails in diff mode when a declaration in an include, public, or api header is removed, renamed, or changes signature against the base ref.",
+		HowToFix:         "Keep the old declaration available with a compatibility implementation, or deliberately version the public C++ API and ABI.",
+	},
 	"contracts.openapi-breaking": {
 		ID:               "contracts.openapi-breaking",
 		Section:          "API Contracts",

@@ -29,6 +29,9 @@ const (
 // Python grammar, and common C++ source/header suffixes the C++ grammar. It
 // returns "" for unsupported files.
 func ScriptLanguageForPath(path string) ScriptLanguage {
+	if IsCPPPath(path, false) {
+		return ScriptLangCPP
+	}
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".ts", ".mts", ".cts":
 		return ScriptLangTypeScript
@@ -38,8 +41,6 @@ func ScriptLanguageForPath(path string) ScriptLanguage {
 		return ScriptLangJavaScript
 	case ".py":
 		return ScriptLangPython
-	case ".cc", ".cp", ".cpp", ".cxx", ".c++", ".hh", ".hpp", ".hxx", ".h++", ".ipp", ".tpp":
-		return ScriptLangCPP
 	default:
 		return ""
 	}

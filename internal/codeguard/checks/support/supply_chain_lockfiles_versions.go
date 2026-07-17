@@ -18,6 +18,10 @@ func exactLockedVersion(manifest core.SupplyChainManifest, dep core.SupplyChainD
 		if dep.Pinned {
 			return strings.TrimSpace(dep.Version)
 		}
+	case "conan":
+		if dep.Pinned {
+			return strings.TrimSpace(dep.Version)
+		}
 	case "python":
 		if strings.HasPrefix(strings.TrimSpace(dep.Requirement), "==") || strings.Contains(strings.TrimSpace(dep.Requirement), "==") {
 			return trimPythonVersion(dep.Version)

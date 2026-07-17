@@ -3,7 +3,7 @@ package rules
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 // securityLanguageFixTemplates covers the per-language security mirror rules
-// (TypeScript, JavaScript, Python, Rust, Java, C#, Ruby) with snippets in the
+// (TypeScript, JavaScript, Python, C++, Rust, Java, C#, Ruby) with snippets in the
 // idiom of each language.
 var securityLanguageFixTemplates = map[string]core.FixTemplate{
 	"security.typescript.insecure-tls":         {Kind: deterministic, Text: "Remove the verification opt-out so TLS certificates are checked.\n\nBefore:\nconst agent = new https.Agent({ rejectUnauthorized: false });\n\nAfter:\nconst agent = new https.Agent(); // the default agent verifies certificates"},
@@ -27,6 +27,9 @@ var securityLanguageFixTemplates = map[string]core.FixTemplate{
 	"security.python.insecure-tls":             {Kind: deterministic, Text: "Remove verify=False so TLS certificates are checked.\n\nBefore:\nresp = requests.get(url, verify=False)\n\nAfter:\nresp = requests.get(url)  # requests verifies certificates by default\n# for a private CA: requests.get(url, verify=\"/etc/ssl/private-ca.pem\")"},
 	"security.python.shell-execution":          {Kind: guided, Text: "Pass an argv list instead of a shell string.\n\nBefore:\nsubprocess.run(\"convert \" + user_file, shell=True)\n\nAfter:\nsubprocess.run([\"convert\", user_file], check=True)  # fixed binary, no shell"},
 	"security.python.dynamic-code":             {Kind: guided, Text: "Replace eval or exec with a safe parser or a dispatch dict.\n\nBefore:\nresult = eval(user_expression)\n\nAfter:\nresult = ast.literal_eval(user_expression)  # literals only\n# or dispatch by name: handlers = {\"sum\": sum_values}; handlers[name](values)"},
+	"security.cpp.insecure-tls":                {Kind: deterministic, Text: "Keep certificate and hostname verification enabled.\n\nBefore:\ncurl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);\n\nAfter:\ncurl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);\ncurl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);"},
+	"security.cpp.shell-execution":             {Kind: guided, Text: "Replace shell parsing with a process API that accepts a fixed executable and argument vector.\n\nBefore:\nstd::system(command.c_str());\n\nAfter:\n// use the platform process API or a reviewed process library\nprocess::run(\"convert\", {user_file});"},
+	"security.cpp.unsafe-c-api":                {Kind: guided, Text: "Use a bounds-aware string operation.\n\nBefore:\nstrcpy(destination, source);\n\nAfter:\nstd::string destination{source};\n// for a fixed buffer, use a checked copy that always preserves termination"},
 	"security.rust.insecure-tls":               {Kind: deterministic, Text: "Remove the certificate acceptance opt-out so TLS verification stays on.\n\nBefore:\nlet client = reqwest::Client::builder()\n    .danger_accept_invalid_certs(true)\n    .build()?;\n\nAfter:\nlet client = reqwest::Client::new(); // the default client verifies certificates"},
 	"security.rust.shell-execution":            {Kind: guided, Text: "Spawn the target binary directly with typed arguments instead of a shell command line.\n\nBefore:\nCommand::new(\"sh\").arg(\"-c\").arg(format!(\"convert {user_file}\")).status()?;\n\nAfter:\nCommand::new(\"convert\").arg(&user_file).status()?; // fixed binary, no shell parsing"},
 	"security.java.insecure-tls":               {Kind: deterministic, Text: "Delete the permissive verifier override so hostname and certificate checks stay on.\n\nBefore:\nHttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);\n\nAfter:\n// no override: the default verifier validates hostnames and certificates\nHttpsURLConnection conn = (HttpsURLConnection) url.openConnection();"},

@@ -19,6 +19,12 @@ var (
 	goTestDeclPattern     = regexp.MustCompile(`^func\s+(Test\w+)\s*\(`)
 	jsTestDeclPattern     = regexp.MustCompile(`^\s*(?:it|test)(?:\.\w+)?\s*\(\s*(?:'([^']*)'|"([^"]*)")?`)
 	pythonTestDeclPattern = regexp.MustCompile(`^(\s*)def\s+(test_\w*)\s*\(`)
+	cppGoogleTestPattern  = regexp.MustCompile(`^\s*(?:TEST|TEST_F|TEST_P|TYPED_TEST|TYPED_TEST_P)\s*\(\s*([^,]+)\s*,\s*([^)]+)\)`)
+	cppGoogleTestStart    = regexp.MustCompile(`^\s*((?:TEST|TEST_F|TEST_P|TYPED_TEST|TYPED_TEST_P))\s*\(`)
+	cppCatchTestPattern   = regexp.MustCompile(`^\s*(?:TEST_CASE(?:_METHOD|_FIXTURE|_CLASS|_TEMPLATE(?:_DEFINE)?)?|SCENARIO(?:_METHOD)?|TEMPLATE_(?:PRODUCT_)?TEST_CASE(?:_METHOD)?)\s*\((.*)`)
+	cppBoostTestPattern   = regexp.MustCompile(`^\s*BOOST_(?:AUTO|FIXTURE|DATA)_TEST_CASE(?:_TEMPLATE)?\s*\(\s*([^,\s)]+)`)
+	cppBoostTestStart     = regexp.MustCompile(`^\s*(BOOST_(?:AUTO|FIXTURE|DATA)_TEST_CASE(?:_TEMPLATE)?)\s*\(`)
+	quotedTestNamePattern = regexp.MustCompile(`["']([^"']+)["']`)
 	braceElsePattern      = regexp.MustCompile(`(?:^|\W)else(?:\W|$)`)
 	pythonElsePattern     = regexp.MustCompile(`^\s*(?:else\s*:|elif\b)`)
 	envVarGuardPattern    = regexp.MustCompile(`if\s+os\.Getenv\(\s*"[^"]*"\s*\)\s*[!=]=`)
@@ -94,9 +100,33 @@ func extractTestBlocks(language string, text string) []testBlock {
 		}, '(', ')')
 	case "python", "py":
 		return pythonTestBlocks(lines)
+	case "c++", "cpp", "cxx", "cc":
+		return delimitedTestBlocks(lines, cppTestDeclaration, '{', '}')
 	default:
 		return nil
 	}
+}
+
+func cppTestDeclaration(line string) (string, bool) {
+	if match := cppGoogleTestPattern.FindStringSubmatch(line); match != nil {
+		return strings.TrimSpace(match[1]) + "." + strings.TrimSpace(match[2]), true
+	}
+	if match := cppGoogleTestStart.FindStringSubmatch(line); match != nil {
+		return match[1] + " (multiline declaration)", true
+	}
+	if match := cppCatchTestPattern.FindStringSubmatch(line); match != nil {
+		if quoted := quotedTestNamePattern.FindStringSubmatch(match[1]); quoted != nil {
+			return quoted[1], true
+		}
+		return "(unnamed)", true
+	}
+	if match := cppBoostTestPattern.FindStringSubmatch(line); match != nil {
+		return match[1], true
+	}
+	if match := cppBoostTestStart.FindStringSubmatch(line); match != nil {
+		return match[1] + " (multiline declaration)", true
+	}
+	return "", false
 }
 
 // delimitedTestBlocks collects blocks for brace or parenthesis delimited

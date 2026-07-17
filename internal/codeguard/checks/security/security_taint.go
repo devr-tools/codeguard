@@ -18,6 +18,8 @@ func taintFindingsForFile(env support.Context, file string, source string) []cor
 		return goTaintFindings(env, file, source)
 	case isPythonFile(file) && taintToggleEnabled(rules.TaintPython):
 		return pythonTaintFindings(env, file, source)
+	case isCPPFile(file) && taintToggleEnabled(rules.TaintCPP):
+		return cppTaintFindings(env, file, source)
 	default:
 		return nil
 	}
@@ -56,7 +58,7 @@ func appendTaintFinding(env support.Context, file string, seen map[string]struct
 		return findings
 	}
 	seen[key] = struct{}{}
-	// Taint findings come from AST-based source-to-sink analysis (including the
+	// Taint findings come from structured source-to-sink analysis (including
 	// SSRF sinks), so they carry high confidence compared to regex line scans.
 	return append(findings, env.NewFinding(support.FindingInput{
 		RuleID:     input.ruleID,

@@ -6,6 +6,8 @@ import "github.com/devr-tools/codeguard/internal/codeguard/core"
 // TypeScript/JavaScript suppression mirrors. The performance heuristics live
 // in catalog_fix_templates_performance.go.
 var qualityFixTemplates = map[string]core.FixTemplate{
+	"quality.cpp.clang-format":              {Kind: deterministic, Text: "Run clang-format -i on the reported C++ file and commit the result. If the formatter is required but unavailable, install clang-format or configure quality_rules.cpp_tooling.clang_format_command for a trusted repository."},
+	"quality.cpp.compiler-parse":            {Kind: guided, Text: "Generate compile_commands.json (for CMake, configure with CMAKE_EXPORT_COMPILE_COMMANDS=ON), then fix the first syntax diagnostic reported by clang++. Codeguard deliberately ignores compiler executables, plugins, response files, and output flags stored in the database."},
 	"quality.gofmt":                         {Kind: deterministic, Text: "Run gofmt -w on the file and commit the formatted result.\n\nBefore:\nfunc main(){fmt.Println(\"hi\")}\n\nAfter:\nfunc main() {\n\tfmt.Println(\"hi\")\n}"},
 	"quality.parse-error":                   {Kind: guided, Text: "Fix the syntax error the parser reports so the file parses cleanly.\n\nBefore:\nfunc main() {\n\tfmt.Println(\"hi\")\n// missing closing brace\n\nAfter:\nfunc main() {\n\tfmt.Println(\"hi\")\n}"},
 	"quality.max-file-lines":                {Kind: guided, Text: "Split the file into smaller files with one responsibility each.\n\nBefore:\n// handlers.go: routing, validation, persistence, and rendering in one 900-line file\n\nAfter:\n// handlers.go: HTTP routing only\n// validate.go: input validation\n// store.go: persistence\n// render.go: response rendering"},

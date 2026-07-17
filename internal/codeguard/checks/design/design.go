@@ -37,6 +37,8 @@ func targetLanguageFindings(ctx context.Context, env support.Context, target cor
 		return nil, buildRustImportGraph(env, target)
 	case "java":
 		return nil, buildJavaImportGraph(env, target)
+	case "c++", "cpp", "cxx", "cc":
+		return cppTargetFindings(env, target), buildCPPImportGraph(env, target)
 	default:
 		return nil, nil
 	}

@@ -39,6 +39,7 @@ func ciAdditionalLanguageCases() []ciAdditionalLanguageCase {
 		{name: "java", language: "java", failPath: "src/test/java/SampleTest.java", failAllowed: []string{"tests/**"}, passPath: "tests/java/SampleTest.java", passAllowed: []string{"tests/**"}},
 		{name: "csharp", language: "csharp", failPath: "src/WidgetTests.cs", failAllowed: []string{"tests/**"}, passPath: "tests/WidgetTests.cs", passAllowed: []string{"tests/**"}},
 		{name: "ruby", language: "ruby", failPath: "spec/sample_spec.rb", failAllowed: []string{"tests/**"}, passPath: "tests/sample_test.rb", passAllowed: []string{"tests/**"}},
+		{name: "cpp", language: "c++", failPath: "src/sample_test.cpp", failAllowed: []string{"tests/**"}, passPath: "tests/sample_test.ixx", passAllowed: []string{"tests/**"}},
 	}
 }
 

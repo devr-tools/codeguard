@@ -19,6 +19,7 @@ var securityRuleOWASP = map[string]core.OWASPCategory{
 	"security.typescript.insecure-tls": core.OWASPA02CryptographicFailures,
 	"security.javascript.insecure-tls": core.OWASPA02CryptographicFailures,
 	"security.python.insecure-tls":     core.OWASPA02CryptographicFailures,
+	"security.cpp.insecure-tls":        core.OWASPA02CryptographicFailures,
 	"security.rust.insecure-tls":       core.OWASPA02CryptographicFailures,
 	"security.java.insecure-tls":       core.OWASPA02CryptographicFailures,
 	"security.csharp.insecure-tls":     core.OWASPA02CryptographicFailures,
@@ -29,6 +30,8 @@ var securityRuleOWASP = map[string]core.OWASPCategory{
 	"security.typescript.shell-execution":   core.OWASPA03Injection,
 	"security.javascript.shell-execution":   core.OWASPA03Injection,
 	"security.python.shell-execution":       core.OWASPA03Injection,
+	"security.cpp.shell-execution":          core.OWASPA03Injection,
+	"security.cpp.unsafe-c-api":             core.OWASPA03Injection,
 	"security.rust.shell-execution":         core.OWASPA03Injection,
 	"security.java.shell-execution":         core.OWASPA03Injection,
 	"security.csharp.shell-execution":       core.OWASPA03Injection,
@@ -53,6 +56,7 @@ var securityRuleOWASP = map[string]core.OWASPCategory{
 	"security.javascript.untrusted-input-flow": core.OWASPA03Injection,
 	"security.taint.go":                        core.OWASPA03Injection,
 	"security.taint.python":                    core.OWASPA03Injection,
+	"security.taint.cpp":                       core.OWASPA03Injection,
 
 	// Cross-origin message access control.
 	"security.typescript.postmessage-wildcard": core.OWASPA01BrokenAccessControl,
@@ -81,6 +85,7 @@ var securityRuleOWASP = map[string]core.OWASPCategory{
 	// Server-side request forgery (A10).
 	"security.ssrf.go":     core.OWASPA10SSRF,
 	"security.ssrf.python": core.OWASPA10SSRF,
+	"security.ssrf.cpp":    core.OWASPA10SSRF,
 }
 
 // withSecurityOWASP returns a copy of catalog with OWASP Top 10 categories

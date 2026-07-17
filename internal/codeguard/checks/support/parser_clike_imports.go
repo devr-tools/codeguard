@@ -22,7 +22,7 @@ func clikeImports(source string, masked string, lang CLikeLanguage) []ParsedImpo
 	case CLikeJava:
 		return javaImports(masked)
 	case CLikeCPP:
-		return cppImports(source)
+		return cppImports(source, masked)
 	case CLikeRust:
 		return rustImports(masked)
 	default:
@@ -128,9 +128,14 @@ func rustUseImport(path string, line int) ParsedImport {
 	return ParsedImport{Module: path, Alias: alias, Line: line}
 }
 
-func cppImports(source string) []ParsedImport {
+func cppImports(source string, masked string) []ParsedImport {
 	imports := make([]ParsedImport, 0, 4)
 	for _, match := range cppIncludePattern.FindAllStringSubmatchIndex(source, -1) {
+		// The path itself is masked as a string literal, but the directive must
+		// remain visible. This rejects #include text inside comments/raw strings.
+		if !strings.Contains(masked[match[0]:match[2]], "#include") {
+			continue
+		}
 		path := source[match[2]:match[3]]
 		path = strings.Trim(path, `<> "`)
 		alias := path

@@ -19,6 +19,11 @@ func TestScriptLanguageForPath(t *testing.T) {
 		"src/app.cjs":     checksupport.ScriptLangJavaScript,
 		"src/main.cpp":    checksupport.ScriptLangCPP,
 		"include/app.hpp": checksupport.ScriptLangCPP,
+		"src/widget.ixx":  checksupport.ScriptLangCPP,
+		"src/widget.cppm": checksupport.ScriptLangCPP,
+		"src/widget.c++m": checksupport.ScriptLangCPP,
+		"include/app.inl": checksupport.ScriptLangCPP,
+		"include/app.h":   "",
 		"src/main.go":     "",
 		"src/app.ts.bak":  "",
 	}

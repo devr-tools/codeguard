@@ -22,7 +22,7 @@ func changedFilesSet(paths []string) map[string]struct{} {
 
 func manifestExpectsLockfile(manifest core.SupplyChainManifest) bool {
 	switch manifest.Ecosystem {
-	case "go", "npm", "cargo":
+	case "go", "npm", "cargo", "conan":
 		return true
 	case "python":
 		return manifest.PackageManager == "poetry" || manifest.PackageManager == "uv"

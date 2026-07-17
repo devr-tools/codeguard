@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,12 +25,31 @@ func Validate(cfg core.Config) error {
 		validateContractRules(cfg.Checks.ContractRules),
 		validateContextRules(cfg.Checks.ContextRules),
 		validateCoverageDelta(cfg.Checks.QualityRules.CoverageDelta),
+		validateCPPTooling(cfg.Checks.QualityRules.CPPTooling),
 		validateGraphThresholds(cfg.Checks.DesignRules),
 		validatePerformanceRules(cfg.Checks.PerformanceRules),
 		validateSecretsRules(cfg.Checks.SecurityRules.Secrets),
 		validateParsers(cfg.Parsers),
 		validateRulePacks(cfg.RulePacks),
 	)
+}
+
+func validateCPPTooling(cfg core.CPPToolingConfig) error {
+	for _, setting := range []struct{ field, mode string }{
+		{"quality_rules.cpp_tooling.clang_format_mode", cfg.ClangFormatMode},
+		{"quality_rules.cpp_tooling.compiler_mode", cfg.CompilerMode},
+	} {
+		switch strings.ToLower(strings.TrimSpace(setting.mode)) {
+		case "", core.ExternalToolModeOff, core.ExternalToolModeAuto, core.ExternalToolModeRequired:
+		default:
+			return fmt.Errorf("%s must be off, auto, or required", setting.field)
+		}
+	}
+	compileCommands := filepath.Clean(filepath.FromSlash(strings.TrimSpace(cfg.CompileCommands)))
+	if filepath.IsAbs(compileCommands) || compileCommands == ".." || strings.HasPrefix(compileCommands, ".."+string(filepath.Separator)) {
+		return errors.New("quality_rules.cpp_tooling.compile_commands must be relative to the target")
+	}
+	return nil
 }
 
 func validateParsers(parsers core.ParsersConfig) error {

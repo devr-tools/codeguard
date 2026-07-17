@@ -40,7 +40,7 @@ func languageQualityFindings(ctx context.Context, env support.Context, target co
 			},
 		},
 		support.LanguageDispatch{
-			Aliases: []string{"c++", "cpp", "cxx"},
+			Aliases: []string{"c++", "cpp", "cxx", "cc"},
 			Run: func() []core.Finding {
 				return support.ScanCPPFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
 					return cppFindingsForFile(env, file, data)

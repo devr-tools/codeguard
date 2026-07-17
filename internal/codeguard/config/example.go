@@ -75,6 +75,7 @@ func exampleSupplyChainRules() core.SupplyChainRulesConfig {
 func exampleContractRules() core.ContractRulesConfig {
 	return core.ContractRulesConfig{
 		GoExportedBreaking:   boolPtr(true),
+		CPPPublicBreaking:    boolPtr(true),
 		OpenAPIBreaking:      boolPtr(true),
 		ProtoBreaking:        boolPtr(true),
 		MigrationDestructive: boolPtr(true),
