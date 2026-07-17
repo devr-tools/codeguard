@@ -27,11 +27,26 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 
 	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each rule appends a variable number
 	findings = append(findings, forbiddenPackageFindings(env, file, parsed.Name.Name)...)
+	findings = append(findings, declFindings(env, file, parsed)...)
 	methodCounts, interfaceFindings := typeFindings(env, file, fset, parsed)
 	findings = append(findings, interfaceFindings...)
 	findings = append(findings, methodFindings(env, file, methodCounts)...)
 	findings = append(findings, importFindings(env, file, fset, parsed)...)
 	return findings
+}
+
+func declFindings(env support.Context, file string, parsed *ast.File) []core.Finding {
+	if len(parsed.Decls) <= env.Config.Checks.DesignRules.MaxDeclsPerFile {
+		return nil
+	}
+	return []core.Finding{env.NewFinding(support.FindingInput{
+		RuleID:  "design.max-decls-per-file",
+		Level:   "warn",
+		Path:    file,
+		Line:    1,
+		Column:  1,
+		Message: fmt.Sprintf("file has %d declarations; max is %d", len(parsed.Decls), env.Config.Checks.DesignRules.MaxDeclsPerFile),
+	})}
 }
 
 func forbiddenPackageFindings(env support.Context, file string, pkgName string) []core.Finding {

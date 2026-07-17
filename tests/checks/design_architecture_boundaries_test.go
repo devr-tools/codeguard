@@ -85,6 +85,42 @@ func TestDesignTypeScriptDomainAndDataOwnershipBoundaries(t *testing.T) {
 	}
 }
 
+func TestDesignCPPDomainAndDataOwnershipBoundariesUseNamedModules(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "orders", "contracts.cppm"), "export module app.orders.contracts;\nexport struct Order { int id; };\n")
+	writeFile(t, filepath.Join(dir, "src", "orders", "data.cppm"), "export module app.orders.data;\nexport int orders_table();\n")
+	writeFile(t, filepath.Join(dir, "src", "billing", "allowed.cppm"), "export module app.billing.allowed;\nimport app.orders.contracts;\nexport int bill_order();\n")
+	writeFile(t, filepath.Join(dir, "src", "billing", "forbidden.cppm"), "export module app.billing.forbidden;\nimport app.orders.data;\nexport int source();\n")
+
+	cfg := graphTestConfig("design-cpp-domains", dir, "cpp")
+	cfg.Checks.DesignRules.Domains = []codeguard.DesignDomainConfig{
+		{Name: "billing", Paths: []string{"src/billing/**"}, MayDependOn: []string{"orders"}},
+		{Name: "orders", Paths: []string{"src/orders/**"}, PublicPaths: []string{"src/orders/contracts.cppm"}, DataPaths: []string{"src/orders/data.cppm"}},
+	}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	for _, ruleID := range []string{"design.domain-boundary", "design.data-ownership"} {
+		finding := designFinding(t, report, ruleID)
+		if finding.Path != "src/billing/forbidden.cppm" || finding.Line != 2 {
+			t.Fatalf("%s location = %s:%d, want src/billing/forbidden.cppm:2", ruleID, finding.Path, finding.Line)
+		}
+	}
+	for _, section := range report.Sections {
+		if section.Name != "Design Patterns" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.Path == "src/billing/allowed.cppm" && (finding.RuleID == "design.domain-boundary" || finding.RuleID == "design.data-ownership") {
+				t.Fatalf("allowed C++ contract import should not trigger %s: %+v", finding.RuleID, finding)
+			}
+		}
+	}
+}
+
 func TestDesignLayerDeniedExternalImport(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/external-layer\n\ngo 1.23.0\n")
@@ -101,6 +137,30 @@ func TestDesignLayerDeniedExternalImport(t *testing.T) {
 	finding := designFinding(t, report, "design.layer-boundary")
 	if finding.Path != "internal/domain/query.go" || finding.Line != 3 || !strings.Contains(finding.Message, "database/sql") {
 		t.Fatalf("external layer finding = %s:%d %q", finding.Path, finding.Line, finding.Message)
+	}
+}
+
+func TestDesignCPPLayerBoundarySupportsDottedNamedModules(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "domain.cppm"), "export module app.domain;\nimport app.adapters;\nexport int run();\n")
+	writeFile(t, filepath.Join(dir, "src", "adapters.cppm"), "export module app.adapters;\nexport int store();\n")
+
+	cfg := graphTestConfig("design-cpp-layer-dotted-modules", dir, "cpp")
+	cfg.Checks.DesignRules.Layers = []codeguard.DesignLayerConfig{
+		{Name: "domain", Paths: []string{"src/domain.cppm"}, DenyDependOn: []string{"adapters"}},
+		{Name: "adapters", Paths: []string{"src/adapters.cppm"}},
+	}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	finding := designFinding(t, report, "design.layer-boundary")
+	if finding.Path != "src/domain.cppm" || finding.Line != 2 {
+		t.Fatalf("C++ layer finding location = %s:%d, want src/domain.cppm:2", finding.Path, finding.Line)
+	}
+	if !strings.Contains(finding.Message, "app.adapters") {
+		t.Fatalf("C++ layer finding should preserve named module specifier, got %q", finding.Message)
 	}
 }
 
@@ -142,6 +202,28 @@ func TestDesignCapabilityBoundaryCoversSupportedLanguageImports(t *testing.T) {
 				t.Fatalf("capability finding location = %s:%d, want %s:%d", finding.Path, finding.Line, filepath.ToSlash(tt.file), tt.line)
 			}
 		})
+	}
+}
+
+func TestDesignCPPCapabilityBoundarySupportsExternalNamedModules(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "domain.cppm"), "export module app.domain;\nimport vendor.aws.s3;\nexport int run();\n")
+
+	cfg := graphTestConfig("design-cpp-capability-named-module", dir, "cpp")
+	cfg.Checks.DesignRules.Capabilities = []codeguard.DesignCapabilityConfig{{
+		Name: "cloud-sdk", Imports: []string{"vendor.aws.**"}, AllowedPaths: []string{"src/adapters/**"},
+	}}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	finding := designFinding(t, report, "design.capability-boundary")
+	if finding.Path != "src/domain.cppm" || finding.Line != 2 {
+		t.Fatalf("C++ capability finding location = %s:%d, want src/domain.cppm:2", finding.Path, finding.Line)
+	}
+	if !strings.Contains(finding.Message, "vendor.aws.s3") {
+		t.Fatalf("C++ capability finding should preserve named module specifier, got %q", finding.Message)
 	}
 }
 

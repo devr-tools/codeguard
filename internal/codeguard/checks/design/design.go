@@ -37,7 +37,7 @@ func targetLanguageFindings(ctx context.Context, env support.Context, target cor
 		graph := buildPythonImportGraph(env, target)
 		return pythonTargetFindings(env, target, graph), moduleGraphFromPython(graph)
 	case "rust", "rs":
-		return nil, buildRustImportGraph(env, target)
+		return rustTargetFindings(env, target), buildRustImportGraph(env, target)
 	case "java":
 		return nil, buildJavaImportGraph(env, target)
 	case "c++", "cpp", "cxx", "cc":

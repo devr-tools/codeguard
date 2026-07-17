@@ -58,6 +58,62 @@ func TestDesignReachabilityMatchesAnyFileInGoEntrypointPackage(t *testing.T) {
 	}
 }
 
+func TestDesignReachabilityFollowsWorkspacePackageExportSubpaths(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "main.ts"), `import "@repo/shared/token";`)
+	writeFile(t, filepath.Join(dir, "packages", "shared", "package.json"), "{\n  \"name\": \"@repo/shared\",\n  \"exports\": {\n    \"./token\": \"./src/token.ts\"\n  }\n}\n")
+	writeFile(t, filepath.Join(dir, "packages", "shared", "src", "token.ts"), `export const token = "ok";`)
+	writeFile(t, filepath.Join(dir, "packages", "shared", "src", "orphan.ts"), `export const orphan = true;`)
+
+	cfg := designPolicyTestConfig(dir)
+	cfg.Targets[0].Entrypoints = []string{"src/main.ts"}
+	cfg.Checks.DesignRules.Reachability = &codeguard.DesignReachabilityConfig{}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	finding := findFinding(t, report, "Design Patterns", "design.unreachable-module")
+	if finding.Path != "packages/shared/src/orphan.ts" {
+		t.Fatalf("unreachable finding path = %q, want packages/shared/src/orphan.ts", finding.Path)
+	}
+	for _, section := range report.Sections {
+		for _, candidate := range section.Findings {
+			if candidate.RuleID == "design.unreachable-module" && candidate.Path == "packages/shared/src/token.ts" {
+				t.Fatal("workspace export target imported from the entrypoint was reported unreachable")
+			}
+		}
+	}
+}
+
+func TestDesignReachabilityFollowsWorkspacePackageWildcardExports(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "main.ts"), `import "@repo/shared/token";`)
+	writeFile(t, filepath.Join(dir, "packages", "shared", "package.json"), "{\n  \"name\": \"@repo/shared\",\n  \"exports\": {\n    \"./*\": \"./src/*.ts\"\n  }\n}\n")
+	writeFile(t, filepath.Join(dir, "packages", "shared", "src", "token.ts"), `export const token = "ok";`)
+	writeFile(t, filepath.Join(dir, "packages", "shared", "src", "orphan.ts"), `export const orphan = true;`)
+
+	cfg := designPolicyTestConfig(dir)
+	cfg.Targets[0].Entrypoints = []string{"src/main.ts"}
+	cfg.Checks.DesignRules.Reachability = &codeguard.DesignReachabilityConfig{}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	finding := findFinding(t, report, "Design Patterns", "design.unreachable-module")
+	if finding.Path != "packages/shared/src/orphan.ts" {
+		t.Fatalf("unreachable finding path = %q, want packages/shared/src/orphan.ts", finding.Path)
+	}
+	for _, section := range report.Sections {
+		for _, candidate := range section.Findings {
+			if candidate.RuleID == "design.unreachable-module" && candidate.Path == "packages/shared/src/token.ts" {
+				t.Fatal("workspace wildcard export target imported from the entrypoint was reported unreachable")
+			}
+		}
+	}
+}
+
 func TestDesignStabilityReportsDependencyTowardVolatileModule(t *testing.T) {
 	dir := t.TempDir()
 	for _, importer := range []string{"one", "two", "three"} {

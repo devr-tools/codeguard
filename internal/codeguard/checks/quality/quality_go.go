@@ -50,10 +50,6 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 		}))
 		return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 	}
-	if len(parsed.Decls) > env.Config.Checks.DesignRules.MaxDeclsPerFile {
-		findings = append(findings, warnFinding(env, "design.max-decls-per-file", file, 1, 1,
-			fmt.Sprintf("file has %d declarations; max is %d", len(parsed.Decls), env.Config.Checks.DesignRules.MaxDeclsPerFile)))
-	}
 	findings = append(findings, importFindings(env, file, fset, parsed)...)
 	findings = append(findings, goFunctionFindings(env, file, fset, parsed)...)
 	findings = append(findings, goAIQualityFindings(env, file, fset, parsed, data)...)

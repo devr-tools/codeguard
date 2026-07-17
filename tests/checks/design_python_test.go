@@ -108,3 +108,71 @@ func TestDesignCheckPassesForLayeredPythonLayout(t *testing.T) {
 
 	assertSectionStatus(t, report, "Design Patterns", "pass")
 }
+
+func TestDesignCheckWarnsForPythonClassWithTooManyMethods(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "app", "service.py"), "class Service:\n    def __init__(self):\n        self.ready = True\n\n    def a(self):\n        return 1\n\n    @property\n    def b(self):\n        return 2\n\n    async def c(self):\n        return 3\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "design-python-max-methods"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "api", Path: dir, Language: "python"}}
+	cfg.Checks.Design = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.Checks.DesignRules.MaxMethodsPerType = 2
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Design Patterns", "warn")
+	assertFindingRulePresent(t, report, "Design Patterns", "design.python.max-methods-per-type")
+}
+
+func TestDesignCheckWarnsForLargePythonProtocol(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "app", "ports.py"), "from typing import Protocol\n\nclass Store(\n    Protocol,\n):\n    name: str\n    enabled: bool\n\n    def get(self) -> str:\n        ...\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "design-python-max-protocol"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "api", Path: dir, Language: "python"}}
+	cfg.Checks.Design = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.Checks.DesignRules.MaxInterfaceMethods = 2
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Design Patterns", "warn")
+	assertFindingRulePresent(t, report, "Design Patterns", "design.python.max-protocol-members")
+}
+
+func TestDesignCheckIgnoresNestedPythonHelpersWhenCountingClassMethods(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "app", "service.py"), "class Service:\n    def a(self):\n        def helper():\n            return 1\n        return helper()\n\n    class Nested:\n        def hidden(self):\n            return 1\n\n    def b(self):\n        return 2\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "design-python-nested-methods"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "api", Path: dir, Language: "python"}}
+	cfg.Checks.Design = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.Checks.DesignRules.MaxMethodsPerType = 2
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Design Patterns", "pass")
+}

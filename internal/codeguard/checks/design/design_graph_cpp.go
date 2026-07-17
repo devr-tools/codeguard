@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	cppBoundaryModuleDeclarationPattern = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?module[ \t]+([A-Za-z_]\w*(?::[A-Za-z_]\w*)*)[ \t]*;`)
-	cppBoundaryModuleImportPattern      = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?import[ \t]+([A-Za-z_]\w*(?::[A-Za-z_]\w*)*)[ \t]*;`)
+	cppBoundaryModuleDeclarationPattern = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?module[ \t]+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?::[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)?)[ \t]*;`)
+	cppBoundaryModuleImportPattern      = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?import[ \t]+((?:[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?::[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)?)|(?::[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*))[ \t]*;`)
 )
 
 type cppBoundaryNamedImport struct {
@@ -35,6 +35,7 @@ func buildCPPImportGraph(env support.Context, target core.TargetConfig) *moduleG
 		}
 	}
 	namedModules := make(map[string]string)
+	declaredModules := make(map[string]string)
 	namedImports := make([]cppBoundaryNamedImport, 0)
 	env.VisitTargetFiles(target, func(rel string) bool { return support.IsCPPPath(rel, true) }, func(rel string, data []byte) {
 		parsed := support.ParseCLike(string(data), support.CLikeCPP)
@@ -46,6 +47,7 @@ func buildCPPImportGraph(env support.Context, target core.TargetConfig) *moduleG
 			graph.addImport(rel, resolved, rel, imported.Module, imported.Line)
 		}
 		if match := cppBoundaryModuleDeclarationPattern.FindStringSubmatch(parsed.Masked); len(match) == 2 {
+			declaredModules[rel] = match[1]
 			namedModules[match[1]] = rel
 		}
 		for _, match := range cppBoundaryModuleImportPattern.FindAllStringSubmatchIndex(parsed.Masked, -1) {
@@ -54,9 +56,24 @@ func buildCPPImportGraph(env support.Context, target core.TargetConfig) *moduleG
 		}
 	})
 	for _, imported := range namedImports {
-		graph.addImport(imported.from, namedModules[imported.specifier], imported.from, imported.specifier, imported.line)
+		resolvedSpecifier := supportQualifyCPPModuleImport(imported.specifier, declaredModules[imported.from])
+		graph.addImport(imported.from, namedModules[resolvedSpecifier], imported.from, imported.specifier, imported.line)
 	}
 	return graph
+}
+
+func supportQualifyCPPModuleImport(specifier string, declaredModule string) string {
+	if !strings.HasPrefix(specifier, ":") {
+		return specifier
+	}
+	primary := declaredModule
+	if cut := strings.IndexByte(primary, ':'); cut >= 0 {
+		primary = primary[:cut]
+	}
+	if primary == "" {
+		return ""
+	}
+	return primary + specifier
 }
 
 func cppGraphEdgeAtLine(graph *moduleGraph, from string, line int) string {

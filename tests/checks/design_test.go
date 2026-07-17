@@ -162,6 +162,29 @@ func TestDesignCheckWarnsForLargeInterface(t *testing.T) {
 	assertSectionStatus(t, report, "Design Patterns", "warn")
 }
 
+func TestDesignCheckWarnsForTooManyGoDeclsPerFile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "pkg", "codeguard", "decls.go"), "package codeguard\n\nconst A = 1\nconst B = 2\nconst C = 3\nconst D = 4\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "design-go-decls"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Design = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.Checks.DesignRules.MaxDeclsPerFile = 3
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Design Patterns", "warn")
+	assertFindingRulePresent(t, report, "Design Patterns", "design.max-decls-per-file")
+}
+
 func TestDesignCheckFailsForConfiguredTypeScriptCommand(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "src", "index.ts"), "export const answer = 42;\n")
