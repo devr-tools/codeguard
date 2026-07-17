@@ -114,6 +114,40 @@ func TestDesignReachabilityFollowsWorkspacePackageWildcardExports(t *testing.T) 
 	}
 }
 
+func TestDesignReachabilityFollowsCPPNamedModuleGraph(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "main.cpp"), "#include \"app.cppm\"\nint main() { return app_value(); }\n")
+	writeFile(t, filepath.Join(dir, "src", "app.cppm"), "export module app;\nimport app.shared;\nexport int app_value();\n")
+	writeFile(t, filepath.Join(dir, "src", "shared.cppm"), "export module app.shared;\nimport :detail;\nexport int shared_value();\n")
+	writeFile(t, filepath.Join(dir, "src", "shared-detail.cppm"), "module app.shared:detail;\nexport int detail_value();\n")
+	writeFile(t, filepath.Join(dir, "src", "orphan.cppm"), "export module app.orphan;\nexport int orphan_value();\n")
+
+	cfg := designPolicyTestConfig(dir)
+	cfg.Targets[0].Language = "cpp"
+	cfg.Targets[0].Entrypoints = []string{"src/main.cpp"}
+	cfg.Checks.DesignRules.Reachability = &codeguard.DesignReachabilityConfig{}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	finding := findFinding(t, report, "Design Patterns", "design.unreachable-module")
+	if finding.Path != "src/orphan.cppm" {
+		t.Fatalf("unreachable finding path = %q, want src/orphan.cppm", finding.Path)
+	}
+	for _, section := range report.Sections {
+		for _, candidate := range section.Findings {
+			if candidate.RuleID != "design.unreachable-module" {
+				continue
+			}
+			switch candidate.Path {
+			case "src/app.cppm", "src/shared.cppm", "src/shared-detail.cppm":
+				t.Fatalf("reachable C++ module was reported unreachable: %+v", candidate)
+			}
+		}
+	}
+}
+
 func TestDesignStabilityReportsDependencyTowardVolatileModule(t *testing.T) {
 	dir := t.TempDir()
 	for _, importer := range []string{"one", "two", "three"} {
@@ -143,6 +177,35 @@ import "./leaf-four";
 	finding := findFinding(t, report, "Design Patterns", "design.stability-direction")
 	if finding.Path != "stable.ts" || finding.Line != 1 {
 		t.Fatalf("stability finding location = %s:%d, want stable.ts:1", finding.Path, finding.Line)
+	}
+}
+
+func TestDesignStabilityReportsDependencyTowardVolatileCPPNamedModule(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "one.cppm"), "export module app.one;\nimport app.stable;\nexport int one();\n")
+	writeFile(t, filepath.Join(dir, "src", "two.cppm"), "export module app.two;\nimport app.stable;\nexport int two();\n")
+	writeFile(t, filepath.Join(dir, "src", "three.cppm"), "export module app.three;\nimport app.stable;\nexport int three();\n")
+	writeFile(t, filepath.Join(dir, "src", "stable.cppm"), "export module app.stable;\nimport app.volatile;\nexport int stable();\n")
+	writeFile(t, filepath.Join(dir, "src", "volatile.cppm"), "export module app.volatile;\nimport app.leaf_one;\nimport app.leaf_two;\nimport app.leaf_three;\nimport app.leaf_four;\nexport int volatile_value();\n")
+	writeFile(t, filepath.Join(dir, "src", "leaf_one.cppm"), "export module app.leaf_one;\nexport int leaf_one();\n")
+	writeFile(t, filepath.Join(dir, "src", "leaf_two.cppm"), "export module app.leaf_two;\nexport int leaf_two();\n")
+	writeFile(t, filepath.Join(dir, "src", "leaf_three.cppm"), "export module app.leaf_three;\nexport int leaf_three();\n")
+	writeFile(t, filepath.Join(dir, "src", "leaf_four.cppm"), "export module app.leaf_four;\nexport int leaf_four();\n")
+
+	cfg := designPolicyTestConfig(dir)
+	cfg.Targets[0].Language = "cpp"
+	cfg.Checks.DesignRules.Stability = &codeguard.DesignStabilityConfig{
+		MinimumFanIn:        3,
+		MaxInstabilityDelta: 0.30,
+	}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	finding := findFinding(t, report, "Design Patterns", "design.stability-direction")
+	if finding.Path != "src/stable.cppm" || finding.Line != 2 {
+		t.Fatalf("stability finding location = %s:%d, want src/stable.cppm:2", finding.Path, finding.Line)
 	}
 }
 
