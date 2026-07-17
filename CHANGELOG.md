@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.0](https://github.com/devr-tools/codeguard/compare/v1.0.0...v1.1.0) (2026-07-17)
+
+
+### Features
+
+* **cpp:** add tooling and security analysis ([b93d681](https://github.com/devr-tools/codeguard/commit/b93d6819a936b11b18fdca5493bb181ef2e6edc1))
+* **cpp:** expand checks across all categories ([29ea77e](https://github.com/devr-tools/codeguard/commit/29ea77ec7ad575e9bd875b2387ec655dac437631))
+* **cpp:** expand coverage with tooling, security, and dependency analysis ([#50](https://github.com/devr-tools/codeguard/issues/50)) ([16e8146](https://github.com/devr-tools/codeguard/commit/16e8146820aede9480b2358ee9c567f229b30697))
+
 ## [1.0.0](https://github.com/devr-tools/codeguard/compare/v0.8.3...v1.0.0) (2026-07-16)
 
 
