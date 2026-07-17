@@ -90,11 +90,13 @@ func assertCPPToolArguments(t *testing.T, root, arguments string) {
 func assertCPPToolArgumentsExcluded(t *testing.T, arguments string) {
 	t.Helper()
 	lines := strings.Split(strings.TrimSpace(arguments), "\n")
+	lineSet := make(map[string]struct{}, len(lines))
+	for _, argument := range lines {
+		lineSet[argument] = struct{}{}
+	}
 	for _, forbidden := range []string{"database-compiler", "-fplugin=evil.so", "@evil.rsp", "-o", "pwned"} {
-		for _, argument := range lines {
-			if argument == forbidden {
-				t.Fatalf("unsafe database argument %q reached compiler: %q", forbidden, arguments)
-			}
+		if _, ok := lineSet[forbidden]; ok {
+			t.Fatalf("unsafe database argument %q reached compiler: %q", forbidden, arguments)
 		}
 	}
 }

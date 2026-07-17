@@ -12,8 +12,12 @@ import (
 // hit in either is overwhelmingly synthetic test data, the top false-positive
 // source for the secret rules.
 var (
-	fixtureDirSegments  = []string{"testdata", "fixtures", "__fixtures__"}
 	fixtureFileSuffixes = []string{"_test.go", ".test.ts", "_test.py", ".spec.ts"}
+	fixtureDirSet       = map[string]struct{}{
+		"testdata":     {},
+		"fixtures":     {},
+		"__fixtures__": {},
+	}
 )
 
 // demotableFixtureRules are the secret heuristics subject to fixture-path
@@ -35,10 +39,8 @@ func fixtureDemotionEnabled(rules core.SecurityRulesConfig) bool {
 func isFixturePath(path string) bool {
 	normalized := strings.ToLower(filepath.ToSlash(path))
 	for _, segment := range strings.Split(normalized, "/") {
-		for _, fixture := range fixtureDirSegments {
-			if segment == fixture {
-				return true
-			}
+		if _, ok := fixtureDirSet[segment]; ok {
+			return true
 		}
 	}
 	for _, suffix := range fixtureFileSuffixes {
