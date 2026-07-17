@@ -38,7 +38,8 @@ func LoadFile(path string) (core.Config, error) {
 	}
 
 	var cfg core.Config
-	if err := unmarshalConfig(data, resolvedPath, &cfg); err != nil {
+	err = unmarshalConfig(data, resolvedPath, &cfg)
+	if err != nil {
 		return core.Config{}, err
 	}
 	designOverlay, err := loadExternalDesignRules(&cfg, data, resolvedPath)
@@ -52,10 +53,12 @@ func LoadFile(path string) (core.Config, error) {
 	// external design policy is used, however, explicitly present inline fields
 	// must win even when their value is zero, false, or empty.
 	designOverlay.apply(&cfg.Checks.DesignRules)
-	if err := containConfigArtifactPaths(&cfg, baseDir); err != nil {
+	err = containConfigArtifactPaths(&cfg, baseDir)
+	if err != nil {
 		return core.Config{}, err
 	}
-	if err := Validate(cfg); err != nil {
+	err = Validate(cfg)
+	if err != nil {
 		return core.Config{}, err
 	}
 	return cfg, nil

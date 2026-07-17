@@ -53,7 +53,8 @@ func loadExternalDesignRules(cfg *core.Config, mainData []byte, configPath strin
 		return designRulesOverlay{}, fmt.Errorf("read design rules file %q: %w", policyPath, err)
 	}
 	var external core.DesignRulesConfig
-	if err := unmarshalDesignRules(data, policyPath, &external); err != nil {
+	err = unmarshalDesignRules(data, policyPath, &external)
+	if err != nil {
 		return designRulesOverlay{}, fmt.Errorf("parse design rules file %q: %w", policyPath, err)
 	}
 	externalFields, err := topLevelDesignRuleFields(data)

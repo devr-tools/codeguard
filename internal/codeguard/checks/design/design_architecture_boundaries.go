@@ -17,7 +17,7 @@ func architectureBoundaryFindings(env support.Context, target core.TargetConfig,
 		return nil
 	}
 	rules := env.Config.Checks.DesignRules
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0, len(graph.imports))
 	findings = append(findings, unassignedModuleFindings(env, graph, rules)...)
 	findings = append(findings, layerBoundaryFindings(env, graph, rules.Layers)...)
 	findings = append(findings, domainBoundaryFindings(env, graph, rules.Domains)...)

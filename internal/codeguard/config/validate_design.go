@@ -12,20 +12,24 @@ func validateDesignArchitectureRules(rules core.DesignRulesConfig) error {
 	if err != nil {
 		return err
 	}
-	if err := validateLayerReferences(rules.Layers, layers); err != nil {
+	err = validateLayerReferences(rules.Layers, layers)
+	if err != nil {
 		return err
 	}
 	domains, err := validateDesignDomains(rules.Domains)
 	if err != nil {
 		return err
 	}
-	if err := validateDomainReferences(rules.Domains, domains); err != nil {
+	err = validateDomainReferences(rules.Domains, domains)
+	if err != nil {
 		return err
 	}
-	if err := validateDesignCapabilities(rules.Capabilities); err != nil {
+	err = validateDesignCapabilities(rules.Capabilities)
+	if err != nil {
 		return err
 	}
-	if err := validateDesignPublicSurfaces(rules.PublicSurfaces); err != nil {
+	err = validateDesignPublicSurfaces(rules.PublicSurfaces)
+	if err != nil {
 		return err
 	}
 	return validateDesignBoundaryToggles(rules)

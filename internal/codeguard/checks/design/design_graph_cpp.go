@@ -90,9 +90,10 @@ func pathCleanJoin(from string, specifier string) string {
 	if len(parts) > 0 {
 		parts = parts[:len(parts)-1]
 	}
-	joined := append(parts, strings.Split(strings.ReplaceAll(specifier, "\\", "/"), "/")...)
-	stack := make([]string, 0, len(joined))
-	for _, part := range joined {
+	specifierParts := strings.Split(strings.ReplaceAll(specifier, "\\", "/"), "/")
+	parts = append(parts, specifierParts...)
+	stack := make([]string, 0, len(parts))
+	for _, part := range parts {
 		switch part {
 		case "", ".":
 		case "..":
