@@ -3,6 +3,56 @@ package rules
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 var designGraphCatalog = map[string]core.RuleMetadata{
+	"design.layer-boundary": {
+		ID: "design.layer-boundary", Section: "Design Patterns", DefaultLevel: "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic, LanguageCoverage: designGraphLanguageCoverage(),
+		Title: "Layer dependency boundary", Description: "Fails when a module imports a denied architectural layer or an external dependency denied to its layer.",
+		HowToFix: "Invert the dependency, move the implementation to an allowed layer, or route access through an allowed contract.",
+	},
+	"design.unassigned-module": {
+		ID: "design.unassigned-module", Section: "Design Patterns", DefaultLevel: "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic, LanguageCoverage: designGraphLanguageCoverage(),
+		Title: "Unassigned architecture module", Description: "Fails when boundary assignment is required and a module is outside every configured layer or domain.",
+		HowToFix: "Add the module path to the appropriate configured layer and domain.",
+	},
+	"design.domain-boundary": {
+		ID: "design.domain-boundary", Section: "Design Patterns", DefaultLevel: "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic, LanguageCoverage: designGraphLanguageCoverage(),
+		Title: "Domain dependency boundary", Description: "Fails when a cross-domain import is not permitted or bypasses the target domain's public paths.",
+		HowToFix: "Use a public contract exposed by an allowed domain, or remove the cross-domain dependency.",
+	},
+	"design.data-ownership": {
+		ID: "design.data-ownership", Section: "Design Patterns", DefaultLevel: "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic, LanguageCoverage: designGraphLanguageCoverage(),
+		Title: "Domain data ownership", Description: "Fails when one domain directly imports another domain's data or persistence modules.",
+		HowToFix: "Access the data through the owning domain's public API, contract, or event.",
+	},
+	"design.capability-boundary": {
+		ID: "design.capability-boundary", Section: "Design Patterns", DefaultLevel: "fail",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic, LanguageCoverage: designGraphLanguageCoverage(),
+		Title: "Technical capability boundary", Description: "Fails when a source module imports a sensitive technical capability outside its approved paths.",
+		HowToFix: "Move the import and its implementation into an allowed adapter and expose a narrow contract to callers.",
+	},
+	"design.private-module-import": {
+		ID:               "design.private-module-import",
+		Section:          "Design Patterns",
+		DefaultLevel:     "fail",
+		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: designGraphLanguageCoverage(),
+		Title:            "Private module import",
+		Description:      "Fails when code outside a configured public surface imports one of its implementation modules instead of an approved entrypoint.",
+		HowToFix:         "Import the component's public entrypoint, or deliberately add the target module to the surface's configured entrypoints.",
+	},
+	"design.production-imports-test": {
+		ID:               "design.production-imports-test",
+		Section:          "Design Patterns",
+		DefaultLevel:     "fail",
+		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: designGraphLanguageCoverage(),
+		Title:            "Production imports test code",
+		Description:      "Fails when a configured production module imports a test, mock, fixture, or other test-only module.",
+		HowToFix:         "Move the shared behavior into a production module, then make both production and test code import that module.",
+	},
 	"design.typescript.import-cycle": {
 		ID:             "design.typescript.import-cycle",
 		Section:        "Design Patterns",

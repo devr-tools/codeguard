@@ -22,13 +22,17 @@ func buildRustImportGraph(env support.Context, target core.TargetConfig) *module
 	}, func(rel string, data []byte) {
 		module := rustModulePath(rel)
 		graph.addModule(module, rel)
-		pending = append(pending, rustImportEdges(module, string(data))...)
+		for _, edge := range rustImportEdges(module, string(data)) {
+			edge.file = rel
+			pending = append(pending, edge)
+		}
 	})
 	for _, edge := range pending {
 		resolved := resolveRustImport(graph, edge.to)
-		if resolved != "" && resolved != edge.from {
-			graph.addEdge(edge.from, resolved, edge.line)
+		if resolved == edge.from {
+			resolved = ""
 		}
+		graph.addImport(edge.from, resolved, edge.file, edge.to, edge.line)
 	}
 	return graph
 }
@@ -62,10 +66,11 @@ func rustImportEdges(module string, source string) []pendingGraphEdge {
 		}
 		for _, used := range expandRustUseClause(strings.TrimSpace(match[1])) {
 			absolute := resolveRustUsePath(module, used)
-			if absolute == "" {
-				continue
+			if absolute != "" {
+				edges = append(edges, pendingGraphEdge{from: module, to: absolute, line: lineNo})
+			} else {
+				edges = append(edges, pendingGraphEdge{from: module, to: strings.TrimSpace(strings.Split(used, " as ")[0]), line: lineNo})
 			}
-			edges = append(edges, pendingGraphEdge{from: module, to: absolute, line: lineNo})
 		}
 	}
 	return edges

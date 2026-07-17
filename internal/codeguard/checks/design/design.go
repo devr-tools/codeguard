@@ -16,6 +16,9 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 		if graph != nil {
 			findings = append(findings, importCycleFindings(env, graph)...)
 			findings = append(findings, godModuleFindings(env, graph)...)
+			findings = append(findings, architectureBoundaryFindings(env, target, graph)...)
+			findings = append(findings, encapsulationBoundaryFindings(env, target, graph)...)
+			findings = append(findings, graphPolicyFindings(env, target, graph)...)
 			graphs = append(graphs, targetModuleGraph{target: target, graph: graph})
 		}
 		findings = append(findings, commandFindings(ctx, env, target)...)

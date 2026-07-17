@@ -1,0 +1,176 @@
+# Standalone Codeguard design policy template.
+#
+# Put this file at .codeguard/design_rules.yml for automatic discovery, or point
+# checks.design_rules_file at it from the main Codeguard config. This document is
+# the contents of DesignRulesConfig itself; it is not wrapped in `checks` or
+# `design_rules`.
+#
+# Paths are relative to each target. Adapt these example paths to your repository
+# before enabling strict assignment.
+
+# Start false while adopting a policy. Set true after every production module is
+# covered by a configured layer and domain.
+require_boundary_assignment: false
+
+layers:
+  - name: domain
+    paths:
+      - internal/domain/**
+    may_depend_on:
+      - contracts
+    denied_external:
+      - database/sql
+      - net/http
+      - github.com/aws/**
+
+  - name: contracts
+    paths:
+      - internal/contracts/**
+
+  - name: application
+    paths:
+      - internal/application/**
+    may_depend_on:
+      - domain
+      - contracts
+
+  - name: adapters
+    paths:
+      - internal/adapters/**
+    may_depend_on:
+      - application
+      - domain
+      - contracts
+    deny_depend_on:
+      - delivery
+
+  - name: delivery
+    paths:
+      - internal/http/**
+      - internal/workers/**
+    may_depend_on:
+      - application
+      - contracts
+
+  - name: bootstrap
+    paths:
+      - cmd/**
+      - internal/bootstrap/**
+    may_depend_on:
+      - application
+      - adapters
+      - delivery
+      - contracts
+
+domains:
+  - name: orders
+    paths:
+      - internal/orders/**
+    public_paths:
+      - internal/orders/contracts/**
+      - internal/orders/events/**
+    data_paths:
+      - internal/orders/repository/**
+      - internal/orders/models/**
+    may_depend_on:
+      - identity
+
+  - name: identity
+    paths:
+      - internal/identity/**
+    public_paths:
+      - internal/identity/contracts/**
+    data_paths:
+      - internal/identity/repository/**
+      - internal/identity/models/**
+    # Empty may_depend_on denies cross-domain imports for this domain.
+
+# Only these adapters may import the listed database or network capabilities.
+# Import patterns can match local module paths or external package specifiers.
+capabilities:
+  - name: database
+    imports:
+      - database/sql
+      - github.com/jackc/pgx/**
+      - sqlalchemy
+      - sqlalchemy/**
+      - "@prisma/client"
+    allowed_paths:
+      - internal/adapters/database/**
+      - internal/*/repository/**
+
+  - name: outbound-network
+    imports:
+      - net/http
+      - requests
+      - axios
+    allowed_paths:
+      - internal/adapters/http/**
+
+# Consumers outside each component must import through an approved entrypoint.
+public_surfaces:
+  - name: orders
+    paths:
+      - internal/orders/**
+    entrypoints:
+      - internal/orders/contracts/**
+      - internal/orders/events/**
+
+  - name: identity
+    paths:
+      - internal/identity/**
+    entrypoints:
+      - internal/identity/contracts/**
+
+production_test:
+  enabled: true
+  production_paths:
+    - cmd/**
+    - internal/**
+    - src/**
+  test_paths:
+    - tests/**
+    - test/**
+    - "**/*_test.go"
+    - "**/*.test.ts"
+    - "**/*.spec.ts"
+    - "**/testdata/**"
+    - "**/fixtures/**"
+    - "**/mocks/**"
+
+reachability:
+  enabled: true
+  entrypoints:
+    - cmd/**/main.go
+    - src/index.ts
+    - src/main.py
+  ignore_paths:
+    - "**/*_test.go"
+    - tests/**
+    - "**/generated/**"
+
+stability:
+  enabled: true
+  minimum_fan_in: 3
+  max_instability_delta: 0.35
+  ignore_paths:
+    - "**/generated/**"
+    - "**/*_test.go"
+
+# Existing design heuristics and dependency-graph checks can live in this file
+# too. Inline checks.design_rules values in the main config override the matching
+# top-level fields here, including false, zero, and empty-list values.
+detect_import_cycles: true
+detect_god_modules: true
+god_module_threshold: 24
+detect_high_impact_changes: true
+high_impact_change_threshold: 20
+max_decls_per_file: 12
+max_methods_per_type: 8
+max_interface_methods: 5
+forbidden_package_names:
+  - util
+  - utils
+  - common
+  - helpers
+  - misc

@@ -77,6 +77,24 @@ if err := codeguard.WriteReport(os.Stdout, report, "json"); err != nil {
 }
 ```
 
+### Loading standalone design policies
+
+`LoadConfigFile` also loads a standalone architecture policy. It auto-discovers
+`.codeguard/design_rules.yml` or `.codeguard/design_rules.yaml`, or follows
+`checks.design_rules_file` relative to the main config. The external document is loaded as
+the base `DesignRulesConfig`; explicitly present inline `checks.design_rules` fields win.
+
+This behavior belongs to file loading. Setting `CheckConfig.DesignRulesFile` on a config
+constructed entirely in memory and passing it directly to `Run` does not read the file.
+For an in-memory config, populate `CheckConfig.DesignRules` directly using the exported
+`DesignRulesConfig`, `DesignLayerConfig`, `DesignDomainConfig`,
+`DesignCapabilityConfig`, `DesignPublicSurfaceConfig`,
+`DesignProductionTestConfig`, `DesignReachabilityConfig`, and
+`DesignStabilityConfig` types.
+
+See [the standalone policy template](../examples/design_rules.yml) for the complete YAML
+schema and migration notes in the [Design checks guide](checks.md#standalone-design-policy).
+
 ## Verified fix flow
 
 `VerifyFix` and `GenerateVerifiedFix` fail closed. They do not return a patch unless:

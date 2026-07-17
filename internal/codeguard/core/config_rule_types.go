@@ -130,6 +130,14 @@ type DesignRulesConfig struct {
 	ForbiddenPackageNames        []string                        `json:"forbidden_package_names,omitempty" yaml:"forbidden_package_names,omitempty"`
 	LanguageCommands             map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
 	LanguageDiffCommands         map[string][]CommandCheckConfig `json:"language_diff_commands,omitempty" yaml:"language_diff_commands,omitempty"`
+	RequireBoundaryAssignment    *bool                           `json:"require_boundary_assignment,omitempty" yaml:"require_boundary_assignment,omitempty"`
+	Layers                       []DesignLayerConfig             `json:"layers,omitempty" yaml:"layers,omitempty"`
+	Domains                      []DesignDomainConfig            `json:"domains,omitempty" yaml:"domains,omitempty"`
+	Capabilities                 []DesignCapabilityConfig        `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
+	PublicSurfaces               []DesignPublicSurfaceConfig     `json:"public_surfaces,omitempty" yaml:"public_surfaces,omitempty"`
+	ProductionTest               *DesignProductionTestConfig     `json:"production_test,omitempty" yaml:"production_test,omitempty"`
+	Reachability                 *DesignReachabilityConfig       `json:"reachability,omitempty" yaml:"reachability,omitempty"`
+	Stability                    *DesignStabilityConfig          `json:"stability,omitempty" yaml:"stability,omitempty"`
 }
 
 type PromptRulesConfig struct {

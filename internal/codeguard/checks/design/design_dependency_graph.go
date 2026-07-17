@@ -13,6 +13,7 @@ type moduleGraph struct {
 	modules      map[string]*moduleGraphNode
 	order        []string
 	fileToModule map[string]string
+	imports      []moduleGraphImport
 }
 
 type moduleGraphNode struct {
@@ -63,6 +64,22 @@ func (g *moduleGraph) addEdge(from string, to string, line int) {
 		}
 	}
 	node.edges = append(node.edges, moduleGraphEdge{to: to, line: line})
+}
+
+func (g *moduleGraph) addImport(from string, to string, sourceFile string, specifier string, line int) {
+	if from == "" || sourceFile == "" || specifier == "" {
+		return
+	}
+	g.imports = append(g.imports, moduleGraphImport{
+		from:       from,
+		to:         to,
+		sourceFile: sourceFile,
+		specifier:  specifier,
+		line:       line,
+	})
+	if to != "" {
+		g.addEdge(from, to, line)
+	}
 }
 
 func (g *moduleGraph) addSelfEdge(module string, line int) {
