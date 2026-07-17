@@ -69,14 +69,15 @@ func licenseDenied(normalized string, tokens []string, denied []string) bool {
 	if len(denied) == 0 {
 		return false
 	}
+	deniedSet := stringSet(denied)
 	for _, deniedLicense := range denied {
 		if normalized == deniedLicense {
 			return true
 		}
-		for _, token := range tokens {
-			if token == deniedLicense {
-				return true
-			}
+	}
+	for _, token := range tokens {
+		if _, ok := deniedSet[token]; ok {
+			return true
 		}
 	}
 	return false
@@ -86,16 +87,30 @@ func licenseOutsideAllowed(normalized string, tokens []string, allowed []string)
 	if len(allowed) == 0 {
 		return false
 	}
-	if normalized != "" && slices.Contains(allowed, normalized) {
-		return false
+	allowedSet := stringSet(allowed)
+	if normalized != "" {
+		if _, ok := allowedSet[normalized]; ok {
+			return false
+		}
 	}
 	if len(tokens) == 0 {
 		return true
 	}
 	for _, token := range tokens {
-		if !slices.Contains(allowed, token) {
+		if _, ok := allowedSet[token]; !ok {
 			return true
 		}
 	}
 	return false
+}
+
+func stringSet(values []string) map[string]struct{} {
+	if len(values) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		set[value] = struct{}{}
+	}
+	return set
 }
