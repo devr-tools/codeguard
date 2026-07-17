@@ -232,15 +232,15 @@ func cppMethodKey(line string, typeName string) (string, bool) {
 	if name != typeName && name != "~"+typeName && strings.Contains(name, "::") {
 		name = name[strings.LastIndex(name, "::")+2:]
 	}
-	close := cppMatchingParen(trimmed, open)
-	if close < 0 {
+	closePos := cppMatchingParen(trimmed, open)
+	if closePos < 0 {
 		return "", false
 	}
-	trailer := strings.TrimSpace(trimmed[close+1:])
+	trailer := strings.TrimSpace(trimmed[closePos+1:])
 	if strings.HasPrefix(trailer, "->") {
 		return "", false
 	}
-	params := cppSquashWhitespace(trimmed[open+1 : close])
+	params := cppSquashWhitespace(trimmed[open+1 : closePos])
 	return name + "(" + params + ")", true
 }
 

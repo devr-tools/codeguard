@@ -227,16 +227,12 @@ func (resolver *typeScriptImportResolver) resolveTSConfigExtends(dir string, val
 	if !strings.HasSuffix(value, ".json") {
 		candidates = append(candidates, normalizeTypeScriptPath(path.Join(dir, value+".json")))
 		if !strings.HasPrefix(value, ".") && !strings.HasPrefix(value, "/") {
-			for _, candidate := range resolver.workspaceTSConfigCandidates(value + ".json") {
-				candidates = append(candidates, candidate)
-			}
+			candidates = append(candidates, resolver.workspaceTSConfigCandidates(value+".json")...)
 		}
 	}
 	candidates = append(candidates, normalizeTypeScriptPath(path.Join(dir, value, "tsconfig.json")))
 	if !strings.HasPrefix(value, ".") && !strings.HasPrefix(value, "/") {
-		for _, candidate := range resolver.workspaceTSConfigCandidates(path.Join(value, "tsconfig.json")) {
-			candidates = append(candidates, candidate)
-		}
+		candidates = append(candidates, resolver.workspaceTSConfigCandidates(path.Join(value, "tsconfig.json"))...)
 	}
 	for _, candidate := range candidates {
 		if _, ok := resolver.tsconfigs[candidate]; ok {
