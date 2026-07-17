@@ -453,6 +453,7 @@ Purpose:
 - Unbounded concurrency: goroutines launched from loops (Go), accumulated/detached threads or tasks (C++), promises created in loops without a limiter (TS/JS), `asyncio` tasks created in loops without a semaphore (Python)
 - Sequential `await` in TS/JS loops that could batch through `Promise.all`
 - Memory-pressure patterns: `time.After` timers leaked in Go loops, `setInterval` without `clearInterval` and listeners added in TS/JS loops without cleanup, unbounded whole-input reads (`io.ReadAll` in Go handlers/loops, `.read()`/`.readlines()` in Python loops)
+- Hot-path patterns: repeated linear membership scans in Go loops (`slices.Contains` / `slices.Index` family and obvious nested membership scans), mutexes held across blocking calls in Go, per-iteration stream flushes in C++ loops (`std::endl`, `std::flush`), and range-for copies of heavy C++ values
 - Framework-aware smells, gated on file-level framework evidence: Django relation access in queryset loops, Django/SQLAlchemy ORM point queries in loops, expensive per-render work in React components, CPU-heavy synchronous calls in Express middleware
 - Change intelligence (diff scans): loop-nesting complexity regressions in functions touched by the diff
 - Measurement gates: artifact size budgets, clang `-ftime-trace` budgets, and `go test -bench` regression detection against a stored baseline
@@ -479,6 +480,7 @@ Config keys:
       "detect_timer_leaks": true,
       "detect_unbounded_reads": true,
       "detect_complexity_regression": true,
+      "detect_hot_path_patterns": true,
       "detect_framework_patterns": true,
       "detect_rebuild_cascade": true
     }
@@ -514,6 +516,11 @@ Rules:
 | `performance.{typescript,javascript}.timer-listener-leak` | TS, JS | `detect_timer_leaks` |
 | `performance.unbounded-read` | Go, Python | `detect_unbounded_reads` |
 | `performance.complexity-regression` | Go | `detect_complexity_regression` (diff scans only) |
+| `performance.go.nested-loop-scan` | Go | `detect_hot_path_patterns` |
+| `performance.go.slice-membership-in-loop` | Go | `detect_hot_path_patterns` |
+| `performance.go.lock-held-across-blocking-call` | Go | `detect_hot_path_patterns` |
+| `performance.cpp.range-for-copy` | C++ | `detect_hot_path_patterns` |
+| `performance.cpp.flush-in-loop` | C++ | `detect_hot_path_patterns` |
 | `performance.python.django-nplusone-relation` | Python | `detect_framework_patterns` |
 | `performance.python.orm-query-in-loop` | Python | `detect_framework_patterns` |
 | `performance.{typescript,javascript}.react-expensive-render` | TS, JS | `detect_framework_patterns` |
@@ -531,6 +538,11 @@ Notes on precision:
 - `defer-in-loop` scopes to the enclosing function: `defer wg.Done()` inside a goroutine launched from a loop runs per goroutine and is not flagged.
 - `await-in-loop` exempts `for await` streams and any file using a concurrency limiter (`p-limit`/`p-queue`); keep the loop (or disable the toggle) when iterations genuinely depend on each other.
 - `unbounded-read` does not fire when the reader is already bounded (`io.LimitReader`, `http.MaxBytesReader`, `read(n)`).
+- `go.nested-loop-scan` is intentionally narrow: it looks for nested `range` loops where the equality test directly compares an outer loop variable to an inner loop variable. It does not yet infer indexed lookups, helper wrappers, or non-equality membership checks.
+- `go.slice-membership-in-loop` currently targets explicit `slices.Contains` / `ContainsFunc` / `Index` / `IndexFunc` calls inside loops. It does not yet infer helper wrappers or prove the scanned slice is large enough to matter, so treat it as a hot-path review cue rather than a universal ban.
+- `go.lock-held-across-blocking-call` targets obvious blocking calls while a `sync.Mutex` / `sync.RWMutex` is held: synchronous file I/O, `time.Sleep`, package-level HTTP calls, SQL-style `Query`/`Exec` methods on `db`/`tx`/`conn`/`pool`-shaped receivers, and `client.Do`. It is lexical rather than flow-sensitive, so treat it as a review cue when branches unlock before the call.
+- `cpp.range-for-copy` currently flags structured bindings by value (`for (auto [k, v] : map)`) and explicit by-value iteration over obvious heavy standard-library types such as `std::string`, `std::vector`, and map/set pair types. Plain `auto value : items` is intentionally out of scope in this version.
+- `cpp.flush-in-loop` matches `<< std::endl`, `<< endl`, `<< std::flush`, and `<< flush` inside loops. Ordinary newline writes such as `'\n'` are intentionally not flagged.
 - The TS/JS timer/listener rule treats any `clearInterval` in the file as interval cleanup, and any `removeEventListener`/`AbortSignal` usage as listener cleanup.
 - Python task creation is exempt when the file shows a bounding construct (`asyncio.Semaphore`, `TaskGroup`, `aiolimiter`, `anyio.CapacityLimiter`).
 
@@ -563,10 +575,10 @@ When the performance section runs and produces findings, each target publishes a
 | Family | Rules | Weight |
 |---|---|---|
 | Query in loop (N+1) | `n-plus-one-query` | 5 |
-| Blocking I/O | `sync-io-in-request-path`, `{typescript,javascript}.sync-io-in-handler`, `python.sync-io-in-async` | 4 |
+| Blocking I/O | `sync-io-in-request-path`, `{typescript,javascript}.sync-io-in-handler`, `python.sync-io-in-async`, `go.lock-held-across-blocking-call` | 4 |
 | Unbounded concurrency | `unbounded-goroutines-in-loop`, `cpp.unbounded-concurrency`, `{typescript,javascript,python}.unbounded-concurrency` | 4 |
 | Memory pressure | `unbounded-read`, `go.timer-leak-in-loop`, `{typescript,javascript}.timer-listener-leak` | 3 |
-| Repeated loop work | `regex-compile-in-loop`, `go.defer-in-loop`, `{go,rust,cpp}.sleep-in-loop`, `{typescript,javascript}.await-in-loop` | 2 |
+| Repeated loop work | `regex-compile-in-loop`, `go.defer-in-loop`, `{go,rust,cpp}.sleep-in-loop`, `{typescript,javascript}.await-in-loop`, `go.nested-loop-scan`, `go.slice-membership-in-loop`, `cpp.range-for-copy`, `cpp.flush-in-loop` | 2 |
 | Allocation churn | `{go,rust,cpp}.alloc-in-loop`, `string-concat-in-loop` | 1 |
 
 The score trend is persisted per target next to the scan cache (`<cache>.perf-history.<ext>`) whenever the cache is enabled; subsequent scans annotate the artifact with `previous_score` and `delta`. `performance_rules.score_history: false` disables persistence and `performance_rules.score_history_limit` caps retained entries per target (default 100). Print the recorded trend with:

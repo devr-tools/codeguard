@@ -54,6 +54,11 @@ type PerformanceRulesConfig struct {
 	// DetectComplexityRegression only applies in diff scans, where a base
 	// revision exists for comparing loop nesting in changed functions.
 	DetectComplexityRegression *bool `json:"detect_complexity_regression,omitempty" yaml:"detect_complexity_regression,omitempty"`
+	// DetectHotPathPatterns gates targeted hot-path smells that are cheap to
+	// identify statically but do not fit the broader loop/allocation toggles,
+	// such as repeated linear membership scans in Go loops and per-iteration
+	// stream flushes in C++ loops.
+	DetectHotPathPatterns *bool `json:"detect_hot_path_patterns,omitempty" yaml:"detect_hot_path_patterns,omitempty"`
 	// DetectFrameworkPatterns gates the framework-aware rules: Django relation
 	// access and ORM point queries in Python loops (Django/SQLAlchemy),
 	// expensive per-render work in React components, and CPU-heavy synchronous
