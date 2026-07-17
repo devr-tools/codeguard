@@ -13,64 +13,80 @@ import (
 func TestWriteReportSupportsSARIFAndGitHub(t *testing.T) {
 	report := formatReport()
 
-	var text bytes.Buffer
+	testColoredTextReport(t, report)
+	testPlainTextReport(t, report)
+	testJSONReport(t, report)
+	testSARIFReport(t, report)
+	testGitHubReport(t, report)
+	testGitHubCommentReport(t, report)
+}
+
+func testColoredTextReport(t *testing.T, report codeguard.Report) {
+	t.Helper()
 	t.Setenv("NO_COLOR", "")
-	if err := codeguard.WriteReport(&text, report, "text"); err != nil {
-		t.Fatalf("write text: %v", err)
-	}
-	assertTextReportFormatting(t, &text)
-	assertReportVersion(t, "text", text.String(), "CodeGuard version: "+version.Number)
+	output := writeFormatReport(t, report, "text")
+	assertTextReportFormatting(t, &output)
+	assertReportVersion(t, "text", output.String(), "CodeGuard version: "+version.Number)
+}
 
+func testPlainTextReport(t *testing.T, report codeguard.Report) {
+	t.Helper()
 	t.Setenv("NO_COLOR", "1")
-	var plain bytes.Buffer
-	if err := codeguard.WriteReport(&plain, report, "text"); err != nil {
-		t.Fatalf("write plain text: %v", err)
-	}
-	assertPlainTextReportFormatting(t, &plain)
+	output := writeFormatReport(t, report, "text")
+	assertPlainTextReportFormatting(t, &output)
+}
 
-	var jsonOutput bytes.Buffer
-	if err := codeguard.WriteReport(&jsonOutput, report, "json"); err != nil {
-		t.Fatalf("write json: %v", err)
-	}
+func testJSONReport(t *testing.T, report codeguard.Report) {
+	t.Helper()
+	output := writeFormatReport(t, report, "json")
 	var jsonPayload struct {
 		CodeGuardVersion string `json:"codeguard_version"`
 	}
-	if err := json.Unmarshal(jsonOutput.Bytes(), &jsonPayload); err != nil {
+	if err := json.Unmarshal(output.Bytes(), &jsonPayload); err != nil {
 		t.Fatalf("parse json: %v", err)
 	}
 	if jsonPayload.CodeGuardVersion != version.Number {
 		t.Fatalf("json codeguard_version = %q, want %q", jsonPayload.CodeGuardVersion, version.Number)
 	}
+}
 
-	var sarif bytes.Buffer
-	if err := codeguard.WriteReport(&sarif, report, "sarif"); err != nil {
-		t.Fatalf("write sarif: %v", err)
+func testSARIFReport(t *testing.T, report codeguard.Report) {
+	t.Helper()
+	output := writeFormatReport(t, report, "sarif")
+	if !strings.Contains(output.String(), `"version": "2.1.0"`) {
+		t.Fatalf("expected SARIF payload, got: %s", output.String())
 	}
-	if !strings.Contains(sarif.String(), `"version": "2.1.0"`) {
-		t.Fatalf("expected SARIF payload, got: %s", sarif.String())
-	}
-	assertReportVersion(t, "sarif", sarif.String(), `"version": "`+version.Number+`"`)
+	assertReportVersion(t, "sarif", output.String(), `"version": "`+version.Number+`"`)
+}
 
-	var github bytes.Buffer
-	if err := codeguard.WriteReport(&github, report, "github"); err != nil {
-		t.Fatalf("write github: %v", err)
+func testGitHubReport(t *testing.T, report codeguard.Report) {
+	t.Helper()
+	output := writeFormatReport(t, report, "github")
+	if !strings.Contains(output.String(), "::warning file=tests/checks/test_helpers_test.go,line=58,col=1::") {
+		t.Fatalf("expected GitHub annotation, got: %s", output.String())
 	}
-	if !strings.Contains(github.String(), "::warning file=tests/checks/test_helpers_test.go,line=58,col=1::") {
-		t.Fatalf("expected GitHub annotation, got: %s", github.String())
-	}
-	assertReportVersion(t, "github", github.String(), "::notice title=CodeGuard::version "+version.Number)
+	assertReportVersion(t, "github", output.String(), "::notice title=CodeGuard::version "+version.Number)
+}
 
-	var githubComment bytes.Buffer
-	if err := codeguard.WriteReport(&githubComment, report, "github-comment"); err != nil {
-		t.Fatalf("write github comment: %v", err)
+func testGitHubCommentReport(t *testing.T, report codeguard.Report) {
+	t.Helper()
+	output := writeFormatReport(t, report, "github-comment")
+	if !strings.Contains(output.String(), "## CodeGuard Fix Suggestions") {
+		t.Fatalf("expected GitHub comment heading, got: %s", output.String())
 	}
-	if !strings.Contains(githubComment.String(), "## CodeGuard Fix Suggestions") {
-		t.Fatalf("expected GitHub comment heading, got: %s", githubComment.String())
+	assertReportVersion(t, "github-comment", output.String(), "CodeGuard version "+version.Number)
+	if !strings.Contains(output.String(), "Fix: Reduce branching in the function or refactor logic into smaller units.") {
+		t.Fatalf("expected concrete fix guidance, got: %s", output.String())
 	}
-	assertReportVersion(t, "github-comment", githubComment.String(), "CodeGuard version "+version.Number)
-	if !strings.Contains(githubComment.String(), "Fix: Reduce branching in the function or refactor logic into smaller units.") {
-		t.Fatalf("expected concrete fix guidance, got: %s", githubComment.String())
+}
+
+func writeFormatReport(t *testing.T, report codeguard.Report, format string) bytes.Buffer {
+	t.Helper()
+	var out bytes.Buffer
+	if err := codeguard.WriteReport(&out, report, format); err != nil {
+		t.Fatalf("write %s: %v", format, err)
 	}
+	return out
 }
 
 func assertReportVersion(t *testing.T, format string, output string, want string) {

@@ -3,6 +3,7 @@ package mcp_test
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -22,6 +23,12 @@ func initializeHTTPSession(t *testing.T, base string, capabilities string) strin
 
 func openSessionStream(t *testing.T, base string, session string) *bufio.Reader {
 	t.Helper()
+	streamReader, _ := openClosableSessionStream(t, base, session)
+	return streamReader
+}
+
+func openClosableSessionStream(t *testing.T, base string, session string) (*bufio.Reader, io.ReadCloser) {
+	t.Helper()
 	streamReq, _ := http.NewRequest(http.MethodGet, base+"/mcp", nil)
 	streamReq.Header.Set("Mcp-Session-Id", session)
 	streamResp, err := http.DefaultClient.Do(streamReq)
@@ -33,7 +40,7 @@ func openSessionStream(t *testing.T, base string, session string) *bufio.Reader 
 	if _, err := streamReader.ReadString('\n'); err != nil {
 		t.Fatalf("read stream readiness: %v", err)
 	}
-	return streamReader
+	return streamReader, streamResp.Body
 }
 
 func waitForSamplingRequest(t *testing.T, streamReader *bufio.Reader, base string, session string) {
