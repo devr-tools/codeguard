@@ -31,11 +31,12 @@ func (h *mcpHTTPHandler) handleGetStream(w http.ResponseWriter, r *http.Request)
 	flusher.Flush()
 
 	sess.attachStream(w, flusher)
+	// A standalone SSE stream may disconnect independently of its MCP session.
+	// Only detach the stream here; DELETE /mcp explicitly terminates the session.
 	defer sess.detachStream()
 	_, _ = io.WriteString(w, ": ready\n\n")
 	flusher.Flush()
 	<-r.Context().Done()
-	h.sessions.remove(sess.id)
 }
 
 func (h *mcpHTTPHandler) handlePost(w http.ResponseWriter, r *http.Request) {
