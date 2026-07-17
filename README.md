@@ -103,6 +103,23 @@ Text output includes ANSI color and emoji markers by default. Set `NO_COLOR=1` i
 
 If you want a JSON starting point instead, use [examples/codeguard.json](examples/codeguard.json).
 
+## Production Use
+
+For production rollout, start in a narrow mode and expand deliberately:
+
+1. Run `codeguard doctor` and `codeguard validate` in CI first so config and toolchain issues fail early.
+2. Start with `codeguard scan -mode diff` on pull requests so only changed lines and diff-aware checks gate merges.
+3. Create a baseline for legacy findings with `codeguard baseline` before turning on full-repo enforcement.
+4. Enable stricter families such as `design`, `security`, `contracts`, `performance`, and `supply_chain` incrementally per repository.
+5. Use `codeguard rules` and `codeguard explain <rule-id>` to document what a failure means before asking teams to act on it.
+
+When a scan fails:
+
+- `fail` findings should block merge or release until fixed, waived, or baselined intentionally.
+- `warn` findings are non-blocking by default and are best used to drive cleanup, ownership, or gradual policy hardening.
+- section names such as `Design Patterns`, `Security`, or `Code Quality` tell you what kind of action is expected.
+- rule IDs are stable handles for waivers, baselines, dashboards, and agent workflows.
+
 ## SDK
 
 Import the SDK from `github.com/devr-tools/codeguard/pkg/codeguard`.
@@ -130,6 +147,7 @@ func main() {
 ## Docs
 
 - [Getting started](docs/getting-started.md)
+- [Production rollout](docs/production.md)
 - [Features](docs/features.md)
 - [Security & OWASP](docs/security.md)
 - [AI-generated code quality](docs/ai-quality.md)

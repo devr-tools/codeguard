@@ -44,6 +44,26 @@ codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 
 If you prefer a JSON example, start from [examples/codeguard.json](/Users/alex/Documents/GitHub/codeguard/examples/codeguard.json:1).
 
+## First production setup
+
+Use this sequence for a real repository:
+
+1. `codeguard init`
+2. `codeguard validate -config codeguard.yaml`
+3. `codeguard doctor -config codeguard.yaml`
+4. `codeguard scan -mode diff -config codeguard.yaml`
+5. `codeguard baseline -config codeguard.yaml -output codeguard-baseline.json` if the repo has pre-existing debt
+
+After that, add a full scan in scheduled CI and tighten check families
+incrementally. The detailed rollout guidance lives in [Production rollout](production.md).
+
+## Understanding results
+
+- `fail` findings are intended to block until fixed, waived, or baselined.
+- `warn` findings are advisory by default and are best used for gradual cleanup.
+- `codeguard rules` lists every rule with section, level, execution model, and language coverage.
+- `codeguard explain <rule-id>` explains what a specific failed check means and how to fix it.
+
 ## SDK import path
 
 The public SDK import path is:
@@ -86,5 +106,6 @@ func main() {
 - `doctor` checks for config, Git, govulncheck, targets, and cache setup
 - `text`, `json`, `sarif`, and `github` report formats
 - Diff-mode filtering down to changed lines when Git history is available
+- Production rollout tools such as baselines, waivers, diff scans, and rule metadata discovery
 
 Language-specific engines can be added later without changing the repo shape.

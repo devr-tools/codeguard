@@ -2,6 +2,26 @@
 
 This file documents the current check categories in `codeguard` and the config keys that control them.
 
+## How to interpret results
+
+When `codeguard` reports a finding, read it in this order:
+
+1. Section: tells you the policy family, such as `Security`, `Design Patterns`, or `Code Quality`.
+2. Level: `fail` is intended to block; `warn` is intended to surface risk without blocking by default.
+3. Rule ID: the stable identifier for waivers, baselines, dashboards, and `codeguard explain`.
+4. Message: the repository-specific explanation for the concrete file and location.
+
+Useful commands:
+
+```bash
+codeguard rules
+codeguard explain design.layer-boundary
+codeguard explain quality.ai.semantic-runtime
+```
+
+Use `codeguard rules` to discover what exists and `codeguard explain <rule-id>` to
+understand why a specific finding failed and what remediation path it expects.
+
 ## Top-level shape
 
 ```json
@@ -231,7 +251,7 @@ Current inference behavior:
 | Family | Go | C++ | Python | TypeScript | Rust | Java | C# | Ruby |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Quality | `gofmt`, parseability, maintainability thresholds | maintainability thresholds across sources, headers, templates, and modules; optional `clang-format` and sanitized `clang++` validation | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, `explicit any`, double assertions, non-null assertions, `debugger` statements | maintainability thresholds | maintainability thresholds | maintainability thresholds | maintainability thresholds |
-| Design | boundary rules, generic package names, type/interface/file-size heuristics | include/module cycles, graph impact, generic filenames, qualified method counts | public-imports-private, public-imports-cli, generic module names | generic module names, max methods per class, max members per interface/object type | module cycles and graph impact | import cycles and graph impact | - | - |
+| Design | package boundary rules, generic package names, declarations per file, methods per type, interface size, graph reachability/stability/impact | include and named-module cycles, reachability, stability, graph impact, generic filenames, declarations per file, method counts, contract surface checks, boundary-policy enforcement | public/private and entrypoint coupling, import cycles, generic module names, methods per type, protocol size | generic module names, max methods per class, max members per interface/object type, graph resolution through `tsconfig` paths, package `imports`, and workspace package exports | module cycles, graph impact, generic module names, methods per type, trait size | import cycles and graph impact | - | - |
 | Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, unsafe C string APIs, taint flow, SSRF | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
 | Commands | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config |
 
@@ -830,12 +850,16 @@ Current behavior:
 - fails on configured layer, domain, data-ownership, capability, public-surface, and production/test boundary violations
 - can require every module to belong to a configured layer and domain
 - warns on configured unreachable modules and stability-direction inversions
-- Go targets keep the existing package, import-boundary, declaration-count, type-size, and interface-size heuristics
-- Python targets fail on public-to-private imports, direct or transitive entrypoint coupling, and internal import cycles, and warn on overly generic module names
-- TypeScript targets warn on overly generic module names, oversized classes, and oversized interfaces or object types using compiler-parsed AST analysis when the semantic runtime is available
-- C++ targets build a target-local include/named-module graph for cycles, god modules, and diff impact; they also warn on generic filenames and excessive qualified out-of-line methods for one type
+- Go targets keep package and import-boundary checks and warn on declarations per file, methods per type, and oversized interfaces
+- Python targets fail on public-to-private imports, direct or transitive entrypoint coupling, and internal import cycles, and warn on overly generic module names, oversized classes, and oversized protocols
+- TypeScript targets warn on overly generic module names, oversized classes, and oversized interfaces or object types, while the graph resolver follows relative imports, `tsconfig` aliases and extends chains, package `imports`, and workspace package exports
+- Rust targets build a module graph for cycles and impact and warn on generic module names, oversized impls, and oversized traits
+- C++ targets build a target-local include/named-module graph for cycles, god modules, reachability, stability, diff impact, and boundary policy enforcement; they also warn on generic filenames, declarations per file, excessive methods on one type, and oversized contract surfaces
 - can run language-specific design commands based on `targets[].language`
 - language command failures surface as `design.command-check`
+
+For a production rollout sequence and guidance on when to use baselines, waivers,
+or diff scans, see [Production rollout](production.md).
 
 Language command example:
 
