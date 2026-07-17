@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/devr-tools/codeguard/compare/v1.1.0...v1.1.1) (2026-07-17)
+
+
+### Bug Fixes
+
+* **mcp:** preserve session across stream disconnects ([a7c5ed2](https://github.com/devr-tools/codeguard/commit/a7c5ed2f60fb51b43769e3574088f870e2bef348))
+* **report:** include version in all output formats ([c8c1ae3](https://github.com/devr-tools/codeguard/commit/c8c1ae3a644d669ad60ecc76abaa2a1fb1f4623f))
+
 ## [1.1.0](https://github.com/devr-tools/codeguard/compare/v1.0.0...v1.1.0) (2026-07-17)
 
 
