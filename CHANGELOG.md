@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.2](https://github.com/devr-tools/codeguard/compare/v1.1.1...v1.1.2) (2026-07-17)
+
+
+### Bug Fixes
+
+* (checks) design-cross-language-boundaries ([#55](https://github.com/devr-tools/codeguard/issues/55)) ([91afc88](https://github.com/devr-tools/codeguard/commit/91afc884bec609e2542e1874cb4d19b0c8006a1c))
+* **design:** add configurable architecture boundaries ([f6bdb33](https://github.com/devr-tools/codeguard/commit/f6bdb33989faf83a7dfd007474325587614accd5))
+* **design:** add configurable architecture boundaries ([#53](https://github.com/devr-tools/codeguard/issues/53)) ([ea5cd93](https://github.com/devr-tools/codeguard/commit/ea5cd936f5f6a6cab6bc4a39b8fe6337dd79330b))
+* **design:** satisfy strict lint ([f8c6471](https://github.com/devr-tools/codeguard/commit/f8c647190c79247e190c9922bc9fd7423ef26cb5))
+
 ## [1.1.1](https://github.com/devr-tools/codeguard/compare/v1.1.0...v1.1.1) (2026-07-17)
 
 
