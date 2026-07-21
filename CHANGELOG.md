@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/devr-tools/codeguard/compare/v1.1.2...v1.2.0) (2026-07-21)
+
+
+### Features
+
+* add agent-native repository guardrails ([86f7142](https://github.com/devr-tools/codeguard/commit/86f7142cb3ce8c11e081e28b0f4d61ea40dcdfff))
+
 ## [1.1.2](https://github.com/devr-tools/codeguard/compare/v1.1.1...v1.1.2) (2026-07-17)
 
 
