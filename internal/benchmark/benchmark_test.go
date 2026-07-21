@@ -53,7 +53,7 @@ func TestRunRecordsColdAndWarmMeasurements(t *testing.T) {
 	root := t.TempDir()
 	entry := validManifest().Entries[0]
 	worktree := filepath.Join(root, entry.Worktree)
-	if err := os.MkdirAll(filepath.Join(worktree, ".codeguard"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(worktree, ".codeguard"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(worktree, entry.Config), []byte("name: benchmark\n"), 0o600); err != nil {

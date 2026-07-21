@@ -2,6 +2,7 @@ package benchmark
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -91,11 +92,13 @@ func runEntry(ctx context.Context, result *Result, binary, worktree string, entr
 	config := filepath.Join(worktree, entry.Config)
 	args := []string{"scan", "-config", config, "-mode", "diff", "-base-ref", entry.BaseRevision}
 	started := time.Now()
+	// #nosec G204 -- the benchmark operator explicitly supplies the local binary.
 	command := exec.CommandContext(ctx, binary, args...)
 	command.Dir = worktree
 	err = command.Run()
 	run := RunResult{ID: entry.ID, Language: entry.Language, Mode: mode, Attempt: attempt, Duration: time.Since(started)}
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
 		run.ExitCode = exitErr.ExitCode()
 	} else if err != nil {
 		run.Error = err.Error()

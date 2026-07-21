@@ -103,9 +103,9 @@ func pyTaintWithSinkModel(taint *pyTaint, sinkModel string) *pyTaint {
 	if taint == nil {
 		return nil
 	}
-	copy := *taint
-	copy.sinkModel = sinkModel
-	return &copy
+	clone := *taint
+	clone.sinkModel = sinkModel
+	return &clone
 }
 
 // checkSubprocessSink flags subprocess calls that run through a shell or
