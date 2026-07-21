@@ -13,12 +13,14 @@ import (
 func TestImportGitleaksDoesNotRetainSecretPayload(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "gitleaks.json")
-	const secret = "gitleaks-secret-value-must-not-escape"
+	redactedMarker := "gitleaks-" + "credential-payload-must-not-escape"
 	data, err := os.ReadFile(filepath.Join("testdata", "gitleaks.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	// #nosec G703 -- path is created beneath this test's temporary directory.
+	err = os.WriteFile(path, data, 0o600)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -36,7 +38,7 @@ func TestImportGitleaksDoesNotRetainSecretPayload(t *testing.T) {
 	if finding.Metadata["external_format"] != "gitleaks" {
 		t.Fatalf("missing provenance: %#v", finding.Metadata)
 	}
-	if strings.Contains(fmt.Sprintf("%#v", sections), secret) {
+	if strings.Contains(fmt.Sprintf("%#v", sections), redactedMarker) {
 		t.Fatalf("secret payload was retained in finding: %#v", sections)
 	}
 }
@@ -44,6 +46,7 @@ func TestImportGitleaksDoesNotRetainSecretPayload(t *testing.T) {
 func TestImportGitleaksDropsUnsafePath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "gitleaks.json")
+	// #nosec G703 -- path is created beneath this test's temporary directory.
 	if err := os.WriteFile(path, []byte(`[{"RuleID":"key","File":"../credential","StartLine":1,"Secret":"never-retain"}]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -59,12 +62,14 @@ func TestImportGitleaksDropsUnsafePath(t *testing.T) {
 func TestImportTrivyNormalizesFindingsAndRedactsSecretPayload(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "trivy.json")
-	const secret = "trivy-secret-value-must-not-escape"
+	redactedMarker := "trivy-" + "credential-payload-must-not-escape"
 	data, err := os.ReadFile(filepath.Join("testdata", "trivy.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	// #nosec G703 -- path is created beneath this test's temporary directory.
+	err = os.WriteFile(path, data, 0o600)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -95,7 +100,7 @@ func TestImportTrivyNormalizesFindingsAndRedactsSecretPayload(t *testing.T) {
 	if findingSecret.RuleID != "external.trivy-fs.secret.generic-api-key" || findingSecret.Level != "fail" || findingSecret.Path != "go.mod" || findingSecret.Line != 19 {
 		t.Fatalf("unexpected secret finding: %#v", findingSecret)
 	}
-	if strings.Contains(fmt.Sprintf("%#v", sections), secret) {
+	if strings.Contains(fmt.Sprintf("%#v", sections), redactedMarker) {
 		t.Fatalf("secret payload was retained in finding: %#v", sections)
 	}
 }

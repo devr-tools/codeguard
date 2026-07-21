@@ -71,6 +71,7 @@ func runFixBatch(args []string, stdout io.Writer, stderr io.Writer) int {
 }
 
 func loadBatchFixInput(path string) (batchFixInput, error) {
+	// #nosec G304 -- the caller explicitly supplies the batch-fix input file.
 	contents, err := os.ReadFile(path)
 	if err != nil {
 		return batchFixInput{}, err

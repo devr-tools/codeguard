@@ -56,7 +56,8 @@ func TestFixBatchVerifiesExplicitDeterministicItemsWithoutChangingTarget(t *test
 		t.Fatalf("fix-batch exit code = %d, stderr = %s", code, stderr.String())
 	}
 	var result service.FixBatchResult
-	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+	err = json.Unmarshal(stdout.Bytes(), &result)
+	if err != nil {
 		t.Fatalf("decode result: %v\noutput: %s", err, stdout.String())
 	}
 	if len(result.Included) != 1 || !strings.Contains(result.Verification.Diff, "func run() {}") {

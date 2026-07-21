@@ -215,29 +215,29 @@ func TestSecurityTypeScriptTaintExpressAndNextModelsAreImportGated(t *testing.T)
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "src", "express.ts"),
 		"import type { Request as ExpressRequest } from \"express\";\n"+
-		"import { exec } from \"child_process\";\n"+
-		"export function handler(req: ExpressRequest): void {\n"+
-		"  exec(req.query.cmd);\n"+
-		"}\n")
+			"import { exec } from \"child_process\";\n"+
+			"export function handler(req: ExpressRequest): void {\n"+
+			"  exec(req.query.cmd);\n"+
+			"}\n")
 	writeFile(t, filepath.Join(dir, "src", "next.ts"),
 		"import { NextRequest } from \"next/server\";\n"+
-		"import { exec } from \"child_process\";\n"+
-		"export async function POST(request: NextRequest): Promise<void> {\n"+
-		"  exec((await request.json()).cmd);\n"+
-		"}\n")
+			"import { exec } from \"child_process\";\n"+
+			"export async function POST(request: NextRequest): Promise<void> {\n"+
+			"  exec((await request.json()).cmd);\n"+
+			"}\n")
 	writeFile(t, filepath.Join(dir, "src", "lookalike.ts"),
 		"import { exec } from \"child_process\";\n"+
-		"type Request = { query: { cmd: string } };\n"+
-		"export function handler(request: Request): void {\n"+
-		"  exec(request.query.cmd);\n"+
-		"}\n")
+			"type Request = { query: { cmd: string } };\n"+
+			"export function handler(request: Request): void {\n"+
+			"  exec(request.query.cmd);\n"+
+			"}\n")
 	writeFile(t, filepath.Join(dir, "src", "express_safe.ts"),
 		"import type { Request } from \"express\";\n"+
-		"import { exec } from \"child_process\";\n"+
-		"declare function shellQuote(value: string): string;\n"+
-		"export function handler(req: Request): void {\n"+
-		"  exec(shellQuote(req.query.cmd));\n"+
-		"}\n")
+			"import { exec } from \"child_process\";\n"+
+			"declare function shellQuote(value: string): string;\n"+
+			"export function handler(req: Request): void {\n"+
+			"  exec(shellQuote(req.query.cmd));\n"+
+			"}\n")
 
 	report := runTypeScriptTaintScan(t, typeScriptTaintConfig(dir))
 	models := map[string]string{}

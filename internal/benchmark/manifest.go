@@ -35,6 +35,7 @@ type Entry struct {
 
 // Load reads and validates a benchmark manifest.
 func Load(path string) (Manifest, error) {
+	// #nosec G304 -- the caller explicitly selects the benchmark manifest.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("read benchmark manifest: %w", err)
