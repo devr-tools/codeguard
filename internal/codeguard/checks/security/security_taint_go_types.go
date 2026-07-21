@@ -21,15 +21,6 @@ func (t *goTaint) withSinkModel(model string) *goTaint {
 	return &next
 }
 
-func (t *goTaint) withModel(model string) *goTaint {
-	if t == nil || t.model != "" || model == "" {
-		return t
-	}
-	next := *t
-	next.model = model
-	return &next
-}
-
 func (t *goTaint) extended(step string) *goTaint {
 	next := *t
 	next.chain = append(append([]string{}, t.chain...), step)

@@ -58,6 +58,9 @@ checks:
     # below 85 (the repo currently scores 100; see docs/checks.md).
     legibility_warn_threshold: 85
   ci_rules:
+    allowed_test_paths:
+      - tests/**
+      - internal/**
     require_workflow_dir: true
     required_workflow_files:
       - .github/workflows/ci.yml

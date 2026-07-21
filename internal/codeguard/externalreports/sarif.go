@@ -206,9 +206,9 @@ func firstNonEmpty(values ...string) string {
 	}
 	return ""
 }
-func truncate(value string, max int) string {
-	if len(value) > max {
-		return value[:max]
+func truncate(value string, limit int) string {
+	if len(value) > limit {
+		return value[:limit]
 	}
 	return value
 }

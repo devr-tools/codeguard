@@ -84,6 +84,7 @@ func loadAdvisoryCache(targetRoot, configuredPath string) (advisoryCache, time.T
 	if !filepath.IsAbs(cachePath) {
 		cachePath = filepath.Join(targetRoot, cachePath)
 	}
+	// #nosec G304 -- config validation constrains this to the configured advisory cache.
 	data, err := os.ReadFile(cachePath)
 	if err != nil {
 		return advisoryCache{}, time.Time{}, "", false
