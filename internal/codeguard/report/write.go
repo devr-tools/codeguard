@@ -20,6 +20,8 @@ func Write(w io.Writer, report core.Report, format string) error {
 		return writeJSON(w, report)
 	case "sarif":
 		return writeSARIF(w, report)
+	case "cyclonedx", "cyclonedx-json":
+		return writeCycloneDX(w, report)
 	case "github":
 		return writeGitHubAnnotations(w, report)
 	case "github-comment":

@@ -65,6 +65,73 @@ func TestSupplyChainWarnsForUnpinnedDependencies(t *testing.T) {
 	}
 }
 
+func TestSupplyChainFindsVulnerableDependencyFromOfflineCache(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "package.json"), `{
+  "name": "frontend",
+  "dependencies": {"example-library": "1.2.3"}
+}`)
+	writeFile(t, filepath.Join(dir, "package-lock.json"), `{"lockfileVersion": 3}`)
+	writeFile(t, filepath.Join(dir, ".codeguard", "advisories.json"), `{
+  "schema_version": 1,
+  "generated_at": "2026-07-20T00:00:00Z",
+  "source": "approved-export",
+  "advisories": [{
+    "id": "CVE-2026-12345",
+    "ecosystem": "npm",
+    "package": "example-library",
+    "affected_versions": [">=1.0.0, <1.2.4"],
+    "fixed_version": "1.2.4",
+    "url": "https://example.invalid/CVE-2026-12345"
+  }]
+}`)
+
+	cfg := supplyChainTestConfig(dir, "offline-advisories")
+	on := true
+	cfg.Checks.SupplyChainRules.DetectVulnerabilities = &on
+	cfg.Checks.SupplyChainRules.AdvisoryCachePath = ".codeguard/advisories.json"
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Supply Chain", "fail")
+	assertFindingRulePresent(t, report, "Supply Chain", "supply_chain.vulnerable-dependency")
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if finding.RuleID != "supply_chain.vulnerable-dependency" {
+				continue
+			}
+			if finding.Metadata["advisory_id"] != "CVE-2026-12345" || finding.Metadata["advisory_source"] != "approved-export" {
+				t.Fatalf("unexpected advisory provenance: %#v", finding.Metadata)
+			}
+			if finding.Metadata["cache_age"] == "" || finding.Metadata["fixed_version"] != "1.2.4" {
+				t.Fatalf("missing cache metadata: %#v", finding.Metadata)
+			}
+			return
+		}
+	}
+	t.Fatal("vulnerable dependency finding missing")
+}
+
+func TestSupplyChainDoesNotMatchUnresolvedDependencyRangesAgainstOfflineCache(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "package.json"), `{"dependencies": {"example-library": "^1.2.3"}}`)
+	writeFile(t, filepath.Join(dir, "package-lock.json"), `{"lockfileVersion": 3}`)
+	writeFile(t, filepath.Join(dir, "advisories.json"), `{"schema_version":1,"generated_at":"2026-07-20T00:00:00Z","advisories":[{"id":"CVE-2026-12345","ecosystem":"npm","package":"example-library","affected_versions":["<1.2.4"]}]}`)
+	cfg := supplyChainTestConfig(dir, "unresolved-advisory-range")
+	on := true
+	cfg.Checks.SupplyChainRules.DetectVulnerabilities = &on
+	cfg.Checks.SupplyChainRules.AdvisoryCachePath = "advisories.json"
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if messages := supplyChainRuleMessages(report, "supply_chain.vulnerable-dependency"); len(messages) != 0 {
+		t.Fatalf("unresolved dependency range produced advisory findings: %v", messages)
+	}
+}
+
 func TestSupplyChainFailsForMissingLockfile(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "package.json"), `{

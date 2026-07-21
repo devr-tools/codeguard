@@ -46,6 +46,8 @@ func (a *pyTaintAnalyzer) emitFinding(taint *pyTaint, sink string, sinkLine int)
 		chain:      taint.chain,
 		sink:       sink,
 		sinkLine:   sinkLine,
+		model:      taint.model,
+		sinkModel:  taint.sinkModel,
 	})
 }
 
@@ -90,9 +92,20 @@ func (s *pyScope) checkCallSink(call support.ParsedCall) {
 	case strings.HasSuffix(call.Callee, ".execute") || strings.HasSuffix(call.Callee, ".executemany"):
 		// only the query text is dangerous; parameterized args are safe
 		s.reportSink(s.argTaint(call, 0), call.Callee, call.Line)
+	case s.analyzer.models.djangoRawSink(call.Callee):
+		s.reportSink(pyTaintWithSinkModel(s.argTaint(call, 0), "django-orm-raw-sql"), call.Callee, call.Line)
 	case isPyHTTPSink(call.Callee):
 		s.reportSink(s.argTaint(call, pyHTTPSinkArgIndex[call.Callee]), call.Callee, call.Line)
 	}
+}
+
+func pyTaintWithSinkModel(taint *pyTaint, sinkModel string) *pyTaint {
+	if taint == nil {
+		return nil
+	}
+	copy := *taint
+	copy.sinkModel = sinkModel
+	return &copy
 }
 
 // checkSubprocessSink flags subprocess calls that run through a shell or

@@ -64,7 +64,7 @@ func (s Scanner) entropyMatch(lineNo int, line string) *Match {
 			continue
 		}
 		// A statistical heuristic with no format anchor: low confidence.
-		return &Match{RuleID: highEntropyRule, Level: s.entropy.level, Line: lineNo, Column: 1, Message: "high-entropy string literal (possible secret): " + maskSecret(value), Confidence: core.ConfidenceLow}
+		return &Match{RuleID: highEntropyRule, Level: s.entropy.level, Line: lineNo, Column: 1, Message: "high-entropy string literal (possible secret): " + maskSecret(value), SecretType: "high_entropy", Confidence: core.ConfidenceLow}
 	}
 	return nil
 }

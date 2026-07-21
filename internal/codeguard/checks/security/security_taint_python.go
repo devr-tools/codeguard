@@ -14,6 +14,7 @@ type pyTaintAnalyzer struct {
 	file       string
 	parsed     *support.ParsedFile
 	summaries  map[string]*pySummary
+	models     pyModelBindings
 	webRequest bool
 	findings   []core.Finding
 	seen       map[string]struct{}
@@ -26,6 +27,7 @@ func pythonTaintFindings(env support.Context, file string, source string) []core
 		file:       file,
 		parsed:     parsed,
 		summaries:  map[string]*pySummary{},
+		models:     newPyModelBindings(parsed.Imports),
 		webRequest: hasWebFrameworkImport(parsed.Imports),
 		seen:       map[string]struct{}{},
 	}
@@ -59,11 +61,12 @@ func (a *pyTaintAnalyzer) runPasses() {
 // tracking assignments and checking sinks.
 func (a *pyTaintAnalyzer) analyzeScope(fn *support.ParsedFunction, emit bool, isModule bool) *pySummary {
 	scope := &pyScope{
-		analyzer: a,
-		fn:       fn,
-		emit:     emit,
-		vars:     map[string]*pyTaint{},
-		summary:  &pySummary{paramsToReturn: map[int]bool{}},
+		analyzer:      a,
+		fn:            fn,
+		emit:          emit,
+		vars:          map[string]*pyTaint{},
+		requestModels: map[string]string{},
+		summary:       &pySummary{paramsToReturn: map[int]bool{}},
 	}
 	scope.bindParams(isModule)
 	for _, statement := range fn.Statements {
@@ -73,12 +76,13 @@ func (a *pyTaintAnalyzer) analyzeScope(fn *support.ParsedFunction, emit bool, is
 }
 
 type pyScope struct {
-	analyzer     *pyTaintAnalyzer
-	fn           *support.ParsedFunction
-	emit         bool
-	vars         map[string]*pyTaint
-	requestParam bool
-	summary      *pySummary
+	analyzer      *pyTaintAnalyzer
+	fn            *support.ParsedFunction
+	emit          bool
+	vars          map[string]*pyTaint
+	requestParam  bool
+	requestModels map[string]string
+	summary       *pySummary
 }
 
 // bindParams marks parameters as conditionally tainted. A leading self or
@@ -92,8 +96,9 @@ func (s *pyScope) bindParams(isModule bool) {
 		if position == 0 && (param.Name == "self" || param.Name == "cls") {
 			continue
 		}
-		if param.Name == "request" {
+		if model := s.analyzer.models.requestModel(param); model != "" {
 			s.requestParam = true
+			s.requestModels[param.Name] = model
 		}
 		s.vars[param.Name] = &pyTaint{
 			source:     "parameter " + param.Name,

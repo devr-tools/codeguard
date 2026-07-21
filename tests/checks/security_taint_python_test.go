@@ -51,6 +51,84 @@ func TestPythonTaintRequestToCursorExecuteFString(t *testing.T) {
 	assertChainMessage(t, messages, "request.args", "cursor.execute", "user_id -> query")
 }
 
+func TestPythonTaintDjangoRequestToORMRawSQLHasModelMetadata(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "views.py"), strings.Join([]string{
+		"from django.http import HttpRequest",
+		"from app.models import User",
+		"",
+		"def lookup(request: HttpRequest):",
+		"    query = request.GET.get('q')",
+		"    return User.objects.raw(query)",
+		"",
+	}, "\n"))
+
+	report, err := codeguard.Run(context.Background(), securityOnlyConfig("taint-py-django-model", dir, "python"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if finding.RuleID == "security.taint.python" && finding.Metadata["framework_model"] == "django" && finding.Metadata["framework_sink_model"] == "django-orm-raw-sql" {
+				return
+			}
+		}
+	}
+	t.Fatalf("expected Django raw SQL finding with framework metadata, got %#v", report.Sections)
+}
+
+func TestPythonTaintFastAPIRequestSourceRequiresImportAndHonorsSanitizer(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "api.py"), strings.Join([]string{
+		"from fastapi import Request",
+		"import os",
+		"",
+		"async def unsafe(req: Request):",
+		"    os.system(req.query_params.get('command'))",
+		"",
+		"async def safe(req: Request):",
+		"    os.system('head -n ' + str(int(req.query_params.get('count'))))",
+		"",
+	}, "\n"))
+
+	report, err := codeguard.Run(context.Background(), securityOnlyConfig("taint-py-fastapi-model", dir, "python"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	messages := taintMessages(t, report, "security.taint.python")
+	if len(messages) != 1 {
+		t.Fatalf("expected exactly the unsafe FastAPI flow, got %v", messages)
+	}
+	assertChainMessage(t, messages, "req.query_params", "os.system")
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if finding.RuleID == "security.taint.python" && finding.Metadata["framework_model"] == "fastapi" {
+				return
+			}
+		}
+	}
+	t.Fatalf("expected FastAPI framework metadata, got %#v", report.Sections)
+}
+
+func TestPythonTaintDjangoRequestModelIsImportGated(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "lookalike.py"), strings.Join([]string{
+		"import os",
+		"",
+		"def lookup(request):",
+		"    os.system(request.GET.get('command'))",
+		"",
+	}, "\n"))
+
+	report, err := codeguard.Run(context.Background(), securityOnlyConfig("taint-py-django-import-gate", dir, "python"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if messages := taintMessages(t, report, "security.taint.python"); len(messages) != 0 {
+		t.Fatalf("request lookalike without Django import must not use Django model, got %v", messages)
+	}
+}
+
 func TestPythonTaintCrossFunctionFlows(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "tool.py"), strings.Join([]string{

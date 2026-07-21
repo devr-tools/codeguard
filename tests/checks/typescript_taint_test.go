@@ -208,3 +208,59 @@ func TestSecurityTypeScriptTaintExistingSingleFileFindingsRemainStable(t *testin
 	assertFindingRulePresent(t, report, "Security", "security.typescript.shell-execution")
 	assertNoTaintFindings(t, report)
 }
+
+func TestSecurityTypeScriptTaintExpressAndNextModelsAreImportGated(t *testing.T) {
+	requireTypeScriptSemanticRuntime(t)
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "express.ts"),
+		"import type { Request as ExpressRequest } from \"express\";\n"+
+		"import { exec } from \"child_process\";\n"+
+		"export function handler(req: ExpressRequest): void {\n"+
+		"  exec(req.query.cmd);\n"+
+		"}\n")
+	writeFile(t, filepath.Join(dir, "src", "next.ts"),
+		"import { NextRequest } from \"next/server\";\n"+
+		"import { exec } from \"child_process\";\n"+
+		"export async function POST(request: NextRequest): Promise<void> {\n"+
+		"  exec((await request.json()).cmd);\n"+
+		"}\n")
+	writeFile(t, filepath.Join(dir, "src", "lookalike.ts"),
+		"import { exec } from \"child_process\";\n"+
+		"type Request = { query: { cmd: string } };\n"+
+		"export function handler(request: Request): void {\n"+
+		"  exec(request.query.cmd);\n"+
+		"}\n")
+	writeFile(t, filepath.Join(dir, "src", "express_safe.ts"),
+		"import type { Request } from \"express\";\n"+
+		"import { exec } from \"child_process\";\n"+
+		"declare function shellQuote(value: string): string;\n"+
+		"export function handler(req: Request): void {\n"+
+		"  exec(shellQuote(req.query.cmd));\n"+
+		"}\n")
+
+	report := runTypeScriptTaintScan(t, typeScriptTaintConfig(dir))
+	models := map[string]string{}
+	for _, section := range report.Sections {
+		if section.Name != "Security" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID == "security.typescript.taint-flow" {
+				models[finding.Path] = finding.Metadata["framework_model"]
+			}
+		}
+	}
+	if models["src/express.ts"] != "express" {
+		t.Fatalf("expected import-gated Express metadata, got %#v", models)
+	}
+	if models["src/next.ts"] != "nextjs" {
+		t.Fatalf("expected import-gated Next.js metadata, got %#v", models)
+	}
+	if models["src/lookalike.ts"] != "" {
+		t.Fatalf("lookalike request without framework import must use generic model, got %#v", models)
+	}
+	if _, found := models["src/express_safe.ts"]; found {
+		t.Fatalf("sanitized Express input must not produce a taint finding, got %#v", models)
+	}
+}

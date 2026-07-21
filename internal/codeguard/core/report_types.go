@@ -62,6 +62,9 @@ type Finding struct {
 	ContextFingerprint string `json:"context_fingerprint,omitempty"`
 	Suppressed         bool   `json:"suppressed,omitempty"`
 	SuppressionReason  string `json:"suppression_reason,omitempty"`
+	// Metadata carries machine-readable, non-sensitive finding attributes. It
+	// must never contain source snippets or credential values.
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 type ReportSummary struct {

@@ -8,6 +8,9 @@ import (
 )
 
 func validateSupplyChainRules(cfg core.SupplyChainRulesConfig) error {
+	if cfg.DetectVulnerabilities != nil && *cfg.DetectVulnerabilities && strings.TrimSpace(cfg.AdvisoryCachePath) == "" {
+		return errors.New("supply_chain_rules.advisory_cache_path is required when detect_vulnerabilities is enabled")
+	}
 	if err := validateNonEmptyStrings("supply_chain_rules.allowed_licenses", cfg.AllowedLicenses); err != nil {
 		return err
 	}

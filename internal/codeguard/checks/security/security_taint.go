@@ -48,6 +48,8 @@ type taintSinkInput struct {
 	chain      []string
 	sink       string
 	sinkLine   int
+	model      string
+	sinkModel  string
 }
 
 // appendTaintFinding appends a deduplicated source-to-sink finding, keyed by
@@ -60,6 +62,16 @@ func appendTaintFinding(env support.Context, file string, seen map[string]struct
 	seen[key] = struct{}{}
 	// Taint findings come from structured source-to-sink analysis (including
 	// SSRF sinks), so they carry high confidence compared to regex line scans.
+	metadata := map[string]string(nil)
+	if input.model != "" {
+		metadata = map[string]string{"framework_model": input.model}
+	}
+	if input.sinkModel != "" {
+		if metadata == nil {
+			metadata = map[string]string{}
+		}
+		metadata["framework_sink_model"] = input.sinkModel
+	}
 	return append(findings, env.NewFinding(support.FindingInput{
 		RuleID:     input.ruleID,
 		Level:      "fail",
@@ -68,5 +80,6 @@ func appendTaintFinding(env support.Context, file string, seen map[string]struct
 		Column:     1,
 		Message:    taintChainMessage(input.source, input.sourceLine, input.sink, input.sinkLine, input.chain),
 		Confidence: core.ConfidenceHigh,
+		Metadata:   metadata,
 	}))
 }

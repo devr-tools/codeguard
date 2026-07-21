@@ -88,6 +88,13 @@ func containConfigArtifactPaths(cfg *core.Config, baseDir string) error {
 		}
 		*a.path = resolved
 	}
+	for i := range cfg.ExternalReports {
+		resolved, err := containedPath(baseDir, cfg.ExternalReports[i].Path)
+		if err != nil {
+			return fmt.Errorf("external_reports[%d].path: %w", i, err)
+		}
+		cfg.ExternalReports[i].Path = resolved
+	}
 	return nil
 }
 

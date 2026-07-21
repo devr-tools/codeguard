@@ -27,11 +27,16 @@ func exprTypeText(expr ast.Expr) string {
 }
 
 func (s *goScope) sourceTaint(name string, pos token.Pos) *goTaint {
+	return s.sourceTaintWithModel(name, pos, "")
+}
+
+func (s *goScope) sourceTaintWithModel(name string, pos token.Pos, model string) *goTaint {
 	return &goTaint{
 		source:     name,
 		sourceLine: s.analyzer.line(pos),
 		chain:      []string{name},
 		paramIndex: -1,
+		model:      model,
 	}
 }
 

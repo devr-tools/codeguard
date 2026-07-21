@@ -155,6 +155,35 @@ func TestSecurityCredentialFindingMasksValue(t *testing.T) {
 	t.Fatal("no hardcoded-credential finding found")
 }
 
+func TestSecuritySecretFindingIncludesSafeClassification(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	secret := cred("ghp_", "0123456789abcdefghijklmnopqrstuvwxyz")
+	writeFile(t, filepath.Join(dir, "config.go"), "package main\nconst token = \""+secret+"\"\n")
+
+	report := secretsScanConfig(t, dir, nil, "go")
+	for _, section := range report.Sections {
+		if section.Name != "Security" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID != "security.hardcoded-credential" {
+				continue
+			}
+			if got := finding.Metadata["secret_type"]; got != "token" {
+				t.Fatalf("secret_type = %q, want token", got)
+			}
+			for key, value := range finding.Metadata {
+				if strings.Contains(value, secret) || strings.Contains(key, secret) {
+					t.Fatalf("metadata leaks secret: %#v", finding.Metadata)
+				}
+			}
+			return
+		}
+	}
+	t.Fatal("no hardcoded-credential finding found")
+}
+
 func TestSecuritySkipsBinaryFiles(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

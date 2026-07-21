@@ -95,6 +95,7 @@ func defaultRuleLanguageCoverage(ruleID string, executionModel RuleExecutionMode
 		"supply_chain.missing-lockfile",
 		"supply_chain.lockfile-drift",
 		"supply_chain.denied-license",
+		"supply_chain.vulnerable-dependency",
 		"prompts.secret-interpolation",
 		"prompts.unsafe-instructions",
 		"prompts.agent-dangerous-instructions",

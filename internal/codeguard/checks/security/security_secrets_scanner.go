@@ -12,9 +12,12 @@ import (
 // Match is a single secret/credential hit on a line. It is the unit shared by
 // the in-tree finding pass and the git-history scan.
 type Match struct {
-	RuleID     string
-	Level      string
-	Message    string
+	RuleID  string
+	Level   string
+	Message string
+	// SecretType is a stable, non-sensitive classification for machine clients.
+	// It deliberately describes the detector only; it never includes a value.
+	SecretType string
 	Line       int
 	Column     int
 	Confidence string
@@ -99,7 +102,7 @@ func (s Scanner) lineAllowed(line string) bool {
 func (s Scanner) matchCustom(line string) *Match {
 	for _, pattern := range s.customPatterns {
 		if match := pattern.re.FindStringSubmatch(line); match != nil {
-			return &Match{RuleID: pattern.id, Level: pattern.level, Message: pattern.msg + ": " + maskSecret(credentialMatchValue(match))}
+			return &Match{RuleID: pattern.id, Level: pattern.level, Message: pattern.msg + ": " + maskSecret(credentialMatchValue(match)), SecretType: "custom"}
 		}
 	}
 	return nil

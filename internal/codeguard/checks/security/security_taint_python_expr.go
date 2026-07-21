@@ -8,12 +8,14 @@ import (
 )
 
 var (
-	pySanitizerCallPattern = regexp.MustCompile(`(?:^|[^\w.])((?:shlex\.quote|int|float)\s*\()`)
-	pyInputSourcePattern   = regexp.MustCompile(`(?:^|[^\w.])input\s*\(`)
-	pyEnvironSourcePattern = regexp.MustCompile(`(?:^|[^\w.])os\.environ\b`)
-	pyArgvSourcePattern    = regexp.MustCompile(`(?:^|[^\w.])sys\.argv\b`)
-	pyRequestSourcePattern = regexp.MustCompile(`(?:^|[^\w.])request\.(?:args|form|values|json|data|cookies|headers|GET|POST|FILES|query_params|get_json)\b`)
-	pyIdentScanPattern     = regexp.MustCompile(`[A-Za-z_]\w*`)
+	pySanitizerCallPattern        = regexp.MustCompile(`(?:^|[^\w.])((?:shlex\.quote|int|float)\s*\()`)
+	pyInputSourcePattern          = regexp.MustCompile(`(?:^|[^\w.])input\s*\(`)
+	pyEnvironSourcePattern        = regexp.MustCompile(`(?:^|[^\w.])os\.environ\b`)
+	pyArgvSourcePattern           = regexp.MustCompile(`(?:^|[^\w.])sys\.argv\b`)
+	pyRequestSourcePattern        = regexp.MustCompile(`(?:^|[^\w.])request\.(?:args|form|values|json|data|cookies|headers|GET|POST|FILES|query_params|get_json)\b`)
+	pyDjangoRequestSourcePattern  = regexp.MustCompile(`(?:^|[^\w.])([A-Za-z_]\w*)\.(?:GET|POST|FILES|COOKIES|META|body)\b`)
+	pyFastAPIRequestSourcePattern = regexp.MustCompile(`(?:^|[^\w.])([A-Za-z_]\w*)\.(?:query_params|path_params|headers|cookies|body|json|form)\b`)
+	pyIdentScanPattern            = regexp.MustCompile(`[A-Za-z_]\w*`)
 )
 
 // stripPySanitizers removes shlex.quote(...), int(...), and float(...)
@@ -49,6 +51,9 @@ func (s *pyScope) evalExpr(expr string, line int) *pyTaint {
 }
 
 func (s *pyScope) directSourceTaint(stripped string, line int) *pyTaint {
+	if taint := s.frameworkRequestSource(stripped, line); taint != nil {
+		return taint
+	}
 	name := ""
 	switch {
 	case pyInputSourcePattern.MatchString(stripped):
@@ -65,6 +70,21 @@ func (s *pyScope) directSourceTaint(stripped string, line int) *pyTaint {
 		return nil
 	}
 	return &pyTaint{source: name, sourceLine: line, chain: []string{name}, paramIndex: -1}
+}
+
+func (s *pyScope) frameworkRequestSource(stripped string, line int) *pyTaint {
+	for _, candidate := range []struct {
+		model   string
+		pattern *regexp.Regexp
+	}{{"django", pyDjangoRequestSourcePattern}, {"fastapi", pyFastAPIRequestSourcePattern}} {
+		match := candidate.pattern.FindStringSubmatch(stripped)
+		if len(match) < 2 || s.requestModels[match[1]] != candidate.model {
+			continue
+		}
+		name := strings.TrimLeft(match[0], " \t=+,([{")
+		return &pyTaint{source: name, sourceLine: line, chain: []string{name}, paramIndex: -1, model: candidate.model}
+	}
+	return nil
 }
 
 func (s *pyScope) requestSourcesEnabled() bool {

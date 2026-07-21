@@ -7,12 +7,25 @@ type Config struct {
 	Checks    CheckConfig      `json:"checks" yaml:"checks"`
 	AI        AIConfig         `json:"ai,omitempty" yaml:"ai,omitempty"`
 	RulePacks []RulePackConfig `json:"rule_packs,omitempty" yaml:"rule_packs,omitempty"`
-	Output    OutputConfig     `json:"output" yaml:"output"`
-	Exclude   []string         `json:"exclude,omitempty" yaml:"exclude,omitempty"`
-	Baseline  BaselineConfig   `json:"baseline,omitempty" yaml:"baseline,omitempty"`
-	Waivers   []WaiverConfig   `json:"waivers,omitempty" yaml:"waivers,omitempty"`
-	Cache     CacheConfig      `json:"cache,omitempty" yaml:"cache,omitempty"`
-	Parsers   ParsersConfig    `json:"parsers,omitempty" yaml:"parsers,omitempty"`
+	// ExternalReports imports findings produced by already-run scanners. CodeGuard
+	// only reads these files; it never executes the configured tools.
+	ExternalReports []ExternalReportConfig `json:"external_reports,omitempty" yaml:"external_reports,omitempty"`
+	Output          OutputConfig           `json:"output" yaml:"output"`
+	Exclude         []string               `json:"exclude,omitempty" yaml:"exclude,omitempty"`
+	Baseline        BaselineConfig         `json:"baseline,omitempty" yaml:"baseline,omitempty"`
+	Waivers         []WaiverConfig         `json:"waivers,omitempty" yaml:"waivers,omitempty"`
+	Cache           CacheConfig            `json:"cache,omitempty" yaml:"cache,omitempty"`
+	Parsers         ParsersConfig          `json:"parsers,omitempty" yaml:"parsers,omitempty"`
+}
+
+// ExternalReportConfig describes a report file produced by another scanner.
+// Path must remain inside the repository/config directory. SARIF, Gitleaks
+// JSON, and Trivy JSON are supported; source is used to namespace imported
+// rules.
+type ExternalReportConfig struct {
+	Path   string `json:"path" yaml:"path"`
+	Format string `json:"format" yaml:"format"`
+	Source string `json:"source,omitempty" yaml:"source,omitempty"`
 }
 
 // ParsersConfig selects the parsing substrate for non-Go languages.

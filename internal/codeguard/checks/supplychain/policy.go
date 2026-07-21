@@ -15,6 +15,7 @@ func targetFindings(_ context.Context, env support.Context, target core.TargetCo
 		findings = append(findings, unpinnedDependencyFindings(env, manifest)...)
 		findings = append(findings, lockfilePolicyFindings(env, target, manifest, changed)...)
 		findings = append(findings, licensePolicyFindings(env, manifest)...)
+		findings = append(findings, vulnerableDependencyFindings(env, target, manifest)...)
 		findings = append(findings, cargoManifestFindings(env, manifest)...)
 	}
 	return findings

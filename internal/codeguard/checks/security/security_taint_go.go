@@ -17,6 +17,7 @@ type goTaintAnalyzer struct {
 	file      string
 	fset      *token.FileSet
 	functions map[string]*ast.FuncDecl
+	models    goModelBindings
 	summaries map[string]*goFuncSummary
 	findings  []core.Finding
 	seen      map[string]struct{}
@@ -33,6 +34,7 @@ func goTaintFindings(env support.Context, file string, source string) []core.Fin
 		file:      file,
 		fset:      fset,
 		functions: map[string]*ast.FuncDecl{},
+		models:    newGoModelBindings(parsed),
 		summaries: map[string]*goFuncSummary{},
 		seen:      map[string]struct{}{},
 	}
@@ -77,6 +79,8 @@ func (a *goTaintAnalyzer) emitFinding(taint *goTaint, sink string, sinkLine int)
 		chain:      taint.chain,
 		sink:       sink,
 		sinkLine:   sinkLine,
+		model:      taint.model,
+		sinkModel:  taint.sinkModel,
 	})
 }
 
@@ -111,9 +115,9 @@ func (s *goScope) bindParams(fn *ast.FuncDecl) {
 	}
 	index := 0
 	for _, field := range fn.Type.Params.List {
-		isRequest := exprTypeText(field.Type) == "*http.Request"
 		for _, name := range field.Names {
-			if isRequest {
+			s.analyzer.models.bindParam(name.Name, field.Type)
+			if _, isRequest := s.analyzer.models.requests[name.Name]; isRequest {
 				s.requestVars[name.Name] = true
 			} else {
 				s.vars[name.Name] = &goTaint{

@@ -55,6 +55,20 @@ func TestValidateConfigRejectsSupplyChainLicenseCommandWithoutName(t *testing.T)
 	}
 }
 
+func TestValidateConfigRequiresAdvisoryCacheWhenVulnerabilityMatchingEnabled(t *testing.T) {
+	cfg := codeguard.ExampleConfig()
+	on := true
+	cfg.Checks.SupplyChainRules.DetectVulnerabilities = &on
+
+	err := codeguard.ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if !strings.Contains(err.Error(), "advisory_cache_path is required") {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+}
+
 func TestWriteReportTextIncludesSummary(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 
@@ -158,6 +172,55 @@ func TestRunPatchUsesPatchedContent(t *testing.T) {
 	if strings.Contains(string(data), "OPENAI_API_KEY") {
 		t.Fatalf("working tree file was modified: %s", string(data))
 	}
+}
+
+func TestRunPatchRejectsNewHardcodedCredential(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.go")
+	writeAPITestFile(t, path, "package main\n\nfunc Stable() {}\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Quality = false
+	cfg.Checks.Design = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+
+	secret := "ghp_" + "0123456789abcdefghijklmnopqrstuvwxyz"
+	diff := strings.Join([]string{
+		"diff --git a/config.go b/config.go",
+		"--- a/config.go",
+		"+++ b/config.go",
+		"@@ -1,3 +1,4 @@",
+		" package main",
+		"",
+		"+const token = \"" + secret + "\"",
+		" func Stable() {}",
+		"",
+	}, "\n")
+
+	report, err := codeguard.RunPatch(context.Background(), cfg, diff)
+	if err != nil {
+		t.Fatalf("run patch: %v", err)
+	}
+	if report.Summary.FailedSections == 0 {
+		t.Fatalf("expected newly added secret to fail patch validation, got %#v", report.Summary)
+	}
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if finding.RuleID != "security.hardcoded-credential" {
+				continue
+			}
+			if finding.Metadata["secret_type"] != "token" {
+				t.Fatalf("unexpected secret metadata: %#v", finding.Metadata)
+			}
+			if finding.Line != 3 {
+				t.Fatalf("secret finding line = %d, want added line 3", finding.Line)
+			}
+			return
+		}
+	}
+	t.Fatalf("expected hardcoded credential finding, got %#v", report.Sections)
 }
 
 func TestRunPatchProvidesDiffCommandBaseAndHeadDirs(t *testing.T) {

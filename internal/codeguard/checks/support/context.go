@@ -19,6 +19,9 @@ type FindingInput struct {
 	// Confidence is "high", "medium", or "low"; empty means unspecified and is
 	// treated as medium by consumers.
 	Confidence string `json:"confidence,omitempty"`
+	// Metadata carries machine-readable, non-sensitive attributes for report
+	// consumers. Check implementations must not put source values into it.
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 type CPPToolIssue struct {

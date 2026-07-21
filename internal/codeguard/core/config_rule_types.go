@@ -9,6 +9,7 @@ type QualityRulesConfig struct {
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
 	AIProvenance            AIProvenanceConfig              `json:"ai_provenance,omitempty" yaml:"ai_provenance,omitempty"`
 	AIChangeRisk            AIChangeRiskConfig              `json:"ai_change_risk,omitempty" yaml:"ai_change_risk,omitempty"`
+	RiskScoring             RiskScoringConfig               `json:"risk_scoring,omitempty" yaml:"risk_scoring,omitempty"`
 	AIChecks                AIChecksConfig                  `json:"ai_checks,omitempty" yaml:"ai_checks,omitempty"`
 	CoverageDelta           CoverageDeltaConfig             `json:"coverage_delta,omitempty" yaml:"coverage_delta,omitempty"`
 	CPPTooling              CPPToolingConfig                `json:"cpp_tooling,omitempty" yaml:"cpp_tooling,omitempty"`
@@ -119,6 +120,22 @@ type AIChangeRiskConfig struct {
 	FailThreshold int   `json:"fail_threshold,omitempty" yaml:"fail_threshold,omitempty"`
 }
 
+// RiskScoringConfig controls the explainable, diff-only file-risk ranking.
+// Nil weights use stable defaults so reports remain comparable across scans.
+type RiskScoringConfig struct {
+	Enabled            *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	MaxHotspots        int   `json:"max_hotspots,omitempty" yaml:"max_hotspots,omitempty"`
+	ChangedFileWeight  int   `json:"changed_file_weight,omitempty" yaml:"changed_file_weight,omitempty"`
+	FailFindingWeight  int   `json:"fail_finding_weight,omitempty" yaml:"fail_finding_weight,omitempty"`
+	WarnFindingWeight  int   `json:"warn_finding_weight,omitempty" yaml:"warn_finding_weight,omitempty"`
+	SecurityWeight     int   `json:"security_weight,omitempty" yaml:"security_weight,omitempty"`
+	SupplyChainWeight  int   `json:"supply_chain_weight,omitempty" yaml:"supply_chain_weight,omitempty"`
+	CoverageGapWeight  int   `json:"coverage_gap_weight,omitempty" yaml:"coverage_gap_weight,omitempty"`
+	AIProvenanceWeight int   `json:"ai_provenance_weight,omitempty" yaml:"ai_provenance_weight,omitempty"`
+	AISignalWeight     int   `json:"ai_signal_weight,omitempty" yaml:"ai_signal_weight,omitempty"`
+	SlopScoreDivisor   int   `json:"slop_score_divisor,omitempty" yaml:"slop_score_divisor,omitempty"`
+}
+
 type DesignRulesConfig struct {
 	RequireCmdThroughInternalCLI *bool                           `json:"require_cmd_through_internal_cli,omitempty" yaml:"require_cmd_through_internal_cli,omitempty"`
 	ForbidInternalImportCmd      *bool                           `json:"forbid_internal_import_cmd,omitempty" yaml:"forbid_internal_import_cmd,omitempty"`
@@ -186,10 +203,16 @@ type SecurityRulesConfig struct {
 }
 
 type SupplyChainRulesConfig struct {
-	RequireLockfile     *bool                         `json:"require_lockfile,omitempty" yaml:"require_lockfile,omitempty"`
-	DetectLockfileDrift *bool                         `json:"detect_lockfile_drift,omitempty" yaml:"detect_lockfile_drift,omitempty"`
-	DetectUnpinned      *bool                         `json:"detect_unpinned,omitempty" yaml:"detect_unpinned,omitempty"`
-	AllowedLicenses     []string                      `json:"allowed_licenses,omitempty" yaml:"allowed_licenses,omitempty"`
-	DeniedLicenses      []string                      `json:"denied_licenses,omitempty" yaml:"denied_licenses,omitempty"`
-	LicenseCommands     map[string]CommandCheckConfig `json:"license_commands,omitempty" yaml:"license_commands,omitempty"`
+	RequireLockfile     *bool `json:"require_lockfile,omitempty" yaml:"require_lockfile,omitempty"`
+	DetectLockfileDrift *bool `json:"detect_lockfile_drift,omitempty" yaml:"detect_lockfile_drift,omitempty"`
+	DetectUnpinned      *bool `json:"detect_unpinned,omitempty" yaml:"detect_unpinned,omitempty"`
+	// DetectVulnerabilities enables matching normalized dependencies against the
+	// local advisory cache. It never contacts an advisory service during a scan.
+	DetectVulnerabilities *bool `json:"detect_vulnerabilities,omitempty" yaml:"detect_vulnerabilities,omitempty"`
+	// AdvisoryCachePath points at a versioned JSON advisory cache. Relative paths
+	// are resolved from each target root, making the cache reproducible in CI.
+	AdvisoryCachePath string                        `json:"advisory_cache_path,omitempty" yaml:"advisory_cache_path,omitempty"`
+	AllowedLicenses   []string                      `json:"allowed_licenses,omitempty" yaml:"allowed_licenses,omitempty"`
+	DeniedLicenses    []string                      `json:"denied_licenses,omitempty" yaml:"denied_licenses,omitempty"`
+	LicenseCommands   map[string]CommandCheckConfig `json:"license_commands,omitempty" yaml:"license_commands,omitempty"`
 }

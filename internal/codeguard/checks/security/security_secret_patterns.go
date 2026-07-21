@@ -91,7 +91,7 @@ var (
 // low confidence.
 func matchPrivateKey(line string) *Match {
 	if privateKeyPattern.MatchString(line) {
-		return &Match{RuleID: privateKeyRule, Level: "fail", Message: "private key material detected", Confidence: core.ConfidenceHigh}
+		return &Match{RuleID: privateKeyRule, Level: "fail", Message: "private key material detected", SecretType: "private_key", Confidence: core.ConfidenceHigh}
 	}
 	return nil
 }
@@ -105,7 +105,7 @@ func matchCredential(line string) *Match {
 		if len(match) > 1 && match[len(match)-1] != "" && isPlaceholderSecret(match[len(match)-1]) {
 			continue
 		}
-		return &Match{RuleID: hardcodedCredentialRule, Level: "fail", Message: "possible hardcoded credential detected (" + pattern.msg + "): " + maskSecret(credentialMatchValue(match)), Confidence: core.ConfidenceHigh}
+		return &Match{RuleID: hardcodedCredentialRule, Level: "fail", Message: "possible hardcoded credential detected (" + pattern.msg + "): " + maskSecret(credentialMatchValue(match)), SecretType: credentialSecretType(pattern.msg), Confidence: core.ConfidenceHigh}
 	}
 	return nil
 }
@@ -115,7 +115,39 @@ func matchNameBased(line string) *Match {
 	if match == nil || isPlaceholderSecret(match[len(match)-1]) {
 		return nil
 	}
-	return &Match{RuleID: hardcodedSecretRule, Level: "warn", Message: "possible hardcoded secret detected: " + maskSecret(match[len(match)-1]), Confidence: core.ConfidenceLow}
+	return &Match{RuleID: hardcodedSecretRule, Level: "warn", Message: "possible hardcoded secret detected: " + maskSecret(match[len(match)-1]), SecretType: namedSecretType(match[1]), Confidence: core.ConfidenceLow}
+}
+
+func credentialSecretType(description string) string {
+	lower := strings.ToLower(description)
+	switch {
+	case strings.Contains(lower, "private key"):
+		return "private_key"
+	case strings.Contains(lower, "webhook"):
+		return "webhook"
+	case strings.Contains(lower, "connection string"):
+		return "connection_string"
+	case strings.Contains(lower, "access key"), strings.Contains(lower, "api key"):
+		return "api_key"
+	case strings.Contains(lower, "token"):
+		return "token"
+	default:
+		return "credential"
+	}
+}
+
+func namedSecretType(identifier string) string {
+	lower := strings.ToLower(identifier)
+	switch {
+	case strings.Contains(lower, "password"):
+		return "password"
+	case strings.Contains(lower, "token"):
+		return "token"
+	case strings.Contains(lower, "api") && strings.Contains(lower, "key"):
+		return "api_key"
+	default:
+		return "secret"
+	}
 }
 
 // builtinGatePasses reports whether a line could match any built-in pattern.

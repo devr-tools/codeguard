@@ -29,6 +29,11 @@ func (s *goScope) evalCall(call *ast.CallExpr) *goTaint {
 
 // callSourceTaint recognizes calls that introduce fresh taint.
 func (s *goScope) callSourceTaint(call *ast.CallExpr, callee string) *goTaint {
+	if receiver, method, ok := selectorReceiverAndMethod(call.Fun); ok {
+		if model := s.analyzer.models.sourceModel(receiver, method); model != "" {
+			return s.sourceTaintWithModel(callee, call.Pos(), model)
+		}
+	}
 	root := callee
 	if dot := strings.IndexByte(root, '.'); dot >= 0 {
 		root = root[:dot]
@@ -45,6 +50,18 @@ func (s *goScope) callSourceTaint(call *ast.CallExpr, callee string) *goTaint {
 	}
 }
 
+func selectorReceiverAndMethod(expr ast.Expr) (string, string, bool) {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok {
+		return "", "", false
+	}
+	receiver, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return "", "", false
+	}
+	return receiver.Name, selector.Sel.Name, true
+}
+
 // localCallTaint applies same-file function summaries at call sites.
 func (s *goScope) localCallTaint(_ *ast.CallExpr, callee string, args []*goTaint) *goTaint {
 	summary, known := s.analyzer.summaries[callee]
@@ -59,6 +76,8 @@ func (s *goScope) localCallTaint(_ *ast.CallExpr, callee string, args []*goTaint
 			sourceLine: inner.sourceLine,
 			chain:      append(append([]string{}, inner.chain...), callee+"()"),
 			paramIndex: -1,
+			model:      inner.model,
+			sinkModel:  inner.sinkModel,
 		}
 	}
 	for idx, taint := range args {

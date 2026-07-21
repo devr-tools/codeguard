@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "corpus": "codeguard-public-prs-v1",
+  "entries": [
+    {
+      "id": "go-example-pr-1",
+      "language": "go",
+      "repository": "github.com/example/go-service",
+      "pull_request": 1,
+      "base_revision": "replace-with-immutable-base-commit",
+      "head_revision": "replace-with-immutable-head-commit",
+      "worktree": "go-example-pr-1",
+      "config": ".codeguard/codeguard.yaml"
+    }
+  ]
+}

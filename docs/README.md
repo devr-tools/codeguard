@@ -12,4 +12,4 @@
 - [Homebrew packaging](homebrew.md)
 - [Architecture](architecture.md)
 - [Checks](checks.md)
-- [Competitive roadmap](competitive-roadmap.md)
+- [Frozen PR benchmarks](benchmarks.md)

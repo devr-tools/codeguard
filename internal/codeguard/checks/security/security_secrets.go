@@ -105,7 +105,15 @@ func secretFindingsForFile(env support.Context, file string, data []byte, scanne
 			Column:     match.Column,
 			Message:    match.Message,
 			Confidence: match.Confidence,
+			Metadata:   secretMetadata(match),
 		}))
 	}
 	return findings
+}
+
+func secretMetadata(match Match) map[string]string {
+	if match.SecretType == "" {
+		return nil
+	}
+	return map[string]string{"secret_type": match.SecretType}
 }

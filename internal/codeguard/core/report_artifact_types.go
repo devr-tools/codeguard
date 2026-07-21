@@ -15,6 +15,38 @@ type Artifact struct {
 	AIFix            *AIFixArtifact            `json:"ai_fix,omitempty"`
 	ChangeImpact     *ChangeImpactArtifact     `json:"change_impact,omitempty"`
 	RepoLegibility   *RepoLegibilityArtifact   `json:"repo_legibility,omitempty"`
+	FileRisk         *FileRiskArtifact         `json:"file_risk,omitempty"`
+	PRHotspots       *PRHotspotsArtifact       `json:"pr_hotspots,omitempty"`
+}
+
+const (
+	ReportArtifactKindFileRisk   = "file_risk"
+	ReportArtifactKindPRHotspots = "pr_hotspots"
+)
+
+// FileRiskArtifact ranks every changed file in a diff scan. Components make
+// every score auditable instead of changing the severity of underlying findings.
+type FileRiskArtifact struct {
+	Files []FileRiskEntry `json:"files"`
+}
+
+type PRHotspotsArtifact struct {
+	Hotspots []FileRiskEntry `json:"hotspots"`
+}
+
+type FileRiskEntry struct {
+	Path       string              `json:"path"`
+	Rank       int                 `json:"rank"`
+	Score      int                 `json:"score"`
+	Components []FileRiskComponent `json:"components,omitempty"`
+}
+
+type FileRiskComponent struct {
+	Label        string `json:"label"`
+	Weight       int    `json:"weight"`
+	Count        int    `json:"count"`
+	Contribution int    `json:"contribution"`
+	Detail       string `json:"detail,omitempty"`
 }
 
 type DependencyGraphArtifact struct {

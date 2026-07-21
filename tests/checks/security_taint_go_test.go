@@ -115,6 +115,17 @@ func TestGoTaintRequestToSQLViaSprintfAndHelper(t *testing.T) {
 	assertSectionStatus(t, report, "Security", "fail")
 	messages := taintMessages(t, report, "security.taint.go")
 	assertChainMessage(t, messages, "r.FormValue", "db.Query", "userName()")
+	var hasHTTPModel bool
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if finding.RuleID == "security.taint.go" && finding.Metadata["framework_model"] == "net/http" {
+				hasHTTPModel = true
+			}
+		}
+	}
+	if !hasHTTPModel {
+		t.Fatal("expected net/http model metadata for the request source")
+	}
 }
 
 func TestGoTaintParamToSinkAcrossFunctions(t *testing.T) {
@@ -208,6 +219,79 @@ func TestGoTaintSanitizedAndParameterizedFlowsDoNotFlag(t *testing.T) {
 
 	if messages := taintMessages(t, report, "security.taint.go"); len(messages) != 0 {
 		t.Fatalf("sanitized flows must not flag, got %v", messages)
+	}
+}
+
+func TestGoTaintFrameworkModelsRequireImportsAndTypedBindings(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "handler.go"), strings.Join([]string{
+		"package web",
+		"",
+		"import (",
+		"\t\"os/exec\"",
+		"\t\"github.com/gin-gonic/gin\"",
+		"\t\"gorm.io/gorm\"",
+		")",
+		"",
+		"func handler(c *gin.Context, db *gorm.DB) {",
+		"\tname := c.Query(\"name\")",
+		"\tdb.Exec(\"DELETE FROM users WHERE name = '\" + name + \"'\")",
+		"\t_ = exec.Command(\"sh\", \"-c\", name)",
+		"}",
+		"",
+	}, "\n"))
+
+	report, err := codeguard.Run(context.Background(), securityOnlyConfig("taint-go-framework-models", dir, "go"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	var foundGin, foundGorm bool
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if finding.RuleID != "security.taint.go" {
+				continue
+			}
+			if strings.Contains(finding.Message, "db.Exec") && finding.Metadata["framework_model"] == "gin" {
+				foundGin = true
+			}
+			if strings.Contains(finding.Message, "db.Exec") && finding.Metadata["framework_sink_model"] == "gorm" {
+				foundGorm = true
+			}
+		}
+	}
+	if !foundGin {
+		t.Fatal("expected gin source model metadata on the shell finding")
+	}
+	if !foundGorm {
+		t.Fatal("expected gorm sink model metadata on the database finding")
+	}
+}
+
+func TestGoTaintGinSanitizerDoesNotFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "handler.go"), strings.Join([]string{
+		"package web",
+		"",
+		"import (",
+		"\t\"os/exec\"",
+		"\t\"strconv\"",
+		"\t\"github.com/gin-gonic/gin\"",
+		")",
+		"",
+		"func handler(c *gin.Context) {",
+		"\tcount, _ := strconv.Atoi(c.Param(\"count\"))",
+		"\t_ = exec.Command(\"echo\", strconv.Itoa(count))",
+		"}",
+		"",
+	}, "\n"))
+
+	report, err := codeguard.Run(context.Background(), securityOnlyConfig("taint-go-gin-sanitized", dir, "go"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if messages := taintMessages(t, report, "security.taint.go"); len(messages) != 0 {
+		t.Fatalf("sanitized gin flow must not flag, got %v", messages)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	aitriage "github.com/devr-tools/codeguard/internal/codeguard/ai/triage"
 	"github.com/devr-tools/codeguard/internal/codeguard/config"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/externalreports"
 	runnerchecks "github.com/devr-tools/codeguard/internal/codeguard/runner/checks"
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
@@ -42,6 +43,13 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 
 	sections := runnerchecks.Build(ctx, sc)
 	sections, triageArtifact := aitriage.Apply(ctx, sc.Cfg, sc.Opts, sections, sc.Cache)
+	// External reports can contain scanner-provided evidence. Keep them out of
+	// optional AI triage and import them only after CodeGuard's native checks.
+	externalSections, err := externalreports.Import(sc.Cfg.ExternalReports)
+	if err != nil {
+		return core.Report{}, err
+	}
+	sections = append(sections, externalSections...)
 
 	report := core.Report{
 		Name:        sc.Cfg.Name,
@@ -52,6 +60,7 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	if triageArtifact != nil {
 		sc.Artifacts.Put(*triageArtifact)
 	}
+	addRiskArtifacts(sc, sections)
 	if ruleStats := sc.RuleStats.Snapshot(); len(ruleStats) > 0 {
 		sc.Artifacts.Put(core.NewRuleStatsArtifact(ruleStats))
 		runnersupport.RecordRuleStatsHistory(sc, ruleStats)

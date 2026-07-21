@@ -47,6 +47,7 @@ This brief tracks the AI-generated-code quality features currently implemented i
 - Verified auto-fix
   - `codeguard.VerifyFix(...)` and `codeguard.GenerateVerifiedFix(ctx, req)` only return patches after diff-scoped verification and inferred or explicit verification tests pass in an isolated workspace
   - `codeguard fix -ai` exposes the same verified-fix flow from the CLI for one selected finding
+  - `codeguard fix-batch -input fixes.json` verifies explicitly supplied, catalogued deterministic fixes together in one isolated workspace and returns only their aggregate patch. It never modifies the working tree. The input is a JSON object with an `items` array of `{ "finding": { ... }, "candidate": { "diff": "..." } }` entries; use `-format json` to retain included, skipped, and failed item details.
 - Natural-language custom rules
   - custom rule packs can use `natural_language` instructions alongside regex and path matchers
   - evaluation is command-driven through the optional AI runtime and produces normal custom-rule findings

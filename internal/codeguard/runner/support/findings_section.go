@@ -19,6 +19,7 @@ type FindingInput struct {
 	Message    string
 	Why        string
 	Confidence string
+	Metadata   map[string]string
 }
 
 func NewFinding(sc Context, input FindingInput) core.Finding {
@@ -49,7 +50,19 @@ func NewFinding(sc Context, input FindingInput) core.Finding {
 		Column:             input.Column,
 		Fingerprint:        legacy,
 		ContextFingerprint: contextFP,
+		Metadata:           cloneMetadata(input.Metadata),
 	}
+}
+
+func cloneMetadata(metadata map[string]string) map[string]string {
+	if len(metadata) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(metadata))
+	for key, value := range metadata {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func firstNonEmpty(values ...string) string {

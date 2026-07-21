@@ -46,7 +46,43 @@ Each top-level boolean enables or disables an entire check family.
 
 `context` covers agent-context legibility: when the key is omitted the family defaults to enabled in full scans and disabled in diff scans; see [Agent Context](#agent-context).
 
-`supply_chain` is opt-in and currently covers normalized manifest parsing plus initial policy checks for missing lockfiles, content-based lockfile drift validation, unpinned dependencies, dependency license policy resolved from local manifest and installed metadata where available, and Cargo manifest hygiene for missing package licenses and non-hermetic dependency sources.
+`supply_chain` is opt-in and currently covers normalized manifest parsing plus initial policy checks for missing lockfiles, content-based lockfile drift validation, unpinned dependencies, dependency license policy resolved from local manifest and installed metadata where available, local advisory-cache vulnerability matching, and Cargo manifest hygiene for missing package licenses and nonhermetic dependency sources.
+
+Set `output.format` to `cyclonedx` (or pass `codeguard scan -format cyclonedx`) to emit the normalized dependency artifacts as deterministic CycloneDX 1.6 JSON. The SBOM contains declared dependency versions or requirements when a resolver version is unavailable; it does not execute project code or contact a registry.
+
+### Offline advisory cache
+
+Vulnerability matching is opt-in. It reads a local, versioned JSON cache only; CodeGuard never contacts an advisory service during a scan. Configure the cache relative to the target root (or provide an absolute path):
+
+```yaml
+checks:
+  supply_chain: true
+  supply_chain_rules:
+    detect_vulnerabilities: true
+    advisory_cache_path: .codeguard/advisories.json
+```
+
+The first supported cache schema is `schema_version: 1`. Each advisory has an ecosystem matching CodeGuard's normalized ecosystem (`go`, `npm`, `python`, or `cargo`), a package, and one or more comma-separated version comparators. Matching is restricted to concrete pinned dependency versions to avoid claims based on unresolved ranges.
+
+```json
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-21T00:00:00Z",
+  "source": "approved-advisory-export-2026-07-21",
+  "advisories": [
+    {
+      "id": "CVE-2026-12345",
+      "ecosystem": "npm",
+      "package": "example-library",
+      "affected_versions": [">=1.0.0, <1.2.4"],
+      "fixed_version": "1.2.4",
+      "url": "https://example.invalid/advisories/CVE-2026-12345"
+    }
+  ]
+}
+```
+
+Findings contain the advisory identifier, source, generated timestamp, and cache age as non-sensitive metadata. Refreshing the cache is intentionally outside scan execution and should be handled by an approved, auditable update process.
 
 `contracts` covers API compatibility against a diff base. When omitted, it is enabled in diff scans and disabled in full scans. It checks exported Go declarations, public C++ headers, OpenAPI documents, protobuf schemas, and destructive migrations.
 

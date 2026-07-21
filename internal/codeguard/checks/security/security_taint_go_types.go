@@ -8,6 +8,26 @@ type goTaint struct {
 	sourceLine int
 	chain      []string
 	paramIndex int
+	model      string
+	sinkModel  string
+}
+
+func (t *goTaint) withSinkModel(model string) *goTaint {
+	if t == nil || t.sinkModel != "" || model == "" {
+		return t
+	}
+	next := *t
+	next.sinkModel = model
+	return &next
+}
+
+func (t *goTaint) withModel(model string) *goTaint {
+	if t == nil || t.model != "" || model == "" {
+		return t
+	}
+	next := *t
+	next.model = model
+	return &next
 }
 
 func (t *goTaint) extended(step string) *goTaint {

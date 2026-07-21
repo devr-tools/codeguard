@@ -2,12 +2,23 @@ package codeguard_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
+
+func readAPITestFile(t *testing.T, path string) string {
+	t.Helper()
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return string(contents)
+}
 
 func TestVerifyFixReturnsOnlyVerifiedGoPatch(t *testing.T) {
 	dir := t.TempDir()
@@ -78,6 +89,50 @@ func TestRunReturnsUnderlyingError(t *testing.T) {
 	}
 	if !strings.Contains(result.Diff, "return err") {
 		t.Fatalf("expected verified diff in result, got %q", result.Diff)
+	}
+}
+
+func TestVerifyFixBatchVerifiesDeterministicAggregateAndReportsSkippedItems(t *testing.T) {
+	dir := t.TempDir()
+	writeAPITestFile(t, filepath.Join(dir, "go.mod"), "module example.com/fixbatch\n\ngo 1.23.0\n")
+	writeAPITestFile(t, filepath.Join(dir, "service.go"), "package fixbatch\n\nfunc run(){ }\n")
+	writeAPITestFile(t, filepath.Join(dir, "service_test.go"), "package fixbatch\n\nimport \"testing\"\n\nfunc TestRun(t *testing.T) { run() }\n")
+
+	cfg := qualityOnlyConfig(dir, "verify-fix-batch")
+	diff := strings.Join([]string{
+		"diff --git a/service.go b/service.go",
+		"--- a/service.go",
+		"+++ b/service.go",
+		"@@ -1,3 +1,3 @@",
+		" package fixbatch",
+		" ",
+		"-func run(){ }",
+		"+func run() {}",
+		"",
+	}, "\n")
+
+	result, err := codeguard.VerifyFixBatch(context.Background(), codeguard.FixBatchRequest{
+		Config: cfg,
+		Items: []codeguard.FixBatchItem{
+			{Finding: codeguard.Finding{RuleID: "quality.gofmt", Fingerprint: "format"}, Candidate: codeguard.FixCandidate{Diff: diff}},
+			{Finding: codeguard.Finding{RuleID: "quality.gofmt", Fingerprint: "duplicate"}, Candidate: codeguard.FixCandidate{Diff: diff}},
+			{Finding: codeguard.Finding{RuleID: "quality.max-file-lines", Fingerprint: "guided"}, Candidate: codeguard.FixCandidate{Diff: diff}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("verify fix batch: %v", err)
+	}
+	if got, want := result.Included, []int{0}; !slices.Equal(got, want) {
+		t.Fatalf("included = %#v, want %#v", got, want)
+	}
+	if result.Verification.Report.Summary.TotalFindings != 0 {
+		t.Fatalf("expected clean aggregate report, got %#v", result.Verification.Report.Summary)
+	}
+	if len(result.Skipped) != 2 || result.Skipped[0].Reason != codeguard.FixBatchReasonConflictingFiles || result.Skipped[1].Reason != codeguard.FixBatchReasonNonDeterministic {
+		t.Fatalf("skipped = %#v", result.Skipped)
+	}
+	if source := readAPITestFile(t, filepath.Join(dir, "service.go")); !strings.Contains(source, "func run(){ }") {
+		t.Fatalf("batch verification modified source target: %q", source)
 	}
 }
 

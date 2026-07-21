@@ -37,9 +37,11 @@ This page lists the current `codeguard` feature surface and the main config entr
   - test-quality heuristics, including GoogleTest, Catch2/doctest, and Boost.Test
 - `supply_chain`
   - manifest normalization, including `vcpkg.json`, `conanfile.txt`, statically analyzed `conanfile.py`, and CMake dependency declarations
+  - deterministic CycloneDX 1.6 JSON SBOM output from normalized dependency artifacts (`output.format: cyclonedx`)
   - lockfile presence and drift validation
   - unpinned dependency detection
   - dependency and manifest license policy
+  - opt-in offline advisory-cache matching for concrete pinned dependency versions, with cache provenance and age in findings
   - Cargo manifest hygiene for missing package licenses and non-hermetic dependency sources
 - `performance`
   - N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, and unbounded concurrency
@@ -59,6 +61,31 @@ This page lists the current `codeguard` feature surface and the main config entr
 - verified auto-fix through SDK and CLI
 - hook-pack examples for Claude Code and Cursor
 
+## External report ingestion
+
+CodeGuard can import findings from scanners that have already run. It does not
+execute external tools. SARIF 2.x reports (including CodeQL), native Gitleaks
+JSON, and native Trivy JSON are added as a normal `External Reports` section
+with namespaced rule IDs such as `external.codeql.go-sql-injection`.
+
+```yaml
+external_reports:
+  - path: .codeguard/reports/codeql.sarif
+    format: sarif
+    source: codeql
+  - path: .codeguard/reports/gitleaks.json
+    format: gitleaks
+  - path: .codeguard/reports/trivy.json
+    format: trivy
+```
+
+Report paths are constrained to the config directory when loaded from a config
+file, must be regular non-symlink files, and are capped at 16 MiB. Artifact
+paths embedded in SARIF are retained only when they are safe repository-relative
+paths. The same path policy applies to native reports. Gitleaks and Trivy
+secret payload fields are deliberately not decoded, stored, or emitted.
+Imported reports are never passed to AI triage.
+
 ## AI-specific features
 
 - `slop_score` artifact
@@ -75,6 +102,9 @@ This page lists the current `codeguard` feature surface and the main config entr
   - reference runner supports scaffold, local-command, and OpenAI-compatible backend modes without changing prompt assembly
 - `quality.ai.change-risk`
   - aggregates AI-quality and review-risk signals into a target-level artifact plus a `Code Quality` finding when thresholds are crossed
+- Diff-mode file risk and PR hotspots
+  - emits `file_risk` and `pr_hotspots` artifacts that rank every changed file without changing finding severity
+  - explains each score with stable, configurable contributions from findings, security and supply-chain signals, changed-line coverage, AI provenance, and slop-score artifacts where available
 
 ## Parsers
 

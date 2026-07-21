@@ -6,3 +6,4 @@ type Config = core.Config
 type TargetConfig = core.TargetConfig
 type CheckConfig = core.CheckConfig
 type ParsersConfig = core.ParsersConfig
+type ExternalReportConfig = core.ExternalReportConfig

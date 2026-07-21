@@ -159,4 +159,3 @@ func main() {
 - [Homebrew packaging](docs/homebrew.md)
 - [Checks reference](docs/checks.md)
 - [Architecture](docs/architecture.md)
-- [Competitive roadmap](docs/competitive-roadmap.md)

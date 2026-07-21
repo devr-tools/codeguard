@@ -75,6 +75,12 @@ func (s *goScope) checkMethodSinks(call *ast.CallExpr, callee string, args []*go
 	if dot := strings.LastIndexByte(callee, '.'); dot >= 0 {
 		method = callee[dot+1:]
 	}
+	if receiver, method, ok := selectorReceiverAndMethod(call.Fun); ok {
+		if model, index, matches := s.analyzer.models.sinkModel(receiver, method); matches && index < len(args) {
+			s.reportTainted(args[index].withSinkModel(model.name), callee, line)
+			return
+		}
+	}
 	if queryIdx, isQuery := goQuerySinkMethods[method]; isQuery && method != callee {
 		if queryIdx < len(args) {
 			s.reportTainted(args[queryIdx], callee, line)

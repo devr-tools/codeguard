@@ -13,6 +13,10 @@ type (
 	SlopScoreComponent          = core.SlopScoreComponent
 	ChangeRiskArtifact          = core.ChangeRiskArtifact
 	ChangeRiskComponent         = core.ChangeRiskComponent
+	FileRiskArtifact            = core.FileRiskArtifact
+	FileRiskEntry               = core.FileRiskEntry
+	FileRiskComponent           = core.FileRiskComponent
+	PRHotspotsArtifact          = core.PRHotspotsArtifact
 	SlopHistoryEntry            = core.SlopHistoryEntry
 	PerformanceScoreArtifact    = core.PerformanceScoreArtifact
 	PerformanceHistoryEntry     = core.PerformanceHistoryEntry

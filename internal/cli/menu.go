@@ -43,6 +43,7 @@ var menuGroups = []menuGroup{
 		title: "Fix & report",
 		items: []menuItem{
 			{"fix", "AI-assisted fix for a specific finding"},
+			{"fix-batch", "Verify explicit deterministic fixes as one patch"},
 			{"report", "Print the slop / performance history report"},
 		},
 	},

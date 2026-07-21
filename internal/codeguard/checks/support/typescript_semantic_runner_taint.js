@@ -286,7 +286,7 @@ function reportTaintsAtSink(taints, kind, label, node, scope) {
       continue;
     }
     if (taint.kind === "source") {
-      pushTaintFinding(taint.steps.concat([sinkStep]), scope.relPath, line);
+      pushTaintFinding(taint.steps.concat([sinkStep]), scope.relPath, line, taint.frameworkModel);
     } else {
       scope.summary.paramSinks.push({
         param: taint.param,
@@ -295,6 +295,7 @@ function reportTaintsAtSink(taints, kind, label, node, scope) {
         steps: taint.steps.concat([sinkStep]),
         path: scope.relPath,
         line,
+        frameworkModel: taint.frameworkModel,
       });
     }
   }
@@ -331,7 +332,7 @@ function applySinkSummaryEntry(taint, entry, callStep, calleeName, line, scope) 
   }
   const steps = taint.steps.concat([callStep], entry.steps);
   if (taint.kind === "source") {
-    pushTaintFinding(steps, entry.path, entry.line);
+    pushTaintFinding(steps, entry.path, entry.line, taint.frameworkModel || entry.frameworkModel);
     return;
   }
   scope.summary.paramSinks.push({
@@ -341,6 +342,7 @@ function applySinkSummaryEntry(taint, entry, callStep, calleeName, line, scope) 
     steps,
     path: entry.path,
     line: entry.line,
+    frameworkModel: taint.frameworkModel || entry.frameworkModel,
   });
 }
 
@@ -350,23 +352,28 @@ function noteTaintDepthCap(calleeName, line, scope) {
   );
 }
 
-function pushTaintFinding(steps, sinkPath, sinkLine) {
+function pushTaintFinding(steps, sinkPath, sinkLine, frameworkModel) {
   const flavor = scriptFlavor(sinkPath) || "typescript";
   const ruleId = scriptRuleId(flavor, "security.typescript.taint-flow", "security.javascript.taint-flow");
   const message = "tainted data flow: " + steps.join(" → ");
-  const key = ["security", ruleId, sinkPath, sinkLine, message].join("|");
+  const key = ["security", ruleId, sinkPath, sinkLine, message, frameworkModel || ""].join("|");
   if (seen.has(key)) {
     return;
   }
   seen.add(key);
-  results.security.push({
+  const finding = {
     rule_id: ruleId,
     level: "warn",
     path: sinkPath,
     line: sinkLine,
     column: 1,
     message,
-  });
+  };
+  // Models identify only the imported framework, never user-controlled data.
+  if (frameworkModel) {
+    finding.metadata = { framework_model: frameworkModel };
+  }
+  results.security.push(finding);
 }
 
 function recordReturnTaints(taints, scope) {
@@ -473,6 +480,10 @@ function taintSourceFor(node, scope) {
   }
   const base = node.expression.text;
   const member = node.name.text;
+  const frameworkModel = frameworkRequestModel(node.expression, scope);
+  if (frameworkModel && frameworkRequestSourceMember(frameworkModel, member)) {
+    return newSourceTaint(`${frameworkModel === "express" ? "Express" : "Next.js"} request ${member}`, node, scope, frameworkModel);
+  }
   if ((base === "req" || base === "request") && TAINT_SOURCE_MEMBERS.includes(member)) {
     return newSourceTaint(`request ${member}`, node, scope);
   }
@@ -482,13 +493,58 @@ function taintSourceFor(node, scope) {
   return null;
 }
 
-function newSourceTaint(label, node, scope) {
+function frameworkRequestSourceMember(model, member) {
+  if (model === "express") {
+    return TAINT_SOURCE_MEMBERS.includes(member);
+  }
+  return TAINT_SOURCE_MEMBERS.includes(member) || member === "nextUrl";
+}
+
+// Framework recognition is deliberately type-import gated. A variable named
+// `request` remains covered by the generic model, but cannot acquire Express
+// or Next.js metadata merely by looking similar.
+function frameworkRequestModel(identifier, scope) {
+  const symbol = scope.ctx.checker.getSymbolAtLocation(identifier);
+  if (!symbol) {
+    return "";
+  }
+  for (const declaration of symbol.declarations || []) {
+    if (!ts.isParameter(declaration) || !declaration.type) {
+      continue;
+    }
+    const model = frameworkModelForTypeNode(declaration.type, taintFileBindings(scope));
+    if (model) {
+      return model;
+    }
+  }
+  return "";
+}
+
+function frameworkModelForTypeNode(typeNode, bindings) {
+  if (!ts.isTypeReferenceNode(typeNode) || !ts.isIdentifier(typeNode.typeName)) {
+    return "";
+  }
+  const binding = bindings.named.get(typeNode.typeName.text);
+  if (!binding) {
+    return "";
+  }
+  if ((binding.module === "express" || binding.module === "express-serve-static-core") && binding.member === "Request") {
+    return "express";
+  }
+  if ((binding.module === "next" || binding.module === "next/server") && (binding.member === "NextRequest" || binding.member === "NextApiRequest")) {
+    return "nextjs";
+  }
+  return "";
+}
+
+function newSourceTaint(label, node, scope, frameworkModel) {
   const line = lineNumber(scope.sourceFile, node.getStart(scope.sourceFile));
   return {
     kind: "source",
     steps: [`${label} (${scope.relPath}:${line})`],
     hops: 0,
     sanitized: [],
+    frameworkModel,
   };
 }
 
@@ -504,6 +560,10 @@ function taintsOfIdentifier(node, scope) {
 }
 
 function taintsOfCallResult(node, scope) {
+  const nextRequestBody = nextRequestBodySource(node, scope);
+  if (nextRequestBody) {
+    return [nextRequestBody];
+  }
   const sanitizer = sanitizerKindsFor(taintCalleeName(node.expression));
   if (sanitizer) {
     return sanitizeTaints(taintArgumentUnion(node, scope), sanitizer);
@@ -513,6 +573,17 @@ function taintsOfCallResult(node, scope) {
     return taintsThroughSummary(node, target, scope);
   }
   return taintsThroughOpaqueCall(node, scope);
+}
+
+function nextRequestBodySource(node, scope) {
+  if (!ts.isPropertyAccessExpression(node.expression) || node.expression.name.text !== "json" || node.arguments.length !== 0) {
+    return null;
+  }
+  const receiver = node.expression.expression;
+  if (!ts.isIdentifier(receiver) || frameworkRequestModel(receiver, scope) !== "nextjs") {
+    return null;
+  }
+  return newSourceTaint("Next.js request body", node, scope, "nextjs");
 }
 
 function sanitizerKindsFor(name) {

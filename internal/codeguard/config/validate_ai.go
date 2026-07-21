@@ -44,6 +44,29 @@ func validateAIChangeRisk(cfg core.AIChangeRiskConfig) error {
 	return nil
 }
 
+func validateRiskScoring(cfg core.RiskScoringConfig) error {
+	for _, setting := range []struct {
+		name  string
+		value int
+	}{
+		{"max_hotspots", cfg.MaxHotspots},
+		{"changed_file_weight", cfg.ChangedFileWeight},
+		{"fail_finding_weight", cfg.FailFindingWeight},
+		{"warn_finding_weight", cfg.WarnFindingWeight},
+		{"security_weight", cfg.SecurityWeight},
+		{"supply_chain_weight", cfg.SupplyChainWeight},
+		{"coverage_gap_weight", cfg.CoverageGapWeight},
+		{"ai_provenance_weight", cfg.AIProvenanceWeight},
+		{"ai_signal_weight", cfg.AISignalWeight},
+		{"slop_score_divisor", cfg.SlopScoreDivisor},
+	} {
+		if setting.value < 0 {
+			return fmt.Errorf("quality_rules.risk_scoring.%s must be non-negative", setting.name)
+		}
+	}
+	return nil
+}
+
 func validateAIChecks(cfg core.AIChecksConfig) error {
 	if cfg.SlopHistoryLimit < 0 {
 		return errors.New("quality_rules.ai_checks.slop_history_limit must be non-negative")

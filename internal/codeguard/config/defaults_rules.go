@@ -14,8 +14,23 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	defaultInt(&dst.CloneTokenThreshold, def.CloneTokenThreshold)
 	defaultCommandMap(&dst.LanguageCommands, def.LanguageCommands)
 	applyAIChangeRiskDefaults(&dst.AIChangeRisk, def.AIChangeRisk)
+	applyRiskScoringDefaults(&dst.RiskScoring)
 	applyCoverageDeltaDefaults(&dst.CoverageDelta)
 	applyCPPToolingDefaults(&dst.CPPTooling)
+}
+
+func applyRiskScoringDefaults(dst *core.RiskScoringConfig) {
+	defaultBoolPtr(&dst.Enabled, true)
+	defaultInt(&dst.MaxHotspots, 5)
+	defaultInt(&dst.ChangedFileWeight, 5)
+	defaultInt(&dst.FailFindingWeight, 30)
+	defaultInt(&dst.WarnFindingWeight, 15)
+	defaultInt(&dst.SecurityWeight, 10)
+	defaultInt(&dst.SupplyChainWeight, 10)
+	defaultInt(&dst.CoverageGapWeight, 15)
+	defaultInt(&dst.AIProvenanceWeight, 15)
+	defaultInt(&dst.AISignalWeight, 10)
+	defaultInt(&dst.SlopScoreDivisor, 10)
 }
 
 func applyCPPToolingDefaults(dst *core.CPPToolingConfig) {
@@ -175,6 +190,9 @@ func applySupplyChainDefaults(dst *core.SupplyChainRulesConfig, def core.SupplyC
 	defaultBoolPtr(&dst.RequireLockfile, boolValueOrTrue(def.RequireLockfile))
 	defaultBoolPtr(&dst.DetectLockfileDrift, boolValueOrTrue(def.DetectLockfileDrift))
 	defaultBoolPtr(&dst.DetectUnpinned, boolValueOrTrue(def.DetectUnpinned))
+	// Vulnerability matching is opt-in: a repository must choose and maintain
+	// the advisory cache it trusts.
+	defaultBoolPtr(&dst.DetectVulnerabilities, false)
 	defaultStringSlice(&dst.AllowedLicenses, def.AllowedLicenses, false)
 	defaultStringSlice(&dst.DeniedLicenses, def.DeniedLicenses, false)
 	defaultSingleCommandMap(&dst.LicenseCommands, def.LicenseCommands)

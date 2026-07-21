@@ -13,3 +13,10 @@ func VerifyFix(ctx context.Context, cfg Config, finding Finding, candidate FixCa
 func GenerateVerifiedFix(ctx context.Context, req FixGenerateRequest) (VerifiedFix, error) {
 	return internalfix.GenerateVerified(ctx, req)
 }
+
+// VerifyFixBatch verifies compatible deterministic fixes in one isolated
+// workspace and returns their aggregate patch. It never changes the working
+// tree.
+func VerifyFixBatch(ctx context.Context, req FixBatchRequest) (FixBatchResult, error) {
+	return internalfix.VerifyBatch(ctx, req)
+}

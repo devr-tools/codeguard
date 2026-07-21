@@ -178,6 +178,7 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 				Column:     input.Column,
 				Message:    input.Message,
 				Confidence: input.Confidence,
+				Metadata:   input.Metadata,
 			})
 		},
 		FinalizeSection: func(id string, name string, findings []core.Finding) core.SectionResult {

@@ -14,6 +14,7 @@ var commandCatalog = map[string]commandRunner{
 	"doctor":         withoutStdin(runDoctor),
 	"explain":        withoutStdin(runExplain),
 	"fix":            withoutStdin(runFix),
+	"fix-batch":      withoutStdin(runFixBatch),
 	"init":           runInit,
 	"owasp":          withoutStdin(runOWASP),
 	"profiles":       noArgs(runProfiles),

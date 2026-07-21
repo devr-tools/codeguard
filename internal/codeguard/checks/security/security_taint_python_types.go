@@ -7,6 +7,8 @@ type pyTaint struct {
 	sourceLine int
 	chain      []string
 	paramIndex int
+	model      string
+	sinkModel  string
 }
 
 func (t *pyTaint) extended(step string) *pyTaint {

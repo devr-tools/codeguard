@@ -20,6 +20,7 @@ func Validate(cfg core.Config) error {
 		validateAIConfig(cfg.AI),
 		validateAIProvenance(cfg.Checks.QualityRules.AIProvenance),
 		validateAIChangeRisk(cfg.Checks.QualityRules.AIChangeRisk),
+		validateRiskScoring(cfg.Checks.QualityRules.RiskScoring),
 		validateAIChecks(cfg.Checks.QualityRules.AIChecks),
 		validateSupplyChainRules(cfg.Checks.SupplyChainRules),
 		validateContractRules(cfg.Checks.ContractRules),
@@ -32,7 +33,28 @@ func Validate(cfg core.Config) error {
 		validateSecretsRules(cfg.Checks.SecurityRules.Secrets),
 		validateParsers(cfg.Parsers),
 		validateRulePacks(cfg.RulePacks),
+		validateExternalReports(cfg.ExternalReports),
 	)
+}
+
+func validateExternalReports(reports []core.ExternalReportConfig) error {
+	for i, report := range reports {
+		field := fmt.Sprintf("external_reports[%d]", i)
+		path := strings.TrimSpace(report.Path)
+		if path == "" {
+			return fmt.Errorf("%s.path is required", field)
+		}
+		clean := filepath.Clean(filepath.FromSlash(path))
+		if !filepath.IsAbs(clean) && (clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator))) {
+			return fmt.Errorf("%s.path must not escape the repository", field)
+		}
+		switch strings.ToLower(strings.TrimSpace(report.Format)) {
+		case "sarif", "gitleaks", "trivy":
+		default:
+			return fmt.Errorf("%s.format must be sarif, gitleaks, or trivy", field)
+		}
+	}
+	return nil
 }
 
 func validateCPPTooling(cfg core.CPPToolingConfig) error {
@@ -91,10 +113,10 @@ func validateTargets(targets []core.TargetConfig) error {
 
 func validateOutput(output core.OutputConfig) error {
 	switch strings.TrimSpace(strings.ToLower(output.Format)) {
-	case "", "text", "json", "sarif", "github":
+	case "", "text", "json", "sarif", "github", "cyclonedx", "cyclonedx-json":
 		return nil
 	default:
-		return errors.New("output format must be one of text, json, sarif, github")
+		return errors.New("output format must be one of text, json, sarif, github, cyclonedx")
 	}
 }
 

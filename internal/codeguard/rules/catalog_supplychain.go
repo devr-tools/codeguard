@@ -3,6 +3,16 @@ package rules
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 var supplyChainCatalog = map[string]core.RuleMetadata{
+	"supply_chain.vulnerable-dependency": {
+		ID:               "supply_chain.vulnerable-dependency",
+		Section:          "Supply Chain",
+		DefaultLevel:     "fail",
+		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.RepositoryWideRuleLanguageCoverage(),
+		Title:            "Vulnerable dependency",
+		Description:      "Fails when a normalized dependency matches an affected version range in the configured local advisory cache.",
+		HowToFix:         "Upgrade to a version outside the advisory's affected range, then refresh the lockfile and advisory cache through the approved update process.",
+	},
 	"supply_chain.unpinned-dependency": {
 		ID:               "supply_chain.unpinned-dependency",
 		Section:          "Supply Chain",

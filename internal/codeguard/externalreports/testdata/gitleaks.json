@@ -1,0 +1,11 @@
+[
+  {
+    "RuleID": "aws-access-key",
+    "File": "internal/config.go",
+    "StartLine": 8,
+    "StartColumn": 4,
+    "Secret": "gitleaks-secret-value-must-not-escape",
+    "Match": "gitleaks-secret-value-must-not-escape",
+    "Description": "custom rule gitleaks-secret-value-must-not-escape"
+  }
+]

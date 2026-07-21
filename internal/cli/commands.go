@@ -68,7 +68,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	fs.SetOutput(stderr)
 	flags := registerScanRunFlags(fs)
 	inputs := scanInputs{configPath: flags.configPath, mode: flags.mode, baseRef: flags.baseRef}
-	format := fs.String("format", "", "optional output format override: text, json, sarif, github")
+	format := fs.String("format", "", "optional output format override: text, json, sarif, github, cyclonedx")
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	interactive := fs.Bool("interactive", false, "prompt for scan inputs in the terminal")
 	if ok, code := parseFlags(fs, args, stderr); !ok {
@@ -106,7 +106,7 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	fs := flag.NewFlagSet("validate-patch", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", service.DefaultConfigPath(), "config file or directory path")
-	format := fs.String("format", "", "optional output format override: text, json, sarif, github")
+	format := fs.String("format", "", "optional output format override: text, json, sarif, github, cyclonedx")
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	profile := fs.String("profile", "", "optional policy profile override")
 	if ok, code := parseFlags(fs, args, stderr); !ok {
