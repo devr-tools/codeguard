@@ -9,7 +9,6 @@ import (
 	"errors"
 	"os/exec"
 	"strings"
-	"sync"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
@@ -33,17 +32,16 @@ var typeScriptSemanticRunner = strings.Join([]string{
 	typeScriptSemanticRunnerBootstrap,
 }, "\n")
 
-var (
-	typeScriptSemanticCacheMu sync.Mutex
-	typeScriptSemanticCache   = make(map[string]TypeScriptSemanticResults)
-)
-
 func AnalyzeTypeScriptTarget(ctx context.Context, target core.TargetConfig, cfg core.Config) (TypeScriptSemanticResults, bool, error) {
+	return analyzeTypeScriptTarget(ctx, target, cfg, nil)
+}
+
+func analyzeTypeScriptTarget(ctx context.Context, target core.TargetConfig, cfg core.Config, sourceFiles []string) (TypeScriptSemanticResults, bool, error) {
 	libPath := discoverTypeScriptLibPath(target.Path)
 	if libPath == "" {
 		return TypeScriptSemanticResults{}, false, nil
 	}
-	input := newTypeScriptSemanticInput(target, cfg, libPath)
+	input := newTypeScriptSemanticInput(target, cfg, libPath, sourceFiles)
 	cacheKey, err := typeScriptSemanticCacheKey(input)
 	if err != nil {
 		return TypeScriptSemanticResults{}, false, err
@@ -51,25 +49,23 @@ func AnalyzeTypeScriptTarget(ctx context.Context, target core.TargetConfig, cfg 
 	if cached, ok := cachedTypeScriptSemanticResults(cacheKey); ok {
 		return cached, true, nil
 	}
-	results, err := runTypeScriptSemanticRunner(ctx, input)
-	if err != nil {
-		return TypeScriptSemanticResults{}, true, err
+
+	flight, leader := typeScriptSemanticFlightFor(cacheKey)
+	if !leader {
+		select {
+		case <-flight.done:
+			return flight.results, true, flight.err
+		case <-ctx.Done():
+			return TypeScriptSemanticResults{}, true, ctx.Err()
+		}
 	}
-	storeTypeScriptSemanticResults(cacheKey, results)
-	return results, true, nil
-}
 
-func cachedTypeScriptSemanticResults(cacheKey string) (TypeScriptSemanticResults, bool) {
-	typeScriptSemanticCacheMu.Lock()
-	defer typeScriptSemanticCacheMu.Unlock()
-	results, ok := typeScriptSemanticCache[cacheKey]
-	return results, ok
-}
-
-func storeTypeScriptSemanticResults(cacheKey string, results TypeScriptSemanticResults) {
-	typeScriptSemanticCacheMu.Lock()
-	defer typeScriptSemanticCacheMu.Unlock()
-	typeScriptSemanticCache[cacheKey] = results
+	flight.results, flight.err = runTypeScriptSemanticRunner(ctx, input)
+	if flight.err == nil {
+		storeTypeScriptSemanticResults(cacheKey, flight.results)
+	}
+	typeScriptSemanticFinishFlight(cacheKey, flight)
+	return flight.results, true, flight.err
 }
 
 func typeScriptSemanticCacheKey(input typeScriptSemanticInput) (string, error) {

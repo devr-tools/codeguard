@@ -12,7 +12,7 @@ var qualityTypeScriptTargetExtract = func(results support.TypeScriptSemanticResu
 }
 
 func typeScriptTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	results, ok, err := support.AnalyzeTypeScriptTarget(ctx, target, env.Config)
+	results, ok, err := support.AnalyzeTypeScriptTargetForContext(ctx, env, target)
 	if err == nil && ok {
 		findings := support.FindingsFromInputs(env, qualityTypeScriptTargetExtract(results))
 		findings = append(findings, env.ScanTargetFiles(target, "quality-typescript-file-length", isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {

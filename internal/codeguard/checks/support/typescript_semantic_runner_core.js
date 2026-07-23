@@ -46,6 +46,7 @@ function main() {
 
 function loadProgram() {
   const configPath = findConfigPath();
+  const rootNames = input.source_files;
   if (configPath) {
     const config = ts.readConfigFile(configPath, ts.sys.readFile);
     if (config.error) {
@@ -59,13 +60,13 @@ function loadProgram() {
       configPath,
     );
     return ts.createProgram({
-      rootNames: parsed.fileNames.filter((name) => isWithinTarget(path.resolve(name))),
+      rootNames: rootNames || parsed.fileNames.filter((name) => isWithinTarget(path.resolve(name))),
       options: parsed.options,
     });
   }
 
   return ts.createProgram({
-    rootNames: ts.sys.readDirectory(targetPath, scriptExtensions(), undefined, undefined),
+    rootNames: rootNames || ts.sys.readDirectory(targetPath, scriptExtensions(), undefined, undefined),
     options: defaultCompilerOptions(),
   });
 }
