@@ -106,7 +106,7 @@ type TypeScriptTargetScan struct {
 }
 
 func TypeScriptTargetFindings(ctx context.Context, env Context, target core.TargetConfig, scan TypeScriptTargetScan) []core.Finding {
-	results, ok, err := AnalyzeTypeScriptTarget(ctx, target, env.Config)
+	results, ok, err := AnalyzeTypeScriptTargetForContext(ctx, env, target)
 	if err == nil && ok {
 		return FindingsFromInputs(env, scan.Extract(results))
 	}

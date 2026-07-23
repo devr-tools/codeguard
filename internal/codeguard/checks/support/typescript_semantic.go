@@ -36,14 +36,32 @@ var typeScriptSemanticRunner = strings.Join([]string{
 var (
 	typeScriptSemanticCacheMu sync.Mutex
 	typeScriptSemanticCache   = make(map[string]TypeScriptSemanticResults)
+	typeScriptSemanticFlights = make(map[string]*typeScriptSemanticFlight)
 )
 
+type typeScriptSemanticFlight struct {
+	done    chan struct{}
+	results TypeScriptSemanticResults
+	err     error
+}
+
 func AnalyzeTypeScriptTarget(ctx context.Context, target core.TargetConfig, cfg core.Config) (TypeScriptSemanticResults, bool, error) {
+	return analyzeTypeScriptTarget(ctx, target, cfg, nil)
+}
+
+// AnalyzeTypeScriptTargetForContext uses the runner's already-filtered corpus
+// as the TypeScript program roots. Calling TypeScript's recursive discovery
+// directly would bypass Codeguard's target exclusions.
+func AnalyzeTypeScriptTargetForContext(ctx context.Context, env Context, target core.TargetConfig) (TypeScriptSemanticResults, bool, error) {
+	return analyzeTypeScriptTarget(ctx, target, env.Config, TypeScriptTargetSourceFiles(env, target))
+}
+
+func analyzeTypeScriptTarget(ctx context.Context, target core.TargetConfig, cfg core.Config, sourceFiles []string) (TypeScriptSemanticResults, bool, error) {
 	libPath := discoverTypeScriptLibPath(target.Path)
 	if libPath == "" {
 		return TypeScriptSemanticResults{}, false, nil
 	}
-	input := newTypeScriptSemanticInput(target, cfg, libPath)
+	input := newTypeScriptSemanticInput(target, cfg, libPath, sourceFiles)
 	cacheKey, err := typeScriptSemanticCacheKey(input)
 	if err != nil {
 		return TypeScriptSemanticResults{}, false, err
@@ -51,12 +69,61 @@ func AnalyzeTypeScriptTarget(ctx context.Context, target core.TargetConfig, cfg 
 	if cached, ok := cachedTypeScriptSemanticResults(cacheKey); ok {
 		return cached, true, nil
 	}
-	results, err := runTypeScriptSemanticRunner(ctx, input)
-	if err != nil {
-		return TypeScriptSemanticResults{}, true, err
+
+	flight, leader := typeScriptSemanticFlightFor(cacheKey)
+	if !leader {
+		select {
+		case <-flight.done:
+			return flight.results, true, flight.err
+		case <-ctx.Done():
+			return TypeScriptSemanticResults{}, true, ctx.Err()
+		}
 	}
-	storeTypeScriptSemanticResults(cacheKey, results)
-	return results, true, nil
+
+	flight.results, flight.err = runTypeScriptSemanticRunner(ctx, input)
+	if flight.err == nil {
+		storeTypeScriptSemanticResults(cacheKey, flight.results)
+	}
+	typeScriptSemanticFinishFlight(cacheKey, flight)
+	return flight.results, true, flight.err
+}
+
+// TypeScriptTargetSourceFiles filters the shared corpus list for semantic
+// analysis. A nil result retains the direct-call fallback for unit consumers
+// that do not construct a runner Context.
+func TypeScriptTargetSourceFiles(env Context, target core.TargetConfig) []string {
+	if env.ListTargetFiles == nil {
+		return nil
+	}
+	files, err := env.ListTargetFiles(target)
+	if err != nil {
+		return nil
+	}
+	sourceFiles := make([]string, 0, len(files))
+	for _, file := range files {
+		if IsTypeScriptLikeFile(file) {
+			sourceFiles = append(sourceFiles, file)
+		}
+	}
+	return sourceFiles
+}
+
+func typeScriptSemanticFlightFor(cacheKey string) (*typeScriptSemanticFlight, bool) {
+	typeScriptSemanticCacheMu.Lock()
+	defer typeScriptSemanticCacheMu.Unlock()
+	if flight, ok := typeScriptSemanticFlights[cacheKey]; ok {
+		return flight, false
+	}
+	flight := &typeScriptSemanticFlight{done: make(chan struct{})}
+	typeScriptSemanticFlights[cacheKey] = flight
+	return flight, true
+}
+
+func typeScriptSemanticFinishFlight(cacheKey string, flight *typeScriptSemanticFlight) {
+	typeScriptSemanticCacheMu.Lock()
+	delete(typeScriptSemanticFlights, cacheKey)
+	close(flight.done)
+	typeScriptSemanticCacheMu.Unlock()
 }
 
 func cachedTypeScriptSemanticResults(cacheKey string) (TypeScriptSemanticResults, bool) {
