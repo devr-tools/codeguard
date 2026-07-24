@@ -9,9 +9,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
-	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
 type packageManifest struct {
@@ -55,25 +52,6 @@ func packageManifestDeps(manifest packageManifest) map[string]struct{} {
 		deps[strings.TrimSpace(manifest.Name)] = struct{}{}
 	}
 	return deps
-}
-
-func readWorkspacePackageNames(env support.Context, target core.TargetConfig) map[string]struct{} {
-	files := listAITargetFiles(env, target, func(rel string) bool {
-		return filepath.Base(rel) == "package.json"
-	})
-	names := map[string]struct{}{}
-	for _, rel := range files {
-		data, err := readAITargetFile(env, target, rel)
-		if err != nil {
-			continue
-		}
-		manifest, ok := parsePackageManifest(data)
-		if !ok || strings.TrimSpace(manifest.Name) == "" {
-			continue
-		}
-		names[strings.TrimSpace(manifest.Name)] = struct{}{}
-	}
-	return names
 }
 
 func readGitHeadMessage(dir string) string {

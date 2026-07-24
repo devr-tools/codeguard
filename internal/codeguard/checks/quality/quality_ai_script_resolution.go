@@ -230,11 +230,12 @@ func stripScriptJSONC(data []byte) []byte {
 		ch := source[i]
 		if inString {
 			b.WriteByte(ch)
-			if escaped {
+			switch {
+			case escaped:
 				escaped = false
-			} else if ch == '\\' {
+			case ch == '\\':
 				escaped = true
-			} else if ch == '"' {
+			case ch == '"':
 				inString = false
 			}
 			continue
