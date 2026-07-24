@@ -68,7 +68,19 @@ func typeScriptAIQualityFindings(ctx typeScriptScanContext) []core.Finding {
 		findings = append(findings, warnFinding(ctx.env, "quality.ai.swallowed-error", ctx.file, line, 1,
 			support.ScriptLabelForPath(ctx.file)+" catch block swallows the error without handling it"))
 	}
+	inJSDoc := false
 	for idx, line := range strings.Split(ctx.source, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "/**") {
+			inJSDoc = !strings.Contains(trimmed, "*/")
+			continue
+		}
+		if inJSDoc {
+			if strings.Contains(trimmed, "*/") {
+				inJSDoc = false
+			}
+			continue
+		}
 		text, ok := extractScriptCommentText(line)
 		if !ok || !isNarrativeComment(text) {
 			continue
