@@ -48,6 +48,26 @@ func buildClient() {}
 	assertFindingConfidence(t, report, "Code Quality", "quality.ai.narrative-comment", "low")
 }
 
+func TestQualityCheckAllowsUsefulTypeScriptComments(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "route.ts"), `/** GET /api/files/[versionId]/download — stream a single FileVersion. */
+// Run: pnpm --filter @legal-nest/db exec tsx prisma/seed.ts
+// Autoscroll on new turn in a useEffect
+// Dispatch on entity type. Prisma accepts string indexing, but TS does not model it.
+// Higher-is-worse fields default to desc; priorities and labels default to asc.
+export function route() {}
+`)
+
+	cfg := qualityAITestConfig(dir, "quality-ai-useful-comments")
+	cfg.Targets[0].Language = "typescript"
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ai.narrative-comment")
+}
+
 func TestQualityCheckWarnsForEmptyCatchInTypeScript(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "handler.ts"), `export function run() {
