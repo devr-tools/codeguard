@@ -8,6 +8,7 @@ import (
 var (
 	aiNarrativeCommentPattern = regexp.MustCompile(`(?i)^(initialize|create|set|get|call|return|check|convert|update|build|iterate|loop|run|assign|store)\b`)
 	aiRationalePattern        = regexp.MustCompile(`(?i)\b(because|so that|why|ensure|ensures|avoid|must|needed|required|reason|safely|in order to)\b`)
+	aiRouteCommentPattern     = regexp.MustCompile(`^(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+/`)
 	aiEmptyCatchPattern       = regexp.MustCompile(`(?s)\bcatch\s*(?:\([^)]*\))?\s*\{\s*(?:(?://[^\n]*\n)|(?:/\*.*?\*/\s*))*\}`)
 	aiPythonPassExceptPattern = regexp.MustCompile(`(?m)^\s*except(?:\s+[^\n:]+)?\s*:\s*(?:#.*)?\n\s*(pass|\.\.\.)\b`)
 )
@@ -20,11 +21,19 @@ func aiCheckEnabled(flag *bool) bool {
 
 func isNarrativeComment(text string) bool {
 	trimmed := strings.TrimSpace(text)
-	if trimmed == "" || aiRationalePattern.MatchString(trimmed) || !aiNarrativeCommentPattern.MatchString(trimmed) {
+	if trimmed == "" || aiRationalePattern.MatchString(trimmed) || isCommentInstructionOrHeader(trimmed) || !aiNarrativeCommentPattern.MatchString(trimmed) {
 		return false
 	}
 	words := strings.Fields(trimmed)
 	return len(words) >= 2 && len(words) <= 10
+}
+
+func isCommentInstructionOrHeader(text string) bool {
+	lower := strings.ToLower(text)
+	return strings.HasPrefix(lower, "run:") ||
+		strings.HasPrefix(lower, "usage:") ||
+		strings.HasPrefix(lower, "example:") ||
+		aiRouteCommentPattern.MatchString(text)
 }
 
 func regexLineMatches(pattern *regexp.Regexp, source string) []int {

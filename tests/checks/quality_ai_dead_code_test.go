@@ -197,6 +197,69 @@ function helper(): number {
 	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ai.dead-code")
 }
 
+func TestQualityCheckAllowsJSXAndExpressionReferencesToLocalHelpers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "page.tsx"), `function StatusBadge({ status }: { status: string }) {
+  return <span>{status}</span>;
+}
+
+const Row = ({ children }: { children: unknown }) => <div>{children}</div>;
+
+function fmtDate(value: string): string {
+  return value;
+}
+
+export function Page({ status, nextReviewDate }: { status: string; nextReviewDate: string }) {
+  return <Row><StatusBadge status={status} />{fmtDate(nextReviewDate)}</Row>;
+}
+`)
+
+	cfg := qualityAITestConfig(dir, "quality-ai-tsx-local-references")
+	cfg.Targets[0].Language = "typescript"
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ai.dead-code")
+}
+
+func TestQualityCheckAllowsStatementAfterUnbracedConditionalReturn(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "handler.ts"), `export function run(done: boolean): string {
+  if (done)
+    return "complete";
+  return "pending";
+}
+`)
+
+	cfg := qualityAITestConfig(dir, "quality-ai-ts-unbraced-return")
+	cfg.Targets[0].Language = "typescript"
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ai.dead-code")
+}
+
+func TestQualityCheckWarnsForUnusedLocalTypeScriptArrowFunction(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "handler.ts"), `export const run = () => "ok";
+
+const orphanHelper = () => "unused";
+`)
+
+	cfg := qualityAITestConfig(dir, "quality-ai-ts-unused-arrow")
+	cfg.Targets[0].Language = "typescript"
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.dead-code")
+}
+
 func TestQualityCheckHonorsDeadCodeToggle(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "unreachable.go"), `package sample
