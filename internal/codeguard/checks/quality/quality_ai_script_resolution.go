@@ -85,6 +85,9 @@ func readPNPMLockPackages(root string) map[string]struct{} {
 	packages := map[string]struct{}{}
 	inPackages := false
 	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
 		if !strings.HasPrefix(line, " ") {
 			inPackages = strings.TrimSpace(line) == "packages:"
 			continue
