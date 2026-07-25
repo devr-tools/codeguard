@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.2](https://github.com/devr-tools/codeguard/compare/v1.2.1...v1.2.2) (2026-07-25)
+
+
+### Bug Fixes
+
+* parse pnpm lockfile package entries ([11acbd6](https://github.com/devr-tools/codeguard/commit/11acbd635c1446b8a7237a6cd3403c758c0deb49))
+* reduce AI quality false positives ([fd5d103](https://github.com/devr-tools/codeguard/commit/fd5d10319ce0d8cd22705856351936bedcae5662))
+* reduce AI quality false positives ([dc61f7e](https://github.com/devr-tools/codeguard/commit/dc61f7e840b5c5b010de864e4cc04c789f6613cf))
+* reduce AI quality false positives ([#64](https://github.com/devr-tools/codeguard/issues/64)) ([b80b5c3](https://github.com/devr-tools/codeguard/commit/b80b5c3285a66e596b622cf297538b91e867620a))
+* resolve TypeScript pnpm imports ([154adc3](https://github.com/devr-tools/codeguard/commit/154adc3dfd9c2eadf3356b6a1e900486d0300289))
+* resolve TypeScript pnpm imports ([#63](https://github.com/devr-tools/codeguard/issues/63)) ([4d3cc59](https://github.com/devr-tools/codeguard/commit/4d3cc597eff62062a1637a04c1dc6b7e4f6f4228))
+* satisfy import resolver lint ([fcec2dc](https://github.com/devr-tools/codeguard/commit/fcec2dc2d14420b9ed23df1ab5cd297e3865ce21))
+
 ## [1.2.1](https://github.com/devr-tools/codeguard/compare/v1.2.0...v1.2.1) (2026-07-23)
 
 
