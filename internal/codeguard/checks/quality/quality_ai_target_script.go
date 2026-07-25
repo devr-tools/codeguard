@@ -20,6 +20,9 @@ type scriptImportCatalog struct {
 	hasManifest      bool
 	deps             map[string]struct{}
 	workspacePackage map[string]struct{}
+	packageManifests map[string]packageManifest
+	tsconfigPathMaps []scriptTSConfigPathMap
+	lockPackages     map[string]struct{}
 }
 
 func typeScriptAITargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
@@ -27,12 +30,8 @@ func typeScriptAITargetFindings(env support.Context, target core.TargetConfig) [
 	if len(files) == 0 {
 		return nil
 	}
-	manifest, hasManifest := readPackageManifest(target.Path)
-	catalog := scriptImportCatalog{
-		hasManifest:      hasManifest,
-		deps:             packageManifestDeps(manifest),
-		workspacePackage: readWorkspacePackageNames(env, target),
-	}
+	manifest, _ := readPackageManifest(target.Path)
+	catalog := newScriptImportCatalog(env, target, manifest)
 	dominant := dominantScriptTestFramework(env, target, files, manifest)
 	input := scriptFileScanInput{
 		catalog:    catalog,
@@ -114,7 +113,19 @@ func scriptImportResolvable(root string, file string, specifier string, catalog 
 	if _, ok := catalog.workspacePackage[rootPackage]; ok {
 		return true
 	}
+	if _, ok := catalog.declaredDependenciesFor(file)[rootPackage]; ok {
+		return true
+	}
 	if _, ok := catalog.deps[rootPackage]; ok {
+		return true
+	}
+	if catalog.hasInstalledPackage(root, file, rootPackage) {
+		return true
+	}
+	if _, ok := catalog.lockPackages[rootPackage]; ok {
+		return true
+	}
+	if catalog.matchesTSConfigPath(root, file, specifier) {
 		return true
 	}
 	return !catalog.hasManifest
@@ -122,15 +133,24 @@ func scriptImportResolvable(root string, file string, specifier string, catalog 
 
 func resolveRelativeScriptImport(root string, dir string, specifier string) bool {
 	base := filepath.Join(root, dir, filepath.FromSlash(specifier))
-	candidates := []string{
-		base, base + ".ts", base + ".tsx", base + ".js", base + ".jsx",
-		base + ".mts", base + ".cts", base + ".mjs", base + ".cjs",
-		filepath.Join(base, "index.ts"), filepath.Join(base, "index.tsx"),
-		filepath.Join(base, "index.js"), filepath.Join(base, "index.jsx"),
+	// TypeScript's NodeNext/Bundler resolution accepts runtime .js specifiers
+	// for TypeScript source (for example, ./config.js resolving to config.ts).
+	// Try the extensionless source path as well as the literal path.
+	bases := []string{base}
+	if ext := filepath.Ext(base); ext == ".js" || ext == ".mjs" || ext == ".cjs" {
+		bases = append(bases, strings.TrimSuffix(base, ext))
 	}
-	for _, candidate := range candidates {
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() { //nolint:gosec // stat-only existence check; candidate is joined under the scan root
-			return true
+	for _, base := range bases {
+		candidates := []string{
+			base, base + ".ts", base + ".tsx", base + ".js", base + ".jsx",
+			base + ".mts", base + ".cts", base + ".mjs", base + ".cjs",
+			filepath.Join(base, "index.ts"), filepath.Join(base, "index.tsx"),
+			filepath.Join(base, "index.js"), filepath.Join(base, "index.jsx"),
+		}
+		for _, candidate := range candidates {
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() { //nolint:gosec // stat-only existence check; candidate is joined under the scan root
+				return true
+			}
 		}
 	}
 	return false
