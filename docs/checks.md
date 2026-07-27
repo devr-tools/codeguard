@@ -273,7 +273,7 @@ the configuration tests.
 | `quality_rules.max_function_lines` | 80 | 120 | 60 | 60 | 70 |
 | `quality_rules.max_parameters` | 5 | 7 | 4 | 4 | 5 |
 | `quality_rules.max_cyclomatic_complexity` | 10 | 15 | 8 | 8 | 9 |
-| `quality_rules.clone_token_threshold` | 60 | 90 | 45 | 45 | 50 |
+| `quality_rules.clone_token_threshold` | 90 | 120 | 60 | 60 | 75 |
 | `design_rules.max_decls_per_file` | 12 | 16 | 10 | 10 | 12 |
 | `design_rules.max_methods_per_type` | 8 | 10 | 6 | 6 | 8 |
 | `design_rules.max_interface_methods` | 5 | 8 | 4 | 4 | 5 |
