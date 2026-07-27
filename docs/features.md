@@ -8,6 +8,7 @@ This page lists the current `codeguard` feature surface and the main config entr
   - maintainability thresholds
   - clone detection
   - language-native quality heuristics for Go, Python, TypeScript, JavaScript, Rust, Java, C++, C#, and Ruby
+  - local-quality precision heuristics for naming, function shape, error handling, defensive programming, and maintainability deltas where the active build includes them
   - AI-quality heuristics such as swallowed errors, narrative comments, hallucinated imports, dead code, over-mocked tests, idiom drift, semantic review, provenance policy, and change-risk rollups
   - changed-line coverage gating in diff mode
   - opt-in `clang-format` and sanitized `clang++ -fsyntax-only` validation backed by safe `compile_commands.json` metadata
@@ -55,6 +56,10 @@ This page lists the current `codeguard` feature surface and the main config entr
 - `data`
   - distributed-system and data-correctness checks for Go, Python, TypeScript, JavaScript, and C++
   - read-modify-write race patterns, missing transaction boundaries, side effects in transactions, consumer idempotency/deduplication gaps, unsafe dual writes, missing outbox strategy, unstable pagination, unbounded reads, exactly-once assumptions, and cache policy gaps
+- `change`
+  - diff-mode change-safety, testability, and refactor-confidence checks for PR review
+  - oversized and mixed-concern diff signals, behavior changes without tests, failure-path coverage gaps, hardwired or nondeterministic domain dependencies, and refactor-only changes that alter behavior, public contracts, error paths, side-effect order, visibility, or dependency direction
+  - PR-summary signals for `change_safety`, `refactor_confidence`, and `maintainability_delta` when the change-summary postprocessor is available
 - `contracts`
   - exported Go and public C++ API compatibility against a diff base
   - OpenAPI, protobuf, destructive migration checks, and non-expand/contract migration risk
@@ -114,6 +119,10 @@ Imported reports are never passed to AI triage.
 - Diff-mode production risk
   - emits `pr_summary.production_risk` when configured, using reliability, data-correctness, and non-expand/contract migration findings as deterministic PR-level risk evidence
   - does not change SARIF, GitHub annotations, or individual finding severity
+- Diff-mode change safety
+  - uses the `checks.change` family to catalog and report change-safety, testability, and refactor-confidence findings
+  - emits PR-summary fields such as `change_safety`, `refactor_confidence`, and `maintainability_delta` only as artifact evidence; they do not create extra annotations or change per-rule severities
+  - local-quality precision families such as `naming.*`, `function.*`, `error.*`, `defensive.*`, and `maintainability.*` support the same review goal; use `codeguard rules` on the active build to see the exact rollout subset
 
 ## Parsers
 
@@ -251,6 +260,40 @@ JSON:
           "command": "./scripts/resolve-npm-licenses.sh"
         }
       }
+    }
+  }
+}
+```
+
+### Enable change safety in diff scans
+
+YAML:
+
+```yaml
+checks:
+  change: true
+  change_rules:
+    max_changed_files: 25
+    max_changed_directories: 8
+    max_changed_lines: 800
+    max_public_interfaces_changed: 3
+    max_concern_families: 3
+    min_test_to_production_ratio_percent: 20
+```
+
+JSON:
+
+```json
+{
+  "checks": {
+    "change": true,
+    "change_rules": {
+      "max_changed_files": 25,
+      "max_changed_directories": 8,
+      "max_changed_lines": 800,
+      "max_public_interfaces_changed": 3,
+      "max_concern_families": 3,
+      "min_test_to_production_ratio_percent": 20
     }
   }
 }
