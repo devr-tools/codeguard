@@ -21,6 +21,25 @@ Verification completed:
 - `go test ./...` with localhost test escalation.
 - `make codeguard-ci`.
 
+## Progress update: multi-language production-readiness slice
+
+Completed in the second implementation pass:
+
+- Expanded Reliability and Data Correctness rule language coverage to include C++ in addition to Go, Python, TypeScript, and JavaScript.
+- Added Python reliability detectors for outbound HTTP calls without timeouts, retry/backoff gaps, non-idempotent retry evidence, unbounded asyncio work, swallowed exceptions, generic recoverable raises, and nearby resource-leak evidence.
+- Added TypeScript/JavaScript reliability detectors for HTTP calls without timeout/abort evidence, promise/HTTP work in loops without concurrency limits, retry/backoff gaps, non-idempotent retry evidence, swallowed catch blocks, and generic recoverable throws.
+- Added C++ reliability detectors for retry/backoff gaps, non-idempotent retry evidence, thread/task launches in loops without concurrency bounds, generic runtime throws, and raw allocation without nearby ownership cleanup.
+- Added Python data-correctness detectors for unbounded reads, unstable pagination, multi-write transaction gaps, write+publish/outbox gaps, consumer idempotency/dedupe gaps, exactly-once assumptions, and cache writes without TTL evidence.
+- Added TypeScript/JavaScript data-correctness detectors for unbounded reads, unstable pagination, multi-write transaction gaps, write+publish/outbox gaps, consumer idempotency/dedupe gaps, exactly-once assumptions, and cache writes without TTL evidence.
+- Added C++ data-correctness detectors for unbounded reads, unstable pagination, multi-write transaction gaps, write+publish/outbox gaps, consumer idempotency/dedupe gaps, exactly-once assumptions, and cache writes without TTL evidence.
+- Added focused multi-language tests for Python, TypeScript, JavaScript, and C++ reliability/data behavior.
+
+Verification completed:
+
+- `go test ./internal/codeguard/config ./internal/codeguard/rules ./internal/codeguard/runner ./internal/codeguard/runner/checks ./internal/codeguard/checks/reliability ./internal/codeguard/checks/data ./pkg/codeguard ./tests/checks ./tests/cli`.
+- `go test ./...` with localhost test escalation.
+- `make codeguard-ci`.
+
 ## Goal
 
 Make CodeGuard detect production-readiness failures that commonly cause outages or data loss:

@@ -18,6 +18,16 @@ func dataTargetFindings(_ context.Context, env support.Context, target core.Targ
 		return support.ScanGoFiles(env, target, "data", func(file string, data []byte) []core.Finding {
 			return goFindingsForFile(env, file, data)
 		})
+	case "python", "py":
+		return support.ScanPythonFiles(env, target, "data", func(file string, data []byte) []core.Finding {
+			return pythonFindingsForFile(env, file, data)
+		})
+	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
+		return typeScriptTargetFindings(env, target)
+	case "c++", "cpp", "cxx", "cc":
+		return support.ScanCPPFiles(env, target, "data", func(file string, data []byte) []core.Finding {
+			return cppFindingsForFile(env, file, data)
+		})
 	default:
 		return nil
 	}

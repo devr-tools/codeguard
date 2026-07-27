@@ -27,6 +27,7 @@ func dataRule(id string, level string, title string, description string, howToFi
 			core.RuleLanguageTypeScript,
 			core.RuleLanguageJavaScript,
 			core.RuleLanguagePython,
+			core.RuleLanguageCPP,
 		),
 		Title:       title,
 		Description: description,
