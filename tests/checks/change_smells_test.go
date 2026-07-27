@@ -24,6 +24,25 @@ func changeSmellQuietConfig(name string, dir string) codeguard.Config {
 	return cfg
 }
 
+type changeSmellLanguageCase struct {
+	name     string
+	language string
+	path     string
+	before   string
+	after    string
+}
+
+func runChangeSmellCase(t *testing.T, name string, tc changeSmellLanguageCase) codeguard.Report {
+	t.Helper()
+	dir := initChangeRepo(t)
+	writeFile(t, filepath.Join(dir, tc.path), tc.before)
+	commitAll(t, dir, "base")
+	writeFile(t, filepath.Join(dir, tc.path), tc.after)
+	cfg := changeSmellQuietConfig(name, dir)
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: tc.language}}
+	return runChangeDiff(t, cfg)
+}
+
 func TestChangeOneUseAbstractionDetectsGoInterface(t *testing.T) {
 	dir := initChangeRepo(t)
 	writeFile(t, filepath.Join(dir, "service", "payment.go"), "package service\n\nfunc Charge() error { return nil }\n")
@@ -93,6 +112,62 @@ func TestChangeOneUseAbstractionDetectsTypeScriptInterface(t *testing.T) {
 
 	report := runChangeDiff(t, changeSmellQuietConfig("change-one-use-ts", dir))
 	assertFindingRulePresent(t, report, "Change Safety", "change.one-use-abstraction")
+}
+
+func TestChangeOneUseAbstractionDetectsAdditionalLanguages(t *testing.T) {
+	for _, tc := range []changeSmellLanguageCase{
+		{
+			name:     "python",
+			language: "python",
+			path:     "service/payment.py",
+			before:   "def charge():\n    return True\n",
+			after: strings.Join([]string{
+				"from typing import Protocol",
+				"",
+				"class PaymentGateway(Protocol):",
+				"    def charge(self) -> bool: ...",
+				"",
+				"def charge_with(gateway: PaymentGateway):",
+				"    return gateway.charge()",
+				"",
+			}, "\n"),
+		},
+		{
+			name:     "javascript",
+			language: "javascript",
+			path:     "src/billing.js",
+			before:   "export function charge() { return true }\n",
+			after: strings.Join([]string{
+				"export class BillingGateway {",
+				"  charge() { return true }",
+				"}",
+				"",
+				"export function chargeWith(gateway) {",
+				"  return gateway.charge()",
+				"}",
+				"",
+			}, "\n"),
+		},
+		{
+			name:     "cpp",
+			language: "c++",
+			path:     "service/payment.cpp",
+			before:   "bool Charge() { return true; }\n",
+			after: strings.Join([]string{
+				"class PaymentGateway { public: virtual bool Charge() = 0; };",
+				"",
+				"bool ChargeWith(PaymentGateway& gateway) {",
+				"  return gateway.Charge();",
+				"}",
+				"",
+			}, "\n"),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			report := runChangeSmellCase(t, "change-one-use-"+tc.name, tc)
+			assertFindingRulePresent(t, report, "Change Safety", "change.one-use-abstraction")
+		})
+	}
 }
 
 func TestChangeDuplicateHelperDetectsGoDuplicate(t *testing.T) {
@@ -211,6 +286,20 @@ func TestChangeComplexityIncreasedDetectsPythonBranchGrowth(t *testing.T) {
 	assertFindingRulePresent(t, report, "Change Safety", "change.complexity-increased")
 }
 
+func TestChangeComplexityIncreasedAcrossAdditionalLanguages(t *testing.T) {
+	for _, tc := range []changeSmellLanguageCase{
+		{name: "go", language: "go", path: "service/pricing.go", before: "package service\n\nfunc Price(total int) int {\n\treturn total\n}\n", after: "package service\n\nfunc Price(total int, vip bool) int {\n\tif vip { return total - 10 }\n\tif total > 100 { return total - 5 }\n\treturn total\n}\n"},
+		{name: "typescript", language: "typescript", path: "src/pricing.ts", before: "export function price(total: number) { return total }\n", after: "export function price(total: number, vip: boolean) {\n  if (vip) return total - 10\n  if (total > 100) return total - 5\n  return total\n}\n"},
+		{name: "javascript", language: "javascript", path: "src/pricing.js", before: "export function price(total) { return total }\n", after: "export function price(total, vip) {\n  if (vip) return total - 10\n  if (total > 100) return total - 5\n  return total\n}\n"},
+		{name: "cpp", language: "c++", path: "service/pricing.cpp", before: "int Price(int total) { return total; }\n", after: "int Price(int total, bool vip) {\n  if (vip) return total - 10;\n  if (total > 100) return total - 5;\n  return total;\n}\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			report := runChangeSmellCase(t, "change-complexity-"+tc.name, tc)
+			assertFindingRulePresent(t, report, "Change Safety", "change.complexity-increased")
+		})
+	}
+}
+
 func TestChangeComplexityIncreasedAllowsLinearEdit(t *testing.T) {
 	dir := initChangeRepo(t)
 	writeFile(t, filepath.Join(dir, "service", "pricing.go"), "package service\n\nfunc Price(total int) int {\n\treturn total\n}\n")
@@ -244,6 +333,20 @@ func TestChangeCleanupRegressionDetectsClaimedCleanupComplexityGrowth(t *testing
 
 	report := runChangeDiff(t, changeSmellQuietConfig("cleanup-refactor-regression", dir))
 	assertFindingRulePresent(t, report, "Change Safety", "change.cleanup-regression")
+}
+
+func TestChangeCleanupRegressionAcrossAdditionalLanguages(t *testing.T) {
+	for _, tc := range []changeSmellLanguageCase{
+		{name: "python", language: "python", path: "service/cleanup.py", before: "def route(kind):\n    return 'default'\n", after: "def route(kind, admin):\n    if admin:\n        return 'admin'\n    if kind == 'vip':\n        return 'vip'\n    return 'default'\n"},
+		{name: "typescript", language: "typescript", path: "src/cleanup.ts", before: "export function route(kind: string) { return 'default' }\n", after: "export function route(kind: string, admin: boolean) {\n  if (admin) return 'admin'\n  if (kind === 'vip') return 'vip'\n  return 'default'\n}\n"},
+		{name: "javascript", language: "javascript", path: "src/cleanup.js", before: "export function route(kind) { return 'default' }\n", after: "export function route(kind, admin) {\n  if (admin) return 'admin'\n  if (kind === 'vip') return 'vip'\n  return 'default'\n}\n"},
+		{name: "cpp", language: "c++", path: "service/cleanup.cpp", before: "std::string Route(std::string kind) { return \"default\"; }\n", after: "std::string Route(std::string kind, bool admin) {\n  if (admin) return \"admin\";\n  if (kind == \"vip\") return \"vip\";\n  return \"default\";\n}\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			report := runChangeSmellCase(t, "cleanup-regression-"+tc.name, tc)
+			assertFindingRulePresent(t, report, "Change Safety", "change.cleanup-regression")
+		})
+	}
 }
 
 func TestChangeCleanupRegressionRequiresCleanupClaim(t *testing.T) {

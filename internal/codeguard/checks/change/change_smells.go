@@ -17,6 +17,8 @@ var (
 	goInterfaceDeclPattern        = regexp.MustCompile(`^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+interface\b`)
 	scriptInterfaceDeclPattern    = regexp.MustCompile(`^\s*(?:export\s+)?interface\s+([A-Za-z_][A-Za-z0-9_]*)\b`)
 	abstractClassDeclPattern      = regexp.MustCompile(`^\s*(?:export\s+)?abstract\s+class\s+([A-Za-z_][A-Za-z0-9_]*)\b`)
+	scriptBoundaryClassPattern    = regexp.MustCompile(`^\s*(?:export\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*(?:Gateway|Provider|Port|Adapter|Boundary|Strategy))\b`)
+	pythonAbstractionDeclPattern  = regexp.MustCompile(`^\s*class\s+([A-Za-z_][A-Za-z0-9_]*(?:Gateway|Provider|Port|Adapter|Boundary|Strategy|Protocol))\s*\((?:[^)]*(?:Protocol|ABC)[^)]*)\)\s*:`)
 	cppAbstractClassDeclPattern   = regexp.MustCompile(`^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)\b`)
 	functionDeclPattern           = regexp.MustCompile(`^\s*(?:export\s+)?(?:async\s+)?(?:func|function|def)\s+([A-Za-z_][A-Za-z0-9_]*)\b|^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>`)
 	cppFunctionDeclPattern        = regexp.MustCompile(`^\s*(?:[A-Za-z_][A-Za-z0-9_:<>,*&\s]+)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;{}]*\)\s*(?:const\s*)?\{`)
@@ -204,7 +206,14 @@ func abstractionNameForLine(rel string, line string) (string, bool) {
 		if m := abstractClassDeclPattern.FindStringSubmatch(line); len(m) == 2 {
 			return m[1], true
 		}
-	case ".h", ".hpp", ".hh":
+		if m := scriptBoundaryClassPattern.FindStringSubmatch(line); len(m) == 2 {
+			return m[1], true
+		}
+	case ".py":
+		if m := pythonAbstractionDeclPattern.FindStringSubmatch(line); len(m) == 2 {
+			return m[1], true
+		}
+	case ".h", ".hpp", ".hh", ".cpp", ".cc", ".cxx":
 		if m := cppAbstractClassDeclPattern.FindStringSubmatch(line); len(m) == 2 && strings.Contains(line, "virtual") {
 			return m[1], true
 		}

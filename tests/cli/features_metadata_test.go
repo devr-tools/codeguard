@@ -36,6 +36,22 @@ func TestSDKRuleMetadataForTypeScriptRule(t *testing.T) {
 	assertLanguageCoverage(t, rule, codeguard.RuleLanguageCoverageFixed, codeguard.RuleLanguageTypeScript)
 }
 
+func TestSDKRuleMetadataForTypeScriptNamedJavaScriptDesignRules(t *testing.T) {
+	for _, ruleID := range []string{
+		"design.typescript.generic-module-name",
+		"design.typescript.max-methods-per-type",
+	} {
+		rule := requireRuleMetadata(t, ruleID)
+		assertLanguageCoverage(
+			t,
+			rule,
+			codeguard.RuleLanguageCoverageFixed,
+			codeguard.RuleLanguageJavaScript,
+			codeguard.RuleLanguageTypeScript,
+		)
+	}
+}
+
 func TestSDKRuleMetadataForCommandDrivenRule(t *testing.T) {
 	rule := requireRuleMetadata(t, "security.command-check")
 	assertExecutionModel(t, rule, codeguard.RuleExecutionModelCommandDriven)

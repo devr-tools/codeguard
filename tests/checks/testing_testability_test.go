@@ -138,6 +138,45 @@ func TestTestingNondeterministicDomainLogicFindsDomainClock(t *testing.T) {
 	assertFindingRulePresent(t, report, "Change Safety", "testing.nondeterministic-domain-logic")
 }
 
+func TestTestingFailurePathMissingAcrossLanguages(t *testing.T) {
+	for _, tc := range testabilityFailurePathCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			report := runTestabilityCase(t, tc, func(cfg *codeguard.Config) {
+				cfg.Checks.ChangeRules.DetectBehaviorChangeWithoutTest = boolValue(false)
+			})
+
+			assertFindingRulePresent(t, report, "Change Safety", "testing.failure-path-missing")
+		})
+	}
+}
+
+func TestTestingHardwiredDependencyAcrossLanguages(t *testing.T) {
+	for _, tc := range testabilityHardwiredCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			report := runTestabilityCase(t, tc, func(cfg *codeguard.Config) {
+				cfg.Checks.ChangeRules.DetectBehaviorChangeWithoutTest = boolValue(false)
+				cfg.Checks.ChangeRules.DetectFailurePathMissing = boolValue(false)
+			})
+
+			assertFindingRulePresent(t, report, "Change Safety", "testing.hardwired-dependency")
+		})
+	}
+}
+
+func TestTestingNondeterministicDomainLogicAcrossLanguages(t *testing.T) {
+	for _, tc := range testabilityNondeterministicCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			report := runTestabilityCase(t, tc, func(cfg *codeguard.Config) {
+				cfg.Checks.ChangeRules.DetectBehaviorChangeWithoutTest = boolValue(false)
+				cfg.Checks.ChangeRules.DetectFailurePathMissing = boolValue(false)
+				cfg.Checks.ChangeRules.DetectHardwiredDependency = boolValue(false)
+			})
+
+			assertFindingRulePresent(t, report, "Change Safety", "testing.nondeterministic-domain-logic")
+		})
+	}
+}
+
 func TestTestingChangeRulesTogglesDisableDetectors(t *testing.T) {
 	dir := testingGitRepo(t)
 	writeFile(t, filepath.Join(dir, "pricing", "price.go"), "package pricing\n\nfunc Price(v int) int {\n\treturn v\n}\n")
@@ -221,6 +260,58 @@ func runTestingChangeScan(t *testing.T, cfg codeguard.Config) codeguard.Report {
 		t.Fatalf("run diff: %v", err)
 	}
 	return report
+}
+
+type testabilityCase struct {
+	name     string
+	language string
+	path     string
+	before   string
+	after    string
+}
+
+func runTestabilityCase(t *testing.T, tc testabilityCase, tune func(*codeguard.Config)) codeguard.Report {
+	t.Helper()
+	dir := testingGitRepo(t)
+	writeFile(t, filepath.Join(dir, tc.path), tc.before)
+	commitAll(t, dir, "base")
+	writeFile(t, filepath.Join(dir, tc.path), tc.after)
+
+	cfg := testingChangeConfig(t, dir, tc.language)
+	if tune != nil {
+		tune(&cfg)
+	}
+	return runTestingChangeScan(t, cfg)
+}
+
+func testabilityFailurePathCases() []testabilityCase {
+	return []testabilityCase{
+		{name: "go", language: "go", path: "domain/payment.go", before: "package domain\n\nfunc Authorize(ok bool) bool { return ok }\n", after: "package domain\n\nimport \"errors\"\n\nfunc Authorize(ok bool) error {\n\tif !ok { return errors.New(\"denied\") }\n\treturn nil\n}\n"},
+		{name: "python", language: "python", path: "app/domain/payment.py", before: "def authorize(ok):\n    return ok\n", after: "def authorize(ok):\n    if not ok:\n        raise Exception('denied')\n    return True\n"},
+		{name: "typescript", language: "typescript", path: "src/domain/payment.ts", before: "export function authorize(ok: boolean) { return ok }\n", after: "export function authorize(ok: boolean) { if (!ok) { throw new Error('denied') } return true }\n"},
+		{name: "javascript", language: "javascript", path: "src/domain/payment.js", before: "export function authorize(ok) { return ok }\n", after: "export function authorize(ok) { if (!ok) { throw new Error('denied') } return true }\n"},
+		{name: "cpp", language: "c++", path: "src/domain/payment.cpp", before: "bool Authorize(bool ok) { return ok; }\n", after: "#include <stdexcept>\n\nbool Authorize(bool ok) { if (!ok) { throw std::runtime_error(\"denied\"); } return true; }\n"},
+	}
+}
+
+func testabilityHardwiredCases() []testabilityCase {
+	return []testabilityCase{
+		{name: "go", language: "go", path: "domain/profile.go", before: "package domain\n\nfunc Load() string { return \"ok\" }\n", after: "package domain\n\nimport \"net/http\"\n\nfunc Load() string { http.Get(\"https://example.test\"); return \"ok\" }\n"},
+		{name: "python", language: "python", path: "app/domain/profile.py", before: "def load():\n    return 'ok'\n", after: "import requests\n\ndef load():\n    requests.get('https://example.test')\n    return 'ok'\n"},
+		{name: "typescript", language: "typescript", path: "src/domain/profile.ts", before: "export function load() { return 'ok' }\n", after: "export function load() { fetch('https://example.test'); return 'ok' }\n"},
+		{name: "javascript", language: "javascript", path: "src/domain/profile.js", before: "export function load() { return 'ok' }\n", after: "export function load() { fetch('https://example.test'); return 'ok' }\n"},
+		{name: "cpp", language: "c++", path: "src/domain/profile.cpp", before: "std::string Load() { return \"ok\"; }\n", after: "#include <fstream>\n\nstd::string Load() { std::ifstream file(\"profile.txt\"); return \"ok\"; }\n"},
+	}
+}
+
+func testabilityNondeterministicCases() []testabilityCase {
+	return []testabilityCase{
+		{name: "go", language: "go", path: "domain/coupon.go", before: "package domain\n\nfunc IssuedAt() int64 { return 0 }\n", after: "package domain\n\nimport \"time\"\n\nfunc IssuedAt() int64 { return time.Now().Unix() }\n"},
+		{name: "python", language: "python", path: "app/domain/coupon.py", before: "def issued_at():\n    return 0\n", after: "import datetime\n\ndef issued_at():\n    return datetime.datetime.now().timestamp()\n"},
+		{name: "typescript", language: "typescript", path: "src/domain/coupon.ts", before: "export function issuedAt() { return 0 }\n", after: "export function issuedAt() { return Date.now() }\n"},
+		{name: "javascript", language: "javascript", path: "src/domain/coupon.js", before: "export function issuedAt() { return 0 }\n", after: "export function issuedAt() { return Math.random() }\n"},
+		{name: "cpp", language: "c++", path: "src/domain/coupon.cpp", before: "long issued_at() { return 0; }\n", after: "#include <chrono>\n\nlong issued_at() { return std::chrono::system_clock::now().time_since_epoch().count(); }\n"},
+	}
 }
 
 func testingGitRepo(t *testing.T) string {

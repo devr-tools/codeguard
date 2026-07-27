@@ -35,6 +35,20 @@ func TestDesignCheckPassesForAcyclicTypeScriptImports(t *testing.T) {
 	assertFindingRuleAbsent(t, report, "Design Patterns", "design.typescript.import-cycle")
 }
 
+func TestDesignCheckFailsForJavaScriptImportCycle(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "alpha.js"), "import { beta } from \"./beta.js\";\n\nexport const alpha = () => beta();\n")
+	writeFile(t, filepath.Join(dir, "src", "beta.js"), "import { alpha } from \"./alpha.js\";\n\nexport const beta = () => alpha();\n")
+
+	report, err := codeguard.Run(context.Background(), graphTestConfig("design-js-cycle", dir, "javascript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Design Patterns", "fail")
+	assertFindingRulePresent(t, report, "Design Patterns", "design.javascript.import-cycle")
+}
+
 func TestDesignCheckFailsForTypeScriptImportCycleThroughTSConfigPaths(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "tsconfig.json"), "{\n  // comment to exercise JSONC parsing\n  \"compilerOptions\": {\n    \"baseUrl\": \".\",\n    \"paths\": {\n      \"@app/*\": [\"src/*\",],\n    },\n  },\n}\n")

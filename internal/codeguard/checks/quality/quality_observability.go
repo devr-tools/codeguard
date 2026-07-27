@@ -17,13 +17,13 @@ var (
 		regexp.MustCompile(`\blog\.Print(?:f|ln)?\s*\(`),
 		regexp.MustCompile(`\bconsole\.(?:log|warn|error)\s*\(`),
 		regexp.MustCompile(`\bprint\s*\(`),
-		regexp.MustCompile(`\bstd::cout\b|\bprintf\s*\(`),
+		regexp.MustCompile(`\bstd::(?:cout|cerr)\b|\b(?:printf|fprintf)\s*\(`),
 	}
 	errorLogPattern         = regexp.MustCompile(`(?i)\b(?:logger|log|logging|console|slog|zap)\.\w*(?:error|err|exception|fatal)\w*\s*\(`)
 	metricLabelPattern      = regexp.MustCompile(`(?i)\b(?:label|labels|withlabelvalues|withlabels|tags|attributes?)\b`)
 	healthReturnOKPattern   = regexp.MustCompile(`(?i)\b(?:ok|healthy|pong|200|http\.statusok|statusok)\b`)
 	dependencyPattern       = regexp.MustCompile(`(?i)\b(?:db|database|sql|redis|cache|kafka|queue|http\.client|requests\.|fetch\(|axios\.|grpc|s3|pubsub)\b`)
-	logAndIgnoreNextPattern = regexp.MustCompile(`(?i)\b(?:return\s+nil|return\s+None|return\s*;|continue|pass|//\s*ignore|#\s*ignore)\b`)
+	logAndIgnoreNextPattern = regexp.MustCompile(`(?i)^\s*(?:return\s+(?:nil|none|null|nullptr|true|false|0)\s*;?|return\s*(?:;|$)|continue\s*;?|pass|//\s*ignore|#\s*ignore)`)
 )
 
 func RunObservability(ctx context.Context, env support.Context) core.SectionResult {
@@ -60,7 +60,7 @@ func findingsForFile(env support.Context, file string, data []byte) []core.Findi
 		if enabled(rules.DetectUnstructuredLog) && isRawLogLine(codeLine) && !hasStructuredContext(rawLine) {
 			findings = append(findings, newFinding(env, "observability.unstructured-log", "warn", file, lineNo, "raw log call has no structured field context", "medium", "log_kind", "raw"))
 		}
-		if enabled(rules.DetectErrorWithoutContext) && errorLogPattern.MatchString(codeLine) && !hasErrorContext(rawLine, rules) {
+		if enabled(rules.DetectErrorWithoutContext) && isErrorLogLine(codeLine) && !hasErrorContext(rawLine, rules) {
 			findings = append(findings, newFinding(env, "observability.error-without-context", "warn", file, lineNo, "error log lacks operation, request, or safe resource context", "medium", "log_kind", "error"))
 		}
 		if enabled(rules.DetectSensitiveLogData) && isLogLikeLine(codeLine) {
@@ -73,7 +73,7 @@ func findingsForFile(env support.Context, file string, data []byte) []core.Findi
 				findings = append(findings, newFinding(env, "observability.high-cardinality-label", "warn", file, lineNo, "metric label appears to use a high-cardinality value", "high", "label_kind", token))
 			}
 		}
-		if enabled(rules.DetectLogAndIgnore) && errorLogPattern.MatchString(codeLine) && nextFewLinesIgnoreError(codeLines, idx) {
+		if enabled(rules.DetectLogAndIgnore) && isErrorLogLine(codeLine) && nextFewLinesIgnoreError(codeLines, idx) {
 			findings = append(findings, newFinding(env, "observability.log-and-ignore", "warn", file, lineNo, "failure is logged and then ignored or reported as success", "high", "failure_handling", "log-and-ignore"))
 		}
 		if isHealthPathOrLine(file, codeLine, rules) {
@@ -124,6 +124,11 @@ func isRawLogLine(line string) bool {
 func isLogLikeLine(line string) bool {
 	lower := strings.ToLower(line)
 	return isRawLogLine(line) || strings.Contains(lower, "logger.") || strings.Contains(lower, "logging.") || strings.Contains(lower, "slog.") || strings.Contains(lower, "zap.")
+}
+
+func isErrorLogLine(line string) bool {
+	lower := strings.ToLower(line)
+	return errorLogPattern.MatchString(line) || strings.Contains(lower, "std::cerr") || strings.Contains(lower, "fprintf(stderr")
 }
 
 func hasStructuredContext(line string) bool {
