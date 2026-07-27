@@ -22,6 +22,35 @@ codeguard explain quality.ai.semantic-runtime
 Use `codeguard rules` to discover what exists and `codeguard explain <rule-id>` to
 understand why a specific finding failed and what remediation path it expects.
 
+## Check glossary
+
+This glossary is the quick map of every built-in check family and the main subsections users will see in reports, rule IDs, and config.
+
+| Check family | Report section | Config key | Main subsections / rule themes |
+| --- | --- | --- | --- |
+| Quality | `Code Quality` | `checks.quality` | formatting and parseability; maintainability thresholds; file/function size; cyclomatic complexity; clone detection; language-specific quality rules; TypeScript/JavaScript type-safety rules; AI-failure-mode checks; semantic review; changed-line coverage; C++ formatter/compiler validation |
+| Performance | `Performance` | `checks.performance` | N+1 query/fetch patterns; allocation-heavy loops; repeated work in loops; blocking I/O in request paths; unbounded concurrency; sequential await; timer/listener leaks; unbounded whole-input reads; framework-aware performance smells; rebuild-cascade analysis; complexity regression; size budgets; build regression; benchmark regression |
+| Reliability | `Reliability` | `checks.reliability` | missing outbound timeouts; unbounded retries; retries without backoff/jitter; non-idempotent retries; missing cancellation propagation; unbounded work; missing concurrency limits; resource leaks; hidden partial failures; missing graceful shutdown; swallowed errors; lost error context; recoverable panics/exceptions |
+| Data Correctness | `Data Correctness` | `checks.data` | read-modify-write races; missing transaction boundaries; external side effects inside transactions; non-idempotent consumers; missing deduplication; unsafe dual writes; missing outbox strategy; unstable pagination; unbounded reads; exactly-once assumptions; cache writes without TTL/policy |
+| API Contracts | `API Contracts` | `checks.contracts` | exported Go API breaks; public C++ header breaks; OpenAPI breaking changes; protobuf breaking changes; destructive migrations; non-expand/contract schema migration risk |
+| Design | `Design Patterns` | `checks.design` | architecture boundaries; import/module cycles; god modules; graph reachability and stability; high-impact changes; public surface policy; production/test isolation; package/module naming; declarations per file; methods per type; interface/protocol size |
+| Security | `Security` | `checks.security` | hardcoded secrets and credentials; private keys; insecure TLS; shell execution; dynamic code execution; unsafe HTML sinks; SSRF and taint-style flow; unsafe C string APIs; optional `govulncheck`; OWASP category metadata |
+| Supply Chain | `Supply Chain` | `checks.supply_chain` | manifest normalization; SBOM output; missing lockfiles; lockfile drift; unpinned dependencies; license policy; offline advisory-cache vulnerability matching; Cargo manifest hygiene; C++ package-manager metadata for vcpkg, Conan, and CMake |
+| Prompts | `Prompts` | `checks.prompts` | prompt-asset governance; secret interpolation; unsafe instructions; dangerous agent instructions; standing permissions; MCP config risk |
+| CI/CD | `CI/CD` | `checks.ci` | required workflow directories/files; workflow content policy; release automation files; test file location; test assertions; conditional/always-true assertions; cross-language test-quality heuristics |
+| Agent Context | `Agent Context` | `checks.context` | missing agent docs; README/doc drift; oversized files; ambiguous symbols; undocumented commands; oversized agent docs; doc link rot; repository readiness for coding agents |
+| External Reports | `External Reports` | `external_reports` | imported SARIF, Gitleaks JSON, and Trivy JSON findings from scanners that already ran; normalized into CodeGuard report sections with namespaced rule IDs |
+
+Related report artifacts:
+
+| Artifact | Config key | Purpose |
+| --- | --- | --- |
+| `slop_score` | `quality_rules.ai_checks.slop_history` | Trends AI-failure-mode signals over time. |
+| `change_risk` | `quality_rules.ai_change_risk` | Aggregates AI-quality and review-risk signals. |
+| `file_risk` / `pr_hotspots` | `quality_rules.risk_scoring` | Ranks changed files by configurable risk evidence. |
+| `performance_score` | `performance_rules.score_history` | Tracks performance-smell trends. |
+| `pr_summary.production_risk` | `checks.production_risk` | Rolls reliability, data-correctness, and non-expand/contract migration findings into PR-level production-risk evidence. |
+
 ## Top-level shape
 
 ```json
