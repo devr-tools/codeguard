@@ -27,6 +27,10 @@ func exampleQualityRules() core.QualityRulesConfig {
 			CompilerMode:       core.ExternalToolModeOff,
 			CompilerCommand:    "clang++",
 		},
+		Naming: core.QualityNamingConfig{
+			AllowedAbbreviations:    []string{"api", "cli", "cpp", "db", "html", "http", "https", "id", "io", "ip", "js", "json", "orm", "rpc", "sdk", "sql", "tcp", "ts", "ui", "url", "uuid", "xml", "yaml"},
+			RoleSuffixWarnThreshold: 4,
+		},
 	}
 }
 

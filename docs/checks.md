@@ -87,9 +87,10 @@ Related report artifacts:
 Each top-level boolean enables or disables an entire check family.
 
 `quality_rules.local_precision` controls the local-quality precision subset
-(`naming.*`, `function.*`, `error.*`, `defensive.*`, selected
-`maintainability.*`, and history-aware `smell.*` signals). It defaults to
-enabled, but repositories can set it to `false` while they refactor legacy
+currently cataloged in the [Local quality precision glossary](#local-quality-precision-glossary),
+including the shipped `naming.*`, `function.*`, `error.*`, `defensive.*`,
+selected `maintainability.*`, and history-aware `smell.*` rule IDs. It defaults
+to enabled, but repositories can set it to `false` while they refactor legacy
 hotspots or avoid broad historical noise in full self-scans.
 
 ### Recommended section policy
@@ -1103,7 +1104,8 @@ Current detector rollout:
 - Implemented `Change Safety` diff detectors: `change.oversized-diff`, `change.mixed-concerns`, `change.too-many-concerns`, `change.mixed-refactor-and-behavior`, `change.unnecessary-surface-area`, `change.one-use-abstraction`, `change.duplicate-helper`, `change.cleanup-regression`, `change.complexity-increased`, and `change.move-without-verification`.
 - Implemented `Change Safety / Testability` detectors: `testing.behavior-change-without-test`, `testing.failure-path-missing`, `testing.hardwired-dependency`, `testing.nondeterministic-domain-logic`, and `testing.legacy-hotspot-uncovered` for Go, Python, TypeScript, JavaScript, and C++ path/text evidence. `testing.legacy-hotspot-uncovered` uses bounded local git history and skips when reliable history/hotspot inputs are unavailable.
 - Implemented `Change Safety / Refactors` detectors: the direct `refactor.*` family below has stable metadata, language coverage, fix templates, config toggles, and diff-mode safe-refactor detector tests.
-- Implemented local-quality support rules live in the `Code Quality` section: `naming.generic-identifier`, `function.excessive-parameters`, `function.mixed-abstraction-level`, `function.command-query-mix`, `error.logged-and-ignored`, `error.context-lost`, `defensive.unchecked-type-assertion`, `defensive.unsafe-numeric-conversion`, `maintainability.public-surface-growth`, and `maintainability.dependency-growth`.
+- Implemented local-quality support rules live in the `Code Quality` section and are cataloged in the local precision glossary below, including shipped `naming.*`, `function.*`, `error.*`, `defensive.*`, and `maintainability.*` IDs.
+- Implemented structural smell rules live in the `Code Quality` section: `smell.god-object`, `smell.feature-envy`, `smell.middle-man`, `smell.message-chain`, `smell.data-clump`, and `smell.switch-on-type`.
 - Implemented history-aware maintainability/smell rules live in `Code Quality`-adjacent report sections and skip when git history is unavailable: `maintainability.hotspot`, `maintainability.high-churn-hotspot`, `maintainability.repeat-defect-area`, `maintainability.unstable-interface`, `maintainability.change-amplification`, `smell.shotgun-surgery-history`, and `smell.divergent-change-history`.
 
 Cataloged rule glossary:
@@ -1148,13 +1150,56 @@ These rules live outside the repository-wide `Change Safety` section in report o
 | Subsection / family | Rule ID | Default | Short description |
 | --- | --- | --- | --- |
 | Naming | `naming.generic-identifier` | warn | Placeholder names such as `foo`, `tmp`, `thing`, or `obj` hide the role an identifier plays. |
+| Naming | `naming.behavior-mismatch` | warn | Query/build/format names perform side effects, or command-style names only read. |
+| Naming | `naming.boolean-not-predicate` | warn | Boolean variables, parameters, or boolean-returning functions do not read like predicates. |
+| Naming | `naming.domain-vocabulary-drift` | warn | Configured glossary concepts appear under multiple terms in the same source. |
+| Naming | `naming.unknown-abbreviation` | warn | Identifiers contain abbreviations that are not common or configured for the repository. |
+| Naming | `naming.cardinality-mismatch` | warn | Plural names are used for scalar values or singular names for collection-like values. |
+| Naming | `naming.implementation-leak` | warn | Domain-facing names encode infrastructure details such as SQL, HTTP, Redis, Kafka, or ORM. |
+| Naming | `naming.missing-unit` | warn | Numeric duration, size, or money names omit a unit suffix. |
+| Naming | `naming.role-suffix-overuse` | warn | A file repeatedly uses vague suffixes such as Manager, Helper, Util, Service, or Processor. |
+| Naming | `naming.cross-layer-inconsistency` | warn | API, domain, and persistence layer names use different terms for the same starter concept. |
 | Function shape | `function.excessive-parameters` | warn | A function exceeds the configured parameter threshold and likely needs grouped inputs or split responsibilities. |
 | Function shape | `function.mixed-abstraction-level` | warn | One function combines orchestration-level calls with low-level SQL, HTTP, filesystem, environment, or infrastructure work. |
 | Function shape | `function.command-query-mix` | warn | A function returns a value while also invoking mutating side-effect operations. |
+| Function shape | `function.hidden-mutation` | warn | A function mutates inputs, collaborators, or state without a command-style name. |
+| Function shape | `function.inconsistent-return-contract` | warn | One function mixes empty and value return shapes without a clear contract. |
+| Function shape | `function.multiple-responsibilities` | warn | One function combines validation, loading, writing, sending, caching, transforming, or observing responsibilities. |
+| Function shape | `function.orchestration-domain-mix` | warn | Handlers, controllers, jobs, or workers mix request/job orchestration with domain decisions. |
+| Function shape | `function.partial-result` | warn | A function can return a value together with an error without an explicit partial-result contract. |
 | Error handling | `error.logged-and-ignored` | warn | An error is logged and then ignored, converted to success, or allowed to continue without propagation. |
 | Error handling | `error.context-lost` | warn | An error is returned or rethrown without operation-specific context. |
+| Error handling | `error.logged-and-returned` | warn | The same error is logged and returned, risking duplicate logs at multiple layers. |
+| Error handling | `error.generic-message` | warn | An error message lacks operation, resource, or decision context. |
+| Error handling | `error.wrong-abstraction-level` | warn | Higher-level error contracts expose lower-level infrastructure details. |
+| Error handling | `error.inconsistent-wrapping` | warn | A function mixes wrapped errors with bare error returns. |
+| Error handling | `error.retryable-not-distinguished` | warn | Retry paths cannot distinguish transient from permanent failures. |
+| Error handling | `error.user-message-leaks-internals` | warn | User-facing errors expose database, transport, stack, or infrastructure internals. |
+| Error handling | `error.partial-failure-hidden` | warn | A partial failure path continues or reports success without surfacing failed work. |
+| Error handling | `error.cleanup-error-ignored` | warn | Close, rollback, delete, or cleanup failures are discarded. |
+| Error handling | `error.panic-on-recoverable-path` | warn | Recoverable request, validation, or I/O failures are handled with panic/throw. |
+| Error handling | `error.exception-used-for-control-flow` | warn | Exception/panic/throw is used for ordinary branch control. |
+| Error handling | `error.fallback-hides-corruption` | warn | Fallback success after parse, corruption, or validation failure can hide bad data. |
 | Defensive programming | `defensive.unchecked-type-assertion` | warn | A type assertion or cast bypasses runtime validation or omits the safe checked form. |
 | Defensive programming | `defensive.unsafe-numeric-conversion` | warn | A narrowing or sign-changing numeric conversion can truncate, wrap, or lose precision. |
+| Defensive programming | `defensive.unvalidated-boundary-input` | warn | Handler, API, event, or filesystem input is consumed without validation evidence. |
+| Defensive programming | `defensive.invalid-state-representable` | warn | Booleans or raw status strings can represent impossible state combinations. |
+| Defensive programming | `defensive.null-assumption` | warn | Nullable boundary values are dereferenced without a nil/null guard. |
+| Defensive programming | `defensive.integer-overflow` | warn | Arithmetic on count, size, or length input lacks an overflow bound check. |
+| Defensive programming | `defensive.bounds-assumption` | warn | Indexed access assumes collection bounds without a nearby length check. |
+| Defensive programming | `defensive.unsafe-default` | warn | A config/env fallback can fail open or disable a safety control. |
+| Defensive programming | `defensive.non-exhaustive-branch` | warn | Enum-like state/kind/type branching lacks default or exhaustive handling. |
+| Defensive programming | `defensive.unchecked-external-response` | warn | External responses are consumed without checking status, ok, or transport errors. |
+| Defensive programming | `defensive.missing-schema-validation` | warn | Decoded JSON, events, or request payloads are used without schema or invariant validation. |
+| Defensive programming | `defensive.missing-resource-limit` | warn | Boundary reads or uploads lack explicit size, count, or time limits. |
+| Defensive programming | `defensive.invalid-state-transition` | warn | State transitions write terminal states without checking allowed prior state. |
+| Defensive programming | `defensive.fail-open-authorization` | warn | Authorization failure paths default to allow or success. |
+| Structural smell | `smell.god-object` | warn | A local type/class accumulates many methods, fields, and responsibility clusters. |
+| Structural smell | `smell.feature-envy` | warn | A function or method mostly interrogates one external collaborator instead of its own receiver/context. |
+| Structural smell | `smell.middle-man` | warn | A type/class mostly forwards calls to one collaborator without policy, translation, or ownership. |
+| Structural smell | `smell.message-chain` | warn | Code reaches through a long chain of collaborators, increasing coupling to object structure. |
+| Structural smell | `smell.data-clump` | warn | The same group of primitive/domain parameters appears repeatedly across functions. |
+| Structural smell | `smell.switch-on-type` | warn | Behavior repeatedly branches on type/kind/discriminator checks that should move behind polymorphism or dispatch. |
 | Maintainability delta | `maintainability.public-surface-growth` | warn | A changed file exports more public symbols than it did at the base ref. |
 | Maintainability delta | `maintainability.dependency-growth` | warn | A changed file imports or includes more direct dependencies than it did at the base ref. |
 | Maintainability history | `maintainability.hotspot` | warn | A changed file has high recent churn, defect history, or both. |
@@ -1165,9 +1210,7 @@ These rules live outside the repository-wide `Change Safety` section in report o
 | Code smell history | `smell.shotgun-surgery-history` | warn | A changed file repeatedly co-changes with several partners, suggesting scattered responsibility. |
 | Code smell history | `smell.divergent-change-history` | warn | A changed file has recent commit subjects spanning several concern families. |
 
-Broader smell and history-aware families such as `smell.*`, additional
-`naming.*`/`function.*`/`error.*`/`defensive.*` rules, and deeper
-`maintainability.*` deltas are follow-on roadmap unless they appear in
+Deeper `maintainability.*` deltas remain follow-on roadmap unless they appear in
 `codeguard rules` for the active build.
 
 ## PR Summary Production Risk

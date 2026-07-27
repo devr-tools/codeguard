@@ -1,0 +1,318 @@
+package quality
+
+import (
+	"regexp"
+	"strings"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
+)
+
+const (
+	defensiveUnvalidatedBoundaryInputRuleID  = "defensive.unvalidated-boundary-input"
+	defensiveInvalidStateRepresentableRuleID = "defensive.invalid-state-representable"
+	defensiveNullAssumptionRuleID            = "defensive.null-assumption"
+	defensiveIntegerOverflowRuleID           = "defensive.integer-overflow"
+	defensiveBoundsAssumptionRuleID          = "defensive.bounds-assumption"
+	defensiveUnsafeDefaultRuleID             = "defensive.unsafe-default"
+	defensiveNonExhaustiveBranchRuleID       = "defensive.non-exhaustive-branch"
+	defensiveUncheckedExternalResponseRuleID = "defensive.unchecked-external-response"
+	defensiveMissingSchemaValidationRuleID   = "defensive.missing-schema-validation"
+	defensiveMissingResourceLimitRuleID      = "defensive.missing-resource-limit"
+	defensiveInvalidStateTransitionRuleID    = "defensive.invalid-state-transition"
+	defensiveFailOpenAuthorizationRuleID     = "defensive.fail-open-authorization"
+)
+
+var (
+	indexAccessPattern      = regexp.MustCompile(`\b([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)\s*\[\s*(?:0|[A-Za-z_][\w$]*)\s*\]`)
+	jsonDecodePattern       = regexp.MustCompile(`(?i)(json\.Unmarshal|json\.NewDecoder|JSON\.parse|json\.loads|nlohmann::json::parse|decode_json|parseJson)`)
+	externalCallPattern     = regexp.MustCompile(`(?i)(http\.Get|client\.Do|fetch\s*\(|axios\.|requests\.(get|post|put|delete)|curl_easy_perform|httplib::|http_client)`)
+	resourceReadPattern     = regexp.MustCompile(`(?i)(io\.ReadAll|ReadAll|read_to_string|read_to_end|\.read\s*\(|bodyParser|multer|upload|request\.body|r\.Body)`)
+	unsafeDefaultPattern    = regexp.MustCompile(`(?i)(getenv|process\.env|os\.environ|std::getenv|config).*?(default|fallback|\|\||!=|,\s*['"]).*?(true|false|allow|disable|skip|insecure)`)
+	switchLikePattern       = regexp.MustCompile(`(?i)\b(switch|match)\b[^{:\n]*(status|state|kind|type)`)
+	stateAssignmentPattern  = regexp.MustCompile(`(?i)(status|state)\s*(?:=|:=|=>)\s*["']?(paid|active|complete|completed|shipped|deleted|approved)["']?`)
+	authFailOpenPattern     = regexp.MustCompile(`(?is)(except|catch)\b[^{:\n]*(?:\{|:)[^}\n]*return\s+(true|allow|nil|none)`)
+	structStartPattern      = regexp.MustCompile(`(?i)\b(type\s+\w+\s+struct|interface\s+\w+|class\s+\w+|struct\s+\w+)`)
+	boolFieldPattern        = regexp.MustCompile(`(?i)\b(bool|boolean)\b`)
+	stringStateFieldPattern = regexp.MustCompile(`(?i)\b(status|state|kind)\b.*\b(string|str|std::string|String)\b|\b(string|str|std::string|String)\b.*\b(status|state|kind)\b`)
+)
+
+func defensiveBoundaryFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
+	if isQualityFixturePath(file) {
+		return nil
+	}
+	body := functionRawBody(fn)
+	loweredBody := strings.ToLower(body)
+	findings := make([]core.Finding, 0)
+
+	if line, ok := unvalidatedBoundaryInputLine(fn, loweredBody); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveUnvalidatedBoundaryInputRuleID, file, line,
+			"boundary input is consumed without validation or schema checks", core.ConfidenceMedium))
+	}
+	if line, ok := nullAssumptionLine(fn, loweredBody); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveNullAssumptionRuleID, file, line,
+			"nullable boundary value is dereferenced without a nil/null guard", core.ConfidenceMedium))
+	}
+	if line, ok := integerOverflowLine(fn, loweredBody); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveIntegerOverflowRuleID, file, line,
+			"arithmetic on count, size, or length input lacks an overflow bound check", core.ConfidenceMedium))
+	}
+	if line, ok := boundsAssumptionLine(fn, loweredBody); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveBoundsAssumptionRuleID, file, line,
+			"indexed access assumes collection bounds without a nearby length check", core.ConfidenceMedium))
+	}
+	if line, ok := unsafeDefaultLine(fn.Statements); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveUnsafeDefaultRuleID, file, line,
+			"configuration default can fail open or disable a safety control", core.ConfidenceHigh))
+	}
+	if line, ok := nonExhaustiveBranchLine(fn, loweredBody); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveNonExhaustiveBranchRuleID, file, line,
+			"enum-like branch over state, status, kind, or type lacks default/exhaustive handling", core.ConfidenceMedium))
+	}
+	if line, ok := uncheckedExternalResponseLine(fn, loweredBody); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveUncheckedExternalResponseRuleID, file, line,
+			"external response is consumed without checking status, ok, or transport error", core.ConfidenceMedium))
+	}
+	if line, ok := missingSchemaValidationLine(fn, loweredBody); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveMissingSchemaValidationRuleID, file, line,
+			"decoded JSON or event payload is used without schema or invariant validation", core.ConfidenceMedium))
+	}
+	if line, ok := missingResourceLimitLine(fn, loweredBody); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveMissingResourceLimitRuleID, file, line,
+			"boundary read or upload lacks an explicit size/count/time resource limit", core.ConfidenceMedium))
+	}
+	if line, ok := invalidStateTransitionLine(fn, loweredBody); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveInvalidStateTransitionRuleID, file, line,
+			"state transition writes a terminal state without checking the allowed prior state", core.ConfidenceMedium))
+	}
+	if line, ok := failOpenAuthorizationLine(fn, loweredBody); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveFailOpenAuthorizationRuleID, file, line,
+			"authorization failure path defaults to allow/success", core.ConfidenceHigh))
+	}
+	return findings
+}
+
+func sourceDefensiveInvariantFindings(env support.Context, file string, source string) []core.Finding {
+	if isQualityFixturePath(file) {
+		return nil
+	}
+	lines := strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
+	for idx := 0; idx < len(lines); idx++ {
+		if !structStartPattern.MatchString(lines[idx]) || !structuralStateContainerLine(lines[idx]) {
+			continue
+		}
+		boolFields := 0
+		hasStringState := false
+		for lookahead := idx; lookahead < len(lines) && lookahead <= idx+12; lookahead++ {
+			line := lines[lookahead]
+			boolFields += len(boolFieldPattern.FindAllString(line, -1))
+			if stringStateFieldPattern.MatchString(line) {
+				hasStringState = true
+			}
+			if strings.Contains(line, "}") {
+				break
+			}
+		}
+		if boolFields >= 2 || hasStringState {
+			return []core.Finding{precisionWarnFinding(env, defensiveInvalidStateRepresentableRuleID, file, idx+1,
+				"state shape uses booleans or raw status strings that can represent impossible combinations", core.ConfidenceMedium)}
+		}
+	}
+	return nil
+}
+
+func structuralStateContainerLine(line string) bool {
+	lowered := strings.ToLower(line)
+	return strings.Contains(lowered, "struct") || strings.Contains(lowered, "interface") || strings.Contains(lowered, "class")
+}
+
+func unvalidatedBoundaryInputLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if !boundaryFunctionName(fn.Name) && !hasBoundaryParam(fn.Params) {
+		return 0, false
+	}
+	if containsAny(loweredBody, []string{"validate", "schema", "sanitize", "bind", "decodevalid", "zod.", "yup.", "pydantic", "jsonschema"}) {
+		return 0, false
+	}
+	if containsAny(loweredBody, []string{"request", "req.", "event", "payload", "body", "json", "params", "query"}) {
+		return fn.StartLine, true
+	}
+	return 0, false
+}
+
+func hasBoundaryParam(params []support.ParsedParam) bool {
+	for _, param := range params {
+		name := strings.ToLower(param.Name)
+		if containsAny(name, []string{"req", "request", "event", "payload", "body", "input"}) {
+			return true
+		}
+	}
+	return false
+}
+
+func nullAssumptionLine(fn precisionFunction, loweredBody string) (int, bool) {
+	for _, param := range fn.Params {
+		name := strings.ToLower(strings.Trim(param.Name, "*& "))
+		if name == "" || !nullableParam(param) {
+			continue
+		}
+		if containsAny(loweredBody, []string{name + " == nil", name + " != nil", name + " is none", name + " is not none", name + " === null", name + " !== null", name + " == nullptr", name + " != nullptr"}) {
+			continue
+		}
+		if containsAny(loweredBody, []string{name + ".", name + "->", name + "[", "*" + name}) {
+			return firstUseLine(fn, name), true
+		}
+	}
+	return 0, false
+}
+
+func nullableParam(param support.ParsedParam) bool {
+	typ := strings.ToLower(param.Type)
+	return strings.Contains(typ, "*") || strings.Contains(typ, "optional") ||
+		strings.Contains(typ, "null") || strings.Contains(typ, "none") ||
+		strings.Contains(typ, "maybe") || strings.Contains(typ, "?")
+}
+
+func firstUseLine(fn precisionFunction, name string) int {
+	for _, statement := range fn.Statements {
+		lowered := strings.ToLower(firstNonEmptyString(statement.Raw, statement.Text))
+		if containsAny(lowered, []string{name + ".", name + "->", name + "[", "*" + name}) {
+			return statement.Line
+		}
+	}
+	return fn.StartLine
+}
+
+func integerOverflowLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if containsAny(loweredBody, []string{"maxint", "math.max", "checked", "saturating", "overflow", "limits<", "safeint"}) {
+		return 0, false
+	}
+	if !regexp.MustCompile(`(?i)\b(count|size|length|len|capacity|offset|total|bytes)\b`).MatchString(loweredBody) {
+		return 0, false
+	}
+	if regexp.MustCompile(`[A-Za-z_][\w$]*\s*(\*|\+|<<)\s*[A-Za-z0-9_]`).MatchString(loweredBody) {
+		return fn.StartLine, true
+	}
+	return 0, false
+}
+
+func boundsAssumptionLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if containsAny(loweredBody, []string{"len(", ".length", ".size()", "empty()", "bounds", "range", "count >"}) {
+		return 0, false
+	}
+	for idx, statement := range fn.Statements {
+		raw := firstNonEmptyString(statement.Raw, statement.Text)
+		if strings.Contains(raw, "map[") {
+			continue
+		}
+		match := indexAccessPattern.FindStringSubmatch(raw)
+		if match == nil {
+			continue
+		}
+		if nearbyBoundsGuard(fn.Statements, idx, match[1]) {
+			continue
+		}
+		if indexAccessPattern.MatchString(raw) {
+			return statement.Line, true
+		}
+	}
+	return 0, false
+}
+
+func nearbyBoundsGuard(statements []support.ParsedStatement, idx int, target string) bool {
+	target = strings.ToLower(strings.TrimSpace(strings.Split(target, ".")[0]))
+	if target == "" {
+		return false
+	}
+	start := idx - 3
+	if start < 0 {
+		start = 0
+	}
+	for lookback := start; lookback <= idx && lookback < len(statements); lookback++ {
+		line := strings.ToLower(firstNonEmptyString(statements[lookback].Raw, statements[lookback].Text))
+		if strings.Contains(line, "len("+target+")") ||
+			strings.Contains(line, target+".length") ||
+			strings.Contains(line, target+".size()") ||
+			strings.Contains(line, target+".empty()") {
+			return true
+		}
+	}
+	return false
+}
+
+func unsafeDefaultLine(statements []support.ParsedStatement) (int, bool) {
+	for _, statement := range statements {
+		if unsafeDefaultPattern.MatchString(firstNonEmptyString(statement.Raw, statement.Text)) {
+			return statement.Line, true
+		}
+	}
+	return 0, false
+}
+
+func nonExhaustiveBranchLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if !switchLikePattern.MatchString(functionRawBody(fn)) || containsAny(loweredBody, []string{"default", "else", "unreachable", "assert_never", "exhaustive"}) {
+		return 0, false
+	}
+	return fn.StartLine, true
+}
+
+func uncheckedExternalResponseLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if !externalCallPattern.MatchString(functionRawBody(fn)) {
+		return 0, false
+	}
+	if containsAny(loweredBody, []string{"status", ".ok", "err != nil", "if err", "error", "catch", "raise_for_status", "response_code"}) {
+		return 0, false
+	}
+	if containsAny(loweredBody, []string{".json", "readall", ".text", ".body", "json()"}) {
+		return firstPatternLine(fn, externalCallPattern), true
+	}
+	return 0, false
+}
+
+func missingSchemaValidationLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if !jsonDecodePattern.MatchString(functionRawBody(fn)) {
+		return 0, false
+	}
+	if containsAny(loweredBody, []string{"validate", "schema", "jsonschema", "zod.", "yup.", "pydantic", "isvalid", "required"}) {
+		return 0, false
+	}
+	return firstPatternLine(fn, jsonDecodePattern), true
+}
+
+func missingResourceLimitLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if !resourceReadPattern.MatchString(functionRawBody(fn)) {
+		return 0, false
+	}
+	if containsAny(loweredBody, []string{"limitreader", "maxbytes", "max_bytes", "content-length", "limit(", "take(", "buffer_size", "quota"}) {
+		return 0, false
+	}
+	return firstPatternLine(fn, resourceReadPattern), true
+}
+
+func invalidStateTransitionLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if !stateAssignmentPattern.MatchString(functionRawBody(fn)) {
+		return 0, false
+	}
+	if containsAny(loweredBody, []string{"cantransition", "allowed", "from", "previous", "current", "validtransition", "state machine"}) {
+		return 0, false
+	}
+	return firstPatternLine(fn, stateAssignmentPattern), true
+}
+
+func failOpenAuthorizationLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if !containsAny(strings.ToLower(fn.Name), []string{"auth", "allow", "permission", "policy"}) && !containsAny(loweredBody, []string{"authorize", "permission", "authz", "policy"}) {
+		return 0, false
+	}
+	if authFailOpenPattern.MatchString(loweredBody) || regexp.MustCompile(`(?is)(?:if\s+)?(?:\w+\s*:=\s*)?authorize\([^)]*\)\s*;\s*err\s*!=\s*nil\s*\{[^}]*return\s+(true|nil)`).MatchString(loweredBody) || regexp.MustCompile(`(?is)err\s*!=\s*nil\s*\{[^}]*return\s+(true|nil)`).MatchString(loweredBody) {
+		return fn.StartLine, true
+	}
+	return 0, false
+}
+
+func firstPatternLine(fn precisionFunction, pattern *regexp.Regexp) int {
+	for _, statement := range fn.Statements {
+		if pattern.MatchString(firstNonEmptyString(statement.Raw, statement.Text)) {
+			return statement.Line
+		}
+	}
+	return fn.StartLine
+}

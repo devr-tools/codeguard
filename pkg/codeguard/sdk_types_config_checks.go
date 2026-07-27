@@ -3,6 +3,8 @@ package codeguard
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 type QualityRulesConfig = core.QualityRulesConfig
+type QualityNamingConfig = core.QualityNamingConfig
+type QualityNamingGlossaryEntry = core.QualityNamingGlossaryEntry
 type CPPToolingConfig = core.CPPToolingConfig
 type DesignRulesConfig = core.DesignRulesConfig
 type PromptRulesConfig = core.PromptRulesConfig

@@ -9,6 +9,7 @@ This page lists the current `codeguard` feature surface and the main config entr
   - clone detection
   - language-native quality heuristics for Go, Python, TypeScript, JavaScript, Rust, Java, C++, C#, and Ruby
   - local-quality precision heuristics for naming, function shape, error handling, defensive programming, and maintainability deltas where the active build includes them
+  - structural smell heuristics such as god object, feature envy, middle man, message chains, data clumps, and switch-on-type
   - AI-quality heuristics such as swallowed errors, narrative comments, hallucinated imports, dead code, over-mocked tests, idiom drift, semantic review, provenance policy, and change-risk rollups
   - changed-line coverage gating in diff mode
   - opt-in `clang-format` and sanitized `clang++ -fsyntax-only` validation backed by safe `compile_commands.json` metadata
@@ -132,7 +133,7 @@ Imported reports are never passed to AI triage.
 - Diff-mode change safety
   - uses the `checks.change` family to report implemented change-safety, cleanup, testability, and safe-refactor findings
   - emits PR-summary fields such as `change_safety`, `refactor_confidence`, and `maintainability_delta` only as artifact evidence; they do not create extra annotations or change per-rule severities
-  - local-quality precision and history-aware families such as `naming.*`, `function.*`, `error.*`, `defensive.*`, `maintainability.*`, and `smell.*` support the same review goal; use `codeguard rules` on the active build to see the exact rollout subset
+  - the local-quality precision rollout supports the same review goal through the exact `naming.*`, `function.*`, `error.*`, `defensive.*`, selected `maintainability.*`, and history-aware `smell.*` IDs listed by `codeguard rules` on the active build
 
 ## Parsers
 

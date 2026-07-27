@@ -76,6 +76,40 @@ def load_widget():
 	assertFindingRulePresent(t, report, "Reliability", "reliability.recoverable-panic")
 }
 
+func TestReliabilityPythonDetectsCancellationShutdownConcurrencyAndLostContext(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "service.py"), `
+import asyncio
+import uvicorn
+
+async def run_many(items):
+    asyncio.create_task(process(items[0]))
+    asyncio.create_task(process(items[1]))
+    asyncio.create_task(process(items[2]))
+    asyncio.create_task(process(items[3]))
+    asyncio.create_task(process(items[4]))
+
+def wrap_error():
+    try:
+        load_customer()
+    except Exception as err:
+        raise RuntimeError("customer load failed")
+
+def main():
+    uvicorn.run(app)
+`)
+
+	report, err := codeguard.Run(context.Background(), reliabilityLangConfig("reliability-python-parity", dir, "python"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-cancellation")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-concurrency-limit")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-graceful-shutdown")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.lost-error-context")
+}
+
 func TestReliabilityPythonAcceptsBoundedPatterns(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "safe_worker.py"), `
@@ -166,6 +200,53 @@ function failPayment() {
 	assertFindingRulePresent(t, report, "Reliability", "reliability.recoverable-panic")
 }
 
+func TestReliabilityTypeScriptDetectsCancellationShutdownResourceConcurrencyAndLostContext(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "service.ts"), `
+import fs from "fs";
+
+async function startMany() {
+  fetchUser("1");
+  fetchUser("2");
+  fetchUser("3");
+  fetchUser("4");
+  fetchUser("5");
+}
+
+function wrapError() {
+  try {
+    risky();
+  } catch (err) { throw new Error("operation failed"); }
+}
+
+function leakStream() {
+  const stream = fs.createReadStream("/tmp/input.txt");
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+}
+
+app.listen(3000);
+`)
+
+	report, err := codeguard.Run(context.Background(), reliabilityLangConfig("reliability-ts-parity", dir, "typescript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-cancellation")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-concurrency-limit")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-graceful-shutdown")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.resource-leak")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.lost-error-context")
+}
+
 func TestReliabilityTypeScriptAcceptsBoundedPatterns(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "safe_worker.ts"), `
@@ -239,6 +320,53 @@ function failPayment() {
 	assertFindingRulePresent(t, report, "Reliability", "reliability.retry-without-backoff")
 	assertFindingRulePresent(t, report, "Reliability", "reliability.non-idempotent-retry")
 	assertFindingRulePresent(t, report, "Reliability", "reliability.recoverable-panic")
+}
+
+func TestReliabilityJavaScriptDetectsCancellationShutdownResourceConcurrencyAndLostContext(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "service.js"), `
+const fs = require("fs");
+
+async function startMany() {
+  fetchUser("1");
+  fetchUser("2");
+  fetchUser("3");
+  fetchUser("4");
+  fetchUser("5");
+}
+
+function wrapError() {
+  try {
+    risky();
+  } catch (err) { throw new Error("operation failed"); }
+}
+
+function leakStream() {
+  const stream = fs.createReadStream("/tmp/input.txt");
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+  use(stream);
+}
+
+app.listen(3000);
+`)
+
+	report, err := codeguard.Run(context.Background(), reliabilityLangConfig("reliability-js-parity", dir, "javascript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-cancellation")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-concurrency-limit")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-graceful-shutdown")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.resource-leak")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.lost-error-context")
 }
 
 func TestReliabilityDetectsHiddenPartialFailuresAcrossLanguages(t *testing.T) {
@@ -422,6 +550,65 @@ void FailPayment() {
 	assertFindingRulePresent(t, report, "Reliability", "reliability.retry-without-backoff")
 	assertFindingRulePresent(t, report, "Reliability", "reliability.non-idempotent-retry")
 	assertFindingRulePresent(t, report, "Reliability", "reliability.recoverable-panic")
+}
+
+func TestReliabilityCPPDetectsTimeoutCancellationShutdownConcurrencyAndLostContext(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "service.cpp"), `
+#include <stdexcept>
+#include <thread>
+
+void StartMany(Client& client, Server& server) {
+  client.Get("/users");
+  std::thread([]{}).detach();
+  std::thread([]{}).detach();
+  std::thread([]{}).detach();
+  std::thread([]{}).detach();
+  std::thread([]{}).detach();
+  server.Run();
+}
+
+void WrapError() {
+  try {
+    Risky();
+  } catch (const std::exception& err) {
+    throw std::runtime_error("operation failed");
+  }
+}
+`)
+
+	report, err := codeguard.Run(context.Background(), reliabilityLangConfig("reliability-cpp-parity", dir, "cpp"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-timeout")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-cancellation")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-concurrency-limit")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.missing-graceful-shutdown")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.lost-error-context")
+}
+
+func TestReliabilityCPPDetectsSwallowedCatch(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "consumer.cpp"), `
+#include <stdexcept>
+
+void Consume(Message message) {
+  try {
+    Process(message);
+  } catch (const std::exception& err) {
+    return;
+  }
+}
+`)
+
+	report, err := codeguard.Run(context.Background(), reliabilityLangConfig("reliability-cpp-swallowed", dir, "cpp"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Reliability", "reliability.swallowed-error")
 }
 
 func TestReliabilityCPPAcceptsBoundedPatterns(t *testing.T) {

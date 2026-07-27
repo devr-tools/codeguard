@@ -6,3 +6,10 @@ func contextOff() *bool {
 	off := false
 	return &off
 }
+
+// localPrecisionOff keeps older tests focused on the legacy quality finding
+// they exercise instead of newer local naming/function/error precision rules.
+func localPrecisionOff() *bool {
+	off := false
+	return &off
+}

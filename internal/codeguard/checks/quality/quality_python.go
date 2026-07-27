@@ -15,6 +15,7 @@ func pythonFindingsForFile(env support.Context, file string, data []byte) []core
 	}
 	if localPrecisionEnabled(env) {
 		findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
+		findings = append(findings, parsedStructuralSmellFindings(env, file, parsed)...)
 	}
 	findings = append(findings, pythonAIQualityFindings(env, file, data)...)
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)

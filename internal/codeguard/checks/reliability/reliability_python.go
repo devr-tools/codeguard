@@ -15,8 +15,12 @@ var (
 	pyBackoffHint            = regexp.MustCompile(`\b(?:sleep|backoff|jitter|wait_random|wait_exponential)\b`)
 	pyTaskCreate             = regexp.MustCompile(`\basyncio\.(?:create_task|ensure_future)\s*\(`)
 	pyConcurrencyLimit       = regexp.MustCompile(`\b(?:Semaphore|BoundedSemaphore|TaskGroup|CapacityLimiter)\s*\(`)
+	pyCancellationHint       = regexp.MustCompile(`(?i)\b(?:cancel|cancelled|CancelledError|timeout|signal|lifespan|shutdown|request\.is_disconnected)\b`)
+	pyServerStart            = regexp.MustCompile(`\b(?:uvicorn\.run|web\.run_app|app\.run|serve_forever|run_forever|start_server)\s*\(`)
+	pyShutdownHint           = regexp.MustCompile(`(?i)\b(?:SIGTERM|SIGINT|signal\.|add_signal_handler|shutdown|lifespan|cleanup_ctx|on_shutdown|graceful)\b`)
 	pySwallowedExcept        = regexp.MustCompile(`^\s*(?:pass|return\s+None|return\s*$|continue)\s*(?:#.*)?$`)
 	pyRecoverableRaise       = regexp.MustCompile(`\braise\s+(?:RuntimeError|Exception)\s*\(`)
+	pyLostContextRaise       = regexp.MustCompile(`^\s*raise\s+(?:RuntimeError|Exception|ValueError)\s*\(`)
 	pyCloseCall              = regexp.MustCompile(`\.(?:close|aclose)\s*\(`)
 	pyOpenCall               = regexp.MustCompile(`\bopen\s*\(`)
 	pyIdempotencyHint        = regexp.MustCompile(`(?i)idempot|dedupe|dedup|processed|message_id|event_id`)
@@ -26,14 +30,17 @@ var (
 func pythonFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
 	scan := &pythonReliabilityScan{
-		env:     env,
-		file:    file,
-		rules:   env.Config.Checks.ReliabilityRules,
-		limited: pyConcurrencyLimit.MatchString(source),
+		env:         env,
+		file:        file,
+		rules:       env.Config.Checks.ReliabilityRules,
+		limited:     pyConcurrencyLimit.MatchString(source),
+		cancellable: pyCancellationHint.MatchString(source),
+		hasShutdown: pyShutdownHint.MatchString(source),
 	}
 	for idx, line := range strings.Split(source, "\n") {
 		scan.consumeLine(idx+1, line)
 	}
+	scan.finish()
 	scan.findings = append(scan.findings, partialFailureHiddenFindings(env, file, data)...)
 	return scan.findings
 }
@@ -43,10 +50,13 @@ type pythonReliabilityScan struct {
 	file           string
 	rules          core.ReliabilityRulesConfig
 	limited        bool
+	cancellable    bool
+	hasShutdown    bool
 	loops          []pythonLoopRegion
 	excepts        []int
 	openLine       int
 	openLineClosed bool
+	taskLines      []int
 	findings       []core.Finding
 }
 
@@ -95,14 +105,36 @@ func (s *pythonReliabilityScan) checkLine(lineNo int, line string, trimmed strin
 		}
 		s.add("reliability.unbounded-work", "warn", lineNo, message, "high", "work", detail)
 	}
+	if pyTaskCreate.MatchString(line) {
+		s.taskLines = append(s.taskLines, lineNo)
+		if enabled(s.rules.DetectMissingCancellation) && !s.cancellable {
+			s.add("reliability.missing-cancellation", "warn", lineNo, "asyncio task is detached without visible cancellation, timeout, or shutdown propagation", "medium", "context", "detached-asyncio-task")
+		}
+	}
+	if enabled(s.rules.DetectMissingGracefulShutdown) && pyServerStart.MatchString(line) && !s.hasShutdown {
+		s.add("reliability.missing-graceful-shutdown", "warn", lineNo, "Python server or event loop starts without visible signal handling or graceful shutdown", "medium", "server", "python-server-start")
+	}
 	if enabled(s.rules.DetectSwallowedError) && inExcept && pySwallowedExcept.MatchString(trimmed) {
 		s.add("reliability.swallowed-error", "fail", lineNo, "exception handler swallows the error without reporting or returning it", "high", "error", "except-swallowed")
+	}
+	if enabled(s.rules.DetectLostErrorContext) && inExcept && pyLostContextRaise.MatchString(trimmed) && !strings.Contains(trimmed, " from ") {
+		s.add("reliability.lost-error-context", "warn", lineNo, "exception handler replaces the original exception without chaining it with 'from'", "medium", "error", "raise-without-cause")
 	}
 	if enabled(s.rules.DetectRecoverablePanic) && pyRecoverableRaise.MatchString(line) {
 		s.add("reliability.recoverable-panic", "fail", lineNo, "production code raises a generic exception for a recoverable failure path", "medium", "exception", "generic-raise")
 	}
 	if enabled(s.rules.DetectResourceLeak) {
 		s.trackResourceLeak(lineNo, line)
+	}
+}
+
+func (s *pythonReliabilityScan) finish() {
+	limit := s.rules.MaxInlineGoroutinesPerFunction
+	if limit <= 0 {
+		limit = 4
+	}
+	if enabled(s.rules.DetectMissingConcurrencyLimit) && !s.limited && len(s.taskLines) > limit {
+		s.add("reliability.missing-concurrency-limit", "warn", s.taskLines[0], "file creates multiple asyncio tasks without an obvious concurrency limit", "medium", "tasks", "asyncio-create-task")
 	}
 }
 
