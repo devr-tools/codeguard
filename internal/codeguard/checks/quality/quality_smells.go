@@ -22,25 +22,25 @@ const (
 )
 
 var (
-	pythonClassPattern       = regexp.MustCompile(`^(\s*)class\s+([A-Za-z_]\w*)\b`)
-	pythonMethodPattern      = regexp.MustCompile(`^(\s*)(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*:`)
-	clikeClassPattern        = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?(?:class|struct)[ \t]+([A-Za-z_$][\w$]*)[^{;]*\{`)
-	clikeMethodLinePattern   = regexp.MustCompile(`^[ \t]*(?:(?:public|private|protected|static|async|virtual|override|inline|constexpr|const|explicit|final)\s+)*(?:[~A-Za-z_$][\w$:<>,*&\s]+\s+)?([~A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*(?:const\s*)?(?:override\s*)?(?:noexcept\s*)?\{`)
-	clikeFieldLinePattern    = regexp.MustCompile(`^[ \t]*(?:(?:public|private|protected|static|readonly|mutable|const|let|var|final)\s+)*(?:[A-Za-z_$][\w$:<>,.?*&\[\]]+\s+)?([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?(?:=[^;]+)?;`)
-	delegateReceiverPattern  = regexp.MustCompile(`(?:return\s+)?(?:self|this|[a-zA-Z_]\w*)[.\->]+(_?[A-Za-z_]\w*)[.\->]+[A-Za-z_]\w*\s*\(`)
-	delegateLocalPattern     = regexp.MustCompile(`(?:return\s+)?(_?[A-Za-z_]\w*)[.\->]+[A-Za-z_]\w*\s*\(`)
-	goKindSwitchPattern      = regexp.MustCompile(`(?m)switch\s+[^{}\n]*(?:\.|_)?(?:kind|type|Kind|Type)\b`)
-	pythonKindBranchPattern  = regexp.MustCompile(`(?m)\b(?:if|elif)\s+[^:\n]*(?:\.|_)?(?:kind|type)\b[^:\n]*(?:==| in )`)
-	scriptKindSwitchPattern  = regexp.MustCompile(`(?m)switch\s*\([^)]*(?:\.|_)?(?:kind|type|Kind|Type)\b[^)]*\)`)
-	cppKindSwitchPattern     = regexp.MustCompile(`(?m)switch\s*\([^)]*(?:\.|_)?(?:kind|type|Kind|Type)\b[^)]*\)`)
-	typeBranchPattern        = regexp.MustCompile(`(?m)(?:\.\(type\)|\btypeid\s*\(|\bdynamic_cast\s*<|\binstanceof\b|\btypeof\b|\bisinstance\s*\(|\btype\s*\()`)
-	refusedBequestNoopRegexp = regexp.MustCompile(`(?i)\b(unsupported|not\s+implemented|notimplemented|throw\s+new\s+error|raise\s+notimplemented|panic\s*\()`)
+	pythonClassPattern      = regexp.MustCompile(`^(\s*)class\s+([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?\s*:`)
+	pythonMethodPattern     = regexp.MustCompile(`^(\s*)(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*:`)
+	clikeClassPattern       = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?(?:class|struct)[ \t]+([A-Za-z_$][\w$]*)([^{;]*)\{`)
+	clikeMethodLinePattern  = regexp.MustCompile(`^[ \t]*(?:(?:public|private|protected|static|async|virtual|override|inline|constexpr|const|explicit|final)\s+)*(?:[~A-Za-z_$][\w$:<>,*&\s]+\s+)?([~A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*(?:const\s*)?(?:override\s*)?(?:noexcept\s*)?\{`)
+	clikeFieldLinePattern   = regexp.MustCompile(`^[ \t]*(?:(?:public|private|protected|static|readonly|mutable|const|let|var|final)\s+)*(?:[A-Za-z_$][\w$:<>,.?*&\[\]]+\s+)?([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?(?:=[^;]+)?;`)
+	delegateReceiverPattern = regexp.MustCompile(`(?:return\s+)?(?:self|this|[a-zA-Z_]\w*)[.\->]+(_?[A-Za-z_]\w*)[.\->]+[A-Za-z_]\w*\s*\(`)
+	delegateLocalPattern    = regexp.MustCompile(`(?:return\s+)?(_?[A-Za-z_]\w*)[.\->]+[A-Za-z_]\w*\s*\(`)
+	goKindSwitchPattern     = regexp.MustCompile(`(?m)switch\s+[^{}\n]*(?:\.|_)?(?:kind|type|Kind|Type)\b`)
+	pythonKindBranchPattern = regexp.MustCompile(`(?m)\b(?:if|elif)\s+[^:\n]*(?:\.|_)?(?:kind|type)\b[^:\n]*(?:==| in )`)
+	scriptKindSwitchPattern = regexp.MustCompile(`(?m)switch\s*\([^)]*(?:\.|_)?(?:kind|type|Kind|Type)\b[^)]*\)`)
+	cppKindSwitchPattern    = regexp.MustCompile(`(?m)switch\s*\([^)]*(?:\.|_)?(?:kind|type|Kind|Type)\b[^)]*\)`)
+	typeBranchPattern       = regexp.MustCompile(`(?m)(?:\.\(type\)|\btypeid\s*\(|\bdynamic_cast\s*<|\binstanceof\b|\btypeof\b|\bisinstance\s*\(|\btype\s*\()`)
 )
 
 type structuralClass struct {
 	Name      string
 	StartLine int
 	EndLine   int
+	Bases     []string
 	Fields    []string
 	Methods   []structuralFunction
 }
@@ -80,6 +80,7 @@ func structuralSmellFindings(env support.Context, file string, source string, la
 	findings = append(findings, messageChainFindings(env, file, source, language)...)
 	findings = append(findings, dataClumpFindings(env, file, functions)...)
 	findings = append(findings, switchOnTypeFindings(env, file, source, language)...)
+	findings = append(findings, refusedBequestFindings(env, file, classes, language)...)
 	return findings
 }
 
@@ -98,7 +99,9 @@ func goStructuralModel(fset *token.FileSet, parsed *ast.File, data []byte) ([]st
 				if structType, ok := typeSpec.Type.(*ast.StructType); ok && structType.Fields != nil {
 					for _, field := range structType.Fields.List {
 						if len(field.Names) == 0 {
-							class.Fields = append(class.Fields, goExprText(field.Type))
+							embedded := goExprText(field.Type)
+							class.Fields = append(class.Fields, embedded)
+							class.Bases = append(class.Bases, strings.TrimPrefix(strings.TrimPrefix(embedded, "*"), "[]"))
 							continue
 						}
 						for _, name := range field.Names {
@@ -190,7 +193,7 @@ func pythonStructuralClasses(masked string) []structuralClass {
 			continue
 		}
 		classIndent := len(match[1])
-		class := structuralClass{Name: match[2], StartLine: idx + 1, EndLine: len(maskedLines)}
+		class := structuralClass{Name: match[2], StartLine: idx + 1, EndLine: len(maskedLines), Bases: parseBaseList(match[3])}
 		end := len(maskedLines)
 		for scan := idx + 1; scan < len(maskedLines); scan++ {
 			trimmed := strings.TrimSpace(maskedLines[scan])
@@ -267,6 +270,7 @@ func clikeStructuralClasses(source string, masked string) []structuralClass {
 			Name:      masked[match[2]:match[3]],
 			StartLine: startLine,
 			EndLine:   support.LineNumberForOffset(source, bodyEnd),
+			Bases:     clikeBaseList(masked[match[4]:match[5]]),
 		}
 		class.Fields = clikeClassFields(bodyMasked)
 		class.Methods = clikeClassMethods(bodySource, bodyMasked, startLine, class.Name)

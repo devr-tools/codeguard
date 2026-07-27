@@ -133,7 +133,8 @@ Imported reports are never passed to AI triage.
 - Diff-mode change safety
   - uses the `checks.change` family to report implemented change-safety, cleanup, testability, and safe-refactor findings
   - emits PR-summary fields such as `change_safety`, `refactor_confidence`, and `maintainability_delta` only as artifact evidence; they do not create extra annotations or change per-rule severities
-  - the local-quality precision rollout supports the same review goal through the exact `naming.*`, `function.*`, `error.*`, `defensive.*`, selected `maintainability.*`, and history-aware `smell.*` IDs listed by `codeguard rules` on the active build
+  - the local-quality precision rollout supports the same review goal through the exact `naming.*`, `function.*`, `error.*`, `defensive.*`, selected `maintainability.*`, and structural/history-aware `smell.*` IDs listed by `codeguard rules` on the active build
+  - structural smell rules such as `smell.refused-bequest` are reported as change-quality evidence: they explain when a design shape makes future changes less safe or harder to isolate, not just whether an individual line is syntactically suspicious
 
 ## Parsers
 

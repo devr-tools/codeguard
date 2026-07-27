@@ -15,6 +15,7 @@ var structuralSmellRuleIDs = []string{
 	"smell.message-chain",
 	"smell.data-clump",
 	"smell.switch-on-type",
+	"smell.refused-bequest",
 }
 
 type structuralSmellCase struct {
@@ -141,6 +142,10 @@ func goStructuralSmellPositiveCase() structuralSmellCase {
 			"func cancelOrder(customerID string, orderID string, currency string) {}",
 			"func handleOne(event Event) { switch event.Kind { case \"created\": case \"updated\": } }",
 			"func handleTwo(event Event) { switch event.Kind { case \"deleted\": case \"archived\": } }",
+			"type Store struct{}",
+			"type ReadOnlyStore struct { Store }",
+			"func (ReadOnlyStore) Save() { panic(\"unsupported\") }",
+			"func (ReadOnlyStore) Delete() { panic(\"not implemented\") }",
 			"type Customer struct { Profile Profile; Account Account }",
 			"type Profile struct { Name string; Email string }",
 			"type Account struct { Region string; Plan string; Status string }",
@@ -207,6 +212,11 @@ func pythonStructuralSmellPositiveCase() structuralSmellCase {
 			"def handle_two(event):",
 			"    if event.kind == 'deleted': pass",
 			"    elif event.kind == 'archived': pass",
+			"class ReadOnlyFile(File):",
+			"    def write(self, value):",
+			"        raise NotImplementedError('unsupported')",
+			"    def truncate(self):",
+			"        raise NotImplementedError('not supported')",
 		}, "\n"),
 	}
 }
@@ -251,6 +261,10 @@ func cppStructuralSmellPositiveCase() structuralSmellCase {
 			"void cancelOrder(String customerId, String orderId, String currency) {}",
 			"void handleOne(Event event) { switch (event.kind) { case Created: break; case Updated: break; } }",
 			"void handleTwo(Event event) { switch (event.kind) { case Deleted: break; case Archived: break; } }",
+			"class ReadOnlyFile : public File {",
+			"  void write() override { throw std::runtime_error(\"unsupported\"); }",
+			"  void truncate() override { throw std::runtime_error(\"not supported\"); }",
+			"};",
 		}, "\n"),
 	}
 }
@@ -301,6 +315,11 @@ func scriptStructuralSmellSource(typed bool) string {
 		"",
 		"function handleOne(event) { switch (event.kind) { case 'created': break; case 'updated': break } }",
 		"function handleTwo(event) { switch (event.kind) { case 'deleted': break; case 'archived': break } }",
+		"",
+		"class ReadOnlyFile extends File {",
+		"  write(value" + paramType + ") { throw new Error('unsupported') }",
+		"  truncate() { throw new Error('not supported') }",
+		"}",
 	}, "\n")
 }
 

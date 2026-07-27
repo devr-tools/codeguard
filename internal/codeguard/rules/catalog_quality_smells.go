@@ -99,4 +99,20 @@ var qualitySmellCatalog = map[string]core.RuleMetadata{
 		Description: "Warns when behavior repeatedly branches on type/kind/discriminator checks that should move behind polymorphism or dispatch.",
 		HowToFix:    "Replace repeated type/kind branches with polymorphic methods, strategy objects, or a centralized dispatch table.",
 	},
+	"smell.refused-bequest": {
+		ID:             "smell.refused-bequest",
+		Section:        "Code Quality",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.FixedRuleLanguageCoverage(
+			core.RuleLanguageCPP,
+			core.RuleLanguageGo,
+			core.RuleLanguageJavaScript,
+			core.RuleLanguagePython,
+			core.RuleLanguageTypeScript,
+		),
+		Title:       "Refused bequest",
+		Description: "Warns when a derived/embedded type inherits a contract but explicitly refuses multiple inherited-style methods with no-op or unsupported implementations.",
+		HowToFix:    "Prefer composition, split the inherited contract into smaller interfaces/classes, or move optional behavior behind capabilities so future changes do not rely on unsupported overrides.",
+	},
 }
