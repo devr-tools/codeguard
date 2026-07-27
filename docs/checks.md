@@ -89,7 +89,7 @@ Each top-level boolean enables or disables an entire check family.
 `quality_rules.local_precision` controls the local-quality precision subset
 currently cataloged in the [Local quality precision glossary](#local-quality-precision-glossary),
 including the shipped `naming.*`, `function.*`, `error.*`, `defensive.*`,
-selected `maintainability.*`, and history-aware `smell.*` rule IDs. It defaults
+selected `maintainability.*`, and structural/history-aware `smell.*` rule IDs. It defaults
 to enabled, but repositories can set it to `false` while they refactor legacy
 hotspots or avoid broad historical noise in full self-scans.
 
@@ -1105,7 +1105,7 @@ Current detector rollout:
 - Implemented `Change Safety / Testability` detectors: `testing.behavior-change-without-test`, `testing.failure-path-missing`, `testing.hardwired-dependency`, `testing.nondeterministic-domain-logic`, and `testing.legacy-hotspot-uncovered` for Go, Python, TypeScript, JavaScript, and C++ path/text evidence. `testing.legacy-hotspot-uncovered` uses bounded local git history and skips when reliable history/hotspot inputs are unavailable.
 - Implemented `Change Safety / Refactors` detectors: the direct `refactor.*` family below has stable metadata, language coverage, fix templates, config toggles, and diff-mode safe-refactor detector tests.
 - Implemented local-quality support rules live in the `Code Quality` section and are cataloged in the local precision glossary below, including shipped `naming.*`, `function.*`, `error.*`, `defensive.*`, and `maintainability.*` IDs.
-- Implemented structural smell rules live in the `Code Quality` section: `smell.god-object`, `smell.feature-envy`, `smell.middle-man`, `smell.message-chain`, `smell.data-clump`, and `smell.switch-on-type`.
+- Implemented structural smell rules live in the `Code Quality` section: `smell.god-object`, `smell.feature-envy`, `smell.middle-man`, `smell.message-chain`, `smell.data-clump`, `smell.switch-on-type`, and `smell.refused-bequest`.
 - Implemented history-aware maintainability/smell rules live in `Code Quality`-adjacent report sections and skip when git history is unavailable: `maintainability.hotspot`, `maintainability.high-churn-hotspot`, `maintainability.repeat-defect-area`, `maintainability.unstable-interface`, `maintainability.change-amplification`, `smell.shotgun-surgery-history`, and `smell.divergent-change-history`.
 
 Cataloged rule glossary:
@@ -1200,6 +1200,7 @@ These rules live outside the repository-wide `Change Safety` section in report o
 | Structural smell | `smell.message-chain` | warn | Code reaches through a long chain of collaborators, increasing coupling to object structure. |
 | Structural smell | `smell.data-clump` | warn | The same group of primitive/domain parameters appears repeatedly across functions. |
 | Structural smell | `smell.switch-on-type` | warn | Behavior repeatedly branches on type/kind/discriminator checks that should move behind polymorphism or dispatch. |
+| Structural smell | `smell.refused-bequest` | warn | A derived/embedded type inherits a contract but refuses multiple inherited-style methods with no-op or unsupported implementations. |
 | Maintainability delta | `maintainability.public-surface-growth` | warn | A changed file exports more public symbols than it did at the base ref. |
 | Maintainability delta | `maintainability.dependency-growth` | warn | A changed file imports or includes more direct dependencies than it did at the base ref. |
 | Maintainability history | `maintainability.hotspot` | warn | A changed file has high recent churn, defect history, or both. |

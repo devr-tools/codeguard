@@ -199,6 +199,7 @@ func TestSDKRuleMetadataForStructuralSmellRules(t *testing.T) {
 		"smell.message-chain",
 		"smell.data-clump",
 		"smell.switch-on-type",
+		"smell.refused-bequest",
 	} {
 		t.Run(ruleID, func(t *testing.T) {
 			rule := requireRuleMetadata(t, ruleID)
