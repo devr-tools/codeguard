@@ -47,14 +47,14 @@ Tasks:
 
 | Status | Rule / capability | Expected behavior | Languages | Tests |
 | --- | --- | --- | --- | --- |
-| Todo | `reliability.missing-cancellation` parity | Detect detached/background cancellation or missing abort/signal propagation in production calls. | Python, TS, JS, C++ | Add positive/negative cases. |
-| Todo | `reliability.missing-graceful-shutdown` parity | Detect server/listener/thread/service start paths without signal/shutdown/stop evidence. | Python, TS, JS, C++ | Add positive/negative cases. |
-| Todo | `reliability.missing-concurrency-limit` parity | Detect unbounded task/thread/promise creation beyond existing loop heuristics. | Python, TS, JS, C++ | Add threshold/config-aware cases. |
-| Todo | `reliability.resource-leak` parity | Add TS/JS cleanup detection for response/body/stream/file handles. | TS, JS | Positive/negative tests. |
-| Todo | `reliability.missing-timeout` C++ | Detect common C++ HTTP/RPC calls without timeout/deadline evidence. | C++ | Positive/negative tests. |
-| Todo | `reliability.swallowed-error` C++ | Detect catch blocks that return/continue without surfacing failures. | C++ | Positive/negative tests. |
-| Todo | `reliability.lost-error-context` parity | Detect generic rethrows/returns that discard cause or operation context. | Python, TS, JS, C++ | Positive/negative tests. |
-| Todo | Metadata reconciliation | Narrow or expand language coverage only to tested behavior. | all | `go test ./tests/cli -run Metadata`. |
+| Done | `reliability.missing-cancellation` parity | Detect detached/background cancellation or missing abort/signal propagation in production calls. | Python, TS, JS, C++ | Added focused positive cases; existing bounded fixtures cover negatives. |
+| Done | `reliability.missing-graceful-shutdown` parity | Detect server/listener/thread/service start paths without signal/shutdown/stop evidence. | Python, TS, JS, C++ | Added focused positive cases; safe non-server fixtures remain clean. |
+| Done | `reliability.missing-concurrency-limit` parity | Detect unbounded task/thread/promise creation beyond existing loop heuristics. | Python, TS, JS, C++ | Added threshold-aware positive cases. |
+| Done | `reliability.resource-leak` parity | Add TS/JS cleanup detection for response/body/stream/file handles. | TS, JS | Added stream/file positive cases plus existing safe resource cases. |
+| Done | `reliability.missing-timeout` C++ | Detect common C++ HTTP/RPC calls without timeout/deadline evidence. | C++ | Added C++ positive case. |
+| Done | `reliability.swallowed-error` C++ | Detect catch blocks that return/continue without surfacing failures. | C++ | Added C++ positive case. |
+| Done | `reliability.lost-error-context` parity | Detect generic rethrows/returns that discard cause or operation context. | Python, TS, JS, C++ | Added Python/TS/JS/C++ positive cases. |
+| Done | Metadata reconciliation | Narrow or expand language coverage only to tested behavior. | all | `go test ./tests/cli -run Metadata` passed locally. |
 
 Verification:
 
