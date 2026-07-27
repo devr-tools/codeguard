@@ -518,6 +518,41 @@ Pre-push/PR gate when practical:
 make ci
 ```
 
+## Integration/QA finish-out checklist
+
+Branch completion criteria:
+
+- [ ] Workstream B/C/D/E commits are all integrated on `feature/change-safety-testability-refactors` with no untracked or unstaged worker leftovers.
+- [ ] Rule metadata and fix-template coverage match the implemented rule IDs; metadata tests pass for every new `change.*`, `testing.*`, `naming.*`, `function.*`, `error.*`, `defensive.*`, and `maintainability.*` rule.
+- [ ] Detector tests pass for implemented change/testability/refactor/local-quality behavior across Go, Python, TypeScript, JavaScript, and C++ fixtures where support landed.
+- [ ] `pr_summary` keeps `production_risk` compatible and adds deterministic artifact-only `change_safety`, `maintainability_delta`, and `refactor_confidence` metrics.
+- [ ] Final generated/profile docs and glossary describe only implemented, profile-gated support; no planned-only rules are presented as shipped.
+
+Likely integration conflict points:
+
+- Workstream B and C both touch `internal/codeguard/checks/change/**`; keep testability helpers isolated and verify the change section registry wires both detector groups once.
+  - Observed 2026-07-27: current workspace has `internal/codeguard/checks/change/testability.go` redeclaring `sectionID`, `sectionName`, `Run`, and `enabled` from `change.go`; B/C need a single package entrypoint before Go tests can compile.
+- Workstream D extends shared `pr_summary` artifact types and clone/report behavior; re-check SDK/runtime aliases and report serialization after all metric-producing findings land.
+- Workstream E findings feed Workstream D metric grouping; verify `naming.*`, `function.*`, `error.*`, `defensive.*`, and `maintainability.*` rule IDs are grouped intentionally.
+- Gauss docs/check glossary must be reconciled after detector support is final so docs do not outrun implementation.
+
+Required pre-merge gates:
+
+```sh
+go test ./internal/codeguard/... ./pkg/codeguard ./tests/cli
+go test ./tests/checks -run 'Test(Change|Testing|Naming|Function|Error|Defensive|Maintainability)'
+go test ./internal/codeguard/runner ./tests/codeguard ./tests/checks -run 'Test.*PRSummary|TestWriteReport'
+```
+
+Broader final gates when the branch is quiescent:
+
+```sh
+make fmt-check
+make test
+make codeguard-ci
+make ci
+```
+
 ## Merge checklist
 
 - [ ] Rule IDs are stable and grouped by owning family.
