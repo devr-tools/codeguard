@@ -34,6 +34,7 @@ func pythonFindingsForFile(env support.Context, file string, data []byte) []core
 	for idx, line := range strings.Split(source, "\n") {
 		scan.consumeLine(idx+1, line)
 	}
+	scan.findings = append(scan.findings, partialFailureHiddenFindings(env, file, data)...)
 	return scan.findings
 }
 

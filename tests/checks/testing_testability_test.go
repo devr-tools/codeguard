@@ -167,6 +167,29 @@ func TestTestingLegacyHotspotUncoveredDoesNotEmitWithoutHistory(t *testing.T) {
 	assertFindingRuleAbsent(t, report, "Change Safety", "testing.legacy-hotspot-uncovered")
 }
 
+func TestTestingLegacyHotspotUncoveredUsesHistoryEvidence(t *testing.T) {
+	dir := testingGitRepo(t)
+	path := filepath.Join("legacy", "calculator.py")
+	writeFile(t, filepath.Join(dir, path), "def calculate(value):\n    return value\n")
+	commitAll(t, dir, "base")
+	writeFile(t, filepath.Join(dir, path), "def calculate(value):\n    adjusted = value + 1\n    return adjusted\n")
+	commitAll(t, dir, "fix calculator adjustment")
+	writeFile(t, filepath.Join(dir, path), "def calculate(value):\n    adjusted = value + 2\n    if adjusted > 10:\n        return adjusted - 1\n    return adjusted\n")
+	commitAll(t, dir, "bugfix calculator threshold")
+	writeFile(t, filepath.Join(dir, path), "def calculate(value):\n    adjusted = value + 3\n    if adjusted > 10:\n        return adjusted - 1\n    if adjusted < 0:\n        return 0\n    return adjusted\n")
+	commitAll(t, dir, "refactor calculator branch")
+	writeFile(t, filepath.Join(dir, path), "def calculate(value):\n    adjusted = value + 4\n    if adjusted > 10:\n        return adjusted - 2\n    if adjusted < 0:\n        return 0\n    return adjusted\n")
+
+	cfg := testingChangeConfig(t, dir, "python")
+	cfg.Checks.ChangeRules.DetectBehaviorChangeWithoutTest = boolValue(false)
+	cfg.Checks.ChangeRules.DetectFailurePathMissing = boolValue(false)
+	cfg.Checks.ChangeRules.DetectHardwiredDependency = boolValue(false)
+	cfg.Checks.ChangeRules.DetectNondeterministicDomain = boolValue(false)
+	report := runTestingChangeScan(t, cfg)
+
+	assertFindingRulePresent(t, report, "Change Safety", "testing.legacy-hotspot-uncovered")
+}
+
 func testingChangeConfig(t *testing.T, dir string, language string) codeguard.Config {
 	t.Helper()
 	cfg := codeguard.ExampleConfig()

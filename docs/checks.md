@@ -33,6 +33,9 @@ This glossary is the quick map of every built-in check family and the main subse
 | Reliability | `Reliability` | `checks.reliability` | missing outbound timeouts; unbounded retries; retries without backoff/jitter; non-idempotent retries; missing cancellation propagation; unbounded work; missing concurrency limits; resource leaks; hidden partial failures; missing graceful shutdown; swallowed errors; lost error context; recoverable panics/exceptions |
 | Data Correctness | `Data Correctness` | `checks.data` | read-modify-write races; missing transaction boundaries; external side effects inside transactions; non-idempotent consumers; missing deduplication; unsafe dual writes; missing outbox strategy; unstable pagination; unbounded reads; exactly-once assumptions; cache writes without TTL/policy |
 | Change Safety | `Change Safety`, `Change Safety / Testability`, `Change Safety / Refactors` | `checks.change` | implemented diff-size and mixed-concern detectors; behavior changes without tests; failure-path coverage gaps; hardwired or nondeterministic domain dependencies; safe-refactor confidence checks; PR-summary rollups |
+| Observability | `Observability` | `checks.observability` | unstructured logs; errors without operation/request context; sensitive log data; high-cardinality metric labels; critical paths without instrumentation; log-and-ignore failures; shallow health checks |
+| Operations | `Operations` | `checks.operations` | missing service ownership; missing runbook metadata for critical production paths |
+| Delivery | `Delivery` | `checks.delivery` | missing rollback evidence; unsafe migration sequencing; high-risk changes without kill switches; missing post-deploy verification |
 | API Contracts | `API Contracts` | `checks.contracts` | exported Go API breaks; public C++ header breaks; OpenAPI breaking changes; protobuf breaking changes; destructive migrations; non-expand/contract schema migration risk |
 | Design | `Design Patterns` | `checks.design` | architecture boundaries; import/module cycles; god modules; graph reachability and stability; high-impact changes; public surface policy; production/test isolation; package/module naming; declarations per file; methods per type; interface/protocol size |
 | Security | `Security` | `checks.security` | hardcoded secrets and credentials; private keys; insecure TLS; shell execution; dynamic code execution; unsafe HTML sinks; SSRF and taint-style flow; unsafe C string APIs; optional `govulncheck`; OWASP category metadata |
@@ -71,6 +74,9 @@ Related report artifacts:
     "supply_chain": false,
     "reliability": false,
     "data": false,
+    "observability": false,
+    "operations": false,
+    "delivery": false,
     "change": false,
     "contracts": true,
     "context": true
@@ -97,7 +103,7 @@ opt-in.
 after both the recommended baseline and explicit section enables are resolved.
 It is therefore the final precedence layer. Accepted names are `quality`,
 `performance`, `design`, `security`, `prompts`, `ci`, `supply_chain`,
-`reliability`, `data`, `change`, `context`, and `contracts`; blank, duplicate, unknown, and alias names are
+`reliability`, `data`, `observability`, `operations`, `delivery`, `change`, `context`, and `contracts`; blank, duplicate, unknown, and alias names are
 invalid.
 
 When `use_recommended_defaults` is absent or `false`, section behavior is
@@ -114,6 +120,12 @@ baseline.
 `reliability` covers production reliability checks for Go, Python, TypeScript, JavaScript, and C++: missing outbound timeouts, unbounded or immediate retries, non-idempotent retries, cancellation propagation gaps, unbounded work, missing concurrency limits, resource cleanup gaps, hidden partial failures, missing graceful shutdown evidence, swallowed/lost errors, and recoverable panics.
 
 `data` covers distributed-system and data-correctness checks for Go, Python, TypeScript, JavaScript, and C++: read-modify-write race patterns, missing transaction boundaries, side effects in transaction callbacks, non-idempotent consumers, missing deduplication, unsafe dual writes, missing outbox strategy, unstable pagination, unbounded reads, exactly-once assumptions, and cache writes without TTL/policy evidence.
+
+`observability` covers production operability checks for Go, Python, TypeScript, JavaScript, and C++: structured logging evidence, contextual errors, sensitive log payloads, high-cardinality metric labels, critical-path instrumentation, log-and-ignore failures, and health-check depth.
+
+`operations` covers repository-level service readiness: ownership evidence and runbook metadata for critical production paths.
+
+`delivery` covers safe rollout checks: rollback evidence, expand/backfill/contract migration sequencing, feature-flag or kill-switch evidence for high-risk changes, and post-deploy health/smoke/SLO verification.
 
 `change` covers diff-mode change safety, testability, and refactor-confidence checks. The startup profile leaves it off unless explicitly enabled; strict, enterprise, and AI-safe enable it through their profile defaults. It is designed for PR review and expects a diff/base revision for the strongest evidence.
 
@@ -958,6 +970,79 @@ Config keys:
 
 Rules are implemented for Go, Python, TypeScript, JavaScript, and C++. Contracting database migrations are also surfaced as `contracts.non-expand-contract-migration` in the `API Contracts` section so production-risk scoring can treat unsafe rolling schema changes as data-correctness evidence without renaming the legacy destructive-migration rule.
 
+## Observability
+
+Purpose:
+- Validate that production code is operable, not merely syntactically correct.
+- Surface logging, metrics, instrumentation, and health-check gaps before they become incident-debugging gaps.
+
+Config keys:
+
+```json
+{
+  "checks": {
+    "observability": true,
+    "observability_rules": {
+      "detect_unstructured_log": true,
+      "detect_error_without_context": true,
+      "detect_sensitive_log_data": true,
+      "detect_high_cardinality_label": true,
+      "detect_critical_path_uninstrumented": true,
+      "detect_log_and_ignore": true,
+      "detect_shallow_health_check": true
+    }
+  }
+}
+```
+
+Rules are implemented for Go, Python, TypeScript, JavaScript, and C++. They use confidence-based source evidence for structured logging, contextual errors, sensitive payloads, metric label cardinality, instrumentation on critical paths, logged-and-ignored failures, and shallow health/readiness endpoints.
+
+## Operations
+
+Purpose:
+- Ensure critical services have ownership and runbook evidence.
+- Make production responsibility visible to reviewers and agents.
+
+Config keys:
+
+```json
+{
+  "checks": {
+    "operations": true,
+    "operations_rules": {
+      "detect_missing_owner": true,
+      "detect_missing_runbook": true
+    }
+  }
+}
+```
+
+Operations checks look for repository ownership files and runbook paths around critical production paths. Enterprise enables this family by default; AI-safe keeps it optional because ownership policy is often organization-specific.
+
+## Delivery
+
+Purpose:
+- Catch rollout-safety gaps before production deployment.
+- Surface migration ordering, rollback, kill-switch, and post-deploy verification risk.
+
+Config keys:
+
+```json
+{
+  "checks": {
+    "delivery": true,
+    "delivery_rules": {
+      "detect_missing_rollback_strategy": true,
+      "detect_unsafe_migration_order": true,
+      "detect_high_risk_change_without_kill_switch": true,
+      "detect_missing_post_deploy_verification": true
+    }
+  }
+}
+```
+
+Delivery checks combine repository-wide deployment/migration evidence with source-path scanning for high-risk behavior. The kill-switch detector covers Go, Python, TypeScript, JavaScript, and C++; rollback, migration-order, and post-deploy checks operate over workflows, deployment files, release files, and migration paths.
+
 ## Change Safety
 
 Purpose:
@@ -1016,7 +1101,7 @@ Profile defaults:
 Current detector rollout:
 
 - Implemented `Change Safety` diff detectors: `change.oversized-diff`, `change.mixed-concerns`, `change.too-many-concerns`, `change.mixed-refactor-and-behavior`, `change.unnecessary-surface-area`, `change.one-use-abstraction`, `change.duplicate-helper`, `change.cleanup-regression`, `change.complexity-increased`, and `change.move-without-verification`.
-- Implemented `Change Safety / Testability` detectors: `testing.behavior-change-without-test`, `testing.failure-path-missing`, `testing.hardwired-dependency`, and `testing.nondeterministic-domain-logic` for Go, Python, TypeScript, JavaScript, and C++ path/text evidence. `testing.legacy-hotspot-uncovered` is cataloged and configured, but intentionally skips when reliable history/hotspot inputs are unavailable.
+- Implemented `Change Safety / Testability` detectors: `testing.behavior-change-without-test`, `testing.failure-path-missing`, `testing.hardwired-dependency`, `testing.nondeterministic-domain-logic`, and `testing.legacy-hotspot-uncovered` for Go, Python, TypeScript, JavaScript, and C++ path/text evidence. `testing.legacy-hotspot-uncovered` uses bounded local git history and skips when reliable history/hotspot inputs are unavailable.
 - Implemented `Change Safety / Refactors` detectors: the direct `refactor.*` family below has stable metadata, language coverage, fix templates, config toggles, and diff-mode safe-refactor detector tests.
 - Implemented local-quality support rules live in the `Code Quality` section: `naming.generic-identifier`, `function.excessive-parameters`, `function.mixed-abstraction-level`, `function.command-query-mix`, `error.logged-and-ignored`, `error.context-lost`, `defensive.unchecked-type-assertion`, `defensive.unsafe-numeric-conversion`, `maintainability.public-surface-growth`, and `maintainability.dependency-growth`.
 - Implemented history-aware maintainability/smell rules live in `Code Quality`-adjacent report sections and skip when git history is unavailable: `maintainability.hotspot`, `maintainability.high-churn-hotspot`, `maintainability.repeat-defect-area`, `maintainability.unstable-interface`, `maintainability.change-amplification`, `smell.shotgun-surgery-history`, and `smell.divergent-change-history`.

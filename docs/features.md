@@ -56,9 +56,18 @@ This page lists the current `codeguard` feature surface and the main config entr
 - `data`
   - distributed-system and data-correctness checks for Go, Python, TypeScript, JavaScript, and C++
   - read-modify-write race patterns, missing transaction boundaries, side effects in transactions, consumer idempotency/deduplication gaps, unsafe dual writes, missing outbox strategy, unstable pagination, unbounded reads, exactly-once assumptions, and cache policy gaps
+- `observability`
+  - production operability checks for Go, Python, TypeScript, JavaScript, and C++
+  - unstructured logs, errors without operation/request context, sensitive log data, high-cardinality metric labels, missing critical-path instrumentation, log-and-ignore failures, and shallow health checks
+- `operations`
+  - ownership and runbook-readiness checks for critical production paths
+  - enterprise profile coverage for service ownership and operational handoff metadata
+- `delivery`
+  - rollout-safety checks for workflows, deployment files, migrations, and high-risk source changes
+  - missing rollback strategies, unsafe migration ordering, high-risk behavior without feature flags or kill switches, and missing post-deploy verification
 - `change`
   - diff-mode change-safety, testability, and refactor-confidence checks for PR review
-  - implemented signals for oversized and mixed-concern diffs, too many concerns, mixed refactor/behavior diffs, broad public-surface edits, one-use abstractions, duplicate helpers, cleanup regressions, complexity increases, moves without verification, behavior changes without tests, failure-path coverage gaps, and hardwired or nondeterministic domain dependencies
+  - implemented signals for oversized and mixed-concern diffs, too many concerns, mixed refactor/behavior diffs, broad public-surface edits, one-use abstractions, duplicate helpers, cleanup regressions, complexity increases, moves without verification, behavior changes without tests, failure-path coverage gaps, legacy hotspots without characterization coverage, and hardwired or nondeterministic domain dependencies
   - implemented direct `refactor.*` IDs for behavior preservation checks, public-contract checks, error-path checks, side-effect ordering, visibility expansion, dependency direction, duplicate implementations left behind, and dead paths left behind
   - PR-summary signals for `change_safety`, `refactor_confidence`, and `maintainability_delta` when the change-summary postprocessor is available
 - `contracts`

@@ -134,6 +134,28 @@ func TestSDKRuleMetadataForRefactorRule(t *testing.T) {
 	}
 }
 
+func TestSDKRuleMetadataForOperabilityAndDeliveryRules(t *testing.T) {
+	cases := []struct {
+		ruleID string
+	}{
+		{ruleID: "observability.sensitive-log-data"},
+		{ruleID: "operations.missing-runbook"},
+		{ruleID: "delivery.missing-rollback-strategy"},
+		{ruleID: "design.unreachable-module"},
+		{ruleID: "design.stability-direction"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.ruleID, func(t *testing.T) {
+			rule := requireRuleMetadata(t, tc.ruleID)
+			assertExecutionModel(t, rule, codeguard.RuleExecutionModelLanguageAgnostic)
+			if rule.FixTemplate.Kind == "" {
+				t.Fatalf("expected %s to expose a fix template", tc.ruleID)
+			}
+		})
+	}
+}
+
 func TestSDKRuleMetadataForNonExpandContractMigration(t *testing.T) {
 	rule := requireRuleMetadata(t, "contracts.non-expand-contract-migration")
 	assertExecutionModel(t, rule, codeguard.RuleExecutionModelLanguageAgnostic)

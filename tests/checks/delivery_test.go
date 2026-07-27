@@ -47,6 +47,18 @@ func TestDeliveryHighRiskChangeWithoutKillSwitch(t *testing.T) {
 	assertFindingRulePresent(t, report, "Delivery", "delivery.high-risk-change-without-kill-switch")
 }
 
+func TestDeliveryHighRiskCPlusPlusChangeWithoutKillSwitch(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "payments", "charge.cpp"), "namespace payments {\n\nbool Charge(const Order& order) {\n  return charge(order);\n}\n\n}\n")
+
+	report, err := codeguard.Run(context.Background(), deliveryTestConfig(dir, "delivery-cpp-no-kill-switch"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Delivery", "delivery.high-risk-change-without-kill-switch")
+}
+
 func TestDeliveryAllowsRollbackVerificationAndKillSwitchEvidence(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, ".github", "workflows", "deploy.yml"), "name: deploy\njobs:\n  prod:\n    steps:\n      - run: kubectl apply -f deploy/app.yaml\n      - run: curl -fsS https://example.invalid/health\n      - run: echo rollback via kubectl rollout undo\n")

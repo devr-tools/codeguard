@@ -212,7 +212,13 @@ func isSourcePath(rel string) bool {
 		strings.HasSuffix(lowered, ".ts") ||
 		strings.HasSuffix(lowered, ".tsx") ||
 		strings.HasSuffix(lowered, ".js") ||
-		strings.HasSuffix(lowered, ".jsx")
+		strings.HasSuffix(lowered, ".jsx") ||
+		strings.HasSuffix(lowered, ".cpp") ||
+		strings.HasSuffix(lowered, ".cc") ||
+		strings.HasSuffix(lowered, ".cxx") ||
+		strings.HasSuffix(lowered, ".hpp") ||
+		strings.HasSuffix(lowered, ".hh") ||
+		strings.HasSuffix(lowered, ".h")
 }
 
 func hasDestructiveMigration(text string) bool {

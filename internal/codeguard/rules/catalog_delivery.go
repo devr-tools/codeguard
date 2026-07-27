@@ -28,7 +28,7 @@ var deliveryCatalog = map[string]core.RuleMetadata{
 		Section:          "Delivery",
 		DefaultLevel:     "warn",
 		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
-		LanguageCoverage: core.FixedRuleLanguageCoverage(core.RuleLanguageGo, core.RuleLanguagePython, core.RuleLanguageTypeScript, core.RuleLanguageJavaScript),
+		LanguageCoverage: core.FixedRuleLanguageCoverage(core.RuleLanguageGo, core.RuleLanguagePython, core.RuleLanguageTypeScript, core.RuleLanguageJavaScript, core.RuleLanguageCPP),
 		Title:            "High-risk change without kill switch",
 		Description:      "Warns when critical payment, auth, checkout, billing, or migration behavior changes without feature flag or kill-switch evidence.",
 		HowToFix:         "Gate the high-risk behavior behind a feature flag or operational kill switch and document the rollback path.",
