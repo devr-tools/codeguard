@@ -46,21 +46,21 @@ type movePair struct {
 
 // Run evaluates change-safety rules. The section is intentionally diff-first:
 // full scans have no review unit to measure and therefore emit no findings.
-func Run(_ context.Context, env support.Context) core.SectionResult {
+func Run(ctx context.Context, env support.Context) core.SectionResult {
 	if env.Mode != core.ScanModeDiff {
 		return env.FinalizeSection(sectionID, sectionName, nil)
 	}
-	return env.FinalizeSection(sectionID, sectionName, findings(env))
+	return env.FinalizeSection(sectionID, sectionName, findings(ctx, env))
 }
 
-func findings(env support.Context) []core.Finding {
+func findings(ctx context.Context, env support.Context) []core.Finding {
 	ev := collectEvidence(env)
 	if ev.fileCount == 0 {
 		return nil
 	}
 
 	rules := env.Config.Checks.ChangeRules
-	findings := make([]core.Finding, 0, 6)
+	findings := make([]core.Finding, 0, 10)
 	if enabled(rules.DetectOversizedDiff) {
 		if finding, ok := oversizedDiffFinding(env, rules, ev); ok {
 			findings = append(findings, finding)
@@ -91,6 +91,7 @@ func findings(env support.Context) []core.Finding {
 			findings = append(findings, finding)
 		}
 	}
+	findings = append(findings, testabilityFindings(ctx, env)...)
 	return findings
 }
 
