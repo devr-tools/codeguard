@@ -71,7 +71,7 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	applyContextDefaults(&cfg.Checks.ContextRules, def.Checks.ContextRules)
 	applyContractDefaults(&cfg.Checks.ContractRules, def.Checks.ContractRules)
 	applyAIDefaults(&cfg.AI, def.AI)
-
+	applyCheckActivationDefaults(&cfg.Checks)
 }
 
 func applyRulePackDefaults(cfg *core.Config) {
