@@ -24,6 +24,8 @@ Agent spawning note:
   - Rawls (`019fa46e-b46b-7ca2-a106-83bd1b194f4f`): Workstream C.
   - Raman (`019fa46e-de48-7b73-b3a5-4a48152d9954`): Workstream D.
   - Meitner (`019fa46f-0ef2-7253-bd4a-86ebaae7c6ec`): Workstream E.
+  - Gauss (`019fa471-3497-7403-99f9-3d173e9b4da3`): finish-out docs and check glossary.
+  - James (`019fa471-61de-74d2-9be5-daab986602da`): integration/QA checklist and consistency review.
 
 ## Agent workstreams
 
