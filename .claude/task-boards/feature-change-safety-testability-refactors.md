@@ -18,6 +18,12 @@ Agent spawning note:
 - New worker spawns were attempted after the rebase, but the workspace was at the agent thread limit.
 - Existing completed-agent summaries were collected and used to refine the workstream split below.
 - The branch can proceed with these workstreams as soon as agent capacity is available, or the main thread can take the first workstream locally.
+- Completed old agent threads were closed after Workstream A landed, freeing slots for the next implementation round.
+- Active worker assignments:
+  - Hegel (`019fa46e-8955-78a2-aa95-4fcd667d1b59`): Workstream B.
+  - Rawls (`019fa46e-b46b-7ca2-a106-83bd1b194f4f`): Workstream C.
+  - Raman (`019fa46e-de48-7b73-b3a5-4a48152d9954`): Workstream D.
+  - Meitner (`019fa46f-0ef2-7253-bd4a-86ebaae7c6ec`): Workstream E.
 
 ## Agent workstreams
 
