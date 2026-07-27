@@ -14,6 +14,13 @@ func yamlRoundTripConfig() codeguard.Config {
 	cfg.Checks.QualityRules.LanguageCommands = map[string][]codeguard.CommandCheckConfig{
 		"typescript": {{Name: "tsc", Command: "npx", Args: []string{"tsc", "--noEmit"}}},
 	}
+	cfg.Checks.QualityRules.Naming = codeguard.QualityNamingConfig{
+		Glossary: map[string]codeguard.QualityNamingGlossaryEntry{
+			"restaurant": {Avoid: []string{"venue", "merchant"}},
+		},
+		AllowedAbbreviations:    []string{"id", "url", "api"},
+		RoleSuffixWarnThreshold: 5,
+	}
 	cfg.Checks.DesignRules.LanguageCommands = map[string][]codeguard.CommandCheckConfig{
 		"python": {{Name: "import-linter", Command: "lint-imports", Args: []string{"--config", "importlinter.ini"}}},
 	}
@@ -38,7 +45,7 @@ func assertYAMLSchemaMarkers(t *testing.T, path string) {
 		t.Fatalf("read yaml: %v", err)
 	}
 	rendered := string(data)
-	for _, want := range []string{"supply_chain:", "quality_rules:", "max_file_lines:", "language_commands:", "ci_rules:", "required_workflow_files:", "hybrid_triage:", "candidate_sections:", "function_contract:", "test_commands:", "rule_packs:"} {
+	for _, want := range []string{"supply_chain:", "quality_rules:", "max_file_lines:", "language_commands:", "naming:", "allowed_abbreviations:", "role_suffix_warn_threshold:", "ci_rules:", "required_workflow_files:", "hybrid_triage:", "candidate_sections:", "function_contract:", "test_commands:", "rule_packs:"} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("written yaml missing %q:\n%s", want, rendered)
 		}
@@ -51,6 +58,12 @@ func assertYAMLRoundTripConfig(t *testing.T, loaded codeguard.Config, want codeg
 		t.Fatalf("loaded name = %q, want %q", loaded.Name, want.Name)
 	}
 	assertYAMLCommand(t, loaded.Checks.QualityRules.LanguageCommands["typescript"][0].Command, "npx", "loaded command")
+	if loaded.Checks.QualityRules.Naming.RoleSuffixWarnThreshold != want.Checks.QualityRules.Naming.RoleSuffixWarnThreshold {
+		t.Fatalf("role_suffix_warn_threshold = %d, want %d", loaded.Checks.QualityRules.Naming.RoleSuffixWarnThreshold, want.Checks.QualityRules.Naming.RoleSuffixWarnThreshold)
+	}
+	if got := loaded.Checks.QualityRules.Naming.Glossary["restaurant"].Avoid; len(got) != 2 || got[0] != "venue" || got[1] != "merchant" {
+		t.Fatalf("naming glossary = %#v, want restaurant avoid [venue merchant]", loaded.Checks.QualityRules.Naming.Glossary)
+	}
 	assertYAMLCommand(t, loaded.Checks.DesignRules.LanguageCommands["python"][0].Command, "lint-imports", "loaded design command")
 	assertYAMLCommand(t, loaded.Checks.DesignRules.LanguageDiffCommands["go"][0].Name, "api-diff", "loaded diff command")
 }
@@ -77,6 +90,12 @@ checks:
   supply_chain: true
   quality_rules:
     max_file_lines: 123
+    naming:
+      glossary:
+        restaurant:
+          avoid: [venue, merchant]
+      allowed_abbreviations: [id, url]
+      role_suffix_warn_threshold: 5
     coverage_delta:
       enabled: true
       min_changed_line_coverage: 77
@@ -145,6 +164,15 @@ func assertSnakeCaseChecks(t *testing.T, loaded codeguard.Config) {
 	}
 	if loaded.Checks.QualityRules.CoverageDelta.MinChangedLineCoverage == nil || *loaded.Checks.QualityRules.CoverageDelta.MinChangedLineCoverage != 77 {
 		t.Fatalf("min_changed_line_coverage = %#v, want 77", loaded.Checks.QualityRules.CoverageDelta.MinChangedLineCoverage)
+	}
+	if got := loaded.Checks.QualityRules.Naming.AllowedAbbreviations; len(got) != 2 || got[0] != "id" || got[1] != "url" {
+		t.Fatalf("allowed_abbreviations = %#v, want [id url]", got)
+	}
+	if loaded.Checks.QualityRules.Naming.RoleSuffixWarnThreshold != 5 {
+		t.Fatalf("role_suffix_warn_threshold = %d, want 5", loaded.Checks.QualityRules.Naming.RoleSuffixWarnThreshold)
+	}
+	if got := loaded.Checks.QualityRules.Naming.Glossary["restaurant"].Avoid; len(got) != 2 || got[0] != "venue" || got[1] != "merchant" {
+		t.Fatalf("naming glossary = %#v, want restaurant avoid [venue merchant]", loaded.Checks.QualityRules.Naming.Glossary)
 	}
 }
 

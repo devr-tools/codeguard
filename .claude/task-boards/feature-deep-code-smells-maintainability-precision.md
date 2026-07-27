@@ -1,6 +1,6 @@
 # Task board: feature/deep-code-smells-maintainability-precision
 
-Status: staging
+Status: verified
 Branch: feature/deep-code-smells-maintainability-precision
 Last updated: 2026-07-27
 Not final product docs: this is implementation planning for the branch, not shipped user-facing documentation.
@@ -205,32 +205,38 @@ Candidate error rules:
 
 | Status | Rule ID | Signal |
 | --- | --- | --- |
-| Todo | `error.logged-and-returned` | Error is logged and returned, risking duplicate logs. |
-| Todo | `error.generic-message` | Generic error string without operation/resource context. |
-| Todo | `error.wrong-abstraction-level` | Infrastructure errors leak into domain/API/user boundary. |
-| Todo | `error.inconsistent-wrapping` | Same function mixes wrapping styles or drops cause. |
-| Todo | `error.retryable-not-distinguished` | Retry path cannot distinguish permanent/transient failure. |
-| Todo | `error.user-message-leaks-internals` | User/API message exposes DB/SQL/stack/infrastructure details. |
-| Todo | `error.cleanup-error-ignored` | Close/rollback/delete cleanup errors discarded. |
-| Todo | `error.fallback-hides-corruption` | Fallback success after corruption/deserialization/validation failure. |
-| Todo | `error.exception-used-for-control-flow` | Exception/panic/throw used for ordinary branch control. |
+| Done | `error.logged-and-returned` | Error is logged and returned, risking duplicate logs. |
+| Done | `error.logged-and-ignored` | Error is logged and converted to success/ignored result. |
+| Done | `error.context-lost` | Bare error returns/rethrows lose operation context. |
+| Done | `error.generic-message` | Generic error string without operation/resource context. |
+| Done | `error.wrong-abstraction-level` | Infrastructure errors leak into domain/API/user boundary. |
+| Done | `error.inconsistent-wrapping` | Same function mixes wrapping styles or drops cause. |
+| Done | `error.retryable-not-distinguished` | Retry path cannot distinguish permanent/transient failure. |
+| Done | `error.user-message-leaks-internals` | User/API message exposes DB/SQL/stack/infrastructure details. |
+| Done | `error.partial-failure-hidden` | Batch/loop failure continues and returns success without partial contract. |
+| Done | `error.cleanup-error-ignored` | Close/rollback/delete cleanup errors discarded. |
+| Done | `error.fallback-hides-corruption` | Fallback success after corruption/deserialization/validation failure. |
+| Done | `error.panic-on-recoverable-path` | Panic used on recoverable request/validation/I/O path. |
+| Done | `error.exception-used-for-control-flow` | Exception/panic/throw used for ordinary branch control. |
 
 Candidate defensive rules:
 
 | Status | Rule ID | Signal |
 | --- | --- | --- |
-| Todo | `defensive.unvalidated-boundary-input` | Handler/API/event/filesystem input consumed without validation. |
-| Todo | `defensive.invalid-state-representable` | Boolean/string status combos allow impossible states. |
-| Todo | `defensive.null-assumption` | Dereference/use without guard at nullable boundary. |
-| Todo | `defensive.integer-overflow` | Arithmetic on bounded numeric/input sizes without guard. |
-| Todo | `defensive.bounds-assumption` | Index/key access without length/existence guard. |
-| Todo | `defensive.unsafe-default` | Missing config/env defaults fail open or disable safety. |
-| Todo | `defensive.non-exhaustive-branch` | Switch/match over enum-like values lacks default/exhaustive evidence. |
-| Todo | `defensive.unchecked-external-response` | External response consumed without status/schema/error check. |
-| Todo | `defensive.missing-schema-validation` | JSON/event/request decoded but not validated at boundary. |
-| Todo | `defensive.missing-resource-limit` | Boundary reads/uploads/queues without size/count/time bound. |
-| Todo | `defensive.invalid-state-transition` | State transition accepts impossible backwards/skipped transitions. |
-| Todo | `defensive.fail-open-authorization` | Authz failure path allows or defaults to success. |
+| Done | `defensive.unvalidated-boundary-input` | Handler/API/event/filesystem input consumed without validation. |
+| Done | `defensive.invalid-state-representable` | Boolean/string status combos allow impossible states. |
+| Done | `defensive.null-assumption` | Dereference/use without guard at nullable boundary. |
+| Done | `defensive.unchecked-type-assertion` | Type assertion/cast bypasses runtime validation or comma-ok checks. |
+| Done | `defensive.unsafe-numeric-conversion` | Narrowing numeric conversion lacks bounds check. |
+| Done | `defensive.integer-overflow` | Arithmetic on bounded numeric/input sizes without guard. |
+| Done | `defensive.bounds-assumption` | Index/key access without length/existence guard. |
+| Done | `defensive.unsafe-default` | Missing config/env defaults fail open or disable safety. |
+| Done | `defensive.non-exhaustive-branch` | Switch/match over enum-like values lacks default/exhaustive evidence. |
+| Done | `defensive.unchecked-external-response` | External response consumed without status/schema/error check. |
+| Done | `defensive.missing-schema-validation` | JSON/event/request decoded but not validated at boundary. |
+| Done | `defensive.missing-resource-limit` | Boundary reads/uploads/queues without size/count/time bound. |
+| Done | `defensive.invalid-state-transition` | State transition accepts impossible backwards/skipped transitions. |
+| Done | `defensive.fail-open-authorization` | Authz failure path allows or defaults to success. |
 
 Verification:
 
@@ -256,12 +262,12 @@ Tasks:
 
 | Status | Task | Notes |
 | --- | --- | --- |
-| Todo | Reconcile rule catalog | Every implemented rule has metadata, language coverage, default level, fix template. |
-| Todo | Reconcile docs glossary | Docs updated only after behavior/tests land. |
-| Todo | Reconcile profile behavior | AI-safe should enable stronger smell/naming/function/error/defensive checks; strict should focus regressions. |
-| Todo | Add metadata tests | Include representative new smell, naming, function, error, defensive, reliability parity rules. |
-| Todo | Run dogfood | `make codeguard-ci`; fix real warnings by refactor or detector precision. |
-| Todo | Run full CI | `make ci` outside restricted sandbox for httptest. |
+| Done | Reconcile rule catalog | Implemented smell, naming, function, error, defensive, maintainability, and reliability parity rules have metadata, fixed language coverage, default levels, and fix templates. |
+| Done | Reconcile docs glossary | `docs/checks.md` and `docs/features.md` list the shipped rollout subset and avoid advertising non-emitting roadmap IDs. |
+| Done | Reconcile profile behavior | Added profile tests pinning AI-safe local precision/reliability/change-safety behavior and strict regression focus. |
+| Done | Add metadata tests | SDK metadata tests cover representative smell, naming, function, error, defensive, maintainability, and reliability parity rules. |
+| Done | Run dogfood | `make codeguard-ci` passed after detector precision/test fixture fixes. |
+| Done | Run full CI | `make ci` passed outside restricted sandbox for httptest. |
 
 ## Agent assignments
 
@@ -297,3 +303,15 @@ Expected final result:
 - No language coverage claims without at least representative tests.
 - No new CodeGuard dogfood failures resolved by broad threshold tuning.
 - Docs and `codeguard rules` output agree.
+
+Final verification completed 2026-07-27:
+
+```sh
+env -u GOROOT GOCACHE=/private/tmp/codeguard-deep-smells-go-cache go test ./internal/codeguard/config ./internal/codeguard/rules ./tests/cli ./tests/codeguard -run 'Test(Profiles|ReviewProfiles|PolicyProfileDocumentation|SDKRuleMetadata|ExampleConfigIncludesQualityNaming|ValidateQualityNaming|LoadConfig|YAML|SnakeCase)' -count=1
+env -u GOROOT GOCACHE=/private/tmp/codeguard-deep-smells-go-cache go test ./tests/checks -run TestQualityErrorAndDefensiveRulesAllowGuardedPatterns -count=1
+env -u GOROOT GOCACHE=/private/tmp/codeguard-deep-smells-go-cache go test ./tests/checks -run TestQualityDefensiveBoundariesDetectMultiLanguageSignals -count=1
+env -u GOROOT GOCACHE=/private/tmp/codeguard-deep-smells-go-cache go test ./tests/checks ./tests/cli ./internal/codeguard/config ./internal/codeguard/rules -count=1
+make ci
+make codeguard-ci
+git diff --check
+```

@@ -80,14 +80,18 @@ func additionalPrecisionFunctionFindings(env support.Context, file string, fn pr
 
 func precisionNamingFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
 	findings := make([]core.Finding, 0, 6)
-	allNames := []struct {
+	allNames := make([]struct {
 		name string
 		typ  string
 		expr string
 		line int
-	}{
-		{name: fn.Name, line: fn.StartLine},
-	}
+	}, 0, 1+len(fn.Params)+len(fn.Assignments))
+	allNames = append(allNames, struct {
+		name string
+		typ  string
+		expr string
+		line int
+	}{name: fn.Name, line: fn.StartLine})
 	for _, param := range fn.Params {
 		allNames = append(allNames, struct {
 			name string

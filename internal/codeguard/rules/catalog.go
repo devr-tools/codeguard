@@ -5,6 +5,7 @@ import "github.com/devr-tools/codeguard/internal/codeguard/core"
 var catalog = withSecurityOWASP(mergeRuleCatalogs(
 	qualityCatalog,
 	qualitySmellCatalog,
+	qualityErrorDefensiveCatalog,
 	qualityAICatalog,
 	performanceCatalog,
 	performanceRegressionCatalog,

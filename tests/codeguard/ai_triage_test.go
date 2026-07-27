@@ -32,8 +32,9 @@ func doThing() error { return nil }
 			Language: "go",
 		}},
 		Checks: codeguard.CheckConfig{
-			Quality: true,
-			Context: contextOff(),
+			Quality:      true,
+			Context:      contextOff(),
+			QualityRules: codeguard.QualityRulesConfig{LocalPrecision: localPrecisionOff()},
 		},
 		Output: codeguard.OutputConfig{Format: "json"},
 		Cache: codeguard.CacheConfig{
@@ -79,8 +80,9 @@ func doThing() error { return nil }
 			Language: "go",
 		}},
 		Checks: codeguard.CheckConfig{
-			Quality: true,
-			Context: contextOff(),
+			Quality:      true,
+			Context:      contextOff(),
+			QualityRules: codeguard.QualityRulesConfig{LocalPrecision: localPrecisionOff()},
 		},
 		Output: codeguard.OutputConfig{Format: "json"},
 		Cache: codeguard.CacheConfig{
@@ -137,8 +139,9 @@ func doThing() error { return nil }
 			Language: "go",
 		}},
 		Checks: codeguard.CheckConfig{
-			Quality: true,
-			Context: contextOff(),
+			Quality:      true,
+			Context:      contextOff(),
+			QualityRules: codeguard.QualityRulesConfig{LocalPrecision: localPrecisionOff()},
 		},
 		Output: codeguard.OutputConfig{Format: "json"},
 		Cache: codeguard.CacheConfig{

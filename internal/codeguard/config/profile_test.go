@@ -57,6 +57,36 @@ func TestProfilesPreserveExpectedPolicyValues(t *testing.T) {
 	}
 }
 
+func TestReviewProfilesEnableLocalPrecisionAndRegressionSignals(t *testing.T) {
+	aiSafe, err := ExampleConfigForProfile("ai-safe")
+	if err != nil {
+		t.Fatalf("ExampleConfigForProfile(ai-safe) error = %v", err)
+	}
+	if aiSafe.Checks.QualityRules.LocalPrecision != nil && !*aiSafe.Checks.QualityRules.LocalPrecision {
+		t.Fatal("ai-safe profile must not disable local quality precision checks")
+	}
+	if aiSafe.Checks.Change == nil || !*aiSafe.Checks.Change {
+		t.Fatal("ai-safe profile should enable change-safety regression checks")
+	}
+	if aiSafe.Checks.Reliability == nil || !*aiSafe.Checks.Reliability {
+		t.Fatal("ai-safe profile should enable reliability checks")
+	}
+
+	strict, err := ExampleConfigForProfile("strict")
+	if err != nil {
+		t.Fatalf("ExampleConfigForProfile(strict) error = %v", err)
+	}
+	if strict.Checks.Change == nil || !*strict.Checks.Change {
+		t.Fatal("strict profile should enable change-safety regression checks")
+	}
+	if strict.Checks.Data == nil || *strict.Checks.Data {
+		t.Fatal("strict profile should focus regressions without enabling data-correctness production-readiness checks")
+	}
+	if strict.Checks.Observability == nil || *strict.Checks.Observability {
+		t.Fatal("strict profile should focus regressions without enabling observability production-readiness checks")
+	}
+}
+
 func expectedProfileThresholds() map[string]profileThresholds {
 	profiles := baselineAndStartupProfileThresholds()
 	for name, thresholds := range strictProfileThresholds() {

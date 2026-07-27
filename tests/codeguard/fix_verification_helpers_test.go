@@ -50,5 +50,6 @@ func qualityOnlyConfigForLanguage(dir string, name string, language string) code
 	cfg.Checks.Design = false
 	cfg.Checks.Prompts = false
 	cfg.Checks.CI = false
+	cfg.Checks.QualityRules.LocalPrecision = localPrecisionOff()
 	return cfg
 }

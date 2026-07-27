@@ -73,7 +73,7 @@ func structuralSmellFindings(env support.Context, file string, source string, la
 	if isQualityFixturePath(file) {
 		return nil
 	}
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0, len(classes)+len(functions)+3)
 	findings = append(findings, godObjectFindings(env, file, classes)...)
 	findings = append(findings, featureEnvyFindings(env, file, functions)...)
 	findings = append(findings, middleManFindings(env, file, classes)...)
@@ -176,13 +176,12 @@ func parsedStructuralFunctions(parsed *support.ParsedFile) []structuralFunction 
 
 func sourceStructuralClasses(source string, masked string, language string) []structuralClass {
 	if language == "python" {
-		return pythonStructuralClasses(source, masked)
+		return pythonStructuralClasses(masked)
 	}
 	return clikeStructuralClasses(source, masked)
 }
 
-func pythonStructuralClasses(source string, masked string) []structuralClass {
-	rawLines := strings.Split(source, "\n")
+func pythonStructuralClasses(masked string) []structuralClass {
 	maskedLines := strings.Split(masked, "\n")
 	classes := make([]structuralClass, 0)
 	for idx := 0; idx < len(maskedLines); idx++ {
@@ -209,7 +208,7 @@ func pythonStructuralClasses(source string, masked string) []structuralClass {
 			if strings.HasPrefix(trimmed, "self.") && strings.Contains(trimmed, "=") {
 				class.Fields = append(class.Fields, strings.TrimSpace(strings.SplitN(strings.TrimPrefix(trimmed, "self."), "=", 2)[0]))
 			}
-			if method := pythonStructuralMethod(rawLines, maskedLines, lineIdx, end, classIndent, class.Name); method.Name != "" {
+			if method := pythonStructuralMethod(maskedLines, lineIdx, end, classIndent, class.Name); method.Name != "" {
 				class.Methods = append(class.Methods, method)
 			}
 		}
@@ -219,7 +218,7 @@ func pythonStructuralClasses(source string, masked string) []structuralClass {
 	return classes
 }
 
-func pythonStructuralMethod(rawLines []string, maskedLines []string, lineIdx int, classEnd int, classIndent int, owner string) structuralFunction {
+func pythonStructuralMethod(maskedLines []string, lineIdx int, classEnd int, classIndent int, owner string) structuralFunction {
 	match := pythonMethodPattern.FindStringSubmatch(maskedLines[lineIdx])
 	if match == nil || len(match[1]) <= classIndent {
 		return structuralFunction{}

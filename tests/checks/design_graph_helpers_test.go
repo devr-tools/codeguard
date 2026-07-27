@@ -26,7 +26,7 @@ func assertFindingRuleAbsent(t *testing.T, report codeguard.Report, section stri
 		}
 		for _, finding := range result.Findings {
 			if finding.RuleID == ruleID {
-				t.Fatalf("section %q unexpectedly contains rule %q: %s", section, ruleID, finding.Message)
+				t.Fatalf("section %q unexpectedly contains rule %q at %s:%d: %s", section, ruleID, finding.Path, finding.Line, finding.Message)
 			}
 		}
 		return
