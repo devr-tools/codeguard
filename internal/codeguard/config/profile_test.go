@@ -25,6 +25,9 @@ type profileThresholds struct {
 	contracts               *bool
 	reliability             *bool
 	data                    *bool
+	observability           *bool
+	operations              *bool
+	delivery                *bool
 	change                  *bool
 	maxChangedFiles         int
 	maxChangedDirectories   int
@@ -55,6 +58,14 @@ func TestProfilesPreserveExpectedPolicyValues(t *testing.T) {
 }
 
 func expectedProfileThresholds() map[string]profileThresholds {
+	profiles := baselineAndStartupProfileThresholds()
+	for name, thresholds := range strictProfileThresholds() {
+		profiles[name] = thresholds
+	}
+	return profiles
+}
+
+func baselineAndStartupProfileThresholds() map[string]profileThresholds {
 	return map[string]profileThresholds{
 		"baseline": {
 			maxFileLines:            400,
@@ -70,6 +81,9 @@ func expectedProfileThresholds() map[string]profileThresholds {
 			requiredAutomationPaths: []string{"Makefile"},
 			reliability:             boolPtr(false),
 			data:                    boolPtr(false),
+			observability:           boolPtr(false),
+			operations:              boolPtr(false),
+			delivery:                boolPtr(false),
 			change:                  boolPtr(false),
 			maxChangedFiles:         25,
 			maxChangedDirectories:   8,
@@ -89,12 +103,20 @@ func expectedProfileThresholds() map[string]profileThresholds {
 			requiredAutomationPaths: []string{"Makefile"},
 			reliability:             boolPtr(false),
 			data:                    boolPtr(false),
+			observability:           boolPtr(false),
+			operations:              boolPtr(false),
+			delivery:                boolPtr(false),
 			change:                  boolPtr(false),
 			maxChangedFiles:         25,
 			maxChangedDirectories:   8,
 			maxChangedLines:         800,
 			minTestProdRatioPercent: 20,
 		},
+	}
+}
+
+func strictProfileThresholds() map[string]profileThresholds {
+	return map[string]profileThresholds{
 		"strict": {
 			maxFileLines:            300,
 			maxFunctionLines:        60,
@@ -110,6 +132,9 @@ func expectedProfileThresholds() map[string]profileThresholds {
 			contracts:               boolPtr(true),
 			reliability:             boolPtr(true),
 			data:                    boolPtr(false),
+			observability:           boolPtr(false),
+			operations:              boolPtr(false),
+			delivery:                boolPtr(false),
 			change:                  boolPtr(true),
 			maxChangedFiles:         25,
 			maxChangedDirectories:   8,
@@ -131,6 +156,9 @@ func expectedProfileThresholds() map[string]profileThresholds {
 			contracts:               boolPtr(true),
 			reliability:             boolPtr(true),
 			data:                    boolPtr(true),
+			observability:           boolPtr(true),
+			operations:              boolPtr(true),
+			delivery:                boolPtr(true),
 			change:                  boolPtr(true),
 			maxChangedFiles:         25,
 			maxChangedDirectories:   8,
@@ -151,6 +179,9 @@ func expectedProfileThresholds() map[string]profileThresholds {
 			requiredAutomationPaths: []string{"Makefile"},
 			reliability:             boolPtr(true),
 			data:                    boolPtr(true),
+			observability:           boolPtr(true),
+			operations:              boolPtr(false),
+			delivery:                boolPtr(true),
 			change:                  boolPtr(true),
 			maxChangedFiles:         20,
 			maxChangedDirectories:   6,
@@ -176,6 +207,9 @@ func profileThresholdsFromConfig(cfg core.Config) profileThresholds {
 		contracts:               cfg.Checks.Contracts,
 		reliability:             cfg.Checks.Reliability,
 		data:                    cfg.Checks.Data,
+		observability:           cfg.Checks.Observability,
+		operations:              cfg.Checks.Operations,
+		delivery:                cfg.Checks.Delivery,
 		change:                  cfg.Checks.Change,
 		maxChangedFiles:         cfg.Checks.ChangeRules.MaxChangedFiles,
 		maxChangedDirectories:   cfg.Checks.ChangeRules.MaxChangedDirectories,

@@ -36,6 +36,22 @@ func TestSDKRuleMetadataForTypeScriptRule(t *testing.T) {
 	assertLanguageCoverage(t, rule, codeguard.RuleLanguageCoverageFixed, codeguard.RuleLanguageTypeScript)
 }
 
+func TestSDKRuleMetadataForTypeScriptNamedJavaScriptDesignRules(t *testing.T) {
+	for _, ruleID := range []string{
+		"design.typescript.generic-module-name",
+		"design.typescript.max-methods-per-type",
+	} {
+		rule := requireRuleMetadata(t, ruleID)
+		assertLanguageCoverage(
+			t,
+			rule,
+			codeguard.RuleLanguageCoverageFixed,
+			codeguard.RuleLanguageJavaScript,
+			codeguard.RuleLanguageTypeScript,
+		)
+	}
+}
+
 func TestSDKRuleMetadataForCommandDrivenRule(t *testing.T) {
 	rule := requireRuleMetadata(t, "security.command-check")
 	assertExecutionModel(t, rule, codeguard.RuleExecutionModelCommandDriven)
@@ -131,6 +147,28 @@ func TestSDKRuleMetadataForRefactorRule(t *testing.T) {
 	)
 	if rule.FixTemplate.Kind != codeguard.FixTemplateKindGuided {
 		t.Fatalf("expected guided refactor fix template, got %q", rule.FixTemplate.Kind)
+	}
+}
+
+func TestSDKRuleMetadataForOperabilityAndDeliveryRules(t *testing.T) {
+	cases := []struct {
+		ruleID string
+	}{
+		{ruleID: "observability.sensitive-log-data"},
+		{ruleID: "operations.missing-runbook"},
+		{ruleID: "delivery.missing-rollback-strategy"},
+		{ruleID: "design.unreachable-module"},
+		{ruleID: "design.stability-direction"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.ruleID, func(t *testing.T) {
+			rule := requireRuleMetadata(t, tc.ruleID)
+			assertExecutionModel(t, rule, codeguard.RuleExecutionModelLanguageAgnostic)
+			if rule.FixTemplate.Kind == "" {
+				t.Fatalf("expected %s to expose a fix template", tc.ruleID)
+			}
+		})
 	}
 }
 

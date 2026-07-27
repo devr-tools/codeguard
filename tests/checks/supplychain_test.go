@@ -150,6 +150,36 @@ func TestSupplyChainFailsForMissingLockfile(t *testing.T) {
 	assertFindingRulePresent(t, report, "Supply Chain", "supply_chain.missing-lockfile")
 }
 
+func TestSupplyChainMissingProvenance(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "package.json"), `{"dependencies": {"react": "18.2.0"}}`)
+	writeFile(t, filepath.Join(dir, "package-lock.json"), `{"lockfileVersion": 3, "packages": {"node_modules/react": {"version": "18.2.0"}}}`)
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "release.yml"), "name: release\njobs:\n  publish:\n    steps:\n      - uses: docker/build-push-action@v6\n        with:\n          push: true\n")
+
+	report, err := codeguard.Run(context.Background(), supplyChainTestConfig(dir, "missing-provenance"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Supply Chain", "supply_chain.missing-provenance")
+}
+
+func TestSupplyChainAllowsProvenanceEvidence(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "package.json"), `{"dependencies": {"react": "18.2.0"}}`)
+	writeFile(t, filepath.Join(dir, "package-lock.json"), `{"lockfileVersion": 3, "packages": {"node_modules/react": {"version": "18.2.0"}}}`)
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "release.yml"), "name: release\njobs:\n  publish:\n    steps:\n      - uses: docker/build-push-action@v6\n        with:\n          push: true\n      - uses: actions/attest-build-provenance@v2\n")
+
+	report, err := codeguard.Run(context.Background(), supplyChainTestConfig(dir, "provenance-evidence"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	if messages := supplyChainRuleMessages(report, "supply_chain.missing-provenance"); len(messages) != 0 {
+		t.Fatalf("unexpected provenance findings: %v", messages)
+	}
+}
+
 func TestSupplyChainFailsForLockfileDriftInDiffMode(t *testing.T) {
 	dir := t.TempDir()
 	runGit(t, dir, "init", "-b", "main")

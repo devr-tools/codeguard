@@ -67,18 +67,30 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	if cfg.Checks.Data == nil {
 		cfg.Checks.Data = def.Checks.Data
 	}
+	if cfg.Checks.Observability == nil {
+		cfg.Checks.Observability = def.Checks.Observability
+	}
+	if cfg.Checks.Operations == nil {
+		cfg.Checks.Operations = def.Checks.Operations
+	}
 	if cfg.Checks.Change == nil {
 		cfg.Checks.Change = def.Checks.Change
+	}
+	if cfg.Checks.Delivery == nil {
+		cfg.Checks.Delivery = def.Checks.Delivery
 	}
 	applyQualityDefaults(&cfg.Checks.QualityRules, def.Checks.QualityRules)
 	applyPerformanceDefaults(&cfg.Checks.PerformanceRules)
 	applyDesignDefaults(&cfg.Checks.DesignRules, def.Checks.DesignRules)
 	applyPromptDefaults(&cfg.Checks.PromptRules, def.Checks.PromptRules)
 	applyCIDefaults(&cfg.Checks.CIRules, def.Checks.CIRules)
+	applyDeliveryDefaults(&cfg.Checks.DeliveryRules, def.Checks.DeliveryRules)
 	applySecurityDefaults(&cfg.Checks.SecurityRules, def.Checks.SecurityRules)
 	applySupplyChainDefaults(&cfg.Checks.SupplyChainRules, def.Checks.SupplyChainRules)
 	applyReliabilityDefaults(&cfg.Checks.ReliabilityRules, def.Checks.ReliabilityRules)
 	applyDataDefaults(&cfg.Checks.DataRules, def.Checks.DataRules)
+	applyObservabilityDefaults(&cfg.Checks.ObservabilityRules, def.Checks.ObservabilityRules)
+	applyOperationsDefaults(&cfg.Checks.OperationsRules, def.Checks.OperationsRules)
 	applyChangeDefaults(&cfg.Checks.ChangeRules, def.Checks.ChangeRules)
 	applyContextDefaults(&cfg.Checks.ContextRules, def.Checks.ContextRules)
 	applyContractDefaults(&cfg.Checks.ContractRules, def.Checks.ContractRules)

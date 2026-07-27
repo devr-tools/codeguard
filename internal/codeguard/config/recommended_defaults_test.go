@@ -51,6 +51,7 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 			want: core.CheckConfig{
 				Performance: trueValue,
 				SupplyChain: true,
+				Delivery:    falseValue,
 				Reliability: falseValue,
 				Data:        falseValue,
 				Change:      falseValue,
@@ -70,6 +71,7 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 				Security:               true,
 				Prompts:                true,
 				CI:                     true,
+				Delivery:               falseValue,
 				Reliability:            falseValue,
 				Data:                   falseValue,
 				Change:                 falseValue,
@@ -81,6 +83,7 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 				UseRecommendedDefaults: true,
 				Performance:            trueValue,
 				SupplyChain:            true,
+				Delivery:               trueValue,
 				Reliability:            trueValue,
 				Data:                   trueValue,
 				Change:                 trueValue,
@@ -94,6 +97,7 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 				CI:                     true,
 				Performance:            trueValue,
 				SupplyChain:            true,
+				Delivery:               trueValue,
 				Reliability:            trueValue,
 				Data:                   trueValue,
 				Change:                 trueValue,
@@ -111,7 +115,7 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 				Data:                   trueValue,
 				Change:                 trueValue,
 				Disabled: []string{
-					"quality", "performance", "design", "security", "prompts", "ci", "supply_chain", "reliability", "data", "change", "context", "contracts",
+					"quality", "performance", "design", "security", "prompts", "ci", "supply_chain", "delivery", "reliability", "data", "change", "context", "contracts",
 				},
 			},
 			want: core.CheckConfig{
@@ -119,11 +123,12 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 				Performance:            falseValue,
 				Context:                falseValue,
 				Contracts:              falseValue,
+				Delivery:               falseValue,
 				Reliability:            falseValue,
 				Data:                   falseValue,
 				Change:                 falseValue,
 				Disabled: []string{
-					"quality", "performance", "design", "security", "prompts", "ci", "supply_chain", "reliability", "data", "change", "context", "contracts",
+					"quality", "performance", "design", "security", "prompts", "ci", "supply_chain", "delivery", "reliability", "data", "change", "context", "contracts",
 				},
 			},
 		},
@@ -139,6 +144,7 @@ func sameCheckActivation(got, want core.CheckConfig) bool {
 		got.Prompts == want.Prompts &&
 		got.CI == want.CI &&
 		got.SupplyChain == want.SupplyChain &&
+		reflect.DeepEqual(got.Delivery, want.Delivery) &&
 		reflect.DeepEqual(got.Performance, want.Performance) &&
 		reflect.DeepEqual(got.Reliability, want.Reliability) &&
 		reflect.DeepEqual(got.Data, want.Data) &&

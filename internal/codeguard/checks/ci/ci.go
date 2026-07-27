@@ -24,6 +24,8 @@ func findingsForTarget(_ context.Context, env support.Context, target core.Targe
 	findings = append(findings, requiredPathFindings(env, target, env.Config.Checks.CIRules.RequiredReleaseFiles, "required release file is missing")...)
 	findings = append(findings, requiredPathFindings(env, target, env.Config.Checks.CIRules.RequiredAutomationPaths, "required automation path is missing")...)
 	findings = append(findings, workflowContentFindings(env, target)...)
+	findings = append(findings, missingRequiredGateFindings(env, target)...)
+	findings = append(findings, mutableDeploymentReferenceFindings(env, target)...)
 	findings = append(findings, testFileLocationFindings(env, target)...)
 	findings = append(findings, testQualityFindings(env, target)...)
 	return findings

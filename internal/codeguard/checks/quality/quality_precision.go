@@ -1,13 +1,13 @@
 package quality
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
+	"go/printer"
 	"go/token"
-	"os"
-	"path/filepath"
 	"regexp"
-	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -25,6 +25,14 @@ const (
 	defensiveUnsafeNumericConversionRuleID = "defensive.unsafe-numeric-conversion"
 	maintainabilityPublicSurfaceGrowthID   = "maintainability.public-surface-growth"
 	maintainabilityDependencyGrowthID      = "maintainability.dependency-growth"
+	qualityDuplicatedKnowledgeRuleID       = "quality.duplicated-knowledge"
+	qualityAmbiguousNameRuleID             = "quality.ambiguous-name"
+	qualityBooleanArgumentRuleID           = "quality.boolean-argument"
+	qualityMixedAbstractionLevelsRuleID    = "quality.mixed-abstraction-levels"
+	qualityPrimitiveObsessionRuleID        = "quality.primitive-obsession"
+	qualityHiddenSideEffectRuleID          = "quality.hidden-side-effect"
+	qualityMutableGlobalStateRuleID        = "quality.mutable-global-state"
+	qualityRedundantCommentRuleID          = "quality.redundant-comment"
 )
 
 var (
@@ -32,9 +40,18 @@ var (
 		"foo": {}, "bar": {}, "baz": {}, "qux": {},
 		"tmp": {}, "temp": {}, "thing": {}, "stuff": {}, "obj": {}, "misc": {},
 	}
+	ambiguousIdentifierNames = map[string]struct{}{
+		"data": {}, "manager": {}, "helper": {}, "helpers": {}, "process": {}, "processor": {},
+		"thing": {}, "item": {}, "items": {}, "obj": {}, "object": {}, "util": {}, "utils": {},
+		"misc": {}, "stuff": {}, "value": {}, "values": {},
+	}
 	queryFunctionPrefixPattern = regexp.MustCompile(`^(get|find|list|load|read|lookup|fetch|is|has|can|should|compute|calculate|build|format|parse)`)
 	mutatingCallPattern        = regexp.MustCompile(`(?i)(^|[.>:\-_])(add|append|assign|create|delete|emit|insert|mutate|persist|publish|remove|save|send|set|store|update|upsert|write)([A-Z_:\-.]|$)`)
 	lowLevelOperationPattern   = regexp.MustCompile(`(?i)(\bsql\.|\.query\(|\.exec\(|\bhttp\.|\bfetch\(|\baxios\.|\brequests\.|\bjson\.|\bJSON\.|\bos\.Getenv\b|\bprocess\.env\b|\bfs\.|#include\b)`)
+	primitiveTypePattern       = regexp.MustCompile(`(?i)\b(string|str|int|int64|float|float64|double|decimal|number|boolean|bool|char|long|short)\b`)
+	domainPrimitiveNamePattern = regexp.MustCompile(`(?i)(id|status|state|type|kind|currency|amount|price|email|phone|country|role|permission|tenant|account|customer|order)`)
+	mutableGlobalLinePattern   = regexp.MustCompile(`(?m)^\s*(?:export\s+)?(?:let|var)\s+[A-Za-z_$][\w$]*\s*=|^\s*[A-Za-z_]\w*\s*=`)
+	redundantCommentPattern    = regexp.MustCompile(`(?i)^\s*(//|#)\s*(get|set|create|delete|update|save|return|initialize|validate|parse|build|handle)\b`)
 	goPublicDeclPattern        = regexp.MustCompile(`(?m)^(?:func|type|var|const)\s+(?:\([^)]*\)\s*)?([A-Z][A-Za-z0-9_]*)\b`)
 	pythonPublicDeclPattern    = regexp.MustCompile(`(?m)^class\s+([A-Za-z]\w*)\b|^def\s+([A-Za-z]\w*)\s*\(`)
 	tsPublicDeclPattern        = regexp.MustCompile(`(?m)^export\s+(?:declare\s+)?(?:async\s+)?(?:class|interface|type|enum|function|const|let|var)\s+([A-Za-z_$][\w$]*)\b`)
@@ -92,9 +109,13 @@ func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, 
 			}
 		case *ast.GenDecl:
 			findings = append(findings, goGenericDeclFindings(env, file, fset, node)...)
+			findings = append(findings, goMutableGlobalFindings(env, file, fset, node)...)
+			findings = append(findings, goDuplicatedKnowledgeFindings(env, file, fset, node)...)
 		}
 		return true
 	})
+	findings = append(findings, redundantCommentFindings(env, file, string(data))...)
+	findings = append(findings, sourceDuplicatedKnowledgeFindings(env, file, string(data))...)
 	return findings
 }
 
@@ -144,9 +165,7 @@ func goParsedParams(fn *ast.FuncDecl) []support.ParsedParam {
 	params := make([]support.ParsedParam, 0)
 	for _, field := range fn.Type.Params.List {
 		typ := ""
-		if field.Type != nil {
-			typ = fmt.Sprintf("%T", field.Type)
-		}
+		typ = goExprText(field.Type)
 		for _, name := range field.Names {
 			params = append(params, support.ParsedParam{Name: name.Name, Type: typ})
 		}
@@ -155,6 +174,15 @@ func goParsedParams(fn *ast.FuncDecl) []support.ParsedParam {
 		}
 	}
 	return params
+}
+
+func goExprText(expr ast.Expr) string {
+	if expr == nil {
+		return ""
+	}
+	var buf bytes.Buffer
+	_ = printer.Fprint(&buf, token.NewFileSet(), expr)
+	return buf.String()
 }
 
 func goFuncReturnsValue(fn *ast.FuncDecl) bool {
@@ -201,6 +229,52 @@ func goGenericDeclFindings(env support.Context, file string, fset *token.FileSet
 		}
 	}
 	return findings
+}
+
+func goMutableGlobalFindings(env support.Context, file string, fset *token.FileSet, decl *ast.GenDecl) []core.Finding {
+	if decl.Tok != token.VAR || isQualityFixturePath(file) {
+		return nil
+	}
+	findings := make([]core.Finding, 0)
+	for _, spec := range decl.Specs {
+		value, ok := spec.(*ast.ValueSpec)
+		if !ok {
+			continue
+		}
+		for _, name := range value.Names {
+			if strings.HasPrefix(strings.ToLower(name.Name), "err") {
+				continue
+			}
+			findings = append(findings, precisionWarnFinding(env, qualityMutableGlobalStateRuleID, file, fset.Position(name.Pos()).Line,
+				fmt.Sprintf("mutable package-level variable %q makes behavior harder to isolate and test", name.Name), core.ConfidenceHigh))
+		}
+	}
+	return findings
+}
+
+func goDuplicatedKnowledgeFindings(env support.Context, file string, fset *token.FileSet, decl *ast.GenDecl) []core.Finding {
+	if decl.Tok != token.CONST || isQualityFixturePath(file) {
+		return nil
+	}
+	seen := map[string]token.Pos{}
+	for _, spec := range decl.Specs {
+		value, ok := spec.(*ast.ValueSpec)
+		if !ok {
+			continue
+		}
+		for _, expr := range value.Values {
+			lit, ok := expr.(*ast.BasicLit)
+			if !ok || !domainKnowledgeLiteral(lit.Value) {
+				continue
+			}
+			if first, exists := seen[lit.Value]; exists {
+				return []core.Finding{precisionWarnFinding(env, qualityDuplicatedKnowledgeRuleID, file, fset.Position(expr.Pos()).Line,
+					fmt.Sprintf("business literal is duplicated near line %d; centralize shared domain knowledge", fset.Position(first).Line), core.ConfidenceLow)}
+			}
+			seen[lit.Value] = expr.Pos()
+		}
+	}
+	return nil
 }
 
 func goDefensiveFindings(env support.Context, file string, fset *token.FileSet, body *ast.BlockStmt) []core.Finding {
@@ -272,6 +346,11 @@ func parsedPrecisionFindings(env support.Context, file string, parsed *support.P
 		findings = append(findings, precisionFunctionFindings(env, file, parsedPrecisionFunction(fn))...)
 	}
 	findings = append(findings, parsedDefensiveFindings(env, file, parsed)...)
+	findings = append(findings, parsedMutableGlobalFindings(env, file, parsed)...)
+	findings = append(findings, parsedDuplicatedKnowledgeFindings(env, file, parsed)...)
+	findings = append(findings, sourceMutableGlobalFindings(env, file, parsed.Source)...)
+	findings = append(findings, sourceDuplicatedKnowledgeFindings(env, file, parsed.Source)...)
+	findings = append(findings, redundantCommentFindings(env, file, parsed.Source)...)
 	return findings
 }
 
@@ -300,10 +379,22 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, fn.StartLine,
 			fmt.Sprintf("function name %q is too generic to communicate intent", fn.Name), core.ConfidenceHigh))
 	}
+	if isAmbiguousIdentifier(fn.Name) {
+		findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, fn.StartLine,
+			fmt.Sprintf("function name %q is ambiguous without domain context", fn.Name), core.ConfidenceHigh))
+	}
 	for _, param := range fn.Params {
 		if isGenericIdentifier(param.Name) {
 			findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, fn.StartLine,
 				fmt.Sprintf("parameter %q is too generic to communicate intent", param.Name), core.ConfidenceHigh))
+		}
+		if isAmbiguousIdentifier(param.Name) {
+			findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, fn.StartLine,
+				fmt.Sprintf("parameter %q is ambiguous without domain context", param.Name), core.ConfidenceHigh))
+		}
+		if isBooleanParameter(param) && !isAllowedBooleanArgumentFunction(fn.Name) {
+			findings = append(findings, precisionWarnFinding(env, qualityBooleanArgumentRuleID, file, fn.StartLine,
+				fmt.Sprintf("boolean parameter %q hides behavior behind a flag", param.Name), core.ConfidenceHigh))
 		}
 	}
 	for _, assignment := range fn.Assignments {
@@ -311,14 +402,28 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 			findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, assignment.Line,
 				fmt.Sprintf("identifier %q is too generic to explain its role", assignment.Name), core.ConfidenceHigh))
 		}
+		if isAmbiguousIdentifier(assignment.Name) {
+			findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, assignment.Line,
+				fmt.Sprintf("identifier %q is ambiguous without domain context", assignment.Name), core.ConfidenceHigh))
+		}
 	}
 	if mixedAbstractionLevel(fn) {
 		findings = append(findings, precisionWarnFinding(env, functionMixedAbstractionLevelRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mixes orchestration calls with low-level infrastructure operations", fn.Name), core.ConfidenceMedium))
+		findings = append(findings, precisionWarnFinding(env, qualityMixedAbstractionLevelsRuleID, file, fn.StartLine,
+			fmt.Sprintf("function %s mixes domain intent with low-level implementation details", fn.Name), core.ConfidenceMedium))
 	}
 	if commandQueryMix(fn) {
 		findings = append(findings, precisionWarnFinding(env, functionCommandQueryMixRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s returns a value while also invoking mutating side-effect operations", fn.Name), core.ConfidenceMedium))
+	}
+	if primitiveObsession(fn) {
+		findings = append(findings, precisionWarnFinding(env, qualityPrimitiveObsessionRuleID, file, fn.StartLine,
+			fmt.Sprintf("function %s passes several domain concepts as raw primitives", fn.Name), core.ConfidenceMedium))
+	}
+	if hiddenSideEffect(fn) {
+		findings = append(findings, precisionWarnFinding(env, qualityHiddenSideEffectRuleID, file, fn.StartLine,
+			fmt.Sprintf("function %s name implies a query/build operation but it performs side effects", fn.Name), core.ConfidenceMedium))
 	}
 	findings = append(findings, errorHandlingFindings(env, file, fn)...)
 	return findings
@@ -331,6 +436,51 @@ func isGenericIdentifier(name string) bool {
 	}
 	_, ok := genericIdentifierNames[strings.ToLower(name)]
 	return ok
+}
+
+func isAmbiguousIdentifier(name string) bool {
+	name = strings.Trim(name, "_$")
+	if name == "" {
+		return false
+	}
+	_, ok := ambiguousIdentifierNames[strings.ToLower(name)]
+	return ok
+}
+
+func isBooleanParameter(param support.ParsedParam) bool {
+	return strings.EqualFold(strings.TrimSpace(param.Type), "bool") ||
+		strings.EqualFold(strings.TrimSpace(param.Type), "boolean") ||
+		strings.Contains(strings.ToLower(param.Type), " bool") ||
+		strings.Contains(strings.ToLower(param.Type), ": boolean")
+}
+
+func isAllowedBooleanArgumentFunction(name string) bool {
+	lowered := strings.ToLower(name)
+	return strings.HasPrefix(lowered, "set") || strings.HasPrefix(lowered, "with") ||
+		strings.HasPrefix(lowered, "enable") || strings.HasPrefix(lowered, "disable") ||
+		strings.Contains(lowered, "option")
+}
+
+func primitiveObsession(fn precisionFunction) bool {
+	count := 0
+	for _, param := range fn.Params {
+		if primitiveTypePattern.MatchString(param.Type) && domainPrimitiveNamePattern.MatchString(param.Name) {
+			count++
+		}
+	}
+	return count >= 3
+}
+
+func hiddenSideEffect(fn precisionFunction) bool {
+	if !queryFunctionPrefixPattern.MatchString(strings.ToLower(fn.Name)) {
+		return false
+	}
+	for _, call := range fn.Calls {
+		if mutatingCallPattern.MatchString(call.Callee) {
+			return true
+		}
+	}
+	return false
 }
 
 func mixedAbstractionLevel(fn precisionFunction) bool {
@@ -454,6 +604,129 @@ func defensiveStatementFindings(env support.Context, file string, statement supp
 	return findings
 }
 
+func parsedMutableGlobalFindings(env support.Context, file string, parsed *support.ParsedFile) []core.Finding {
+	if isQualityFixturePath(file) {
+		return nil
+	}
+	findings := make([]core.Finding, 0)
+	for _, statement := range parsed.Module.Statements {
+		text := strings.TrimSpace(statement.Text)
+		if text == "" || strings.HasPrefix(text, "const ") || strings.HasPrefix(text, "final ") {
+			continue
+		}
+		if mutableGlobalLinePattern.MatchString(text) {
+			findings = append(findings, precisionWarnFinding(env, qualityMutableGlobalStateRuleID, file, statement.Line,
+				"mutable module-level state makes behavior harder to isolate and test", core.ConfidenceHigh))
+		}
+	}
+	return findings
+}
+
+func parsedDuplicatedKnowledgeFindings(env support.Context, file string, parsed *support.ParsedFile) []core.Finding {
+	if isQualityFixturePath(file) {
+		return nil
+	}
+	seen := map[string]int{}
+	for _, statement := range parsed.Module.Statements {
+		for _, literal := range domainKnowledgeLiterals(statement.Raw) {
+			if first, exists := seen[literal]; exists {
+				return []core.Finding{precisionWarnFinding(env, qualityDuplicatedKnowledgeRuleID, file, statement.Line,
+					fmt.Sprintf("business literal is duplicated near line %d; centralize shared domain knowledge", first), core.ConfidenceLow)}
+			}
+			seen[literal] = statement.Line
+		}
+	}
+	return nil
+}
+
+func redundantCommentFindings(env support.Context, file string, source string) []core.Finding {
+	if isQualityFixturePath(file) {
+		return nil
+	}
+	lines := strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
+	for idx := 0; idx+1 < len(lines); idx++ {
+		comment := strings.TrimSpace(lines[idx])
+		next := strings.TrimSpace(lines[idx+1])
+		if !redundantCommentPattern.MatchString(comment) || next == "" {
+			continue
+		}
+		verb := redundantCommentVerb(comment)
+		if verb != "" && strings.Contains(strings.ToLower(next), verb) {
+			return []core.Finding{precisionWarnFinding(env, qualityRedundantCommentRuleID, file, idx+1,
+				"comment restates the next line without adding design intent or constraints", core.ConfidenceLow)}
+		}
+	}
+	return nil
+}
+
+func sourceMutableGlobalFindings(env support.Context, file string, source string) []core.Finding {
+	if isQualityFixturePath(file) {
+		return nil
+	}
+	for idx, line := range strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") ||
+			strings.HasPrefix(trimmed, "const ") || strings.HasPrefix(trimmed, "final ") {
+			continue
+		}
+		if mutableGlobalLinePattern.MatchString(trimmed) && !strings.Contains(trimmed, " := ") {
+			return []core.Finding{precisionWarnFinding(env, qualityMutableGlobalStateRuleID, file, idx+1,
+				"mutable module-level state makes behavior harder to isolate and test", core.ConfidenceHigh)}
+		}
+	}
+	return nil
+}
+
+func sourceDuplicatedKnowledgeFindings(env support.Context, file string, source string) []core.Finding {
+	if isQualityFixturePath(file) {
+		return nil
+	}
+	seen := map[string]int{}
+	for idx, line := range strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		for _, literal := range domainKnowledgeLiterals(line) {
+			if first, exists := seen[literal]; exists {
+				return []core.Finding{precisionWarnFinding(env, qualityDuplicatedKnowledgeRuleID, file, idx+1,
+					fmt.Sprintf("business literal is duplicated near line %d; centralize shared domain knowledge", first), core.ConfidenceLow)}
+			}
+			seen[literal] = idx + 1
+		}
+	}
+	return nil
+}
+
+func redundantCommentVerb(comment string) string {
+	match := redundantCommentPattern.FindStringSubmatch(comment)
+	if len(match) < 3 {
+		return ""
+	}
+	return strings.ToLower(match[2])
+}
+
+func domainKnowledgeLiterals(line string) []string {
+	matches := regexp.MustCompile(`"([^"]{2,80})"|'([^']{2,80})'|\b\d+(?:\.\d+)?\b`).FindAllString(line, -1)
+	out := make([]string, 0, len(matches))
+	for _, match := range matches {
+		if domainKnowledgeLiteral(match) {
+			out = append(out, match)
+		}
+	}
+	return out
+}
+
+func domainKnowledgeLiteral(value string) bool {
+	trimmed := strings.Trim(value, `"'`)
+	if trimmed == "" || len(trimmed) > 80 {
+		return false
+	}
+	if _, err := strconv.Atoi(trimmed); err == nil {
+		return true
+	}
+	return domainPrimitiveNamePattern.MatchString(trimmed) || strings.Contains(trimmed, "_")
+}
+
 func unsafeScriptNumericConversion(text string) bool {
 	lowered := strings.ToLower(text)
 	return strings.Contains(lowered, "static_cast<int8_t>") ||
@@ -463,191 +736,4 @@ func unsafeScriptNumericConversion(text string) bool {
 		strings.Contains(lowered, "static_cast<uint16_t>") ||
 		strings.Contains(lowered, "static_cast<uint32_t>") ||
 		strings.Contains(lowered, "number(") && strings.Contains(lowered, "bigint")
-}
-
-func maintainabilityDeltaFindings(env support.Context, target core.TargetConfig) []core.Finding {
-	if env.Mode != core.ScanModeDiff || env.ReadBaseFile == nil {
-		return nil
-	}
-	changed := changedFilesForTarget(env, target)
-	if len(changed) == 0 {
-		return nil
-	}
-	findings := make([]core.Finding, 0)
-	for _, rel := range changed {
-		if !qualityPrecisionSupportsFile(target.Language, rel) {
-			continue
-		}
-		current, ok := readCurrentTargetFile(env, target, rel)
-		if !ok {
-			continue
-		}
-		base, err := env.ReadBaseFile(target, rel)
-		if err != nil {
-			continue
-		}
-		line := deltaFindingLine(env, rel)
-		findings = append(findings, publicSurfaceGrowthFinding(env, target, rel, base, current, line)...)
-		findings = append(findings, dependencyGrowthFinding(env, target, rel, base, current, line)...)
-	}
-	return findings
-}
-
-func changedFilesForTarget(env support.Context, target core.TargetConfig) []string {
-	seen := map[string]struct{}{}
-	if env.ListChangedFiles != nil {
-		if changed, err := env.ListChangedFiles(target); err == nil {
-			for _, file := range changed {
-				if file.Status == core.ChangedFileDeleted {
-					continue
-				}
-				seen[filepath.ToSlash(file.Path)] = struct{}{}
-			}
-		}
-	}
-	if len(seen) == 0 && env.DiffScope != nil {
-		for rel := range env.DiffScope() {
-			seen[filepath.ToSlash(rel)] = struct{}{}
-		}
-	}
-	paths := make([]string, 0, len(seen))
-	for rel := range seen {
-		paths = append(paths, rel)
-	}
-	sort.Strings(paths)
-	return paths
-}
-
-func readCurrentTargetFile(env support.Context, target core.TargetConfig, rel string) ([]byte, bool) {
-	if env.ReadTargetFile != nil {
-		if data, err := env.ReadTargetFile(target, rel); err == nil {
-			return data, true
-		}
-	}
-	data, err := os.ReadFile(filepath.Join(target.Path, filepath.FromSlash(rel))) //nolint:gosec // rel comes from the scan's own changed-file list
-	return data, err == nil
-}
-
-func deltaFindingLine(env support.Context, rel string) int {
-	if env.DiffScope == nil {
-		return 1
-	}
-	scope := env.DiffScope()[filepath.ToSlash(rel)]
-	if scope.AllChanged {
-		return 1
-	}
-	for _, r := range scope.Ranges {
-		if r[0] > 0 {
-			return r[0]
-		}
-	}
-	return 1
-}
-
-func publicSurfaceGrowthFinding(env support.Context, target core.TargetConfig, rel string, base []byte, current []byte, line int) []core.Finding {
-	baseCount := publicSurfaceCount(target.Language, rel, string(base))
-	currentCount := publicSurfaceCount(target.Language, rel, string(current))
-	if currentCount <= baseCount {
-		return nil
-	}
-	return []core.Finding{precisionWarnFinding(env, maintainabilityPublicSurfaceGrowthID, rel, line,
-		fmt.Sprintf("public surface grew from %d to %d symbols in this file; keep new exported API intentional", baseCount, currentCount),
-		core.ConfidenceHigh)}
-}
-
-func dependencyGrowthFinding(env support.Context, target core.TargetConfig, rel string, base []byte, current []byte, line int) []core.Finding {
-	baseCount := len(dependencySet(target.Language, rel, string(base)))
-	currentCount := len(dependencySet(target.Language, rel, string(current)))
-	if currentCount <= baseCount {
-		return nil
-	}
-	return []core.Finding{precisionWarnFinding(env, maintainabilityDependencyGrowthID, rel, line,
-		fmt.Sprintf("direct dependencies grew from %d to %d in this file; verify the added dependency surface is necessary", baseCount, currentCount),
-		core.ConfidenceHigh)}
-}
-
-func qualityPrecisionSupportsFile(language string, rel string) bool {
-	switch support.NormalizedLanguage(language) {
-	case "", "go":
-		return strings.HasSuffix(rel, ".go")
-	case "python":
-		return strings.HasSuffix(rel, ".py")
-	case "typescript", "javascript":
-		return isTypeScriptLikeFile(rel)
-	case "c++", "cpp":
-		return strings.HasSuffix(rel, ".cpp") || strings.HasSuffix(rel, ".cc") || strings.HasSuffix(rel, ".cxx") ||
-			strings.HasSuffix(rel, ".hpp") || strings.HasSuffix(rel, ".hh") || strings.HasSuffix(rel, ".h")
-	default:
-		return false
-	}
-}
-
-func publicSurfaceCount(language string, rel string, source string) int {
-	switch support.NormalizedLanguage(language) {
-	case "", "go":
-		return len(goPublicDeclPattern.FindAllStringSubmatch(source, -1))
-	case "python":
-		count := 0
-		for _, match := range pythonPublicDeclPattern.FindAllStringSubmatch(source, -1) {
-			name := firstNonEmptyString(match[1], match[2])
-			if name != "" && !strings.HasPrefix(name, "_") {
-				count++
-			}
-		}
-		return count
-	case "typescript", "javascript":
-		return len(tsPublicDeclPattern.FindAllStringSubmatch(source, -1))
-	case "c++", "cpp":
-		if !strings.HasSuffix(rel, ".h") && !strings.HasSuffix(rel, ".hh") && !strings.HasSuffix(rel, ".hpp") {
-			return 0
-		}
-		return len(cppPublicDeclPattern.FindAllStringSubmatch(source, -1))
-	default:
-		return 0
-	}
-}
-
-func dependencySet(language string, rel string, source string) map[string]struct{} {
-	deps := map[string]struct{}{}
-	switch support.NormalizedLanguage(language) {
-	case "", "go":
-		if fset, parsed, err := support.ParseGoSource(support.Context{}, rel, []byte(source)); err == nil {
-			_ = fset
-			for _, imp := range parsed.Imports {
-				deps[strings.Trim(imp.Path.Value, `"`)] = struct{}{}
-			}
-		}
-	case "python":
-		for _, imp := range support.ParsePython(source).Imports {
-			deps[firstNonEmptyString(imp.Module, imp.Name, imp.Alias)] = struct{}{}
-		}
-	case "typescript", "javascript":
-		for _, imp := range support.ParseCLike(source, support.CLikeTypeScript).Imports {
-			deps[imp.Module] = struct{}{}
-		}
-	case "c++", "cpp":
-		for _, match := range cppIncludePattern.FindAllStringSubmatch(source, -1) {
-			deps[match[1]] = struct{}{}
-		}
-	}
-	return deps
-}
-
-func isQualityFixturePath(path string) bool {
-	normalized := strings.ToLower(filepath.ToSlash(path))
-	if strings.Contains(normalized, "/testdata/") || strings.Contains(normalized, "/fixtures/") || strings.Contains(normalized, "/__fixtures__/") {
-		return true
-	}
-	return strings.HasSuffix(normalized, "_test.go") || strings.HasSuffix(normalized, "_test.py") ||
-		strings.HasSuffix(normalized, ".test.ts") || strings.HasSuffix(normalized, ".spec.ts") ||
-		strings.HasSuffix(normalized, ".test.js") || strings.HasSuffix(normalized, ".spec.js")
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }

@@ -70,6 +70,23 @@ func Process(repo Repo, bus Bus, user User) error {
 	assertFindingRulePresent(t, report, "Change Safety", "refactor.side-effect-order-changed")
 }
 
+func TestRefactorDetectsBehaviorErrorAndSideEffectOrderAcrossNonGoLanguages(t *testing.T) {
+	for _, tc := range refactorBehaviorCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := initChangeRepo(t)
+			writeFile(t, filepath.Join(dir, tc.path), tc.before)
+			commitAll(t, dir, "base")
+			writeFile(t, filepath.Join(dir, tc.path), tc.after)
+
+			report := runChangeDiff(t, refactorTestConfig(t, dir, tc.language))
+
+			assertFindingRulePresent(t, report, "Change Safety", "refactor.behavior-change-detected")
+			assertFindingRulePresent(t, report, "Change Safety", "refactor.error-path-changed")
+			assertFindingRulePresent(t, report, "Change Safety", "refactor.side-effect-order-changed")
+		})
+	}
+}
+
 func TestRefactorDetectsPublicContractAndVisibilityExpansion(t *testing.T) {
 	dir := initChangeRepo(t)
 	writeFile(t, filepath.Join(dir, "pkg", "client", "api.go"), `package client
@@ -129,6 +146,13 @@ func TestRefactorDetectsDependencyDirectionWorsenedAcrossLanguages(t *testing.T)
 		before   string
 		after    string
 	}{
+		{
+			name:     "go",
+			language: "go",
+			path:     "internal/domain/order.go",
+			before:   "package domain\n\nfunc Total(value int) int {\n\treturn value\n}\n",
+			after:    "package domain\n\nimport \"net/http\"\n\nfunc Total(value int) int {\n\t_ = http.DefaultClient\n\treturn value\n}\n",
+		},
 		{
 			name:     "python",
 			language: "python",
@@ -275,4 +299,45 @@ func refactorTestConfig(t *testing.T, dir string, language string) codeguard.Con
 	cfg.Checks.ChangeRules.DetectHardwiredDependency = boolValue(false)
 	cfg.Checks.ChangeRules.DetectNondeterministicDomain = boolValue(false)
 	return cfg
+}
+
+type refactorBehaviorCase struct {
+	name     string
+	language string
+	path     string
+	before   string
+	after    string
+}
+
+func refactorBehaviorCases() []refactorBehaviorCase {
+	return []refactorBehaviorCase{
+		{
+			name:     "python",
+			language: "python",
+			path:     "app/refactor_processor.py",
+			before:   "def process(repo, bus, allowed):\n    if not allowed:\n        raise Exception('denied')\n    repo.save()\n    bus.publish('saved')\n    return True\n",
+			after:    "def process(repo, bus, allowed):\n    if not allowed:\n        return True\n    bus.publish('saved')\n    repo.save()\n    return True\n",
+		},
+		{
+			name:     "typescript",
+			language: "typescript",
+			path:     "src/refactorProcessor.ts",
+			before:   "export function process(repo, bus, allowed) {\n  if (!allowed) { throw new Error('denied') }\n  repo.save()\n  bus.publish('saved')\n  return true\n}\n",
+			after:    "export function process(repo, bus, allowed) {\n  if (!allowed) { return true }\n  bus.publish('saved')\n  repo.save()\n  return true\n}\n",
+		},
+		{
+			name:     "javascript",
+			language: "javascript",
+			path:     "src/refactorProcessor.js",
+			before:   "export function process(repo, bus, allowed) {\n  if (!allowed) { throw new Error('denied') }\n  repo.save()\n  bus.publish('saved')\n  return true\n}\n",
+			after:    "export function process(repo, bus, allowed) {\n  if (!allowed) { return true }\n  bus.publish('saved')\n  repo.save()\n  return true\n}\n",
+		},
+		{
+			name:     "cpp",
+			language: "c++",
+			path:     "src/refactor_processor.cpp",
+			before:   "bool Process(Repo& repo, Bus& bus, bool allowed) {\n  if (!allowed) { throw std::runtime_error(\"denied\"); }\n  repo.Save();\n  bus.Publish(\"saved\");\n  return true;\n}\n",
+			after:    "bool Process(Repo& repo, Bus& bus, bool allowed) {\n  if (!allowed) { return true; }\n  bus.Publish(\"saved\");\n  repo.Save();\n  return true;\n}\n",
+		},
+	}
 }

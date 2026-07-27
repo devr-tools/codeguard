@@ -92,6 +92,26 @@ var sectionRegistry = []sectionDef{
 		},
 	},
 	{
+		id:   "observability",
+		name: "Observability",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Observability != nil && *sc.Cfg.Checks.Observability
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return qualityCheck.RunObservability(ctx, checkEnv)
+		},
+	},
+	{
+		id:   "operations",
+		name: "Operations",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Operations != nil && *sc.Cfg.Checks.Operations
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return qualityCheck.RunOperations(ctx, checkEnv)
+		},
+	},
+	{
 		id:      "design",
 		name:    "Design",
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.Design },
@@ -121,6 +141,16 @@ var sectionRegistry = []sectionDef{
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.CI },
 		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return ciCheck.Run(ctx, checkEnv)
+		},
+	},
+	{
+		id:   "delivery",
+		name: "Delivery",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Delivery != nil && *sc.Cfg.Checks.Delivery
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return ciCheck.RunDelivery(ctx, checkEnv)
 		},
 	},
 	{

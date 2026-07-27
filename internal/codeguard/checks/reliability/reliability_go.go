@@ -26,6 +26,7 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 		}
 		return true
 	})
+	findings = append(findings, partialFailureHiddenFindings(env, file, data)...)
 
 	return support.DedupeFindings(findings, func(finding core.Finding) string {
 		return finding.RuleID + "|" + finding.Path + "|" + fmt.Sprintf("%d", finding.Line) + "|" + finding.Message

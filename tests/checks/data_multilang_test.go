@@ -313,3 +313,143 @@ void HandleMessage(Email& email, Event event) {
 	assertFindingRuleAbsent(t, report, "Data Correctness", "data.cache-without-policy")
 	assertFindingRuleAbsent(t, report, "Data Correctness", "data.exactly-once-assumption")
 }
+
+func TestDataDetectsReadModifyWriteRaceAcrossNonGoLanguages(t *testing.T) {
+	cases := []struct {
+		name     string
+		language string
+		file     string
+		source   string
+	}{
+		{
+			name:     "python",
+			language: "python",
+			file:     "counter.py",
+			source: `
+def increment(repo):
+    current = repo.query("SELECT count FROM counters WHERE id = 1")
+    repo.update(current + 1)
+`,
+		},
+		{
+			name:     "typescript",
+			language: "typescript",
+			file:     "counter.ts",
+			source: `
+async function increment(db) {
+  const current = await db.counter.findUnique({ where: { id: 1 } });
+  await db.counter.update({ data: { count: current.count + 1 } });
+}
+`,
+		},
+		{
+			name:     "javascript",
+			language: "javascript",
+			file:     "counter.js",
+			source: `
+async function increment(db) {
+  const current = await db.counter.findUnique({ where: { id: 1 } });
+  await db.counter.update({ data: { count: current.count + 1 } });
+}
+`,
+		},
+		{
+			name:     "cpp",
+			language: "cpp",
+			file:     "counter.cpp",
+			source: `
+void Increment(DB& db) {
+  auto current = db.findCounter(id);
+  db.updateCounter(id, current.count + 1);
+}
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), tc.source)
+
+			report, err := codeguard.Run(context.Background(), dataLangConfig("data-rmw-"+tc.name, dir, tc.language))
+			if err != nil {
+				t.Fatalf("run: %v", err)
+			}
+
+			assertFindingRulePresent(t, report, "Data Correctness", "data.read-modify-write-race")
+		})
+	}
+}
+
+func TestDataDetectsSideEffectInTransactionAcrossNonGoLanguages(t *testing.T) {
+	cases := []struct {
+		name     string
+		language string
+		file     string
+		source   string
+	}{
+		{
+			name:     "python",
+			language: "python",
+			file:     "transaction.py",
+			source: `
+def save(repo, bus):
+    with transaction.atomic():
+        repo.save(order)
+        bus.publish(event)
+`,
+		},
+		{
+			name:     "typescript",
+			language: "typescript",
+			file:     "transaction.ts",
+			source: `
+async function save(db, bus) {
+  await db.$transaction(async (tx) => {
+    await tx.order.create({});
+    await bus.publish(event);
+  });
+}
+`,
+		},
+		{
+			name:     "javascript",
+			language: "javascript",
+			file:     "transaction.js",
+			source: `
+async function save(db, bus) {
+  await db.$transaction(async (tx) => {
+    await tx.order.create({});
+    await bus.publish(event);
+  });
+}
+`,
+		},
+		{
+			name:     "cpp",
+			language: "cpp",
+			file:     "transaction.cpp",
+			source: `
+void Save(DB& db, Bus& bus) {
+  auto txn = db.begin_tx();
+  repo.save(txn, order);
+  bus.publish(event);
+}
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), tc.source)
+
+			report, err := codeguard.Run(context.Background(), dataLangConfig("data-side-effect-tx-"+tc.name, dir, tc.language))
+			if err != nil {
+				t.Fatalf("run: %v", err)
+			}
+
+			assertFindingRulePresent(t, report, "Data Correctness", "data.side-effect-in-transaction")
+		})
+	}
+}

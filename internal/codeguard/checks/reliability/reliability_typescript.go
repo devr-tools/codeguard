@@ -50,6 +50,7 @@ func typeScriptFindingsForFile(env support.Context, file string, data []byte) []
 			}
 		}
 	}
+	scan.findings = append(scan.findings, partialFailureHiddenFindings(env, file, data)...)
 	return scan.findings
 }
 

@@ -9,7 +9,7 @@ import (
 
 var recognizedDisabledChecks = map[string]struct{}{
 	"quality": {}, "performance": {}, "design": {}, "security": {}, "prompts": {},
-	"ci": {}, "supply_chain": {}, "reliability": {}, "data": {}, "change": {}, "context": {}, "contracts": {},
+	"ci": {}, "supply_chain": {}, "delivery": {}, "reliability": {}, "data": {}, "change": {}, "context": {}, "contracts": {},
 }
 
 func validateDisabledChecks(disabled []string) error {

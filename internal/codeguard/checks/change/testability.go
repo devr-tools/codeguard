@@ -4,13 +4,17 @@ package change
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/history"
 )
 
 var (
@@ -19,6 +23,13 @@ var (
 	failureTestPattern      = regexp.MustCompile(`\b(error|err|fail|failure|exception|except|throw|raise|reject|timeout|unauthorized|forbidden|denied|fallback|retry|rollback|mock|stub|fake)\b`)
 	hardwiredPattern        = regexp.MustCompile(`\b(http\.defaultclient|http\.(get|post|do)|httpx\.client|requests\.(get|post|put|delete)|axios\.|fetch\(|sql\.open|boto3\.client|new\s+[a-z0-9_]*client|new[a-z0-9_]*client\(|os\.(open|create|readfile|writefile)|open\(|fs\.(readfilesync|writefilesync)|std::(ifstream|ofstream|filesystem)|exec\.command|subprocess\.(run|popen)|process\.env|std::getenv)`)
 	nondeterministicPattern = regexp.MustCompile(`\b(time\.now|date\.now|new\s+date\(|math\.random|rand\.|random\.|uuid\.|datetime\.(now|today)|time\.time|os\.getenv|process\.env|std::chrono::system_clock::now|std::random_device|std::getenv|getenv\()`)
+)
+
+const (
+	legacyHotspotHistoryMaxCommits = 200
+	legacyHotspotMinCommits        = 4
+	legacyHotspotMinChurn          = 25
+	legacyHotspotMinDefectCommits  = 1
 )
 
 type testabilityEvidence struct {
@@ -56,6 +67,10 @@ func testabilityTargetFindings(ctx context.Context, env support.Context, target 
 
 	testFiles, testHasFailureEvidence := changedTestEvidence(ctx, env, target, changed)
 	hasChangedTests := len(testFiles) > 0
+	legacyHotspots := map[string]history.FileChangeMetrics{}
+	if enabled(env.Config.Checks.ChangeRules.DetectLegacyHotspotUncovered) && !hasChangedTests {
+		legacyHotspots = legacyHotspotMetrics(ctx, target)
+	}
 
 	findings := make([]core.Finding, 0)
 	for _, file := range changed {
@@ -81,14 +96,48 @@ func testabilityTargetFindings(ctx context.Context, env support.Context, target 
 				},
 			}))
 		}
+		if metric, ok := legacyHotspots[path]; ok {
+			findings = append(findings, legacyHotspotUncoveredFinding(env, path, firstChangedLine(diffScope[path]), metric))
+		}
 	}
 
-	// TODO(testing.legacy-hotspot-uncovered): emit only after the change section
-	// receives reliable per-file history/churn inputs. The current diff context
-	// can identify touched files, but cannot distinguish genuine legacy hotspots
-	// from ordinary modified code without risking misleading findings.
-
 	return findings
+}
+
+func legacyHotspotMetrics(ctx context.Context, target core.TargetConfig) map[string]history.FileChangeMetrics {
+	historyCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	report, err := history.CollectChangeMetrics(historyCtx, history.ChangeMetricsOptions{
+		RepoPath:   target.Path,
+		MaxCommits: legacyHotspotHistoryMaxCommits,
+	})
+	if err != nil || !report.Available {
+		return map[string]history.FileChangeMetrics{}
+	}
+	out := make(map[string]history.FileChangeMetrics)
+	for path, metric := range report.Files {
+		if metric.Commits >= legacyHotspotMinCommits && (metric.Churn >= legacyHotspotMinChurn || metric.DefectCommits >= legacyHotspotMinDefectCommits) {
+			out[filepath.ToSlash(path)] = metric
+		}
+	}
+	return out
+}
+
+func legacyHotspotUncoveredFinding(env support.Context, path string, line int, metric history.FileChangeMetrics) core.Finding {
+	return env.NewFinding(support.FindingInput{
+		RuleID:     "testing.legacy-hotspot-uncovered",
+		Level:      "warn",
+		Path:       path,
+		Line:       line,
+		Column:     1,
+		Message:    fmt.Sprintf("touched legacy hotspot has no changed characterization or regression test evidence (%d commits, %d churn lines, %d defect-linked commits)", metric.Commits, metric.Churn, metric.DefectCommits),
+		Confidence: core.ConfidenceMedium,
+		Metadata: map[string]string{
+			"commits":        strconv.Itoa(metric.Commits),
+			"churn":          strconv.Itoa(metric.Churn),
+			"defect_commits": strconv.Itoa(metric.DefectCommits),
+		},
+	})
 }
 
 func fileTestabilityEvidence(env support.Context, path string, data []byte, ranges core.ChangedLineRanges, hasChangedTests bool, testHasFailureEvidence bool) []testabilityEvidence {

@@ -103,7 +103,7 @@ func TestMaintainabilityHistoryHotspotRulesUseGitEvidence(t *testing.T) {
 
 func TestMaintainabilityHistoryUnavailableDoesNotFailScan(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "plain.go"), "package sample\n\nfunc Value() int { return 1 }\n")
+	writeFile(t, filepath.Join(dir, "plain.go"), "package sample\n\nfunc StableRiskScore() int { return 1 }\n")
 
 	report, err := codeguard.Run(context.Background(), qualityPrecisionConfig(dir))
 	if err != nil {

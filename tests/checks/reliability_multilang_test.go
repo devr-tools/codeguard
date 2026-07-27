@@ -241,6 +241,129 @@ function failPayment() {
 	assertFindingRulePresent(t, report, "Reliability", "reliability.recoverable-panic")
 }
 
+func TestReliabilityDetectsHiddenPartialFailuresAcrossLanguages(t *testing.T) {
+	for _, tc := range hiddenPartialFailureCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), tc.source)
+
+			report, err := codeguard.Run(context.Background(), reliabilityLangConfig("reliability-partial-"+tc.name, dir, tc.language))
+			if err != nil {
+				t.Fatalf("run: %v", err)
+			}
+
+			assertFindingRulePresent(t, report, "Reliability", "reliability.partial-failure-hidden")
+		})
+	}
+}
+
+type reliabilityLanguageCase struct {
+	name     string
+	language string
+	file     string
+	source   string
+}
+
+func hiddenPartialFailureCases() []reliabilityLanguageCase {
+	return []reliabilityLanguageCase{
+		{
+			name:     "go",
+			language: "go",
+			file:     "batch.go",
+			source: `package sample
+
+import "log"
+
+func Process(items []Item) error {
+	for _, item := range items {
+		if err := process(item); err != nil {
+			log.Printf("item error: %v", err)
+			continue
+		}
+	}
+	return nil
+}
+
+type Item struct{}
+func process(Item) error { return nil }
+`,
+		},
+		{
+			name:     "python",
+			language: "python",
+			file:     "batch.py",
+			source: `
+import logging
+
+def process_all(items):
+    for item in items:
+        try:
+            process(item)
+        except Exception as error:
+            logging.error("item failed: %s", error)
+            continue
+    return None
+`,
+		},
+		{
+			name:     "typescript",
+			language: "typescript",
+			file:     "batch.ts",
+			source: `
+async function processAll(items: Item[]): Promise<void> {
+  for (const item of items) {
+    try {
+      await process(item);
+    } catch (error) {
+      console.error("item error", error);
+      continue;
+    }
+  }
+  return;
+}
+`,
+		},
+		{
+			name:     "javascript",
+			language: "javascript",
+			file:     "batch.js",
+			source: `
+async function processAll(items) {
+  for (const item of items) {
+    try {
+      await process(item);
+    } catch (error) {
+      console.warn("item error", error);
+      continue;
+    }
+  }
+  return;
+}
+`,
+		},
+		{
+			name:     "cpp",
+			language: "cpp",
+			file:     "batch.cpp",
+			source: `
+#include <iostream>
+
+bool ProcessAll(const std::vector<Item>& items) {
+  for (const auto& item : items) {
+    try {
+      Process(item);
+    } catch (const std::exception& error) {
+      std::cerr << "item error: " << error.what();
+      continue;
+    }
+  }
+  return true;
+}
+`,
+		},
+	}
+}
+
 func TestReliabilityCPPDetectsUnboundedWorkAndResourceLeak(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "worker.cpp"), `

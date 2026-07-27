@@ -81,6 +81,53 @@ func TestCICheckFailsWhenWorkflowContentIsMissing(t *testing.T) {
 	assertSectionStatus(t, report, "CI/CD", "fail")
 }
 
+func TestCIMissingRequiredGate(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "ci.yml"), "name: ci\njobs:\n  build:\n    steps:\n      - uses: actions/checkout@v4\n      - run: go build ./...\n")
+
+	cfg := ciSafetyTestConfig(dir, "ci-missing-gate")
+	cfg.Checks.CIRules.RequiredGates = []string{"test"}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "CI/CD", "ci.missing-required-gate")
+}
+
+func TestCIMutableDeploymentReference(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "deploy.yml"), "name: deploy\njobs:\n  prod:\n    steps:\n      - uses: acme/deploy-action@main\n      - run: docker run ghcr.io/acme/service:latest\n")
+
+	cfg := ciSafetyTestConfig(dir, "ci-mutable-ref")
+	cfg.Checks.CIRules.RequiredWorkflowFiles = []string{".github/workflows/deploy.yml"}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "CI/CD", "ci.mutable-deployment-reference")
+}
+
+func TestCIMutableDeploymentReferenceAllowsVersionedRefs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "deploy.yml"), "name: deploy\njobs:\n  prod:\n    steps:\n      - uses: actions/checkout@v4\n      - run: docker run ghcr.io/acme/service:v1.2.3\n")
+
+	cfg := ciSafetyTestConfig(dir, "ci-pinned-ref")
+	cfg.Checks.CIRules.RequiredWorkflowFiles = []string{".github/workflows/deploy.yml"}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	if messages := ciRuleMessages(report, "ci.mutable-deployment-reference"); len(messages) != 0 {
+		t.Fatalf("unexpected mutable reference findings: %v", messages)
+	}
+}
+
 func TestCICheckAllowsRuleOverride(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "buildkite.yml"), "steps: []\n")
@@ -109,6 +156,42 @@ func TestCICheckAllowsRuleOverride(t *testing.T) {
 	}
 
 	assertSectionStatus(t, report, "CI/CD", "pass")
+}
+
+func ciSafetyTestConfig(dir string, name string) codeguard.Config {
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = name
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Quality = false
+	cfg.Checks.Design = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = true
+	off := false
+	cfg.Checks.Context = &off
+	cfg.Cache.Enabled = &off
+	cfg.Checks.CIRules.RequiredWorkflowFiles = []string{".github/workflows/ci.yml"}
+	cfg.Checks.CIRules.RequiredReleaseFiles = []string{}
+	cfg.Checks.CIRules.RequiredAutomationPaths = []string{}
+	cfg.Checks.CIRules.WorkflowContentRules = []codeguard.WorkflowRuleConfig{}
+	cfg.Checks.CIRules.RequiredGates = []string{}
+	cfg.Checks.CIRules.AllowedTestPaths = []string{}
+	return cfg
+}
+
+func ciRuleMessages(report codeguard.Report, ruleID string) []string {
+	messages := make([]string, 0)
+	for _, section := range report.Sections {
+		if section.Name != "CI/CD" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID == ruleID {
+				messages = append(messages, finding.Message)
+			}
+		}
+	}
+	return messages
 }
 
 func TestCICheckAllowsEmptyReleaseFileOverride(t *testing.T) {

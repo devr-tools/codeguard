@@ -41,6 +41,7 @@ type pythonDataScan struct {
 	env          support.Context
 	file         string
 	rules        core.DataRulesConfig
+	readLines    []int
 	writeLines   []int
 	publishLines []int
 	consumerLine int
@@ -64,6 +65,9 @@ func (s *pythonDataScan) consumeLine(lineNo int, line string) {
 	if pyWriteCall.MatchString(line) {
 		s.writeLines = append(s.writeLines, lineNo)
 	}
+	if pySelectQuery.MatchString(line) {
+		s.readLines = append(s.readLines, lineNo)
+	}
 	if pyPublishCall.MatchString(line) {
 		s.publishLines = append(s.publishLines, lineNo)
 	}
@@ -85,8 +89,14 @@ func (s *pythonDataScan) consumeLine(lineNo int, line string) {
 }
 
 func (s *pythonDataScan) finish() {
+	if enabled(s.rules.DetectReadModifyWriteRace) && len(s.readLines) > 0 && len(s.writeLines) > 0 && !s.hasTx {
+		s.add("data.read-modify-write-race", "fail", s.readLines[0], "Python code reads state and writes derived state without transaction or atomic update evidence", "medium", "pattern", "read-modify-write")
+	}
 	if len(s.writeLines) > s.rules.MaxWritesWithoutTransaction && !s.hasTx {
 		s.add("data.missing-transaction-boundary", "fail", s.writeLines[0], "Python code performs multiple persistence writes without transaction evidence", "medium", "writes", "multiple")
+	}
+	if enabled(s.rules.DetectSideEffectInTransaction) && s.hasTx && len(s.publishLines) > 0 && !s.hasOutbox {
+		s.add("data.side-effect-in-transaction", "fail", s.publishLines[0], "Python transaction block performs an external side effect that may not roll back safely", "high", "transaction", "side-effect")
 	}
 	if len(s.writeLines) > 0 && len(s.publishLines) > 0 && !s.hasOutbox {
 		if enabled(s.rules.DetectUnsafeDualWrite) {
