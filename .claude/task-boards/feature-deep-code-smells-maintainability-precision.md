@@ -78,13 +78,13 @@ Candidate rules:
 
 | Status | Rule ID | Signal | Notes |
 | --- | --- | --- | --- |
-| Todo | `smell.god-object` | One type/class owns too many methods, fields, responsibilities, or dependency clusters. | Avoid duplicating existing god-module; local type-level only. |
-| Todo | `smell.feature-envy` | Function/method accesses more external object fields/methods than own receiver/context. | Confidence-based. |
-| Todo | `smell.middle-man` | Type/class mostly delegates to one collaborator without policy/translation. | Coordinate with pass-through abstraction. |
-| Todo | `smell.message-chain` | Long call chains across objects/modules. | Warn, medium confidence. |
-| Todo | `smell.data-clump` | Same group of primitive parameters appears repeatedly. | Good bridge to primitive obsession. |
-| Todo | `smell.switch-on-type` | Repeated type/kind branching that should move behind polymorphism/dispatch. | Go/Python/TS/JS/C++. |
-| Todo | `smell.refused-bequest` | Subclass/derived type overrides many inherited methods with no-op/throw/unsupported behavior. | Only if reliable evidence exists. |
+| Done | `smell.god-object` | One type/class owns too many methods, fields, responsibilities, or dependency clusters. | Added conservative type/class-level detector with Go/Python/TS/JS/C++ positive and negative coverage. |
+| Done | `smell.feature-envy` | Function/method accesses more external object fields/methods than own receiver/context. | Added confidence/evidence-count detector with Go/Python/TS/JS/C++ positive and negative coverage. |
+| Done | `smell.middle-man` | Type/class mostly delegates to one collaborator without policy/translation. | Added forwarding-class detector with Go/Python/TS/JS/C++ positive and negative coverage. |
+| Done | `smell.message-chain` | Long call chains across objects/modules. | Added medium-confidence chain detector with Go/Python/TS/JS/C++ positive and negative coverage. |
+| Done | `smell.data-clump` | Same group of primitive parameters appears repeatedly. | Added repeated primitive/domain parameter-group detector with Go/Python/TS/JS/C++ positive and negative coverage. |
+| Done | `smell.switch-on-type` | Repeated type/kind branching that should move behind polymorphism/dispatch. | Added type/kind/discriminator branch detector with Go/Python/TS/JS/C++ positive and negative coverage. |
+| Deferred | `smell.refused-bequest` | Subclass/derived type overrides many inherited methods with no-op/throw/unsupported behavior. | Deferred: not implemented because reliable inheritance/no-op evidence needs a stronger parser model to avoid noisy findings. |
 
 Required behavior:
 

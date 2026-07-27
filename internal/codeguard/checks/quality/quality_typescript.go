@@ -33,6 +33,7 @@ func typeScriptFindingsForFile(env support.Context, file string, data []byte) []
 	}
 	if localPrecisionEnabled(env) {
 		findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
+		findings = append(findings, parsedStructuralSmellFindings(env, file, parsed)...)
 	}
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
