@@ -18,6 +18,27 @@ This branch owns:
 
 The product target is to catch changes that are technically correct but hard to operate, hard to change, or unsafe to deploy.
 
+## Workstream D audit and reconciliation checklist
+
+Status: prep-audited. As of 2026-07-27, the branch task board lists the intended rule inventory, but the shipped rule catalogs, detector packages, config fields, profile defaults, and user-facing docs for this branch have not landed yet. Keep `docs/checks.md`, `docs/features.md`, `docs/production.md`, `README.md`, and `examples/codeguard.json` unchanged until matching behavior exists in code and tests.
+
+Workstream D owns final reconciliation after implementation slices merge:
+
+- Confirm new rule metadata exists for every implemented `observability.*`, `operations.*`, `delivery.*`, `ci.*`, `supply_chain.*`, `design.*`, and `quality.*` rule in scope.
+- Confirm every new rule has language coverage, profile behavior, examples where useful, and a fix template or explicit guided remediation.
+- Confirm SDK aliases/config API cover any new config structs or rule toggles.
+- Confirm profile comparison output reflects startup, strict, enterprise, and AI-safe behavior for the landed rules.
+- Update shipped docs only after detector behavior and tests exist.
+- Keep this task board accurate as implementation workers land commits; mark a task Done only after code, tests, metadata, and docs/profile behavior are reconciled.
+- Add the final PR-summary draft section once the branch has enough implementation to summarize accurately.
+
+Workstream D verification commands:
+
+```sh
+env -u GOROOT GOCACHE=/private/tmp/codeguard-operability-go-cache go test ./internal/codeguard/config ./tests/cli ./tests/codeguard -run 'Test.*(Profile|Metadata|Config|Documentation|SDK)'
+git diff --check
+```
+
 ## Non-goals
 
 - Do not implement reliability/data-correctness detectors owned by `feature/production-reliability-data-readiness`.
