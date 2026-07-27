@@ -89,6 +89,15 @@ func TestSDKRuleMetadataForDataRule(t *testing.T) {
 	}
 }
 
+func TestSDKRuleMetadataForNonExpandContractMigration(t *testing.T) {
+	rule := requireRuleMetadata(t, "contracts.non-expand-contract-migration")
+	assertExecutionModel(t, rule, codeguard.RuleExecutionModelLanguageAgnostic)
+	assertLanguageCoverage(t, rule, codeguard.RuleLanguageCoverageRepositoryWide)
+	if rule.FixTemplate.Kind != codeguard.FixTemplateKindGuided {
+		t.Fatalf("expected guided migration fix template, got %q", rule.FixTemplate.Kind)
+	}
+}
+
 func TestSDKRuleMetadataFixTemplateIncludesBeforeAfterSnippet(t *testing.T) {
 	rule := requireRuleMetadata(t, "quality.gofmt")
 	if !strings.Contains(rule.FixTemplate.Text, "Before:") || !strings.Contains(rule.FixTemplate.Text, "After:") {

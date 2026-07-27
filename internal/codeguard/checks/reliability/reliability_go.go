@@ -20,8 +20,7 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 	hasShutdown := fileHasSelector(parsed, "Shutdown") || fileHasSelector(parsed, "NotifyContext") || fileHasSelector(parsed, "Notify")
 
 	ast.Inspect(parsed, func(node ast.Node) bool {
-		switch n := node.(type) {
-		case *ast.FuncDecl:
+		if n, ok := node.(*ast.FuncDecl); ok {
 			findings = append(findings, functionReliabilityFindings(env, file, fset, n, rules, httpAliases, hasShutdown)...)
 			return false
 		}

@@ -1,6 +1,6 @@
 # Task board: feature/production-reliability-data-readiness
 
-Status: active
+Status: complete
 Branch: feature/production-reliability-data-readiness
 Last updated: 2026-07-27
 Not final product docs: this is implementation planning for the branch, not shipped user-facing documentation.
@@ -39,6 +39,25 @@ Verification completed:
 - `go test ./internal/codeguard/config ./internal/codeguard/rules ./internal/codeguard/runner ./internal/codeguard/runner/checks ./internal/codeguard/checks/reliability ./internal/codeguard/checks/data ./pkg/codeguard ./tests/checks ./tests/cli`.
 - `go test ./...` with localhost test escalation.
 - `make codeguard-ci`.
+
+## Progress update: completion audit
+
+Completed in the final audit pass:
+
+- Verified the task-board inventory against implemented Reliability, Data Correctness, API Contracts, and `pr_summary.production_risk` code paths.
+- Added targeted positive and negative tests for Go, Python, TypeScript, JavaScript, and C++ reliability/data detectors.
+- Wired `contracts.non-expand-contract-migration` into actual migration scan output while preserving the legacy `contracts.migration-destructive` finding for existing waivers and baselines.
+- Updated shipped docs and examples for `reliability`, `data`, `production_risk`, and non-expand/contract migration behavior.
+
+Verification completed:
+
+- `go test ./tests/checks -run 'Test(Reliability|Data)'`
+- `go test ./internal/codeguard/checks/reliability ./internal/codeguard/checks/data ./tests/cli -run 'TestSDKRuleMetadataFor(Reliability|Data)'`
+- `go test ./tests/checks -run 'TestContracts(Migration|FullScan)'`
+- `go test ./tests/cli -run 'TestSDKRuleMetadataFor(Reliability|Data|NonExpand)'`
+- `go test ./...` with localhost test escalation.
+- `make codeguard-ci`.
+- `make ci` with localhost test escalation.
 
 ## Goal
 
@@ -127,73 +146,73 @@ Initial rule IDs:
 
 | Status | Task | Files/area | Tests | Notes |
 | --- | --- | --- | --- | --- |
-| Todo | Decide section IDs and display names | `internal/codeguard/runner/checks/registry.go` | `go test ./tests/checks ./tests/cli` | Prefer stable snake_case final IDs: `reliability`, `data`. Avoid the existing supply-chain hyphen/underscore mismatch. |
-| Todo | Decide default enablement | `internal/codeguard/config/defaults.go`, `internal/codeguard/config/profile.go` | `go test ./internal/codeguard/config ./tests/codeguard` | Suggested: startup warns only for severe reliability; strict enables reliability; enterprise enables reliability + data; ai-safe enables reliability + data diff signals. |
-| Todo | Define severity policy | rule catalogs + profile docs | metadata tests | Suggested: block only high-confidence outage/data-loss patterns; warn confidence-based heuristics. |
-| Todo | Define language priority | check packages | targeted check tests | Start Go first, then TypeScript/JavaScript, then Python. C++/Rust/Java can begin as catalog/config placeholders only when detectors are not ready. |
+| Done | Decide section IDs and display names | `internal/codeguard/runner/checks/registry.go` | `go test ./tests/checks ./tests/cli` | Stable section IDs: `reliability`, `data`. |
+| Done | Decide default enablement | `internal/codeguard/config/defaults.go`, `internal/codeguard/config/profile.go` | `go test ./internal/codeguard/config ./tests/codeguard` | Profile-gated rollout implemented. |
+| Done | Define severity policy | rule catalogs + profile docs | metadata tests | High-confidence outage/data-loss patterns fail; confidence-based heuristics warn. |
+| Done | Define language priority | check packages | targeted check tests | Implemented for Go, Python, TypeScript, JavaScript, and C++. |
 
 ### Phase 1: Add family scaffolding
 
 | Status | Task | Files/area | Tests | Notes |
 | --- | --- | --- | --- | --- |
-| Todo | Add `ReliabilityRulesConfig` and `DataRulesConfig` | `internal/codeguard/core/config_rule_types.go` | config tests | Use `*bool` per rule toggle so omitted values can get defaults. Add thresholds for max retry count, max queue/buffer size, unbounded-read row limit, and trusted boundary patterns. |
-| Todo | Add top-level toggles | `internal/codeguard/core/config_types.go` | config IO tests | `Reliability *bool` if omitted should support profile defaults; `Data *bool` if data rules should start opt-in outside enterprise. |
-| Todo | Add defaults/examples | `internal/codeguard/config/defaults.go`, `defaults_rules.go`, `example.go`, `example_rules.go` | `go test ./internal/codeguard/config ./tests/codeguard` | Mirror supply-chain/performance patterns. |
-| Todo | Add validation | `internal/codeguard/config/validate_reliability.go`, `validate_data.go`, `validate.go` | config validation tests | Validate thresholds are positive, pattern entries are non-empty, and rule dependencies are coherent. |
-| Todo | Add SDK aliases | `pkg/codeguard/sdk_types_config_checks.go` | `go test ./pkg/codeguard` | Keep public SDK config usable. |
-| Todo | Add catalogs | `internal/codeguard/rules/catalog_reliability.go`, `catalog_data.go`, `catalog.go` | `go test ./tests/cli` | Explicit `LanguageCoverage` for all non-language-prefixed IDs. |
-| Todo | Add fix templates | `internal/codeguard/rules/catalog_fix_templates_reliability.go`, `catalog_fix_templates_data.go` | metadata tests | Use guided templates for concurrency/data risks; deterministic templates only for mechanical timeout/context cases. |
+| Done | Add `ReliabilityRulesConfig` and `DataRulesConfig` | `internal/codeguard/core/config_rule_types.go` | config tests | Implemented with `*bool` toggles and thresholds. |
+| Done | Add top-level toggles | `internal/codeguard/core/config_types.go` | config IO tests | `Reliability *bool` and `Data *bool` implemented. |
+| Done | Add defaults/examples | `internal/codeguard/config/defaults.go`, `defaults_rules.go`, `example.go`, `example_rules.go`, `examples/codeguard.json` | `go test ./internal/codeguard/config ./tests/codeguard` | Defaults and example config updated. |
+| Done | Add validation | `internal/codeguard/config/validate_reliability_data.go`, `validate.go` | config validation tests | Threshold validation implemented. |
+| Done | Add SDK aliases | `pkg/codeguard/sdk_types_config_checks.go` | `go test ./pkg/codeguard` | Public SDK aliases implemented. |
+| Done | Add catalogs | `internal/codeguard/rules/catalog_reliability.go`, `catalog_data.go`, `catalog_contracts.go`, `catalog.go` | `go test ./tests/cli` | Explicit language coverage implemented. |
+| Done | Add fix templates | `internal/codeguard/rules/catalog_fix_templates_reliability.go`, `catalog_fix_templates_data.go`, `catalog_fix_templates_misc.go` | metadata tests | Fix templates implemented. |
 
 ### Phase 2: Implement reliability detectors
 
 | Status | Task | Files/area | Tests | Notes |
 | --- | --- | --- | --- | --- |
-| Todo | Create check package | `internal/codeguard/checks/reliability/reliability.go` | `tests/checks/reliability_test.go` | Follow `supplychain.Run` shape and use `env.FinalizeSection("reliability", "Reliability", findings)`. |
-| Todo | Register section | `internal/codeguard/runner/checks/registry.go` | section smoke test | Place after performance and before design/security so production-readiness issues appear early. |
-| Todo | Detect Go outbound calls without timeout/context | `internal/codeguard/checks/reliability/*go*.go` | `TestReliabilityGoMissingTimeout` | Flag `http.Get`, `http.Post`, `http.DefaultClient.Do`, `exec.Command`, raw network calls, and DB calls lacking context where applicable. Avoid false positives for explicit `http.Client{Timeout: ...}` and context-bound requests. |
-| Todo | Detect retry loops without limits/backoff/jitter | Go detector files | `TestReliabilityGoRetryPolicy` | Identify loops around calls with `retry`, `attempt`, transient errors, or status-code checks. Evidence should include limit/backoff/jitter absence separately. |
-| Todo | Detect non-idempotent retries | Go detector files | `TestReliabilityGoNonIdempotentRetry` | Flag retried `POST`, writes, DB mutations, event publishes, or side-effect calls unless idempotency key/dedup marker is present. Confidence-based. |
-| Todo | Detect missing cancellation propagation | Go detector files | `TestReliabilityGoMissingCancellation` | Flag background goroutines or downstream calls using `context.Background()`/`TODO()` inside request/job flows. |
-| Todo | Detect unbounded work/concurrency | Go detector files | `TestReliabilityGoUnboundedWork` | Flag unbounded goroutine spawn in loops, unbounded channel buffers, unbounded worker queues, and `errgroup` without limits where supported. |
-| Todo | Detect resource leaks | Go detector files | `TestReliabilityGoResourceLeak` | Track opened files, response bodies, rows, tickers, and timers. Reuse existing parser/support helpers if available. |
-| Todo | Detect missing graceful shutdown | Go detector files | `TestReliabilityGoMissingGracefulShutdown` | Flag servers/workers started without signal handling, shutdown context, drain/close path, or wait group. Keep confidence low/medium unless evidence is strong. |
-| Todo | Detect swallowed/lost errors and recoverable panic | Go detector files | `TestReliabilityGoErrorHandling` | Coordinate with existing `quality.ai.*` error signals to avoid duplicate rule spam. Prefer reliability IDs for production failure semantics. |
+| Done | Create check package | `internal/codeguard/checks/reliability/reliability.go` | `tests/checks/reliability_test.go` | Implemented with `Reliability` section. |
+| Done | Register section | `internal/codeguard/runner/checks/registry.go` | section smoke test | Registered in runner. |
+| Done | Detect Go outbound calls without timeout/context | `internal/codeguard/checks/reliability/*go*.go` | `TestReliabilityGoMissingTimeout` | Includes safe-pattern coverage for `http.Client{Timeout: ...}` and context-bound requests. |
+| Done | Detect retry loops without limits/backoff/jitter | Go/Python/TS/JS/C++ detector files | `TestReliabilityGoRetryRisk`, multi-language reliability tests | Implemented with cross-language coverage. |
+| Done | Detect non-idempotent retries | Go/Python/TS/JS/C++ detector files | retry-risk tests | Implemented with idempotency/dedupe evidence checks. |
+| Done | Detect missing cancellation propagation | Go detector files | `TestReliabilityGoDetectsCancellationAndUnboundedWork` | Implemented for Go context propagation gaps. |
+| Done | Detect unbounded work/concurrency | Go/Python/TS/JS/C++ detector files | unbounded-work tests | Implemented with safe-pattern negative coverage. |
+| Done | Detect resource leaks | Go/Python/C++ detector files | resource-leak tests | Implemented with safe cleanup negative coverage. |
+| Done | Detect missing graceful shutdown | Go detector files | reliability tests/catalog coverage | Implemented for Go server start without shutdown evidence. |
+| Done | Detect swallowed/lost errors and recoverable panic | Go/Python/TS/JS/C++ detector files | error-handling tests | Implemented with reliability IDs for production failure semantics. |
 
 ### Phase 3: Implement data-correctness detectors
 
 | Status | Task | Files/area | Tests | Notes |
 | --- | --- | --- | --- | --- |
-| Todo | Create check package | `internal/codeguard/checks/data/data.go` | `tests/checks/data_test.go` | Use a dedicated `Data Correctness` section. |
-| Todo | Register section | `internal/codeguard/runner/checks/registry.go` | section smoke test | Run after reliability; many data findings will be repo/path-level and diff-filtered by line when possible. |
-| Todo | Detect read-modify-write race | Go detector files | `TestDataGoReadModifyWriteRace` | Look for select/read followed by update/write outside transaction or conditional update. Evidence: same key/entity, mutation after read, no transaction/lock/compare-and-swap. |
-| Todo | Detect missing transaction boundary | Go detector files | `TestDataGoMissingTransactionBoundary` | Flag multiple related DB writes without transaction wrapper. Keep configurable DB API patterns. |
-| Todo | Detect external side effects inside retried transaction | Go detector files | `TestDataGoSideEffectInTransaction` | Flag HTTP/email/event calls inside transaction/retry closures. High production risk. |
-| Todo | Detect consumer idempotency gaps | Go/TS/Python detectors | `TestDataConsumerIdempotency` | Flag message handlers without dedup/idempotency key checks around side effects. Start with naming/framework heuristics and confidence evidence. |
-| Todo | Detect unsafe dual writes and missing outbox | Go detector files | `TestDataGoOutbox` | Flag DB write plus event publish without outbox, transactional event table, or equivalent configured strategy. |
-| Todo | Detect unstable pagination | Go/TS/Python detectors | `TestDataUnstablePagination` | Flag limit/offset without deterministic order or cursor stability. |
-| Todo | Detect unbounded DB reads | Go/TS/Python detectors | `TestDataUnboundedRead` | Flag `Find/Select/Query` without limit, streaming, pagination, or bounded filters. |
-| Todo | Detect unsafe schema migrations | migration file scanner | `TestDataUnsafeMigration` | Coordinate with `contracts.non-expand-contract-migration`; detect destructive/contracting migrations without expand/contract staging metadata. |
-| Todo | Detect exactly-once assumptions | text/code scanner | `TestDataExactlyOnceAssumption` | Flag comments/config/code that assert exactly-once without idempotency/dedup. Low/medium confidence unless tied to consumer code. |
-| Todo | Detect cache without policy | Go/TS/Python detectors | `TestDataCacheWithoutPolicy` | Require TTL/invalidation/ownership policy for production caches. Allow configured cache wrappers. |
+| Done | Create check package | `internal/codeguard/checks/data/data.go` | `tests/checks/data_test.go` | Implemented with `Data Correctness` section. |
+| Done | Register section | `internal/codeguard/runner/checks/registry.go` | section smoke test | Registered in runner after reliability. |
+| Done | Detect read-modify-write race | Go detector files | `TestDataGoDetectsReadModifyWriteTransactionSideEffectCacheAndExactlyOnce` | Implemented for Go. |
+| Done | Detect missing transaction boundary | Go/Python/TS/JS/C++ detector files | transaction tests | Implemented with cross-language coverage. |
+| Done | Detect external side effects inside retried transaction | Go detector files | side-effect transaction tests | Implemented for Go transaction callbacks. |
+| Done | Detect consumer idempotency gaps | Go/Python/TS/JS/C++ detectors | consumer idempotency tests | Implemented with dedupe/idempotency evidence checks. |
+| Done | Detect unsafe dual writes and missing outbox | Go/Python/TS/JS/C++ detector files | outbox tests | Implemented with outbox negative coverage. |
+| Done | Detect unstable pagination | Go/Python/TS/JS/C++ detectors | pagination tests | Implemented with order/bound negative coverage. |
+| Done | Detect unbounded DB reads | Go/Python/TS/JS/C++ detectors | unbounded-read tests | Implemented with bound/filter negative coverage. |
+| Done | Detect unsafe schema migrations | `internal/codeguard/checks/contracts/migrations.go` | `TestContractsMigrationDestructiveFlagsNewMigrationsOnly` | Emits `contracts.non-expand-contract-migration` while preserving legacy migration rule. |
+| Done | Detect exactly-once assumptions | Go/Python/TS/JS/C++ scanners | exactly-once tests | Implemented with idempotency/dedupe evidence exceptions. |
+| Done | Detect cache without policy | Go/Python/TS/JS/C++ detectors | cache-policy tests | Implemented with TTL/policy negative coverage. |
 
 ### Phase 4: Add production-risk artifact
 
 | Status | Task | Files/area | Tests | Notes |
 | --- | --- | --- | --- | --- |
-| Todo | Add artifact schema | `internal/codeguard/core/report_artifact_types.go`, maybe new `report_artifact_pr_summary_types.go` | serialization tests | Add `ReportArtifactKindPRSummary = "pr_summary"` and `PRSummaryArtifact` with `production_risk`. Keep fields additive and `omitempty`. |
-| Todo | Add artifact helper | `internal/codeguard/checks/support/artifacts.go` or new support file | artifact tests | Follow `NewSlopScoreArtifact`/`NewChangeRiskArtifact`; defensively copy evidence slices. |
-| Todo | Add runner postprocessor | `internal/codeguard/runner/pr_summary.go` | `internal/codeguard/runner/*test.go` | Publish once with `sc.Artifacts.Put(...)`, sorted evidence, deterministic scoring. |
-| Todo | Wire production risk inputs | `internal/codeguard/runner/pr_summary.go` | risk tests | Inputs: reliability/data fail/warn findings, non-idempotent retry, missing transaction/outbox, resource leak, unbounded work/read, suppressed findings excluded by current pipeline. |
-| Todo | Preserve outputs | `internal/codeguard/report/write.go`, `github_comment.go` if rendered | report tests | JSON should include artifact automatically. Do not emit PR metrics as GitHub annotations. Do not mutate the existing text `Summary:` line. |
-| Todo | SDK aliases | `pkg/codeguard/sdk_types_runtime_report.go` | SDK tests | Export new runtime types if public consumers need them. |
+| Done | Add artifact schema | `internal/codeguard/core/report_artifact_types.go` | serialization tests | `ReportArtifactKindPRSummary` and `PRSummaryArtifact` implemented. |
+| Done | Add artifact helper | `internal/codeguard/checks/support/artifacts.go` | artifact tests | PR summary artifact helper implemented. |
+| Done | Add runner postprocessor | `internal/codeguard/runner/pr_summary.go` | `internal/codeguard/runner/pr_summary_test.go` | Deterministic scoring and artifact publication implemented. |
+| Done | Wire production risk inputs | `internal/codeguard/runner/pr_summary.go` | risk tests | Reliability/data/non-expand migration inputs wired. |
+| Done | Preserve outputs | report/SARIF/GitHub paths | report tests | Artifact remains additive; annotations remain finding-only. |
+| Done | SDK aliases | `pkg/codeguard/sdk_types_runtime_report.go` | SDK tests | Runtime report aliases implemented. |
 
 ### Phase 5: Documentation and examples
 
 | Status | Task | Files/area | Tests | Notes |
 | --- | --- | --- | --- | --- |
-| Todo | Update product docs when behavior exists | `docs/checks.md`, `docs/features.md`, `docs/production.md`, `README.md` | docs checks/self-scan | Do not advertise catalog-only rules as fully implemented. Mark staged/confidence-based behavior clearly. |
-| Todo | Update examples | `examples/codeguard.json`, `.codeguard/codeguard.yaml` if appropriate | `make codeguard-ci` | Consider keeping new families opt-in until false-positive rate is measured. |
-| Todo | Add migration notes | `docs/production.md` or release notes | n/a | Explain profile behavior and how to tune/waive noisy reliability/data checks. |
+| Done | Update product docs when behavior exists | `docs/checks.md`, `docs/features.md`, `docs/production.md` | docs checks/self-scan | Docs now describe implemented behavior and confidence-based heuristics. |
+| Done | Update examples | `examples/codeguard.json` | `make codeguard-ci` | Example config includes opt-in reliability/data/production-risk knobs. |
+| Done | Add migration notes | `docs/checks.md`, `docs/production.md` | n/a | Non-expand/contract migration and rollout notes added. |
 
 ## Detector confidence policy
 
@@ -249,13 +268,13 @@ make ci
 
 ## Merge checklist
 
-- [ ] Rule IDs are stable and documented.
-- [ ] Every built-in rule has a fix template.
-- [ ] New config fields have defaults, validation, examples, and SDK aliases.
-- [ ] New sections use stable section IDs and deterministic output.
-- [ ] Findings are diff-filtered correctly where line-level evidence exists.
-- [ ] Production-risk scoring has deterministic evidence ordering.
-- [ ] SARIF/GitHub annotations remain finding-only.
-- [ ] Product docs describe implemented behavior, not planned behavior.
-- [ ] `make test` passes.
-- [ ] `make ci` passes or any skipped gate is explicitly documented.
+- [x] Rule IDs are stable and documented.
+- [x] Every built-in rule has a fix template.
+- [x] New config fields have defaults, validation, examples, and SDK aliases.
+- [x] New sections use stable section IDs and deterministic output.
+- [x] Findings are diff-filtered correctly where line-level evidence exists.
+- [x] Production-risk scoring has deterministic evidence ordering.
+- [x] SARIF/GitHub annotations remain finding-only.
+- [x] Product docs describe implemented behavior, not planned behavior.
+- [x] `make test` passes.
+- [x] `make ci` passes or any skipped gate is explicitly documented.

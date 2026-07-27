@@ -18,6 +18,8 @@
     "prompts": true,
     "ci": true,
     "context": true,
+    "reliability": false,
+    "data": false,
     "quality_rules": {
       "max_file_lines": 400,
       "max_function_lines": 80,
@@ -149,6 +151,47 @@
       "max_file_lines": 1500,
       "ambiguous_symbol_threshold": 4,
       "max_agent_doc_lines": 600
+    },
+    "reliability_rules": {
+      "detect_missing_timeout": true,
+      "detect_unbounded_retry": true,
+      "detect_retry_without_backoff": true,
+      "detect_non_idempotent_retry": true,
+      "detect_missing_cancellation": true,
+      "detect_unbounded_work": true,
+      "detect_missing_concurrency_limit": true,
+      "detect_resource_leak": true,
+      "detect_partial_failure_hidden": true,
+      "detect_missing_graceful_shutdown": true,
+      "detect_swallowed_error": true,
+      "detect_lost_error_context": true,
+      "detect_recoverable_panic": true,
+      "max_retry_attempts": 3,
+      "max_inline_goroutines_per_function": 8
+    },
+    "data_rules": {
+      "detect_read_modify_write_race": true,
+      "detect_missing_transaction": true,
+      "detect_side_effect_in_transaction": true,
+      "detect_non_idempotent_consumer": true,
+      "detect_missing_deduplication": true,
+      "detect_unsafe_dual_write": true,
+      "detect_missing_outbox_strategy": true,
+      "detect_unstable_pagination": true,
+      "detect_unbounded_read": true,
+      "detect_exactly_once_assumption": true,
+      "detect_cache_without_policy": true,
+      "max_unbounded_read_rows": 1000,
+      "max_writes_without_transaction": 1
+    },
+    "production_risk": {
+      "enabled": true,
+      "warn_threshold": 25,
+      "fail_threshold": 70,
+      "reliability_weight": 10,
+      "data_weight": 12,
+      "fail_weight": 10,
+      "warn_weight": 4
     }
   },
   "exclude": ["vendor/**", "**/testdata/**"],
