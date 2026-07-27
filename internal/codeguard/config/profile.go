@@ -42,6 +42,7 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.DesignRules.MaxInterfaceMethods = 4
 			cfg.Checks.SecurityRules.GovulncheckMode = "required"
 			cfg.Checks.Contracts = boolPtr(true)
+			cfg.Checks.Reliability = boolPtr(true)
 		},
 	},
 	"enterprise": {
@@ -59,6 +60,8 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.CIRules.RequiredReleaseFiles = []string{".goreleaser.yaml"}
 			cfg.Checks.CIRules.RequiredAutomationPaths = []string{"Makefile", ".github/workflows/ci.yml"}
 			cfg.Checks.Contracts = boolPtr(true)
+			cfg.Checks.Reliability = boolPtr(true)
+			cfg.Checks.Data = boolPtr(true)
 		},
 	},
 	"ai-safe": {
@@ -75,6 +78,8 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.QualityRules.AIProvenance.Enabled = boolPtr(true)
 			cfg.Checks.QualityRules.AIProvenance.SlopScoreWarnThreshold = 10
 			cfg.Checks.QualityRules.AIProvenance.SlopScoreFailThreshold = 25
+			cfg.Checks.Reliability = boolPtr(true)
+			cfg.Checks.Data = boolPtr(true)
 		},
 	},
 }

@@ -216,3 +216,54 @@ type SupplyChainRulesConfig struct {
 	DeniedLicenses    []string                      `json:"denied_licenses,omitempty" yaml:"denied_licenses,omitempty"`
 	LicenseCommands   map[string]CommandCheckConfig `json:"license_commands,omitempty" yaml:"license_commands,omitempty"`
 }
+
+// ReliabilityRulesConfig tunes the reliability section. Nil rule toggles
+// default to enabled when the section itself is enabled by configuration or a
+// profile.
+type ReliabilityRulesConfig struct {
+	DetectMissingTimeout           *bool `json:"detect_missing_timeout,omitempty" yaml:"detect_missing_timeout,omitempty"`
+	DetectUnboundedRetry           *bool `json:"detect_unbounded_retry,omitempty" yaml:"detect_unbounded_retry,omitempty"`
+	DetectRetryWithoutBackoff      *bool `json:"detect_retry_without_backoff,omitempty" yaml:"detect_retry_without_backoff,omitempty"`
+	DetectNonIdempotentRetry       *bool `json:"detect_non_idempotent_retry,omitempty" yaml:"detect_non_idempotent_retry,omitempty"`
+	DetectMissingCancellation      *bool `json:"detect_missing_cancellation,omitempty" yaml:"detect_missing_cancellation,omitempty"`
+	DetectUnboundedWork            *bool `json:"detect_unbounded_work,omitempty" yaml:"detect_unbounded_work,omitempty"`
+	DetectMissingConcurrencyLimit  *bool `json:"detect_missing_concurrency_limit,omitempty" yaml:"detect_missing_concurrency_limit,omitempty"`
+	DetectResourceLeak             *bool `json:"detect_resource_leak,omitempty" yaml:"detect_resource_leak,omitempty"`
+	DetectPartialFailureHidden     *bool `json:"detect_partial_failure_hidden,omitempty" yaml:"detect_partial_failure_hidden,omitempty"`
+	DetectMissingGracefulShutdown  *bool `json:"detect_missing_graceful_shutdown,omitempty" yaml:"detect_missing_graceful_shutdown,omitempty"`
+	DetectSwallowedError           *bool `json:"detect_swallowed_error,omitempty" yaml:"detect_swallowed_error,omitempty"`
+	DetectLostErrorContext         *bool `json:"detect_lost_error_context,omitempty" yaml:"detect_lost_error_context,omitempty"`
+	DetectRecoverablePanic         *bool `json:"detect_recoverable_panic,omitempty" yaml:"detect_recoverable_panic,omitempty"`
+	MaxRetryAttempts               int   `json:"max_retry_attempts,omitempty" yaml:"max_retry_attempts,omitempty"`
+	MaxInlineGoroutinesPerFunction int   `json:"max_inline_goroutines_per_function,omitempty" yaml:"max_inline_goroutines_per_function,omitempty"`
+}
+
+// DataRulesConfig tunes the data-correctness section. Nil rule toggles default
+// to enabled when the section itself is enabled by configuration or a profile.
+type DataRulesConfig struct {
+	DetectReadModifyWriteRace     *bool `json:"detect_read_modify_write_race,omitempty" yaml:"detect_read_modify_write_race,omitempty"`
+	DetectMissingTransaction      *bool `json:"detect_missing_transaction,omitempty" yaml:"detect_missing_transaction,omitempty"`
+	DetectSideEffectInTransaction *bool `json:"detect_side_effect_in_transaction,omitempty" yaml:"detect_side_effect_in_transaction,omitempty"`
+	DetectNonIdempotentConsumer   *bool `json:"detect_non_idempotent_consumer,omitempty" yaml:"detect_non_idempotent_consumer,omitempty"`
+	DetectMissingDeduplication    *bool `json:"detect_missing_deduplication,omitempty" yaml:"detect_missing_deduplication,omitempty"`
+	DetectUnsafeDualWrite         *bool `json:"detect_unsafe_dual_write,omitempty" yaml:"detect_unsafe_dual_write,omitempty"`
+	DetectMissingOutboxStrategy   *bool `json:"detect_missing_outbox_strategy,omitempty" yaml:"detect_missing_outbox_strategy,omitempty"`
+	DetectUnstablePagination      *bool `json:"detect_unstable_pagination,omitempty" yaml:"detect_unstable_pagination,omitempty"`
+	DetectUnboundedRead           *bool `json:"detect_unbounded_read,omitempty" yaml:"detect_unbounded_read,omitempty"`
+	DetectExactlyOnceAssumption   *bool `json:"detect_exactly_once_assumption,omitempty" yaml:"detect_exactly_once_assumption,omitempty"`
+	DetectCacheWithoutPolicy      *bool `json:"detect_cache_without_policy,omitempty" yaml:"detect_cache_without_policy,omitempty"`
+	MaxUnboundedReadRows          int   `json:"max_unbounded_read_rows,omitempty" yaml:"max_unbounded_read_rows,omitempty"`
+	MaxWritesWithoutTransaction   int   `json:"max_writes_without_transaction,omitempty" yaml:"max_writes_without_transaction,omitempty"`
+}
+
+// ProductionRiskConfig controls the additive PR-summary production-risk
+// artifact. It never changes individual rule severities.
+type ProductionRiskConfig struct {
+	Enabled           *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	WarnThreshold     int   `json:"warn_threshold,omitempty" yaml:"warn_threshold,omitempty"`
+	FailThreshold     int   `json:"fail_threshold,omitempty" yaml:"fail_threshold,omitempty"`
+	ReliabilityWeight int   `json:"reliability_weight,omitempty" yaml:"reliability_weight,omitempty"`
+	DataWeight        int   `json:"data_weight,omitempty" yaml:"data_weight,omitempty"`
+	FailWeight        int   `json:"fail_weight,omitempty" yaml:"fail_weight,omitempty"`
+	WarnWeight        int   `json:"warn_weight,omitempty" yaml:"warn_weight,omitempty"`
+}

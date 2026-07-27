@@ -53,6 +53,40 @@ func TestSDKRuleMetadataForSupplyChainRule(t *testing.T) {
 	assertLanguageCoverage(t, rule, codeguard.RuleLanguageCoverageRepositoryWide)
 }
 
+func TestSDKRuleMetadataForReliabilityRule(t *testing.T) {
+	rule := requireRuleMetadata(t, "reliability.missing-timeout")
+	assertExecutionModel(t, rule, codeguard.RuleExecutionModelLanguageAgnostic)
+	assertLanguageCoverage(
+		t,
+		rule,
+		codeguard.RuleLanguageCoverageFixed,
+		codeguard.RuleLanguageGo,
+		codeguard.RuleLanguageJavaScript,
+		codeguard.RuleLanguagePython,
+		codeguard.RuleLanguageTypeScript,
+	)
+	if rule.FixTemplate.Kind != codeguard.FixTemplateKindDeterministic {
+		t.Fatalf("expected deterministic reliability fix template, got %q", rule.FixTemplate.Kind)
+	}
+}
+
+func TestSDKRuleMetadataForDataRule(t *testing.T) {
+	rule := requireRuleMetadata(t, "data.missing-outbox-strategy")
+	assertExecutionModel(t, rule, codeguard.RuleExecutionModelLanguageAgnostic)
+	assertLanguageCoverage(
+		t,
+		rule,
+		codeguard.RuleLanguageCoverageFixed,
+		codeguard.RuleLanguageGo,
+		codeguard.RuleLanguageJavaScript,
+		codeguard.RuleLanguagePython,
+		codeguard.RuleLanguageTypeScript,
+	)
+	if rule.FixTemplate.Kind != codeguard.FixTemplateKindGuided {
+		t.Fatalf("expected guided data fix template, got %q", rule.FixTemplate.Kind)
+	}
+}
+
 func TestSDKRuleMetadataFixTemplateIncludesBeforeAfterSnippet(t *testing.T) {
 	rule := requireRuleMetadata(t, "quality.gofmt")
 	if !strings.Contains(rule.FixTemplate.Text, "Before:") || !strings.Contains(rule.FixTemplate.Text, "After:") {

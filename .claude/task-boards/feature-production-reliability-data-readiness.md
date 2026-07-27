@@ -1,9 +1,25 @@
 # Task board: feature/production-reliability-data-readiness
 
-Status: staging
+Status: active
 Branch: feature/production-reliability-data-readiness
 Last updated: 2026-07-27
 Not final product docs: this is implementation planning for the branch, not shipped user-facing documentation.
+
+## Progress update: first implementation slice
+
+Completed in the first implementation pass:
+
+- Added Reliability and Data Correctness config surfaces, defaults, validation, profile enablement, SDK aliases, rule catalogs, and fix templates.
+- Added `Reliability` and `Data Correctness` runner sections.
+- Added Go reliability detectors for missing HTTP timeouts, missing cancellation propagation, unbounded goroutine work, retry policy gaps, HTTP response body leaks, swallowed errors, lost error context, recoverable panic, and missing graceful shutdown evidence.
+- Added Go data-correctness detectors for read-modify-write/multi-write transaction gaps, side effects inside transaction callbacks, unsafe dual writes, missing outbox evidence, consumer idempotency/dedupe gaps, unstable pagination, unbounded SQL reads, exactly-once assumptions, and cache policy gaps.
+- Added additive `pr_summary.production_risk` report artifact and SDK aliases. The artifact is diff-only and does not change SARIF/GitHub annotation/text summary compatibility.
+- Added focused tests in `tests/checks/reliability_test.go`, `tests/checks/data_test.go`, `internal/codeguard/runner/pr_summary_test.go`, and representative metadata tests.
+
+Verification completed:
+
+- `go test ./...` with localhost test escalation.
+- `make codeguard-ci`.
 
 ## Goal
 

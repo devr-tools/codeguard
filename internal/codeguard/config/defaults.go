@@ -61,6 +61,12 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	if cfg.Checks.Context == nil {
 		cfg.Checks.Context = def.Checks.Context
 	}
+	if cfg.Checks.Reliability == nil {
+		cfg.Checks.Reliability = def.Checks.Reliability
+	}
+	if cfg.Checks.Data == nil {
+		cfg.Checks.Data = def.Checks.Data
+	}
 	applyQualityDefaults(&cfg.Checks.QualityRules, def.Checks.QualityRules)
 	applyPerformanceDefaults(&cfg.Checks.PerformanceRules)
 	applyDesignDefaults(&cfg.Checks.DesignRules, def.Checks.DesignRules)
@@ -68,8 +74,11 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	applyCIDefaults(&cfg.Checks.CIRules, def.Checks.CIRules)
 	applySecurityDefaults(&cfg.Checks.SecurityRules, def.Checks.SecurityRules)
 	applySupplyChainDefaults(&cfg.Checks.SupplyChainRules, def.Checks.SupplyChainRules)
+	applyReliabilityDefaults(&cfg.Checks.ReliabilityRules, def.Checks.ReliabilityRules)
+	applyDataDefaults(&cfg.Checks.DataRules, def.Checks.DataRules)
 	applyContextDefaults(&cfg.Checks.ContextRules, def.Checks.ContextRules)
 	applyContractDefaults(&cfg.Checks.ContractRules, def.Checks.ContractRules)
+	applyProductionRiskDefaults(&cfg.Checks.ProductionRisk, def.Checks.ProductionRisk)
 	applyAIDefaults(&cfg.AI, def.AI)
 
 }

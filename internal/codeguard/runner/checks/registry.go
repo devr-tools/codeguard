@@ -6,10 +6,12 @@ import (
 	agentContextCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/agentcontext"
 	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
 	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
+	dataCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/data"
 	designCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/design"
 	performanceCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/performance"
 	promptsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/prompts"
 	qualityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/quality"
+	reliabilityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/reliability"
 	securityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/security"
 	supplyChainCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/supplychain"
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -56,6 +58,26 @@ var sectionRegistry = []sectionDef{
 		},
 		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return performanceCheck.Run(ctx, checkEnv)
+		},
+	},
+	{
+		id:   "reliability",
+		name: "Reliability",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Reliability != nil && *sc.Cfg.Checks.Reliability
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return reliabilityCheck.Run(ctx, checkEnv)
+		},
+	},
+	{
+		id:   "data",
+		name: "Data Correctness",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Data != nil && *sc.Cfg.Checks.Data
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return dataCheck.Run(ctx, checkEnv)
 		},
 	},
 	{

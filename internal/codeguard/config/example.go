@@ -36,6 +36,8 @@ func exampleChecks() core.CheckConfig {
 		Prompts:          true,
 		CI:               true,
 		SupplyChain:      false,
+		Reliability:      boolPtr(false),
+		Data:             boolPtr(false),
 		QualityRules:     exampleQualityRules(),
 		PerformanceRules: examplePerformanceRules(),
 		DesignRules:      exampleDesignRules(),
@@ -43,8 +45,11 @@ func exampleChecks() core.CheckConfig {
 		CIRules:          exampleCIRules(),
 		SecurityRules:    exampleSecurityRules(),
 		SupplyChainRules: exampleSupplyChainRules(),
+		ReliabilityRules: exampleReliabilityRules(),
+		DataRules:        exampleDataRules(),
 		ContractRules:    exampleContractRules(),
 		ContextRules:     exampleContextRules(),
+		ProductionRisk:   exampleProductionRisk(),
 	}
 }
 
@@ -69,6 +74,56 @@ func exampleSupplyChainRules() core.SupplyChainRulesConfig {
 		RequireLockfile:     boolPtr(true),
 		DetectLockfileDrift: boolPtr(true),
 		DetectUnpinned:      boolPtr(true),
+	}
+}
+
+func exampleReliabilityRules() core.ReliabilityRulesConfig {
+	return core.ReliabilityRulesConfig{
+		DetectMissingTimeout:           boolPtr(true),
+		DetectUnboundedRetry:           boolPtr(true),
+		DetectRetryWithoutBackoff:      boolPtr(true),
+		DetectNonIdempotentRetry:       boolPtr(true),
+		DetectMissingCancellation:      boolPtr(true),
+		DetectUnboundedWork:            boolPtr(true),
+		DetectMissingConcurrencyLimit:  boolPtr(true),
+		DetectResourceLeak:             boolPtr(true),
+		DetectPartialFailureHidden:     boolPtr(true),
+		DetectMissingGracefulShutdown:  boolPtr(true),
+		DetectSwallowedError:           boolPtr(true),
+		DetectLostErrorContext:         boolPtr(true),
+		DetectRecoverablePanic:         boolPtr(true),
+		MaxRetryAttempts:               3,
+		MaxInlineGoroutinesPerFunction: 4,
+	}
+}
+
+func exampleDataRules() core.DataRulesConfig {
+	return core.DataRulesConfig{
+		DetectReadModifyWriteRace:     boolPtr(true),
+		DetectMissingTransaction:      boolPtr(true),
+		DetectSideEffectInTransaction: boolPtr(true),
+		DetectNonIdempotentConsumer:   boolPtr(true),
+		DetectMissingDeduplication:    boolPtr(true),
+		DetectUnsafeDualWrite:         boolPtr(true),
+		DetectMissingOutboxStrategy:   boolPtr(true),
+		DetectUnstablePagination:      boolPtr(true),
+		DetectUnboundedRead:           boolPtr(true),
+		DetectExactlyOnceAssumption:   boolPtr(true),
+		DetectCacheWithoutPolicy:      boolPtr(true),
+		MaxUnboundedReadRows:          1000,
+		MaxWritesWithoutTransaction:   1,
+	}
+}
+
+func exampleProductionRisk() core.ProductionRiskConfig {
+	return core.ProductionRiskConfig{
+		Enabled:           boolPtr(true),
+		WarnThreshold:     35,
+		FailThreshold:     70,
+		ReliabilityWeight: 12,
+		DataWeight:        15,
+		FailWeight:        25,
+		WarnWeight:        10,
 	}
 }
 

@@ -61,6 +61,7 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 		sc.Artifacts.Put(*triageArtifact)
 	}
 	addRiskArtifacts(sc, sections)
+	addPRSummaryArtifact(sc, sections)
 	if ruleStats := sc.RuleStats.Snapshot(); len(ruleStats) > 0 {
 		sc.Artifacts.Put(core.NewRuleStatsArtifact(ruleStats))
 		runnersupport.RecordRuleStatsHistory(sc, ruleStats)

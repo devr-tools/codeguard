@@ -75,6 +75,14 @@ type CheckConfig struct {
 	// SupplyChain toggles dependency-policy checks such as manifest hygiene,
 	// lockfile drift, license policy, and SBOM-oriented validation.
 	SupplyChain bool `json:"supply_chain,omitempty" yaml:"supply_chain,omitempty"`
+	// Reliability toggles production reliability checks such as missing
+	// timeouts, unbounded retries, cancellation propagation, concurrency bounds,
+	// cleanup handling, and graceful shutdown.
+	Reliability *bool `json:"reliability,omitempty" yaml:"reliability,omitempty"`
+	// Data toggles distributed-system and data-correctness checks such as
+	// missing transaction boundaries, unsafe dual writes, unbounded reads,
+	// unstable pagination, and cache policy gaps.
+	Data *bool `json:"data,omitempty" yaml:"data,omitempty"`
 	// Contracts toggles the API contract drift family. When nil it defaults
 	// to enabled in diff scans and disabled in full scans; the strict and
 	// enterprise profiles enable it unconditionally.
@@ -94,8 +102,11 @@ type CheckConfig struct {
 	CIRules          CIRulesConfig          `json:"ci_rules" yaml:"ci_rules"`
 	SecurityRules    SecurityRulesConfig    `json:"security_rules" yaml:"security_rules"`
 	SupplyChainRules SupplyChainRulesConfig `json:"supply_chain_rules" yaml:"supply_chain_rules"`
+	ReliabilityRules ReliabilityRulesConfig `json:"reliability_rules,omitempty" yaml:"reliability_rules,omitempty"`
+	DataRules        DataRulesConfig        `json:"data_rules,omitempty" yaml:"data_rules,omitempty"`
 	ContractRules    ContractRulesConfig    `json:"contract_rules" yaml:"contract_rules"`
 	ContextRules     ContextRulesConfig     `json:"context_rules" yaml:"context_rules"`
+	ProductionRisk   ProductionRiskConfig   `json:"production_risk,omitempty" yaml:"production_risk,omitempty"`
 }
 
 type OutputConfig struct {

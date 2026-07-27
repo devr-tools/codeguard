@@ -8,6 +8,9 @@ type DesignRulesConfig = core.DesignRulesConfig
 type PromptRulesConfig = core.PromptRulesConfig
 type CIRulesConfig = core.CIRulesConfig
 type SupplyChainRulesConfig = core.SupplyChainRulesConfig
+type ReliabilityRulesConfig = core.ReliabilityRulesConfig
+type DataRulesConfig = core.DataRulesConfig
+type ProductionRiskConfig = core.ProductionRiskConfig
 type ContractRulesConfig = core.ContractRulesConfig
 type ContextRulesConfig = core.ContextRulesConfig
 
