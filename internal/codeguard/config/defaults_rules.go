@@ -260,6 +260,8 @@ func applyChangeDefaults(dst *core.ChangeRulesConfig, def core.ChangeRulesConfig
 		&dst.DetectRefactorSideEffectReorder,
 		&dst.DetectRefactorVisibilityExpand,
 		&dst.DetectRefactorDependencyWorsened,
+		&dst.DetectRefactorDuplicateLeftBehind,
+		&dst.DetectRefactorDeadPathLeftBehind,
 	)
 	defaultInt(&dst.MaxChangedFiles, def.MaxChangedFiles)
 	defaultInt(&dst.MaxChangedDirectories, def.MaxChangedDirectories)

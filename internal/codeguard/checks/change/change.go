@@ -92,6 +92,7 @@ func findings(ctx context.Context, env support.Context) []core.Finding {
 		}
 	}
 	findings = append(findings, changeSmellFindings(env, ev)...)
+	findings = append(findings, refactorFindings(ctx, env)...)
 	findings = append(findings, testabilityFindings(ctx, env)...)
 	return findings
 }
