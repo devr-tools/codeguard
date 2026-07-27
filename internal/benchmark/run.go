@@ -46,10 +46,9 @@ type RunOptions struct {
 	Now         func() time.Time
 }
 
-// Run executes diff scans against already-provisioned immutable checkouts.
-// It neither fetches nor modifies source; cache behavior belongs to the
-// checked-out configuration. A non-zero scan is retained as data, so a corpus
-// containing intentional findings does not make the entire measurement fail.
+// Run must receive immutable checkouts so benchmark timing excludes git/network
+// setup and measures only scanner execution. A non-zero scan is retained as
+// data because benchmark corpora can intentionally contain findings.
 func Run(ctx context.Context, manifest Manifest, options RunOptions) (Result, error) {
 	if err := manifest.Validate(); err != nil {
 		return Result{}, err

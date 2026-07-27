@@ -66,13 +66,22 @@ func vulnerableDependencyFindings(env support.Context, target core.TargetConfig,
 			if advisory.FixedVersion != "" {
 				metadata["fixed_version"] = advisory.FixedVersion
 			}
-			message := "dependency " + dep.Name + "@" + version + " is affected by advisory " + advisory.ID + " in the local advisory cache"
+			var message strings.Builder
+			message.WriteString("dependency ")
+			message.WriteString(dep.Name)
+			message.WriteString("@")
+			message.WriteString(version)
+			message.WriteString(" is affected by advisory ")
+			message.WriteString(advisory.ID)
+			message.WriteString(" in the local advisory cache")
 			if advisory.FixedVersion != "" {
-				message += "; upgrade to " + advisory.FixedVersion + " or later"
+				message.WriteString("; upgrade to ")
+				message.WriteString(advisory.FixedVersion)
+				message.WriteString(" or later")
 			}
 			findings = append(findings, env.NewFinding(support.FindingInput{
 				RuleID: "supply_chain.vulnerable-dependency", Level: "fail", Path: manifest.Path,
-				Line: dep.Line, Column: 1, Message: message, Confidence: "high", Metadata: metadata,
+				Line: dep.Line, Column: 1, Message: message.String(), Confidence: "high", Metadata: metadata,
 			}))
 		}
 	}

@@ -44,8 +44,8 @@ type movePair struct {
 	to   string
 }
 
-// Run evaluates change-safety rules. The section is intentionally diff-first:
-// full scans have no review unit to measure and therefore emit no findings.
+// Run is diff-first because change-safety evidence needs a concrete review
+// unit; full scans have no touched-file scope, test ratio, or concern spread.
 func Run(ctx context.Context, env support.Context) core.SectionResult {
 	if env.Mode != core.ScanModeDiff {
 		return env.FinalizeSection(sectionID, sectionName, nil)
