@@ -117,13 +117,21 @@ func NewPRSummaryArtifact(summary core.PRSummaryArtifact) core.Artifact {
 
 func clonePRSummary(summary core.PRSummaryArtifact) *core.PRSummaryArtifact {
 	out := core.PRSummaryArtifact{}
-	if summary.ProductionRisk != nil {
-		components := append([]core.PRSummaryComponent(nil), summary.ProductionRisk.Components...)
-		out.ProductionRisk = &core.PRSummaryMetric{
-			Score:      summary.ProductionRisk.Score,
-			Level:      summary.ProductionRisk.Level,
-			Components: components,
-		}
-	}
+	out.ProductionRisk = clonePRSummaryMetric(summary.ProductionRisk)
+	out.ChangeSafety = clonePRSummaryMetric(summary.ChangeSafety)
+	out.MaintainabilityDelta = clonePRSummaryMetric(summary.MaintainabilityDelta)
+	out.RefactorConfidence = clonePRSummaryMetric(summary.RefactorConfidence)
 	return &out
+}
+
+func clonePRSummaryMetric(metric *core.PRSummaryMetric) *core.PRSummaryMetric {
+	if metric == nil {
+		return nil
+	}
+	components := append([]core.PRSummaryComponent(nil), metric.Components...)
+	return &core.PRSummaryMetric{
+		Score:      metric.Score,
+		Level:      metric.Level,
+		Components: components,
+	}
 }

@@ -27,7 +27,10 @@ const (
 )
 
 type PRSummaryArtifact struct {
-	ProductionRisk *PRSummaryMetric `json:"production_risk,omitempty"`
+	ProductionRisk       *PRSummaryMetric `json:"production_risk,omitempty"`
+	ChangeSafety         *PRSummaryMetric `json:"change_safety,omitempty"`
+	MaintainabilityDelta *PRSummaryMetric `json:"maintainability_delta,omitempty"`
+	RefactorConfidence   *PRSummaryMetric `json:"refactor_confidence,omitempty"`
 }
 
 type PRSummaryMetric struct {
