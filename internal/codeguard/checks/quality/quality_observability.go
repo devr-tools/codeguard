@@ -1,7 +1,4 @@
-// Package observability implements production operability checks: structured
-// logs, contextual error logs, metric cardinality, instrumentation, and
-// meaningful health checks.
-package observability
+package quality
 
 import (
 	"context"
@@ -29,7 +26,7 @@ var (
 	logAndIgnoreNextPattern = regexp.MustCompile(`(?i)\b(?:return\s+nil|return\s+None|return\s*;|continue|pass|//\s*ignore|#\s*ignore)\b`)
 )
 
-func Run(ctx context.Context, env support.Context) core.SectionResult {
+func RunObservability(ctx context.Context, env support.Context) core.SectionResult {
 	return support.RunTargetSection(ctx, env, "observability", "Observability", observabilityTargetFindings)
 }
 
@@ -135,7 +132,7 @@ func hasStructuredContext(line string) bool {
 
 func hasErrorContext(line string, rules core.ObservabilityRulesConfig) bool {
 	lower := strings.ToLower(line)
-	if containsAny(lower, "operation", "op", "request", "request_id", "trace", "span", "route", "handler", "job", "consumer", "customer", "account", "order") {
+	if observabilityContainsAny(lower, "operation", "op", "request", "request_id", "trace", "span", "route", "handler", "job", "consumer", "customer", "account", "order") {
 		return true
 	}
 	for _, pattern := range rules.InstrumentationEvidencePatterns {
@@ -179,7 +176,7 @@ func isHealthPathOrLine(file string, line string, rules core.ObservabilityRulesC
 
 func isCriticalPath(file string, line string, rules core.ObservabilityRulesConfig) bool {
 	lower := strings.ToLower(file + "\n" + line)
-	if !containsAny(lower, "func ", "function ", "def ", "=>", "::") {
+	if !observabilityContainsAny(lower, "func ", "function ", "def ", "=>", "::") {
 		return false
 	}
 	for _, pattern := range rules.CriticalPathPatterns {
@@ -221,7 +218,7 @@ func isTestPath(path string) bool {
 	return strings.Contains(lower, "testdata/") || strings.Contains(lower, "__tests__/") || strings.Contains(lower, "fixtures/") || strings.HasSuffix(lower, "_test.go") || strings.HasSuffix(lower, "_test.py") || strings.Contains(lower, ".test.") || strings.Contains(lower, ".spec.")
 }
 
-func containsAny(text string, needles ...string) bool {
+func observabilityContainsAny(text string, needles ...string) bool {
 	for _, needle := range needles {
 		if strings.Contains(text, needle) {
 			return true

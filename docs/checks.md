@@ -333,6 +333,7 @@ the configuration tests.
 | `data` | false | false | false | true | true |
 | `observability` | false | false | false | true | true |
 | `operations` | false | false | false | true | false |
+| `delivery` | false | false | false | true | true |
 | `change` | false | false | true | true | true |
 | `change_rules.max_changed_files` | 25 | 25 | 25 | 25 | 20 |
 | `change_rules.max_changed_directories` | 8 | 8 | 8 | 8 | 6 |

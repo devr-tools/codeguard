@@ -1,4 +1,4 @@
-package delivery
+package ci
 
 import (
 	"context"
@@ -23,14 +23,11 @@ type fileSnapshot struct {
 	text string
 }
 
-// Run evaluates rollout-governance evidence for deployment and migration
-// surfaces. The checks are intentionally evidence-based: ordinary source files
-// without rollout or critical-path markers do not produce delivery findings.
-func Run(ctx context.Context, env support.Context) core.SectionResult {
-	return support.RunTargetSection(ctx, env, "delivery", "Delivery", findingsForTarget)
+func RunDelivery(ctx context.Context, env support.Context) core.SectionResult {
+	return support.RunTargetSection(ctx, env, "delivery", "Delivery", deliveryFindingsForTarget)
 }
 
-func findingsForTarget(_ context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+func deliveryFindingsForTarget(_ context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	cfg := env.Config.Checks.DeliveryRules
 	files := collectFiles(env, target)
 	if len(files) == 0 {
@@ -179,7 +176,7 @@ func isDeploymentFile(file fileSnapshot) bool {
 func isMigrationPath(cfg core.DeliveryRulesConfig, rel string) bool {
 	normalized := strings.ToLower(filepath.ToSlash(rel))
 	for _, pattern := range cfg.MigrationPathPatterns {
-		if pathMatches(pattern, normalized) {
+		if support.PathMatchesPattern(pattern, normalized) {
 			return true
 		}
 	}
@@ -188,7 +185,7 @@ func isMigrationPath(cfg core.DeliveryRulesConfig, rel string) bool {
 
 func isHighRiskChange(cfg core.DeliveryRulesConfig, file fileSnapshot) bool {
 	for _, pattern := range cfg.HighRiskPathPatterns {
-		if pathMatches(pattern, strings.ToLower(filepath.ToSlash(file.rel))) {
+		if support.PathMatchesPattern(pattern, strings.ToLower(filepath.ToSlash(file.rel))) {
 			return highRiskBehaviorPattern.MatchString(file.text)
 		}
 	}
@@ -198,7 +195,7 @@ func isHighRiskChange(cfg core.DeliveryRulesConfig, file fileSnapshot) bool {
 func isBootstrapPath(cfg core.DeliveryRulesConfig, rel string) bool {
 	normalized := strings.ToLower(filepath.ToSlash(rel))
 	for _, pattern := range cfg.BootstrapPathPatterns {
-		if pathMatches(pattern, normalized) {
+		if support.PathMatchesPattern(pattern, normalized) {
 			return true
 		}
 	}
@@ -253,37 +250,4 @@ func firstMarkerLine(text string, pattern *regexp.Regexp) int {
 
 func enabled(value *bool) bool {
 	return value == nil || *value
-}
-
-func pathMatches(pattern string, rel string) bool {
-	pattern = strings.ToLower(filepath.ToSlash(strings.TrimSpace(pattern)))
-	rel = strings.ToLower(filepath.ToSlash(rel))
-	if pattern == "" {
-		return false
-	}
-	if ok, err := filepath.Match(filepath.FromSlash(pattern), filepath.FromSlash(rel)); err == nil && ok {
-		return true
-	}
-	if strings.HasPrefix(pattern, "**/") && strings.Contains(rel, strings.TrimPrefix(pattern, "**/")) {
-		return true
-	}
-	if strings.HasSuffix(pattern, "/**") && strings.HasPrefix(rel, strings.TrimSuffix(pattern, "/**")) {
-		return true
-	}
-	if strings.Contains(pattern, "**") {
-		parts := strings.Split(pattern, "**")
-		pos := 0
-		for _, part := range parts {
-			if part == "" {
-				continue
-			}
-			next := strings.Index(rel[pos:], part)
-			if next < 0 {
-				return false
-			}
-			pos += next + len(part)
-		}
-		return true
-	}
-	return rel == pattern
 }

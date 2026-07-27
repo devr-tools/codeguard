@@ -46,7 +46,7 @@ func environmentBranchingEligiblePath(cfg core.DeliveryRulesConfig, rel string) 
 		return false
 	}
 	for _, pattern := range cfg.BootstrapPathPatterns {
-		if qualityPathMatches(pattern, normalized) {
+		if support.PathMatchesPattern(pattern, normalized) {
 			return false
 		}
 	}
@@ -77,22 +77,4 @@ func environmentBranchLine(text string) int {
 		}
 	}
 	return 1
-}
-
-func qualityPathMatches(pattern string, rel string) bool {
-	pattern = strings.ToLower(filepath.ToSlash(strings.TrimSpace(pattern)))
-	rel = strings.ToLower(filepath.ToSlash(rel))
-	if pattern == "" {
-		return false
-	}
-	if ok, err := filepath.Match(filepath.FromSlash(pattern), filepath.FromSlash(rel)); err == nil && ok {
-		return true
-	}
-	if strings.HasPrefix(pattern, "**/") && strings.Contains(rel, strings.TrimPrefix(pattern, "**/")) {
-		return true
-	}
-	if strings.HasSuffix(pattern, "/**") && strings.HasPrefix(rel, strings.TrimSuffix(pattern, "/**")) {
-		return true
-	}
-	return rel == pattern
 }

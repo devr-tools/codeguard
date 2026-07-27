@@ -1,6 +1,4 @@
-// Package operations implements ownership and runbook metadata checks for
-// production-critical paths.
-package operations
+package quality
 
 import (
 	"context"
@@ -12,7 +10,7 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func Run(ctx context.Context, env support.Context) core.SectionResult {
+func RunOperations(ctx context.Context, env support.Context) core.SectionResult {
 	return support.RunTargetSection(ctx, env, "operations", "Operations", operationsTargetFindings)
 }
 
@@ -23,7 +21,7 @@ func operationsTargetFindings(_ context.Context, env support.Context, target cor
 	if !hasCriticalPath(files, rules.CriticalPathPatterns) {
 		return findings
 	}
-	if enabled(rules.DetectMissingOwner) && !hasAnyPattern(files, rules.OwnerFilePatterns) {
+	if operationsEnabled(rules.DetectMissingOwner) && !hasAnyPattern(files, rules.OwnerFilePatterns) {
 		findings = append(findings, env.NewFinding(support.FindingInput{
 			RuleID:     "operations.missing-owner",
 			Level:      "warn",
@@ -35,7 +33,7 @@ func operationsTargetFindings(_ context.Context, env support.Context, target cor
 			},
 		}))
 	}
-	if enabled(rules.DetectMissingRunbook) && !hasAnyPattern(files, rules.RunbookPathPatterns) {
+	if operationsEnabled(rules.DetectMissingRunbook) && !hasAnyPattern(files, rules.RunbookPathPatterns) {
 		findings = append(findings, env.NewFinding(support.FindingInput{
 			RuleID:     "operations.missing-runbook",
 			Level:      "warn",
@@ -113,6 +111,6 @@ func isGeneratedOrTest(path string) bool {
 	return strings.Contains(lower, "testdata/") || strings.Contains(lower, "__tests__/") || strings.Contains(lower, "fixtures/") || strings.HasSuffix(lower, "_test.go") || strings.Contains(lower, ".test.") || strings.Contains(lower, ".spec.")
 }
 
-func enabled(toggle *bool) bool {
+func operationsEnabled(toggle *bool) bool {
 	return toggle == nil || *toggle
 }

@@ -8,10 +8,7 @@ import (
 	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
 	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
 	dataCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/data"
-	deliveryCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/delivery"
 	designCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/design"
-	observabilityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/observability"
-	operationsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/operations"
 	performanceCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/performance"
 	promptsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/prompts"
 	qualityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/quality"
@@ -101,7 +98,7 @@ var sectionRegistry = []sectionDef{
 			return sc.Cfg.Checks.Observability != nil && *sc.Cfg.Checks.Observability
 		},
 		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
-			return observabilityCheck.Run(ctx, checkEnv)
+			return qualityCheck.RunObservability(ctx, checkEnv)
 		},
 	},
 	{
@@ -111,7 +108,7 @@ var sectionRegistry = []sectionDef{
 			return sc.Cfg.Checks.Operations != nil && *sc.Cfg.Checks.Operations
 		},
 		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
-			return operationsCheck.Run(ctx, checkEnv)
+			return qualityCheck.RunOperations(ctx, checkEnv)
 		},
 	},
 	{
@@ -153,7 +150,7 @@ var sectionRegistry = []sectionDef{
 			return sc.Cfg.Checks.Delivery != nil && *sc.Cfg.Checks.Delivery
 		},
 		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
-			return deliveryCheck.Run(ctx, checkEnv)
+			return ciCheck.RunDelivery(ctx, checkEnv)
 		},
 	},
 	{
