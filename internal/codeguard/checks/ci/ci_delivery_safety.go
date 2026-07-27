@@ -157,10 +157,7 @@ func isMutableActionRef(ref string) bool {
 	case "", "head", "latest", "main", "master", "develop", "development", "dev", "trunk", "stable":
 		return true
 	}
-	if strings.HasPrefix(normalized, "refs/heads/") {
-		return true
-	}
-	return false
+	return strings.HasPrefix(normalized, "refs/heads/")
 }
 
 type ciFile struct {

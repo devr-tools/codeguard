@@ -17,7 +17,7 @@ import (
 const (
 	ruleShallowModule          = "design.shallow-module"
 	ruleExcessivePublicSurface = "design.excessive-public-surface"
-	rulePassThrough            = "design.pass-through-abstraction"
+	rulePassThrough            = "design.pass-through-abstraction" // #nosec G101 -- rule id, not a credential.
 	ruleConfigurationLeak      = "design.configuration-leak"
 	ruleTemporalCoupling       = "design.temporal-coupling"
 	ruleInfrastructureLeak     = "design.infrastructure-type-leak"
@@ -81,7 +81,7 @@ func localDesignFileFindings(env support.Context, target core.TargetConfig, file
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
 	symbols := publicSymbols(target.Language, file, source)
 	functions := designFunctions(env, target.Language, file, data)
-	findings := make([]core.Finding, 0)
+	findings := make([]core.Finding, 0, len(functions)+5)
 	findings = append(findings, localPublicSurfaceFindings(env, file, symbols, functions, source)...)
 	findings = append(findings, leakFindings(env, file, source)...)
 	for _, fn := range functions {
@@ -161,7 +161,7 @@ func domainLogicHandlerFinding(env support.Context, file string, lines []string)
 
 func functionAbstractionFindings(env support.Context, file string, fn designFunction) []core.Finding {
 	findings := make([]core.Finding, 0, 2)
-	if isPassThroughFunction(env, fn) {
+	if isPassThroughFunction(fn) {
 		findings = append(findings, designFinding(env, rulePassThrough, file, fn.StartLine,
 			fmt.Sprintf("function %s mostly passes through to another dependency without policy, validation, or translation", fn.Name), core.ConfidenceMedium))
 	}
@@ -172,7 +172,7 @@ func functionAbstractionFindings(env support.Context, file string, fn designFunc
 	return findings
 }
 
-func isPassThroughFunction(env support.Context, fn designFunction) bool {
+func isPassThroughFunction(fn designFunction) bool {
 	if len(nonEmptyStatements(fn.Statements)) > 2 {
 		return false
 	}

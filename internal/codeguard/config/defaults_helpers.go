@@ -44,9 +44,9 @@ func boolValueOrTrue(ptr *bool) bool {
 }
 
 // defaultStringSlice fills a string-slice setting with a copy of its default
-// when unset. requireNonEmpty skips defaults that are empty.
-func defaultStringSlice(dst *[]string, def []string, requireNonEmpty bool) {
-	if *dst != nil || (requireNonEmpty && len(def) == 0) {
+// when unset.
+func defaultStringSlice(dst *[]string, def []string) {
+	if *dst != nil {
 		return
 	}
 	*dst = append([]string(nil), def...)

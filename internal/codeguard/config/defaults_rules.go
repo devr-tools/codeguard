@@ -79,7 +79,7 @@ func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig
 	defaultInt(&dst.MaxInterfaceMethods, def.MaxInterfaceMethods)
 	defaultInt(&dst.GodModuleThreshold, def.GodModuleThreshold)
 	defaultInt(&dst.HighImpactChangeThreshold, def.HighImpactChangeThreshold)
-	defaultStringSlice(&dst.ForbiddenPackageNames, def.ForbiddenPackageNames, false)
+	defaultStringSlice(&dst.ForbiddenPackageNames, def.ForbiddenPackageNames)
 	applyDefaultBoolPtrs(
 		&dst.DetectImportCycles,
 		&dst.DetectGodModules,
@@ -198,8 +198,8 @@ func applySupplyChainDefaults(dst *core.SupplyChainRulesConfig, def core.SupplyC
 	// Vulnerability matching is opt-in: a repository must choose and maintain
 	// the advisory cache it trusts.
 	defaultBoolPtr(&dst.DetectVulnerabilities, false)
-	defaultStringSlice(&dst.AllowedLicenses, def.AllowedLicenses, false)
-	defaultStringSlice(&dst.DeniedLicenses, def.DeniedLicenses, false)
+	defaultStringSlice(&dst.AllowedLicenses, def.AllowedLicenses)
+	defaultStringSlice(&dst.DeniedLicenses, def.DeniedLicenses)
 	defaultSingleCommandMap(&dst.LicenseCommands, def.LicenseCommands)
 }
 
@@ -210,12 +210,12 @@ func applyDeliveryDefaults(dst *core.DeliveryRulesConfig, def core.DeliveryRules
 		&dst.DetectHighRiskChangeWithoutKillSwitch,
 		&dst.DetectMissingPostDeployVerification,
 	)
-	defaultStringSlice(&dst.RollbackEvidencePatterns, def.RollbackEvidencePatterns, false)
-	defaultStringSlice(&dst.KillSwitchPatterns, def.KillSwitchPatterns, false)
-	defaultStringSlice(&dst.PostDeployVerificationPatterns, def.PostDeployVerificationPatterns, false)
-	defaultStringSlice(&dst.MigrationPathPatterns, def.MigrationPathPatterns, false)
-	defaultStringSlice(&dst.HighRiskPathPatterns, def.HighRiskPathPatterns, false)
-	defaultStringSlice(&dst.BootstrapPathPatterns, def.BootstrapPathPatterns, false)
+	defaultStringSlice(&dst.RollbackEvidencePatterns, def.RollbackEvidencePatterns)
+	defaultStringSlice(&dst.KillSwitchPatterns, def.KillSwitchPatterns)
+	defaultStringSlice(&dst.PostDeployVerificationPatterns, def.PostDeployVerificationPatterns)
+	defaultStringSlice(&dst.MigrationPathPatterns, def.MigrationPathPatterns)
+	defaultStringSlice(&dst.HighRiskPathPatterns, def.HighRiskPathPatterns)
+	defaultStringSlice(&dst.BootstrapPathPatterns, def.BootstrapPathPatterns)
 }
 
 func applyReliabilityDefaults(dst *core.ReliabilityRulesConfig, def core.ReliabilityRulesConfig) {
@@ -266,19 +266,19 @@ func applyObservabilityDefaults(dst *core.ObservabilityRulesConfig, def core.Obs
 		&dst.DetectLogAndIgnore,
 		&dst.DetectShallowHealthCheck,
 	)
-	defaultStringSlice(&dst.StructuredLoggerPatterns, def.StructuredLoggerPatterns, false)
-	defaultStringSlice(&dst.SensitiveNamePatterns, def.SensitiveNamePatterns, false)
-	defaultStringSlice(&dst.HighCardinalityLabelPatterns, def.HighCardinalityLabelPatterns, false)
-	defaultStringSlice(&dst.CriticalPathPatterns, def.CriticalPathPatterns, false)
-	defaultStringSlice(&dst.HealthcheckPathPatterns, def.HealthcheckPathPatterns, false)
-	defaultStringSlice(&dst.InstrumentationEvidencePatterns, def.InstrumentationEvidencePatterns, false)
+	defaultStringSlice(&dst.StructuredLoggerPatterns, def.StructuredLoggerPatterns)
+	defaultStringSlice(&dst.SensitiveNamePatterns, def.SensitiveNamePatterns)
+	defaultStringSlice(&dst.HighCardinalityLabelPatterns, def.HighCardinalityLabelPatterns)
+	defaultStringSlice(&dst.CriticalPathPatterns, def.CriticalPathPatterns)
+	defaultStringSlice(&dst.HealthcheckPathPatterns, def.HealthcheckPathPatterns)
+	defaultStringSlice(&dst.InstrumentationEvidencePatterns, def.InstrumentationEvidencePatterns)
 }
 
 func applyOperationsDefaults(dst *core.OperationsRulesConfig, def core.OperationsRulesConfig) {
 	applyDefaultBoolPtrs(&dst.DetectMissingOwner, &dst.DetectMissingRunbook)
-	defaultStringSlice(&dst.OwnerFilePatterns, def.OwnerFilePatterns, false)
-	defaultStringSlice(&dst.RunbookPathPatterns, def.RunbookPathPatterns, false)
-	defaultStringSlice(&dst.CriticalPathPatterns, def.CriticalPathPatterns, false)
+	defaultStringSlice(&dst.OwnerFilePatterns, def.OwnerFilePatterns)
+	defaultStringSlice(&dst.RunbookPathPatterns, def.RunbookPathPatterns)
+	defaultStringSlice(&dst.CriticalPathPatterns, def.CriticalPathPatterns)
 }
 
 func applyChangeDefaults(dst *core.ChangeRulesConfig, def core.ChangeRulesConfig) {
