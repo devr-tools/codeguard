@@ -170,7 +170,7 @@ func behaviorMismatch(fn precisionFunction) bool {
 }
 
 func hiddenMutation(file string, fn precisionFunction) bool {
-	if explicitMutationName(fn.Name) {
+	if explicitMutationName(fn.Name) || isFrameworkCommandBoundary(file, fn.Name) || isScriptEntrypoint(file, fn.Name) {
 		return false
 	}
 	mutatesParam := mutatesParameter(fn)
@@ -182,13 +182,14 @@ func hiddenMutation(file string, fn precisionFunction) bool {
 }
 
 func mutatingFunctionEvidence(fn precisionFunction) bool {
+	localTargets := localMutationTargets(fn)
 	for _, call := range fn.Calls {
-		if mutatingCallPattern.MatchString(call.Callee) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) {
 			return true
 		}
 	}
 	for _, assignment := range fn.Assignments {
-		if assignment.Augmented {
+		if assignment.Augmented && !isLocalMutationTarget(assignment.Name, localTargets) {
 			return true
 		}
 	}
@@ -242,6 +243,7 @@ func lineHasAssignmentOperator(line string) bool {
 func explicitMutationName(name string) bool {
 	lowered := strings.ToLower(strings.TrimSpace(name))
 	return commandFunctionPrefixPattern.MatchString(lowered) ||
+		conventionalMutationBoundaryPattern.MatchString(lowered) ||
 		strings.Contains(lowered, "mutat") ||
 		strings.Contains(lowered, "persist") ||
 		strings.Contains(lowered, "write")

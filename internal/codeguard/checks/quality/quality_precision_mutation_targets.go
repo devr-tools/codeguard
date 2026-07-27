@@ -1,0 +1,110 @@
+package quality
+
+import (
+	"path/filepath"
+	"regexp"
+	"strings"
+)
+
+var conventionalMutationBoundaryPattern = regexp.MustCompile(`^(accept|apply|approve|archive|clear|close|commit|deliver|download|drop|ensure|exists|fetch|import|list|notify|open|process|read|reconcile|record|run|seed|submit|sync|toggle|upload)`)
+
+func localMutationTargets(fn precisionFunction) map[string]struct{} {
+	params := paramNames(fn)
+	targets := make(map[string]struct{})
+	for _, assignment := range fn.Assignments {
+		name := strings.TrimSpace(assignment.Name)
+		if name == "" || assignment.Augmented {
+			continue
+		}
+		if _, isParam := params[name]; isParam {
+			continue
+		}
+		targets[name] = struct{}{}
+	}
+	return targets
+}
+
+func paramNames(fn precisionFunction) map[string]struct{} {
+	params := make(map[string]struct{}, len(fn.Params))
+	for _, param := range fn.Params {
+		if param.Name != "" {
+			params[param.Name] = struct{}{}
+		}
+	}
+	return params
+}
+
+func isLocalMutationCall(callee string, localTargets map[string]struct{}) bool {
+	if isBareLocalMutationCall(callee) {
+		return true
+	}
+	target := mutationCallTarget(callee)
+	if target == "" {
+		return false
+	}
+	return isLocalMutationTarget(target, localTargets)
+}
+
+func isBareLocalMutationCall(callee string) bool {
+	switch strings.TrimSpace(callee) {
+	case "append", "Set":
+		return true
+	default:
+		return false
+	}
+}
+
+func mutationCallTarget(callee string) string {
+	callee = strings.TrimSpace(callee)
+	if callee == "" {
+		return ""
+	}
+	for _, sep := range []string{".", "->", "::"} {
+		if idx := strings.Index(callee, sep); idx > 0 {
+			return strings.TrimSpace(callee[:idx])
+		}
+	}
+	return ""
+}
+
+func isLocalMutationTarget(name string, localTargets map[string]struct{}) bool {
+	_, ok := localTargets[strings.TrimSpace(name)]
+	return ok
+}
+
+func isFrameworkCommandBoundary(file string, name string) bool {
+	if !isScriptLikeSourcePath(file) {
+		return false
+	}
+	if !isHTTPMethodName(name) {
+		return false
+	}
+	normalized := strings.ReplaceAll(file, "\\", "/")
+	return strings.HasSuffix(normalized, "/route.ts") || strings.HasSuffix(normalized, "/route.tsx") ||
+		strings.HasSuffix(normalized, "/route.js") || strings.HasSuffix(normalized, "/route.jsx")
+}
+
+func isHTTPMethodName(name string) bool {
+	switch strings.ToUpper(strings.TrimSpace(name)) {
+	case "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS":
+		return true
+	default:
+		return false
+	}
+}
+
+func isScriptEntrypoint(file string, name string) bool {
+	if strings.TrimSpace(name) != "main" {
+		return false
+	}
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	base := filepath.Base(normalized)
+	if strings.HasPrefix(base, "seed") || strings.HasPrefix(base, "backfill") || strings.HasPrefix(base, "import") || strings.HasPrefix(base, "cleanup") {
+		return true
+	}
+	return strings.Contains(normalized, "/scripts/") ||
+		strings.Contains(normalized, "/script/") ||
+		strings.Contains(normalized, "/backfill") ||
+		strings.Contains(normalized, "/seed") ||
+		strings.Contains(normalized, "/import")
+}
