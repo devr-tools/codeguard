@@ -34,10 +34,66 @@ def handle_message(email, event):
 	}
 
 	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-transaction-boundary")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.unsafe-dual-write")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-outbox-strategy")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.unstable-pagination")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.non-idempotent-consumer")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-deduplication")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.cache-without-policy")
+}
+
+func TestDataPythonDetectsUnboundedReadAndExactlyOnceAssumption(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "queries.py"), `
+def list_orders(session):
+    return session.execute("SELECT * FROM orders")
+
+# broker provides exactly once delivery
+def consume(event):
+    return event
+`)
+
+	report, err := codeguard.Run(context.Background(), dataLangConfig("data-python-read", dir, "python"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Data Correctness", "data.unbounded-read")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.exactly-once-assumption")
+}
+
+func TestDataPythonAcceptsTransactionalOutboxAndBoundedPolicies(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "safe_service.py"), `
+def save_and_publish(repo, outbox, cache, session, event):
+    with transaction.atomic():
+        repo.save(order)
+        repo.update(order)
+        outbox.publish(event)
+    cache.set("order", order, timeout=60)
+    session.execute("SELECT * FROM orders WHERE account_id = :id ORDER BY id LIMIT 20")
+
+# exactly once is handled by idempotency and dedupe keys
+def handle_message(email, event):
+    if processed.exists(event.message_id):
+        return
+    email.send(event)
+`)
+
+	report, err := codeguard.Run(context.Background(), dataLangConfig("data-python-safe", dir, "python"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.missing-transaction-boundary")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.unsafe-dual-write")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.missing-outbox-strategy")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.unstable-pagination")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.unbounded-read")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.non-idempotent-consumer")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.missing-deduplication")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.cache-without-policy")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.exactly-once-assumption")
 }
 
 func TestDataTypeScriptDetectsTransactionPaginationAndConsumerGaps(t *testing.T) {
@@ -62,10 +118,66 @@ async function handleMessage(email, event) {
 	}
 
 	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-transaction-boundary")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.unsafe-dual-write")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-outbox-strategy")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.unstable-pagination")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.unbounded-read")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.non-idempotent-consumer")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-deduplication")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.cache-without-policy")
+}
+
+func TestDataTypeScriptDetectsExactlyOnceAssumption(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "consumer.ts"), `
+// broker gives exactly once delivery
+export function consume(event: Event) {
+  return event;
+}
+`)
+
+	report, err := codeguard.Run(context.Background(), dataLangConfig("data-ts-exactly-once", dir, "typescript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Data Correctness", "data.exactly-once-assumption")
+}
+
+func TestDataTypeScriptAcceptsTransactionalOutboxAndBoundedPolicies(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "safe_service.ts"), `
+async function saveAndPublish(db, outbox, cache, event) {
+  await db.$transaction(async (tx) => {
+    await tx.order.create({});
+    await tx.order.update({});
+    await outbox.publish(event);
+  });
+  cache.set("order", event, { ttl: 60 });
+  await db.order.findMany({ where: { accountId: event.accountId }, orderBy: { id: "asc" }, take: 20 });
+}
+
+// exactly once is handled by idempotency and dedupe keys
+async function handleMessage(email, event) {
+  if (await processed.has(event.messageId)) return;
+  await email.send(event);
+}
+`)
+
+	report, err := codeguard.Run(context.Background(), dataLangConfig("data-ts-safe", dir, "typescript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.missing-transaction-boundary")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.unsafe-dual-write")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.missing-outbox-strategy")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.unstable-pagination")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.unbounded-read")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.non-idempotent-consumer")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.missing-deduplication")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.cache-without-policy")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.exactly-once-assumption")
 }
 
 func TestDataJavaScriptUsesSameDetector(t *testing.T) {
@@ -82,6 +194,39 @@ async function list(db) {
 	}
 
 	assertFindingRulePresent(t, report, "Data Correctness", "data.unbounded-read")
+}
+
+func TestDataJavaScriptDetectsTransactionPaginationConsumerAndExactlyOnceGaps(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "service.js"), `
+async function saveAndPublish(db, bus, cache) {
+  await db.order.create({});
+  await db.order.update({});
+  await bus.publish(event);
+  cache.set("order", order);
+  await db.order.findMany({ skip: 20 });
+}
+
+// broker gives exactly once delivery
+async function handleMessage(email, event) {
+  await email.send(event);
+}
+`)
+
+	report, err := codeguard.Run(context.Background(), dataLangConfig("data-js-gaps", dir, "javascript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-transaction-boundary")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.unsafe-dual-write")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-outbox-strategy")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.unstable-pagination")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.unbounded-read")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.non-idempotent-consumer")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-deduplication")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.cache-without-policy")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.exactly-once-assumption")
 }
 
 func TestDataCPPDetectsTransactionPaginationAndConsumerGaps(t *testing.T) {
@@ -106,8 +251,65 @@ void HandleMessage(Email& email, Event event) {
 	}
 
 	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-transaction-boundary")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.unsafe-dual-write")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-outbox-strategy")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.unstable-pagination")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.non-idempotent-consumer")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-deduplication")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.cache-without-policy")
+}
+
+func TestDataCPPDetectsUnboundedReadAndExactlyOnceAssumption(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "queries.cpp"), `
+void ListOrders(DB& db) {
+  db.query("SELECT * FROM orders");
+}
+
+// broker gives exactly once delivery
+void Consume(Event event) {}
+`)
+
+	report, err := codeguard.Run(context.Background(), dataLangConfig("data-cpp-read", dir, "cpp"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Data Correctness", "data.unbounded-read")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.exactly-once-assumption")
+}
+
+func TestDataCPPAcceptsTransactionalOutboxAndBoundedPolicies(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "safe_service.cpp"), `
+void SaveAndPublish(Repo& repo, Outbox& outbox, Cache& cache, DB& db, Event event) {
+  auto txn = db.begin_tx();
+  repo.save(txn, order);
+  repo.update(txn, order);
+  outbox.publish(event);
+  cache.set("order", order, ttl);
+  db.query().where(account_id).order_by(id).limit(20);
+}
+
+// exactly once is handled by idempotency and dedupe keys
+void HandleMessage(Email& email, Event event) {
+  if (processed.contains(event.message_id)) return;
+  email.send(event);
+}
+`)
+
+	report, err := codeguard.Run(context.Background(), dataLangConfig("data-cpp-safe", dir, "cpp"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.missing-transaction-boundary")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.unsafe-dual-write")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.missing-outbox-strategy")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.unstable-pagination")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.unbounded-read")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.non-idempotent-consumer")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.missing-deduplication")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.cache-without-policy")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.exactly-once-assumption")
 }

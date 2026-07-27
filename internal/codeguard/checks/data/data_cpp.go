@@ -30,6 +30,7 @@ func cppFindingsForFile(env support.Context, file string, data []byte) []core.Fi
 	for idx, line := range strings.Split(masked, "\n") {
 		scan.consumeLine(idx+1, line)
 	}
+	scan.consumeRawSource(source)
 	scan.finish()
 	return scan.findings
 }
@@ -75,8 +76,16 @@ func (s *cppDataScan) consumeLine(lineNo int, line string) {
 	if enabled(s.rules.DetectCacheWithoutPolicy) && cppDataCacheSet.MatchString(line) && !cppDataTTL.MatchString(line) {
 		s.add("data.cache-without-policy", "warn", lineNo, "C++ cache write lacks TTL or expiration policy evidence", "medium", "cache", "set-without-ttl")
 	}
-	if enabled(s.rules.DetectExactlyOnceAssumption) && strings.Contains(strings.ToLower(line), "exactly once") && !cppDataDedupe.MatchString(line) {
-		s.add("data.exactly-once-assumption", "warn", lineNo, "C++ code assumes exactly-once delivery without idempotency evidence", "low", "comment", "exactly-once")
+}
+
+func (s *cppDataScan) consumeRawSource(source string) {
+	if !enabled(s.rules.DetectExactlyOnceAssumption) {
+		return
+	}
+	for idx, line := range strings.Split(source, "\n") {
+		if strings.Contains(strings.ToLower(line), "exactly once") && !cppDataDedupe.MatchString(line) {
+			s.add("data.exactly-once-assumption", "warn", idx+1, "C++ code assumes exactly-once delivery without idempotency evidence", "low", "comment", "exactly-once")
+		}
 	}
 }
 

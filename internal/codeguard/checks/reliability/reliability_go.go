@@ -40,6 +40,7 @@ func functionReliabilityFindings(env support.Context, file string, fset *token.F
 	findings := make([]core.Finding, 0)
 	hasContextParam := funcHasContextParam(fn)
 	deferCloseVars := deferredCloseVars(fn.Body)
+	boundedClients, boundedRequests := boundedHTTPValues(fn.Body, httpAliases)
 	goroutines := 0
 
 	ast.Inspect(fn.Body, func(node ast.Node) bool {
@@ -58,7 +59,7 @@ func functionReliabilityFindings(env support.Context, file string, fset *token.F
 				findings = append(findings, newFinding(env, "reliability.retry-without-backoff", "warn", file, pos.Line, pos.Column, "retry-like loop has no visible backoff or jitter", "medium", "retry", "range-loop"))
 			}
 		case *ast.CallExpr:
-			findings = append(findings, callReliabilityFindings(env, file, fset, n, rules, httpAliases, hasContextParam, hasShutdown)...)
+			findings = append(findings, callReliabilityFindings(env, file, fset, n, rules, httpAliases, boundedClients, boundedRequests, hasContextParam, hasShutdown)...)
 		case *ast.AssignStmt:
 			findings = append(findings, assignmentReliabilityFindings(env, file, fset, n, rules, httpAliases, deferCloseVars)...)
 		case *ast.ReturnStmt:
@@ -77,10 +78,10 @@ func functionReliabilityFindings(env support.Context, file string, fset *token.F
 	return findings
 }
 
-func callReliabilityFindings(env support.Context, file string, fset *token.FileSet, call *ast.CallExpr, rules core.ReliabilityRulesConfig, httpAliases map[string]struct{}, hasContextParam bool, hasShutdown bool) []core.Finding {
+func callReliabilityFindings(env support.Context, file string, fset *token.FileSet, call *ast.CallExpr, rules core.ReliabilityRulesConfig, httpAliases map[string]struct{}, boundedClients map[string]struct{}, boundedRequests map[string]struct{}, hasContextParam bool, hasShutdown bool) []core.Finding {
 	findings := make([]core.Finding, 0, 2)
 	pos := fset.Position(call.Pos())
-	if enabled(rules.DetectMissingTimeout) && isUnboundedHTTPCall(call, httpAliases) {
+	if enabled(rules.DetectMissingTimeout) && isUnboundedHTTPCall(call, httpAliases, boundedClients, boundedRequests) {
 		findings = append(findings, newFinding(env, "reliability.missing-timeout", "fail", file, pos.Line, pos.Column, "outbound HTTP call is made without a request context or client timeout", "high", "call", callName(call)))
 	}
 	if enabled(rules.DetectMissingCancellation) && hasContextParam && isBackgroundContextCall(call) {

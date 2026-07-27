@@ -12,6 +12,7 @@ var (
 	tsFetchCall         = regexp.MustCompile(`\bfetch\s*\(`)
 	tsAxiosCall         = regexp.MustCompile(`\baxios\.(?:get|post|put|patch|delete)\s*\(`)
 	tsLoopStart         = regexp.MustCompile(`(?:^|[^\w$])(?:for|while)\s*\(|\.(?:forEach|map|flatMap)\s*\(`)
+	tsUnboundedLoop     = regexp.MustCompile(`\bwhile\s*\(\s*true\s*\)|\bfor\s*\(\s*;\s*;\s*\)`)
 	tsRetryHint         = regexp.MustCompile(`(?i)retry|attempt|transient`)
 	tsBackoffHint       = regexp.MustCompile(`(?i)backoff|jitter|setTimeout|sleep|delay`)
 	tsPromiseInLoop     = regexp.MustCompile(`\b(?:new\s+Promise|fetch|axios\.|Promise\.all|[A-Za-z_$][\w$]*Async|fetch[A-Za-z_$][\w$]*)\s*\(`)
@@ -53,30 +54,38 @@ func typeScriptFindingsForFile(env support.Context, file string, data []byte) []
 }
 
 type tsReliabilityScan struct {
-	env      support.Context
-	file     string
-	rules    core.ReliabilityRulesConfig
-	limited  bool
-	depth    int
-	loops    []int
-	findings []core.Finding
+	env            support.Context
+	file           string
+	rules          core.ReliabilityRulesConfig
+	limited        bool
+	depth          int
+	loops          []int
+	unboundedLoops []int
+	findings       []core.Finding
 }
 
 func (s *tsReliabilityScan) consumeLine(lineNo int, line string) {
 	startsLoop := tsLoopStart.MatchString(line)
 	inLoop := len(s.loops) > 0 || startsLoop
-	s.checkLine(lineNo, line, inLoop)
+	inUnboundedLoop := len(s.unboundedLoops) > 0 || tsUnboundedLoop.MatchString(line)
+	s.checkLine(lineNo, line, inLoop, inUnboundedLoop)
 	next := s.depth + strings.Count(line, "{") - strings.Count(line, "}")
 	if startsLoop && next > s.depth {
 		s.loops = append(s.loops, s.depth)
+		if tsUnboundedLoop.MatchString(line) {
+			s.unboundedLoops = append(s.unboundedLoops, s.depth)
+		}
 	}
 	for len(s.loops) > 0 && next <= s.loops[len(s.loops)-1] {
 		s.loops = s.loops[:len(s.loops)-1]
 	}
+	for len(s.unboundedLoops) > 0 && next <= s.unboundedLoops[len(s.unboundedLoops)-1] {
+		s.unboundedLoops = s.unboundedLoops[:len(s.unboundedLoops)-1]
+	}
 	s.depth = next
 }
 
-func (s *tsReliabilityScan) checkLine(lineNo int, line string, inLoop bool) {
+func (s *tsReliabilityScan) checkLine(lineNo int, line string, inLoop bool, inUnboundedLoop bool) {
 	if enabled(s.rules.DetectMissingTimeout) && (tsFetchCall.MatchString(line) || tsAxiosCall.MatchString(line)) && !strings.Contains(line, "timeout") && !strings.Contains(line, "signal") {
 		s.add("reliability.missing-timeout", "fail", lineNo, "outbound TypeScript/JavaScript HTTP call lacks timeout or abort signal evidence", "medium", "call", "http-without-timeout")
 	}
@@ -85,6 +94,9 @@ func (s *tsReliabilityScan) checkLine(lineNo int, line string, inLoop bool) {
 	}
 	if enabled(s.rules.DetectRetryWithoutBackoff) && inLoop && tsRetryHint.MatchString(line) && !tsBackoffHint.MatchString(line) {
 		s.add("reliability.retry-without-backoff", "warn", lineNo, "retry-like JavaScript loop has no visible backoff or jitter", "medium", "retry", "no-backoff")
+	}
+	if enabled(s.rules.DetectUnboundedRetry) && inUnboundedLoop && tsRetryHint.MatchString(line) {
+		s.add("reliability.unbounded-retry", "fail", lineNo, "retry-like JavaScript loop can run forever without an attempt limit", "medium", "retry", "while-true")
 	}
 	if enabled(s.rules.DetectNonIdempotentRetry) && inLoop && tsNonIdempotentCall.MatchString(line) && !tsIdempotencyHint.MatchString(line) {
 		s.add("reliability.non-idempotent-retry", "fail", lineNo, "retry-like JavaScript loop wraps a non-idempotent side effect without idempotency evidence", "medium", "retry", "side-effect")

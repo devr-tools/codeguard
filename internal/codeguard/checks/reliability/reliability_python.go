@@ -18,7 +18,7 @@ var (
 	pySwallowedExcept        = regexp.MustCompile(`^\s*(?:pass|return\s+None|return\s*$|continue)\s*(?:#.*)?$`)
 	pyRecoverableRaise       = regexp.MustCompile(`\braise\s+(?:RuntimeError|Exception)\s*\(`)
 	pyCloseCall              = regexp.MustCompile(`\.(?:close|aclose)\s*\(`)
-	pyOpenCall               = regexp.MustCompile(`\bopen\s*\(|\brequests\.(?:get|post|put|patch|delete|head)\s*\(`)
+	pyOpenCall               = regexp.MustCompile(`\bopen\s*\(`)
 	pyIdempotencyHint        = regexp.MustCompile(`(?i)idempot|dedupe|dedup|processed|message_id|event_id`)
 	pyNonIdempotentRetryCall = regexp.MustCompile(`(?i)\b(?:post|put|patch|delete|create|update|save|insert|publish|send|charge|write)\w*\s*\(`)
 )
@@ -42,7 +42,7 @@ type pythonReliabilityScan struct {
 	file           string
 	rules          core.ReliabilityRulesConfig
 	limited        bool
-	loops          []int
+	loops          []pythonLoopRegion
 	excepts        []int
 	openLine       int
 	openLineClosed bool
@@ -55,29 +55,31 @@ func (s *pythonReliabilityScan) consumeLine(lineNo int, line string) {
 		return
 	}
 	indent := leadingIndentWidth(line)
-	s.loops = popIndentedRegions(s.loops, indent)
+	s.loops = popPythonLoopRegions(s.loops, indent)
 	s.excepts = popIndentedRegions(s.excepts, indent)
 	inLoop := len(s.loops) > 0
+	inUnboundedLoop := inUnboundedPythonLoop(s.loops)
 	inExcept := len(s.excepts) > 0
 	if pyRetryLoop.MatchString(line) {
-		s.loops = append(s.loops, indent)
+		s.loops = append(s.loops, pythonLoopRegion{indent: indent, unbounded: strings.HasPrefix(trimmed, "while True")})
 		inLoop = true
+		inUnboundedLoop = strings.HasPrefix(trimmed, "while True") || inUnboundedLoop
 	}
 	if strings.HasPrefix(trimmed, "except ") || strings.HasPrefix(trimmed, "except:") {
 		s.excepts = append(s.excepts, indent)
 		inExcept = true
 	}
-	s.checkLine(lineNo, line, trimmed, inLoop, inExcept)
+	s.checkLine(lineNo, line, trimmed, inLoop, inUnboundedLoop, inExcept)
 }
 
-func (s *pythonReliabilityScan) checkLine(lineNo int, line string, trimmed string, inLoop bool, inExcept bool) {
+func (s *pythonReliabilityScan) checkLine(lineNo int, line string, trimmed string, inLoop bool, inUnboundedLoop bool, inExcept bool) {
 	if enabled(s.rules.DetectMissingTimeout) && (pyHTTPCall.MatchString(line) || pyAioHTTPCall.MatchString(line)) && !strings.Contains(line, "timeout=") {
 		s.add("reliability.missing-timeout", "fail", lineNo, "outbound Python HTTP call has no timeout argument", "high", "call", "http-without-timeout")
 	}
 	if enabled(s.rules.DetectRetryWithoutBackoff) && inLoop && looksRetryish(line) && !pyBackoffHint.MatchString(line) {
 		s.add("reliability.retry-without-backoff", "warn", lineNo, "retry-like Python loop has no visible backoff or jitter", "medium", "retry", "no-backoff")
 	}
-	if enabled(s.rules.DetectUnboundedRetry) && strings.HasPrefix(trimmed, "while True") && looksRetryish(line) {
+	if enabled(s.rules.DetectUnboundedRetry) && inUnboundedLoop && looksRetryish(line) {
 		s.add("reliability.unbounded-retry", "fail", lineNo, "retry-like Python loop can run forever without an attempt limit", "medium", "retry", "while-true")
 	}
 	if enabled(s.rules.DetectNonIdempotentRetry) && inLoop && pyNonIdempotentRetryCall.MatchString(line) && !pyIdempotencyHint.MatchString(line) {
@@ -101,6 +103,11 @@ func (s *pythonReliabilityScan) checkLine(lineNo int, line string, trimmed strin
 	if enabled(s.rules.DetectResourceLeak) {
 		s.trackResourceLeak(lineNo, line)
 	}
+}
+
+type pythonLoopRegion struct {
+	indent    int
+	unbounded bool
 }
 
 func (s *pythonReliabilityScan) trackResourceLeak(lineNo int, line string) {
@@ -151,4 +158,20 @@ func popIndentedRegions(regions []int, indent int) []int {
 		regions = regions[:len(regions)-1]
 	}
 	return regions
+}
+
+func popPythonLoopRegions(regions []pythonLoopRegion, indent int) []pythonLoopRegion {
+	for len(regions) > 0 && indent <= regions[len(regions)-1].indent {
+		regions = regions[:len(regions)-1]
+	}
+	return regions
+}
+
+func inUnboundedPythonLoop(regions []pythonLoopRegion) bool {
+	for _, region := range regions {
+		if region.unbounded {
+			return true
+		}
+	}
+	return false
 }

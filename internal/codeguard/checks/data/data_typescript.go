@@ -39,6 +39,7 @@ func typeScriptFindingsForFile(env support.Context, file string, data []byte) []
 	for idx, line := range strings.Split(code, "\n") {
 		scan.consumeLine(idx+1, line)
 	}
+	scan.consumeRawSource(source)
 	scan.finish()
 	return scan.findings
 }
@@ -84,8 +85,16 @@ func (s *tsDataScan) consumeLine(lineNo int, line string) {
 	if enabled(s.rules.DetectCacheWithoutPolicy) && tsDataCacheSet.MatchString(line) && !tsDataTTL.MatchString(line) {
 		s.add("data.cache-without-policy", "warn", lineNo, "TypeScript/JavaScript cache write lacks TTL or expiration policy evidence", "medium", "cache", "set-without-ttl")
 	}
-	if enabled(s.rules.DetectExactlyOnceAssumption) && tsExactlyOnce.MatchString(line) && !tsDataDedupe.MatchString(line) {
-		s.add("data.exactly-once-assumption", "warn", lineNo, "TypeScript/JavaScript code assumes exactly-once delivery without idempotency evidence", "low", "comment", "exactly-once")
+}
+
+func (s *tsDataScan) consumeRawSource(source string) {
+	if !enabled(s.rules.DetectExactlyOnceAssumption) {
+		return
+	}
+	for idx, line := range strings.Split(source, "\n") {
+		if tsExactlyOnce.MatchString(line) && !tsDataDedupe.MatchString(line) {
+			s.add("data.exactly-once-assumption", "warn", idx+1, "TypeScript/JavaScript code assumes exactly-once delivery without idempotency evidence", "low", "comment", "exactly-once")
+		}
 	}
 }
 

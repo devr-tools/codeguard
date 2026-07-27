@@ -98,3 +98,67 @@ func Copy(dst io.Writer, src io.Reader) {
 	assertFindingRulePresent(t, report, "Reliability", "reliability.swallowed-error")
 	assertFindingRulePresent(t, report, "Reliability", "reliability.recoverable-panic")
 }
+
+func TestReliabilityGoDetectsRetryRisk(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "retry.go"), `package sample
+
+func ChargeWithRetry(payments Payments, card Card) error {
+	for {
+		if err := payments.Charge(card); err != nil {
+			continue
+		}
+		return nil
+	}
+}
+
+type Payments interface {
+	Charge(Card) error
+}
+
+type Card struct{}
+`)
+
+	report, err := codeguard.Run(context.Background(), reliabilityConfig("reliability-retry", dir))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Reliability", "reliability.unbounded-retry")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.retry-without-backoff")
+	assertFindingRulePresent(t, report, "Reliability", "reliability.non-idempotent-retry")
+}
+
+func TestReliabilityGoDoesNotFlagBoundedHTTPWithContextAndCleanup(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "client.go"), `package sample
+
+import (
+	"context"
+	"net/http"
+	"time"
+)
+
+func Fetch(ctx context.Context, url string) error {
+	client := &http.Client{Timeout: 2 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}
+`)
+
+	report, err := codeguard.Run(context.Background(), reliabilityConfig("reliability-bounded-http", dir))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Reliability", "reliability.missing-timeout")
+	assertFindingRuleAbsent(t, report, "Reliability", "reliability.resource-leak")
+}

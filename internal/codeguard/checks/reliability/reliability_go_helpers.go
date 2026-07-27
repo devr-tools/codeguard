@@ -34,7 +34,7 @@ func funcHasContextParam(fn *ast.FuncDecl) bool {
 	return false
 }
 
-func isUnboundedHTTPCall(call *ast.CallExpr, aliases map[string]struct{}) bool {
+func isUnboundedHTTPCall(call *ast.CallExpr, aliases map[string]struct{}, boundedClients map[string]struct{}, boundedRequests map[string]struct{}) bool {
 	selector, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return false
@@ -48,7 +48,22 @@ func isUnboundedHTTPCall(call *ast.CallExpr, aliases map[string]struct{}) bool {
 			}
 		}
 	}
-	return selector.Sel.Name == "Do"
+	if selector.Sel.Name != "Do" {
+		return false
+	}
+	if len(call.Args) > 0 {
+		if arg, ok := call.Args[0].(*ast.Ident); ok {
+			if _, exists := boundedRequests[arg.Name]; exists {
+				return false
+			}
+		}
+	}
+	if ident != nil {
+		if _, exists := boundedClients[ident.Name]; exists {
+			return false
+		}
+	}
+	return true
 }
 
 func isBackgroundContextCall(call *ast.CallExpr) bool {
@@ -102,7 +117,7 @@ func assignedHTTPResponseVars(assign *ast.AssignStmt, aliases map[string]struct{
 	names := make([]string, 0, 1)
 	for _, rhs := range assign.Rhs {
 		call, ok := rhs.(*ast.CallExpr)
-		if !ok || !isUnboundedHTTPCall(call, aliases) {
+		if !ok || !isHTTPResponseAcquisition(call, aliases) {
 			continue
 		}
 		for _, lhs := range assign.Lhs {
@@ -113,6 +128,116 @@ func assignedHTTPResponseVars(assign *ast.AssignStmt, aliases map[string]struct{
 		}
 	}
 	return names
+}
+
+func boundedHTTPValues(block *ast.BlockStmt, aliases map[string]struct{}) (map[string]struct{}, map[string]struct{}) {
+	clients := map[string]struct{}{}
+	requests := map[string]struct{}{}
+	ast.Inspect(block, func(node ast.Node) bool {
+		switch n := node.(type) {
+		case *ast.AssignStmt:
+			for idx, rhs := range n.Rhs {
+				name := assignedNameAt(n.Lhs, idx)
+				if name == "" {
+					continue
+				}
+				if isHTTPClientWithTimeout(rhs, aliases) {
+					clients[name] = struct{}{}
+				}
+				if isRequestWithContext(rhs) {
+					requests[name] = struct{}{}
+				}
+			}
+		case *ast.ValueSpec:
+			for idx, rhs := range n.Values {
+				if idx >= len(n.Names) {
+					continue
+				}
+				name := n.Names[idx].Name
+				if isHTTPClientWithTimeout(rhs, aliases) {
+					clients[name] = struct{}{}
+				}
+				if isRequestWithContext(rhs) {
+					requests[name] = struct{}{}
+				}
+			}
+		}
+		return true
+	})
+	return clients, requests
+}
+
+func assignedNameAt(lhs []ast.Expr, idx int) string {
+	if len(lhs) == 0 {
+		return ""
+	}
+	if idx >= len(lhs) {
+		idx = len(lhs) - 1
+	}
+	ident, ok := lhs[idx].(*ast.Ident)
+	if !ok || ident.Name == "_" {
+		return ""
+	}
+	return ident.Name
+}
+
+func isHTTPClientWithTimeout(expr ast.Expr, aliases map[string]struct{}) bool {
+	switch n := expr.(type) {
+	case *ast.UnaryExpr:
+		return isHTTPClientWithTimeout(n.X, aliases)
+	case *ast.CompositeLit:
+		if !isHTTPClientType(n.Type, aliases) {
+			return false
+		}
+		for _, elt := range n.Elts {
+			kv, ok := elt.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+			if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "Timeout" {
+				return true
+			}
+		}
+	case *ast.CallExpr:
+		return callName(n) == "http.Client" || strings.HasSuffix(callName(n), ".Client")
+	}
+	return false
+}
+
+func isHTTPClientType(expr ast.Expr, aliases map[string]struct{}) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != "Client" {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	if ident.Name == "http" {
+		return true
+	}
+	_, exists := aliases[ident.Name]
+	return exists
+}
+
+func isRequestWithContext(expr ast.Expr) bool {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	name := callName(call)
+	return strings.HasSuffix(name, ".NewRequestWithContext") || strings.HasSuffix(name, ".WithContext")
+}
+
+func isHTTPResponseAcquisition(call *ast.CallExpr, aliases map[string]struct{}) bool {
+	if isUnboundedHTTPCall(call, aliases, nil, nil) {
+		return true
+	}
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	return selector.Sel.Name == "Do"
 }
 
 func deferredCloseVars(block *ast.BlockStmt) map[string]struct{} {

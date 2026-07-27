@@ -99,3 +99,131 @@ func HandleMessage(email Emailer, event any) error {
 	assertFindingRulePresent(t, report, "Data Correctness", "data.non-idempotent-consumer")
 	assertFindingRulePresent(t, report, "Data Correctness", "data.missing-deduplication")
 }
+
+func TestDataGoDetectsReadModifyWriteTransactionSideEffectCacheAndExactlyOnce(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "risks.go"), `package sample
+
+type Repo interface {
+	Get(string) (Order, error)
+	Save(Order) error
+}
+
+type DB interface {
+	Transaction(func(Tx) error) error
+}
+
+type Tx interface{}
+
+type Publisher interface {
+	Publish(any) error
+}
+
+type Cache interface {
+	Set(string, any)
+}
+
+type Order struct{}
+
+func UpdateDerived(repo Repo, id string) error {
+	order, err := repo.Get(id)
+	if err != nil {
+		return err
+	}
+	return repo.Save(order)
+}
+
+func PublishInsideTransaction(db DB, publisher Publisher, event any) error {
+	return db.Transaction(func(tx Tx) error {
+		return publisher.Publish(event)
+	})
+}
+
+func CacheOrder(cache Cache, order Order) {
+	cache.Set("order", order)
+}
+
+// consumer assumes exactly once delivery from the broker
+func Consumer() {}
+`)
+
+	report, err := codeguard.Run(context.Background(), dataConfig("data-more-go-risks", dir))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Data Correctness", "data.read-modify-write-race")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.side-effect-in-transaction")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.cache-without-policy")
+	assertFindingRulePresent(t, report, "Data Correctness", "data.exactly-once-assumption")
+}
+
+func TestDataGoAcceptsTransactionalOutboxBoundedQueryAndPolicy(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "safe.go"), `package sample
+
+type Repo interface {
+	WithTx(func(Tx) error) error
+	Query(string) ([]Order, error)
+}
+
+type Tx interface {
+	Get(string) (Order, error)
+	Save(Order) error
+}
+
+type Outbox interface {
+	Publish(any) error
+}
+
+type Cache interface {
+	Set(string, any, int)
+}
+
+type Event struct {
+	MessageID string
+}
+
+type Order struct{}
+
+func UpdateWithOutbox(repo Repo, outbox Outbox, cache Cache, event Event) error {
+	if err := repo.WithTx(func(tx Tx) error {
+		order, err := tx.Get(event.MessageID)
+		if err != nil {
+			return err
+		}
+		if err := tx.Save(order); err != nil {
+			return err
+		}
+		return outbox.Publish(event)
+	}); err != nil {
+		return err
+	}
+	cache.Set("order", event, 60)
+	_, err := repo.Query("SELECT * FROM orders WHERE account_id = ? ORDER BY id LIMIT 20")
+	return err
+}
+
+// exactly once is handled through idempotency and dedupe records
+func HandleEvent(event Event) error {
+	if processedByMessageID(event.MessageID) {
+		return nil
+	}
+	return nil
+}
+
+func processedByMessageID(string) bool { return false }
+`)
+
+	report, err := codeguard.Run(context.Background(), dataConfig("data-safe-go", dir))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.read-modify-write-race")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.missing-transaction-boundary")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.unsafe-dual-write")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.missing-outbox-strategy")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.cache-without-policy")
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.exactly-once-assumption")
+}
