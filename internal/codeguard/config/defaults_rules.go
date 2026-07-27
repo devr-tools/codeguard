@@ -236,6 +236,39 @@ func applyDataDefaults(dst *core.DataRulesConfig, def core.DataRulesConfig) {
 	defaultInt(&dst.MaxWritesWithoutTransaction, def.MaxWritesWithoutTransaction)
 }
 
+func applyChangeDefaults(dst *core.ChangeRulesConfig, def core.ChangeRulesConfig) {
+	applyDefaultBoolPtrs(
+		&dst.DetectBehaviorChangeWithoutTest,
+		&dst.DetectFailurePathMissing,
+		&dst.DetectHardwiredDependency,
+		&dst.DetectNondeterministicDomain,
+		&dst.DetectLegacyHotspotUncovered,
+		&dst.DetectMixedConcerns,
+		&dst.DetectOversizedDiff,
+		&dst.DetectMixedRefactorAndBehavior,
+		&dst.DetectTooManyConcerns,
+		&dst.DetectUnnecessarySurfaceArea,
+		&dst.DetectOneUseAbstraction,
+		&dst.DetectDuplicateHelper,
+		&dst.DetectCleanupRegression,
+		&dst.DetectComplexityIncreased,
+		&dst.DetectMoveWithoutVerification,
+		&dst.DetectRefactorBehaviorChange,
+		&dst.DetectRefactorPublicContract,
+		&dst.DetectRefactorTestCoverageDrop,
+		&dst.DetectRefactorErrorPathChange,
+		&dst.DetectRefactorSideEffectReorder,
+		&dst.DetectRefactorVisibilityExpand,
+		&dst.DetectRefactorDependencyWorsened,
+	)
+	defaultInt(&dst.MaxChangedFiles, def.MaxChangedFiles)
+	defaultInt(&dst.MaxChangedDirectories, def.MaxChangedDirectories)
+	defaultInt(&dst.MaxChangedLines, def.MaxChangedLines)
+	defaultInt(&dst.MaxPublicInterfacesChanged, def.MaxPublicInterfacesChanged)
+	defaultInt(&dst.MaxConcernFamilies, def.MaxConcernFamilies)
+	defaultInt(&dst.MinTestToProductionRatioPercent, def.MinTestToProductionRatioPercent)
+}
+
 func applyProductionRiskDefaults(dst *core.ProductionRiskConfig, def core.ProductionRiskConfig) {
 	defaultBoolPtr(&dst.Enabled, boolValueOrTrue(def.Enabled))
 	defaultInt(&dst.WarnThreshold, def.WarnThreshold)

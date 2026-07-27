@@ -23,6 +23,13 @@ type profileThresholds struct {
 	requiredReleaseFiles    []string
 	requiredAutomationPaths []string
 	contracts               *bool
+	reliability             *bool
+	data                    *bool
+	change                  *bool
+	maxChangedFiles         int
+	maxChangedDirectories   int
+	maxChangedLines         int
+	minTestProdRatioPercent int
 }
 
 func TestProfilesPreserveExpectedPolicyValues(t *testing.T) {
@@ -61,6 +68,13 @@ func expectedProfileThresholds() map[string]profileThresholds {
 			govulncheckMode:         "auto",
 			requiredReleaseFiles:    []string{".goreleaser.yaml"},
 			requiredAutomationPaths: []string{"Makefile"},
+			reliability:             boolPtr(false),
+			data:                    boolPtr(false),
+			change:                  boolPtr(false),
+			maxChangedFiles:         25,
+			maxChangedDirectories:   8,
+			maxChangedLines:         800,
+			minTestProdRatioPercent: 20,
 		},
 		"startup": {
 			maxFileLines:            600,
@@ -73,6 +87,13 @@ func expectedProfileThresholds() map[string]profileThresholds {
 			maxInterfaceMethods:     8,
 			govulncheckMode:         "auto",
 			requiredAutomationPaths: []string{"Makefile"},
+			reliability:             boolPtr(false),
+			data:                    boolPtr(false),
+			change:                  boolPtr(false),
+			maxChangedFiles:         25,
+			maxChangedDirectories:   8,
+			maxChangedLines:         800,
+			minTestProdRatioPercent: 20,
 		},
 		"strict": {
 			maxFileLines:            300,
@@ -87,6 +108,13 @@ func expectedProfileThresholds() map[string]profileThresholds {
 			requiredReleaseFiles:    []string{".goreleaser.yaml"},
 			requiredAutomationPaths: []string{"Makefile"},
 			contracts:               boolPtr(true),
+			reliability:             boolPtr(true),
+			data:                    boolPtr(false),
+			change:                  boolPtr(true),
+			maxChangedFiles:         25,
+			maxChangedDirectories:   8,
+			maxChangedLines:         800,
+			minTestProdRatioPercent: 20,
 		},
 		"enterprise": {
 			maxFileLines:            300,
@@ -101,6 +129,13 @@ func expectedProfileThresholds() map[string]profileThresholds {
 			requiredReleaseFiles:    []string{".goreleaser.yaml"},
 			requiredAutomationPaths: []string{"Makefile", ".github/workflows/ci.yml"},
 			contracts:               boolPtr(true),
+			reliability:             boolPtr(true),
+			data:                    boolPtr(true),
+			change:                  boolPtr(true),
+			maxChangedFiles:         25,
+			maxChangedDirectories:   8,
+			maxChangedLines:         800,
+			minTestProdRatioPercent: 20,
 		},
 		"ai-safe": {
 			maxFileLines:            400,
@@ -114,6 +149,13 @@ func expectedProfileThresholds() map[string]profileThresholds {
 			govulncheckMode:         "required",
 			requiredReleaseFiles:    []string{".goreleaser.yaml"},
 			requiredAutomationPaths: []string{"Makefile"},
+			reliability:             boolPtr(true),
+			data:                    boolPtr(true),
+			change:                  boolPtr(true),
+			maxChangedFiles:         20,
+			maxChangedDirectories:   6,
+			maxChangedLines:         600,
+			minTestProdRatioPercent: 30,
 		},
 	}
 }
@@ -132,6 +174,13 @@ func profileThresholdsFromConfig(cfg core.Config) profileThresholds {
 		requiredReleaseFiles:    cfg.Checks.CIRules.RequiredReleaseFiles,
 		requiredAutomationPaths: cfg.Checks.CIRules.RequiredAutomationPaths,
 		contracts:               cfg.Checks.Contracts,
+		reliability:             cfg.Checks.Reliability,
+		data:                    cfg.Checks.Data,
+		change:                  cfg.Checks.Change,
+		maxChangedFiles:         cfg.Checks.ChangeRules.MaxChangedFiles,
+		maxChangedDirectories:   cfg.Checks.ChangeRules.MaxChangedDirectories,
+		maxChangedLines:         cfg.Checks.ChangeRules.MaxChangedLines,
+		minTestProdRatioPercent: cfg.Checks.ChangeRules.MinTestToProductionRatioPercent,
 	}
 }
 

@@ -316,6 +316,13 @@ the configuration tests.
 | `ci_rules.required_release_files` | .goreleaser.yaml | — | .goreleaser.yaml | .goreleaser.yaml | .goreleaser.yaml |
 | `ci_rules.required_automation_paths` | Makefile | Makefile | Makefile | Makefile<br>.github/workflows/ci.yml | Makefile |
 | `contracts` | scan-mode | scan-mode | true | true | scan-mode |
+| `reliability` | false | false | true | true | true |
+| `data` | false | false | false | true | true |
+| `change` | false | false | true | true | true |
+| `change_rules.max_changed_files` | 25 | 25 | 25 | 25 | 20 |
+| `change_rules.max_changed_directories` | 8 | 8 | 8 | 8 | 6 |
+| `change_rules.max_changed_lines` | 800 | 800 | 800 | 800 | 600 |
+| `change_rules.min_test_to_production_ratio_percent` | 20 | 20 | 20 | 20 | 30 |
 <!-- END GENERATED: policy-profile-comparison -->
 
 CLI:

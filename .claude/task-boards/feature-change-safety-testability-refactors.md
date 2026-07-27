@@ -25,6 +25,8 @@ These workstreams are intentionally disjoint. Workers must not revert unrelated 
 
 ### Workstream A: scaffolding, config, catalogs, and profiles
 
+Status: complete in main thread; implementation committed/pushed separately from detector work.
+
 Ownership:
 
 - `internal/codeguard/core/config_types.go`
@@ -33,10 +35,8 @@ Ownership:
 - `internal/codeguard/config/example*.go`
 - `internal/codeguard/config/profile.go`
 - `internal/codeguard/config/validate*.go`
-- `internal/codeguard/rules/catalog_change.go`
-- `internal/codeguard/rules/catalog_testing.go`
-- `internal/codeguard/rules/catalog_refactor.go`
-- `internal/codeguard/rules/catalog_fix_templates_change.go`
+- `internal/codeguard/rules/catalog_change_safety.go`
+- `internal/codeguard/rules/catalog_fix_templates_change_safety.go`
 - `pkg/codeguard/sdk_types_config_checks.go`
 - config/profile/metadata tests
 
@@ -56,6 +56,7 @@ Targeted verification:
 
 ```sh
 go test ./internal/codeguard/config ./tests/cli ./pkg/codeguard
+go test ./internal/codeguard/... ./pkg/codeguard ./tests/cli
 ```
 
 ### Workstream B: change section and diff concentration detectors

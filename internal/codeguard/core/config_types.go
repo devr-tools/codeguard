@@ -85,6 +85,10 @@ type CheckConfig struct {
 	// missing transaction boundaries, unsafe dual writes, unbounded reads,
 	// unstable pagination, and cache policy gaps.
 	Data *bool `json:"data,omitempty" yaml:"data,omitempty"`
+	// Change toggles change-safety, testability, and refactor-confidence checks
+	// such as oversized diffs, mixed concerns, behavior changes without tests,
+	// and refactor-only changes that alter observable behavior.
+	Change *bool `json:"change,omitempty" yaml:"change,omitempty"`
 	// Contracts toggles the API contract drift family. When nil it defaults
 	// to enabled in diff scans and disabled in full scans; the strict and
 	// enterprise profiles enable it unconditionally.
@@ -106,6 +110,7 @@ type CheckConfig struct {
 	SupplyChainRules SupplyChainRulesConfig `json:"supply_chain_rules" yaml:"supply_chain_rules"`
 	ReliabilityRules ReliabilityRulesConfig `json:"reliability_rules,omitempty" yaml:"reliability_rules,omitempty"`
 	DataRules        DataRulesConfig        `json:"data_rules,omitempty" yaml:"data_rules,omitempty"`
+	ChangeRules      ChangeRulesConfig      `json:"change_rules,omitempty" yaml:"change_rules,omitempty"`
 	ContractRules    ContractRulesConfig    `json:"contract_rules" yaml:"contract_rules"`
 	ContextRules     ContextRulesConfig     `json:"context_rules" yaml:"context_rules"`
 	ProductionRisk   ProductionRiskConfig   `json:"production_risk,omitempty" yaml:"production_risk,omitempty"`

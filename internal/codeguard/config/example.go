@@ -38,6 +38,7 @@ func exampleChecks() core.CheckConfig {
 		SupplyChain:      false,
 		Reliability:      boolPtr(false),
 		Data:             boolPtr(false),
+		Change:           boolPtr(false),
 		QualityRules:     exampleQualityRules(),
 		PerformanceRules: examplePerformanceRules(),
 		DesignRules:      exampleDesignRules(),
@@ -47,6 +48,7 @@ func exampleChecks() core.CheckConfig {
 		SupplyChainRules: exampleSupplyChainRules(),
 		ReliabilityRules: exampleReliabilityRules(),
 		DataRules:        exampleDataRules(),
+		ChangeRules:      exampleChangeRules(),
 		ContractRules:    exampleContractRules(),
 		ContextRules:     exampleContextRules(),
 		ProductionRisk:   exampleProductionRisk(),
@@ -112,6 +114,39 @@ func exampleDataRules() core.DataRulesConfig {
 		DetectCacheWithoutPolicy:      boolPtr(true),
 		MaxUnboundedReadRows:          1000,
 		MaxWritesWithoutTransaction:   1,
+	}
+}
+
+func exampleChangeRules() core.ChangeRulesConfig {
+	return core.ChangeRulesConfig{
+		DetectBehaviorChangeWithoutTest:  boolPtr(true),
+		DetectFailurePathMissing:         boolPtr(true),
+		DetectHardwiredDependency:        boolPtr(true),
+		DetectNondeterministicDomain:     boolPtr(true),
+		DetectLegacyHotspotUncovered:     boolPtr(true),
+		DetectMixedConcerns:              boolPtr(true),
+		DetectOversizedDiff:              boolPtr(true),
+		DetectMixedRefactorAndBehavior:   boolPtr(true),
+		DetectTooManyConcerns:            boolPtr(true),
+		DetectUnnecessarySurfaceArea:     boolPtr(true),
+		DetectOneUseAbstraction:          boolPtr(true),
+		DetectDuplicateHelper:            boolPtr(true),
+		DetectCleanupRegression:          boolPtr(true),
+		DetectComplexityIncreased:        boolPtr(true),
+		DetectMoveWithoutVerification:    boolPtr(true),
+		DetectRefactorBehaviorChange:     boolPtr(true),
+		DetectRefactorPublicContract:     boolPtr(true),
+		DetectRefactorTestCoverageDrop:   boolPtr(true),
+		DetectRefactorErrorPathChange:    boolPtr(true),
+		DetectRefactorSideEffectReorder:  boolPtr(true),
+		DetectRefactorVisibilityExpand:   boolPtr(true),
+		DetectRefactorDependencyWorsened: boolPtr(true),
+		MaxChangedFiles:                  25,
+		MaxChangedDirectories:            8,
+		MaxChangedLines:                  800,
+		MaxPublicInterfacesChanged:       3,
+		MaxConcernFamilies:               3,
+		MinTestToProductionRatioPercent:  20,
 	}
 }
 
