@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -31,34 +32,14 @@ var profileCatalog = map[string]profileSpec{
 	},
 	"strict": {
 		description: "Tighter quality, design, and security thresholds for hard gates.",
-		apply: func(cfg *core.Config) {
-			cfg.Checks.QualityRules.MaxFileLines = 300
-			cfg.Checks.QualityRules.MaxFunctionLines = 60
-			cfg.Checks.QualityRules.MaxParameters = 4
-			cfg.Checks.QualityRules.MaxCyclomaticComplexity = 8
-			cfg.Checks.QualityRules.CloneTokenThreshold = 45
-			cfg.Checks.DesignRules.MaxDeclsPerFile = 10
-			cfg.Checks.DesignRules.MaxMethodsPerType = 6
-			cfg.Checks.DesignRules.MaxInterfaceMethods = 4
-			cfg.Checks.SecurityRules.GovulncheckMode = "required"
-			cfg.Checks.Contracts = boolPtr(true)
-		},
+		apply:       applyStrictProfile,
 	},
 	"enterprise": {
 		description: "Strict gates with release and automation policy suitable for regulated delivery.",
 		apply: func(cfg *core.Config) {
-			cfg.Checks.QualityRules.MaxFileLines = 300
-			cfg.Checks.QualityRules.MaxFunctionLines = 60
-			cfg.Checks.QualityRules.MaxParameters = 4
-			cfg.Checks.QualityRules.MaxCyclomaticComplexity = 8
-			cfg.Checks.QualityRules.CloneTokenThreshold = 45
-			cfg.Checks.DesignRules.MaxDeclsPerFile = 10
-			cfg.Checks.DesignRules.MaxMethodsPerType = 6
-			cfg.Checks.DesignRules.MaxInterfaceMethods = 4
-			cfg.Checks.SecurityRules.GovulncheckMode = "required"
+			applyStrictProfile(cfg)
 			cfg.Checks.CIRules.RequiredReleaseFiles = []string{".goreleaser.yaml"}
 			cfg.Checks.CIRules.RequiredAutomationPaths = []string{"Makefile", ".github/workflows/ci.yml"}
-			cfg.Checks.Contracts = boolPtr(true)
 		},
 	},
 	"ai-safe": {
@@ -77,6 +58,19 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.QualityRules.AIProvenance.SlopScoreFailThreshold = 25
 		},
 	},
+}
+
+func applyStrictProfile(cfg *core.Config) {
+	cfg.Checks.QualityRules.MaxFileLines = 300
+	cfg.Checks.QualityRules.MaxFunctionLines = 60
+	cfg.Checks.QualityRules.MaxParameters = 4
+	cfg.Checks.QualityRules.MaxCyclomaticComplexity = 8
+	cfg.Checks.QualityRules.CloneTokenThreshold = 45
+	cfg.Checks.DesignRules.MaxDeclsPerFile = 10
+	cfg.Checks.DesignRules.MaxMethodsPerType = 6
+	cfg.Checks.DesignRules.MaxInterfaceMethods = 4
+	cfg.Checks.SecurityRules.GovulncheckMode = "required"
+	cfg.Checks.Contracts = boolPtr(true)
 }
 
 func ExampleConfig() core.Config {
@@ -114,6 +108,100 @@ func ProfileList() []core.PolicyProfile {
 		})
 	}
 	return out
+}
+
+// RenderPolicyProfileComparison renders the profile comparison section for
+// documentation from the active profile definitions. Keeping this output
+// derived from profile data prevents documentation thresholds from drifting.
+func RenderPolicyProfileComparison() string {
+	profiles := []struct {
+		label string
+		name  string
+	}{
+		{label: "Baseline"},
+		{label: "Startup", name: "startup"},
+		{label: "Strict", name: "strict"},
+		{label: "Enterprise", name: "enterprise"},
+		{label: "AI-safe", name: "ai-safe"},
+	}
+
+	configs := make([]core.Config, len(profiles))
+	configs[0] = ExampleConfig()
+	for i := 1; i < len(profiles); i++ {
+		configs[i], _ = ExampleConfigForProfile(profiles[i].name)
+	}
+
+	var b strings.Builder
+	b.WriteString("<!-- BEGIN GENERATED: policy-profile-comparison -->\n")
+	b.WriteString("| Setting")
+	for _, profile := range profiles {
+		b.WriteString(" | ")
+		b.WriteString(profile.label)
+	}
+	b.WriteString(" |\n")
+	b.WriteString("| ---")
+	for range profiles {
+		b.WriteString(" | ---:")
+	}
+	b.WriteString(" |\n")
+	writeProfileComparisonRow(&b, "`quality_rules.max_file_lines`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.QualityRules.MaxFileLines)
+	})
+	writeProfileComparisonRow(&b, "`quality_rules.max_function_lines`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.QualityRules.MaxFunctionLines)
+	})
+	writeProfileComparisonRow(&b, "`quality_rules.max_parameters`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.QualityRules.MaxParameters)
+	})
+	writeProfileComparisonRow(&b, "`quality_rules.max_cyclomatic_complexity`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.QualityRules.MaxCyclomaticComplexity)
+	})
+	writeProfileComparisonRow(&b, "`quality_rules.clone_token_threshold`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.QualityRules.CloneTokenThreshold)
+	})
+	writeProfileComparisonRow(&b, "`design_rules.max_decls_per_file`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.DesignRules.MaxDeclsPerFile)
+	})
+	writeProfileComparisonRow(&b, "`design_rules.max_methods_per_type`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.DesignRules.MaxMethodsPerType)
+	})
+	writeProfileComparisonRow(&b, "`design_rules.max_interface_methods`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.DesignRules.MaxInterfaceMethods)
+	})
+	writeProfileComparisonRow(&b, "`security_rules.govulncheck_mode`", configs, func(cfg core.Config) string {
+		return cfg.Checks.SecurityRules.GovulncheckMode
+	})
+	writeProfileComparisonRow(&b, "`ci_rules.required_release_files`", configs, func(cfg core.Config) string {
+		return profileStringSlice(cfg.Checks.CIRules.RequiredReleaseFiles)
+	})
+	writeProfileComparisonRow(&b, "`ci_rules.required_automation_paths`", configs, func(cfg core.Config) string {
+		return profileStringSlice(cfg.Checks.CIRules.RequiredAutomationPaths)
+	})
+	writeProfileComparisonRow(&b, "`contracts`", configs, func(cfg core.Config) string {
+		if cfg.Checks.Contracts == nil {
+			return "scan-mode"
+		}
+		return strconv.FormatBool(*cfg.Checks.Contracts)
+	})
+	b.WriteString("<!-- END GENERATED: policy-profile-comparison -->\n")
+	return b.String()
+}
+
+func writeProfileComparisonRow(b *strings.Builder, setting string, configs []core.Config, value func(core.Config) string) {
+	b.WriteString("| ")
+	b.WriteString(setting)
+	for _, cfg := range configs {
+		b.WriteString(" | ")
+		b.WriteString(value(cfg))
+	}
+	b.WriteString(" |\n")
+}
+
+func profileStringSlice(values []string) string {
+	if len(values) == 0 {
+		return "—"
+	}
+	return strings.Join(values, "<br>")
 }
 
 func normalizeProfile(profile string) string {

@@ -13,6 +13,7 @@ import (
 func Validate(cfg core.Config) error {
 	return firstError(
 		validateNameAndProfile(cfg),
+		validateDisabledChecks(cfg.Checks.Disabled),
 		validateTargets(cfg.Targets),
 		validateOutput(cfg.Output),
 		validateWaivers(cfg.Waivers),
@@ -27,6 +28,7 @@ func Validate(cfg core.Config) error {
 		validateContextRules(cfg.Checks.ContextRules),
 		validateCoverageDelta(cfg.Checks.QualityRules.CoverageDelta),
 		validateCPPTooling(cfg.Checks.QualityRules.CPPTooling),
+		validateBasicThresholds(cfg.Checks),
 		validateGraphThresholds(cfg.Checks.DesignRules),
 		validateDesignArchitectureRules(cfg.Checks.DesignRules),
 		validatePerformanceRules(cfg.Checks.PerformanceRules),
