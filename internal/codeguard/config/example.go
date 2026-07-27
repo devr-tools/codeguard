@@ -31,27 +31,31 @@ func exampleChecks() core.CheckConfig {
 		// they previously ran (enabled) inside quality under quality.* ids. The
 		// explicit false (vs nil) writes the key into generated configs so new
 		// users discover it, and suppresses the upgrade hint in scan output.
-		Performance:      boolPtr(false),
-		Security:         true,
-		Prompts:          true,
-		CI:               true,
-		SupplyChain:      false,
-		Reliability:      boolPtr(false),
-		Data:             boolPtr(false),
-		Change:           boolPtr(false),
-		QualityRules:     exampleQualityRules(),
-		PerformanceRules: examplePerformanceRules(),
-		DesignRules:      exampleDesignRules(),
-		PromptRules:      examplePromptRules(),
-		CIRules:          exampleCIRules(),
-		SecurityRules:    exampleSecurityRules(),
-		SupplyChainRules: exampleSupplyChainRules(),
-		ReliabilityRules: exampleReliabilityRules(),
-		DataRules:        exampleDataRules(),
-		ChangeRules:      exampleChangeRules(),
-		ContractRules:    exampleContractRules(),
-		ContextRules:     exampleContextRules(),
-		ProductionRisk:   exampleProductionRisk(),
+		Performance:        boolPtr(false),
+		Security:           true,
+		Prompts:            true,
+		CI:                 true,
+		SupplyChain:        false,
+		Reliability:        boolPtr(false),
+		Data:               boolPtr(false),
+		Observability:      boolPtr(false),
+		Operations:         boolPtr(false),
+		Change:             boolPtr(false),
+		QualityRules:       exampleQualityRules(),
+		PerformanceRules:   examplePerformanceRules(),
+		DesignRules:        exampleDesignRules(),
+		PromptRules:        examplePromptRules(),
+		CIRules:            exampleCIRules(),
+		SecurityRules:      exampleSecurityRules(),
+		SupplyChainRules:   exampleSupplyChainRules(),
+		ReliabilityRules:   exampleReliabilityRules(),
+		DataRules:          exampleDataRules(),
+		ObservabilityRules: exampleObservabilityRules(),
+		OperationsRules:    exampleOperationsRules(),
+		ChangeRules:        exampleChangeRules(),
+		ContractRules:      exampleContractRules(),
+		ContextRules:       exampleContextRules(),
+		ProductionRisk:     exampleProductionRisk(),
 	}
 }
 
@@ -76,6 +80,34 @@ func exampleSupplyChainRules() core.SupplyChainRulesConfig {
 		RequireLockfile:     boolPtr(true),
 		DetectLockfileDrift: boolPtr(true),
 		DetectUnpinned:      boolPtr(true),
+	}
+}
+
+func exampleObservabilityRules() core.ObservabilityRulesConfig {
+	return core.ObservabilityRulesConfig{
+		DetectUnstructuredLog:            boolPtr(true),
+		DetectErrorWithoutContext:        boolPtr(true),
+		DetectSensitiveLogData:           boolPtr(true),
+		DetectHighCardinalityLabel:       boolPtr(true),
+		DetectCriticalPathUninstrumented: boolPtr(true),
+		DetectLogAndIgnore:               boolPtr(true),
+		DetectShallowHealthCheck:         boolPtr(true),
+		StructuredLoggerPatterns:         []string{"logger.", "logrus.", "zap.", "slog.", "zerolog.", "structlog.", "logging."},
+		SensitiveNamePatterns:            []string{"password", "passwd", "secret", "token", "api_key", "apikey", "authorization", "cookie", "ssn", "email"},
+		HighCardinalityLabelPatterns:     []string{"user_id", "userid", "email", "request_id", "requestid", "trace_id", "session_id", "uuid", "path", "url"},
+		CriticalPathPatterns:             []string{"handler", "controller", "consumer", "job", "worker", "payment", "checkout", "auth", "migration"},
+		HealthcheckPathPatterns:          []string{"health", "healthz", "ready", "readyz", "live", "livez"},
+		InstrumentationEvidencePatterns:  []string{"span", "trace", "metric", "counter", "histogram", "observe", "instrument", "prometheus"},
+	}
+}
+
+func exampleOperationsRules() core.OperationsRulesConfig {
+	return core.OperationsRulesConfig{
+		DetectMissingOwner:   boolPtr(true),
+		DetectMissingRunbook: boolPtr(true),
+		OwnerFilePatterns:    []string{"CODEOWNERS", ".github/CODEOWNERS", "OWNERS", "owners.yaml", "catalog-info.yaml", "service.yaml", "service.yml"},
+		RunbookPathPatterns:  []string{"runbook", "runbooks", "docs/runbooks", "ops", "operations"},
+		CriticalPathPatterns: []string{"cmd/", "internal/", "service", "api", "worker", "consumer", "job", "payment", "auth", "deploy", "migrations"},
 	}
 }
 

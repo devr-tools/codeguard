@@ -24,6 +24,8 @@ var fixTemplates = mergeFixTemplates(
 	performanceMeasuredFixTemplates,
 	reliabilityFixTemplates,
 	dataFixTemplates,
+	observabilityFixTemplates,
+	operationsFixTemplates,
 	changeSafetyFixTemplates,
 	securityFixTemplates,
 	securityLanguageFixTemplates,

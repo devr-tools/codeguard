@@ -218,6 +218,36 @@ type SupplyChainRulesConfig struct {
 	LicenseCommands   map[string]CommandCheckConfig `json:"license_commands,omitempty" yaml:"license_commands,omitempty"`
 }
 
+// ObservabilityRulesConfig tunes the observability section. Nil rule toggles
+// default to enabled when the section itself is enabled by configuration or a
+// profile.
+type ObservabilityRulesConfig struct {
+	DetectUnstructuredLog            *bool    `json:"detect_unstructured_log,omitempty" yaml:"detect_unstructured_log,omitempty"`
+	DetectErrorWithoutContext        *bool    `json:"detect_error_without_context,omitempty" yaml:"detect_error_without_context,omitempty"`
+	DetectSensitiveLogData           *bool    `json:"detect_sensitive_log_data,omitempty" yaml:"detect_sensitive_log_data,omitempty"`
+	DetectHighCardinalityLabel       *bool    `json:"detect_high_cardinality_label,omitempty" yaml:"detect_high_cardinality_label,omitempty"`
+	DetectCriticalPathUninstrumented *bool    `json:"detect_critical_path_uninstrumented,omitempty" yaml:"detect_critical_path_uninstrumented,omitempty"`
+	DetectLogAndIgnore               *bool    `json:"detect_log_and_ignore,omitempty" yaml:"detect_log_and_ignore,omitempty"`
+	DetectShallowHealthCheck         *bool    `json:"detect_shallow_health_check,omitempty" yaml:"detect_shallow_health_check,omitempty"`
+	StructuredLoggerPatterns         []string `json:"structured_logger_patterns,omitempty" yaml:"structured_logger_patterns,omitempty"`
+	SensitiveNamePatterns            []string `json:"sensitive_name_patterns,omitempty" yaml:"sensitive_name_patterns,omitempty"`
+	HighCardinalityLabelPatterns     []string `json:"high_cardinality_label_patterns,omitempty" yaml:"high_cardinality_label_patterns,omitempty"`
+	CriticalPathPatterns             []string `json:"critical_path_patterns,omitempty" yaml:"critical_path_patterns,omitempty"`
+	HealthcheckPathPatterns          []string `json:"healthcheck_path_patterns,omitempty" yaml:"healthcheck_path_patterns,omitempty"`
+	InstrumentationEvidencePatterns  []string `json:"instrumentation_evidence_patterns,omitempty" yaml:"instrumentation_evidence_patterns,omitempty"`
+}
+
+// OperationsRulesConfig tunes repository operations-readiness checks. Nil rule
+// toggles default to enabled when the section itself is enabled by
+// configuration or a profile.
+type OperationsRulesConfig struct {
+	DetectMissingOwner   *bool    `json:"detect_missing_owner,omitempty" yaml:"detect_missing_owner,omitempty"`
+	DetectMissingRunbook *bool    `json:"detect_missing_runbook,omitempty" yaml:"detect_missing_runbook,omitempty"`
+	OwnerFilePatterns    []string `json:"owner_file_patterns,omitempty" yaml:"owner_file_patterns,omitempty"`
+	RunbookPathPatterns  []string `json:"runbook_path_patterns,omitempty" yaml:"runbook_path_patterns,omitempty"`
+	CriticalPathPatterns []string `json:"critical_path_patterns,omitempty" yaml:"critical_path_patterns,omitempty"`
+}
+
 // ReliabilityRulesConfig tunes the reliability section. Nil rule toggles
 // default to enabled when the section itself is enabled by configuration or a
 // profile.

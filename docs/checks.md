@@ -331,6 +331,8 @@ the configuration tests.
 | `contracts` | scan-mode | scan-mode | true | true | scan-mode |
 | `reliability` | false | false | true | true | true |
 | `data` | false | false | false | true | true |
+| `observability` | false | false | false | true | true |
+| `operations` | false | false | false | true | false |
 | `change` | false | false | true | true | true |
 | `change_rules.max_changed_files` | 25 | 25 | 25 | 25 | 20 |
 | `change_rules.max_changed_directories` | 8 | 8 | 8 | 8 | 6 |

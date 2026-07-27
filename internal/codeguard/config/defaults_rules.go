@@ -237,6 +237,31 @@ func applyDataDefaults(dst *core.DataRulesConfig, def core.DataRulesConfig) {
 	defaultInt(&dst.MaxWritesWithoutTransaction, def.MaxWritesWithoutTransaction)
 }
 
+func applyObservabilityDefaults(dst *core.ObservabilityRulesConfig, def core.ObservabilityRulesConfig) {
+	applyDefaultBoolPtrs(
+		&dst.DetectUnstructuredLog,
+		&dst.DetectErrorWithoutContext,
+		&dst.DetectSensitiveLogData,
+		&dst.DetectHighCardinalityLabel,
+		&dst.DetectCriticalPathUninstrumented,
+		&dst.DetectLogAndIgnore,
+		&dst.DetectShallowHealthCheck,
+	)
+	defaultStringSlice(&dst.StructuredLoggerPatterns, def.StructuredLoggerPatterns, false)
+	defaultStringSlice(&dst.SensitiveNamePatterns, def.SensitiveNamePatterns, false)
+	defaultStringSlice(&dst.HighCardinalityLabelPatterns, def.HighCardinalityLabelPatterns, false)
+	defaultStringSlice(&dst.CriticalPathPatterns, def.CriticalPathPatterns, false)
+	defaultStringSlice(&dst.HealthcheckPathPatterns, def.HealthcheckPathPatterns, false)
+	defaultStringSlice(&dst.InstrumentationEvidencePatterns, def.InstrumentationEvidencePatterns, false)
+}
+
+func applyOperationsDefaults(dst *core.OperationsRulesConfig, def core.OperationsRulesConfig) {
+	applyDefaultBoolPtrs(&dst.DetectMissingOwner, &dst.DetectMissingRunbook)
+	defaultStringSlice(&dst.OwnerFilePatterns, def.OwnerFilePatterns, false)
+	defaultStringSlice(&dst.RunbookPathPatterns, def.RunbookPathPatterns, false)
+	defaultStringSlice(&dst.CriticalPathPatterns, def.CriticalPathPatterns, false)
+}
+
 func applyChangeDefaults(dst *core.ChangeRulesConfig, def core.ChangeRulesConfig) {
 	applyDefaultBoolPtrs(
 		&dst.DetectBehaviorChangeWithoutTest,

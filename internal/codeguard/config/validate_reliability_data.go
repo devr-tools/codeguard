@@ -26,6 +26,50 @@ func validateDataRules(rules core.DataRulesConfig) error {
 	return nil
 }
 
+func validateObservabilityRules(rules core.ObservabilityRulesConfig) error {
+	for _, item := range []struct {
+		field  string
+		values []string
+	}{
+		{"observability_rules.structured_logger_patterns", rules.StructuredLoggerPatterns},
+		{"observability_rules.sensitive_name_patterns", rules.SensitiveNamePatterns},
+		{"observability_rules.high_cardinality_label_patterns", rules.HighCardinalityLabelPatterns},
+		{"observability_rules.critical_path_patterns", rules.CriticalPathPatterns},
+		{"observability_rules.healthcheck_path_patterns", rules.HealthcheckPathPatterns},
+		{"observability_rules.instrumentation_evidence_patterns", rules.InstrumentationEvidencePatterns},
+	} {
+		if err := validateNonEmptyStringList(item.field, item.values); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateOperationsRules(rules core.OperationsRulesConfig) error {
+	for _, item := range []struct {
+		field  string
+		values []string
+	}{
+		{"operations_rules.owner_file_patterns", rules.OwnerFilePatterns},
+		{"operations_rules.runbook_path_patterns", rules.RunbookPathPatterns},
+		{"operations_rules.critical_path_patterns", rules.CriticalPathPatterns},
+	} {
+		if err := validateNonEmptyStringList(item.field, item.values); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateNonEmptyStringList(field string, values []string) error {
+	for idx, value := range values {
+		if value == "" {
+			return fmt.Errorf("%s[%d] must not be empty", field, idx)
+		}
+	}
+	return nil
+}
+
 func validateChangeRules(rules core.ChangeRulesConfig) error {
 	for _, item := range []struct {
 		field string

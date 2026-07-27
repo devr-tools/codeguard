@@ -42,6 +42,8 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.CIRules.RequiredAutomationPaths = []string{"Makefile", ".github/workflows/ci.yml"}
 			cfg.Checks.Data = boolPtr(true)
 			cfg.Checks.Change = boolPtr(true)
+			cfg.Checks.Observability = boolPtr(true)
+			cfg.Checks.Operations = boolPtr(true)
 		},
 	},
 	"ai-safe": {
@@ -61,6 +63,7 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.Reliability = boolPtr(true)
 			cfg.Checks.Data = boolPtr(true)
 			cfg.Checks.Change = boolPtr(true)
+			cfg.Checks.Observability = boolPtr(true)
 			cfg.Checks.ChangeRules.MaxChangedFiles = 20
 			cfg.Checks.ChangeRules.MaxChangedDirectories = 6
 			cfg.Checks.ChangeRules.MaxChangedLines = 600
@@ -205,6 +208,18 @@ func RenderPolicyProfileComparison() string {
 			return "scan-mode"
 		}
 		return strconv.FormatBool(*cfg.Checks.Data)
+	})
+	writeProfileComparisonRow(&b, "`observability`", configs, func(cfg core.Config) string {
+		if cfg.Checks.Observability == nil {
+			return "scan-mode"
+		}
+		return strconv.FormatBool(*cfg.Checks.Observability)
+	})
+	writeProfileComparisonRow(&b, "`operations`", configs, func(cfg core.Config) string {
+		if cfg.Checks.Operations == nil {
+			return "scan-mode"
+		}
+		return strconv.FormatBool(*cfg.Checks.Operations)
 	})
 	writeProfileComparisonRow(&b, "`change`", configs, func(cfg core.Config) string {
 		if cfg.Checks.Change == nil {
