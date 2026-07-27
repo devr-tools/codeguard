@@ -4,6 +4,7 @@ import (
 	"context"
 
 	agentContextCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/agentcontext"
+	changeCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/change"
 	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
 	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
 	dataCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/data"
@@ -40,6 +41,16 @@ type sectionDef struct {
 // scan result. Build iterates this slice and, for each enabled section, calls
 // through the safeRun panic-recovery wrapper.
 var sectionRegistry = []sectionDef{
+	{
+		id:   "change",
+		name: "Change Safety",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Change != nil && *sc.Cfg.Checks.Change
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return changeCheck.Run(ctx, checkEnv)
+		},
+	},
 	{
 		id:      "quality",
 		name:    "Quality",
