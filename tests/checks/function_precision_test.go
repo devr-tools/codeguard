@@ -155,6 +155,81 @@ func TestFunctionHiddenMutationWarnsAcrossLanguages(t *testing.T) {
 	}
 }
 
+func TestFunctionHiddenMutationAllowsReactHookLocalStateBoundaries(t *testing.T) {
+	cases := []struct {
+		name     string
+		language string
+		file     string
+		source   []string
+	}{
+		{
+			name:     "typescript",
+			language: "typescript",
+			file:     "apps/web/src/hooks/use-filters.ts",
+			source: []string{
+				"import { useCallback, useReducer, useState } from 'react';",
+				"export function useFilters() {",
+				"  const [filters, setFilters] = useState({});",
+				"  const [state, dispatch] = useReducer(reducer, {});",
+				"  function clearFilters() {",
+				"    setFilters({});",
+				"  }",
+				"  const resetFilters = useCallback(() => {",
+				"    setFilters({});",
+				"    dispatch({ type: 'reset' });",
+				"  }, []);",
+				"  return { clearFilters, resetFilters, state };",
+				"}",
+				"function reducer(state: unknown, event: { type: string }) { return state; }",
+			},
+		},
+		{
+			name:     "javascript",
+			language: "javascript",
+			file:     "apps/web/src/hooks/use-filters.js",
+			source: []string{
+				"import { useCallback, useState } from 'react';",
+				"export function useFilters() {",
+				"  const [filters, setFilters] = useState({});",
+				"  const resetFilters = useCallback(() => {",
+				"    setFilters({});",
+				"  }, []);",
+				"  return { resetFilters, filters };",
+				"}",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), strings.Join(tc.source, "\n"))
+
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, tc.language))
+
+			assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+		})
+	}
+}
+
+func TestFunctionHiddenMutationStillWarnsForHiddenPersistenceInsideReactHook(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/src/hooks/use-user.ts"), strings.Join([]string{
+		"export function useUser(repo: Repository, user: User) {",
+		"  function loadUser() {",
+		"    repo.save(user);",
+		"    return repo.find(user.id);",
+		"  }",
+		"  return { loadUser };",
+		"}",
+		"interface Repository { save(user: User): void; find(id: string): User }",
+		"interface User { id: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
+}
+
 func TestFunctionResponsibilityAndOrchestrationRules(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "handler.ts"), strings.Join([]string{
