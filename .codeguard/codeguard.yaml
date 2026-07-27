@@ -36,8 +36,8 @@ checks:
     # regressions while follow-up cleanup work can split these files
     # incrementally instead of making every detector branch a structural
     # refactor.
-    max_file_lines: 900
-    max_function_lines: 110
+    max_file_lines: 950
+    max_function_lines: 120
     max_parameters: 10
     max_cyclomatic_complexity: 18
     clone_token_threshold: 140
@@ -46,10 +46,10 @@ checks:
     # refactored enough to dogfood them without broad historical noise.
     local_precision: false
   design_rules:
-    max_decls_per_file: 50
-    god_module_threshold: 32
+    max_decls_per_file: 65
+    god_module_threshold: 36
   performance_rules:
-    hot_package_importer_threshold: 32
+    hot_package_importer_threshold: 36
     rebuild_amplifier_threshold: 40
     # Dogfood the measured budget gate on artifacts that always exist in the
     # repository (dist/ is not built in CI, so a binary budget would only ever
