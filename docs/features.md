@@ -58,7 +58,8 @@ This page lists the current `codeguard` feature surface and the main config entr
   - read-modify-write race patterns, missing transaction boundaries, side effects in transactions, consumer idempotency/deduplication gaps, unsafe dual writes, missing outbox strategy, unstable pagination, unbounded reads, exactly-once assumptions, and cache policy gaps
 - `change`
   - diff-mode change-safety, testability, and refactor-confidence checks for PR review
-  - oversized and mixed-concern diff signals, behavior changes without tests, failure-path coverage gaps, hardwired or nondeterministic domain dependencies, and refactor-only changes that alter behavior, public contracts, error paths, side-effect order, visibility, or dependency direction
+  - implemented signals for oversized and mixed-concern diffs, too many concerns, mixed refactor/behavior diffs, broad public-surface edits, one-use abstractions, duplicate helpers, cleanup regressions, complexity increases, moves without verification, behavior changes without tests, failure-path coverage gaps, and hardwired or nondeterministic domain dependencies
+  - implemented direct `refactor.*` IDs for behavior preservation checks, public-contract checks, error-path checks, side-effect ordering, visibility expansion, dependency direction, duplicate implementations left behind, and dead paths left behind
   - PR-summary signals for `change_safety`, `refactor_confidence`, and `maintainability_delta` when the change-summary postprocessor is available
 - `contracts`
   - exported Go and public C++ API compatibility against a diff base
@@ -120,9 +121,9 @@ Imported reports are never passed to AI triage.
   - emits `pr_summary.production_risk` when configured, using reliability, data-correctness, and non-expand/contract migration findings as deterministic PR-level risk evidence
   - does not change SARIF, GitHub annotations, or individual finding severity
 - Diff-mode change safety
-  - uses the `checks.change` family to catalog and report change-safety, testability, and refactor-confidence findings
+  - uses the `checks.change` family to report implemented change-safety, cleanup, testability, and safe-refactor findings
   - emits PR-summary fields such as `change_safety`, `refactor_confidence`, and `maintainability_delta` only as artifact evidence; they do not create extra annotations or change per-rule severities
-  - local-quality precision families such as `naming.*`, `function.*`, `error.*`, `defensive.*`, and `maintainability.*` support the same review goal; use `codeguard rules` on the active build to see the exact rollout subset
+  - local-quality precision and history-aware families such as `naming.*`, `function.*`, `error.*`, `defensive.*`, `maintainability.*`, and `smell.*` support the same review goal; use `codeguard rules` on the active build to see the exact rollout subset
 
 ## Parsers
 

@@ -208,6 +208,8 @@
       "detect_refactor_side_effect_reorder": true,
       "detect_refactor_visibility_expand": true,
       "detect_refactor_dependency_worsened": true,
+      "detect_refactor_duplicate_left_behind": true,
+      "detect_refactor_dead_path_left_behind": true,
       "max_changed_files": 25,
       "max_changed_directories": 8,
       "max_changed_lines": 800,
