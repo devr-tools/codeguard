@@ -67,6 +67,10 @@ func precisionWarnFinding(env support.Context, ruleID string, file string, line 
 	})
 }
 
+func localPrecisionEnabled(env support.Context) bool {
+	return env.Config.Checks.QualityRules.LocalPrecision == nil || *env.Config.Checks.QualityRules.LocalPrecision
+}
+
 func excessiveParameterFinding(env support.Context, file string, fn functionMetrics) []core.Finding {
 	if fn.Params <= env.Config.Checks.QualityRules.MaxParameters {
 		return nil

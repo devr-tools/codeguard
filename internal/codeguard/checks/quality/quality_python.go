@@ -13,7 +13,9 @@ func pythonFindingsForFile(env support.Context, file string, data []byte) []core
 	for _, fn := range parsedFunctionMetrics(parsed, pythonComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
-	findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
+	if localPrecisionEnabled(env) {
+		findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
+	}
 	findings = append(findings, pythonAIQualityFindings(env, file, data)...)
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }

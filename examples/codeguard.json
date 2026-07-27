@@ -26,6 +26,7 @@
       "max_function_lines": 80,
       "max_parameters": 5,
       "max_cyclomatic_complexity": 10,
+      "local_precision": true,
       "cpp_tooling": {
         "clang_format_mode": "off",
         "clang_format_command": "clang-format",

@@ -35,7 +35,9 @@ func cppFindingsForFile(env support.Context, file string, data []byte) []core.Fi
 	for _, fn := range parsedFunctionMetrics(parsed, braceComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
-	findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
+	if localPrecisionEnabled(env) {
+		findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
+	}
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 

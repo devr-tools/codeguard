@@ -80,6 +80,12 @@ Related report artifacts:
 
 Each top-level boolean enables or disables an entire check family.
 
+`quality_rules.local_precision` controls the local-quality precision subset
+(`naming.*`, `function.*`, `error.*`, `defensive.*`, selected
+`maintainability.*`, and history-aware `smell.*` signals). It defaults to
+enabled, but repositories can set it to `false` while they refactor legacy
+hotspots or avoid broad historical noise in full self-scans.
+
 ### Recommended section policy
 
 Set `checks.use_recommended_defaults` to `true` to additionally enable the

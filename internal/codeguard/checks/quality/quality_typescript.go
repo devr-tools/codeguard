@@ -31,7 +31,9 @@ func typeScriptFindingsForFile(env support.Context, file string, data []byte) []
 	for _, fn := range parsedFunctionMetrics(parsed, typeScriptComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
-	findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
+	if localPrecisionEnabled(env) {
+		findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
+	}
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 

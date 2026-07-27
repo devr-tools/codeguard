@@ -17,6 +17,7 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	applyRiskScoringDefaults(&dst.RiskScoring)
 	applyCoverageDeltaDefaults(&dst.CoverageDelta)
 	applyCPPToolingDefaults(&dst.CPPTooling)
+	defaultBoolPtr(&dst.LocalPrecision, boolValueOrTrue(def.LocalPrecision))
 }
 
 func applyRiskScoringDefaults(dst *core.RiskScoringConfig) {
