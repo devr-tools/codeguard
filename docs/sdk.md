@@ -41,6 +41,7 @@ func main() {
 
 - `codeguard.ExampleConfig()` returns a ready-to-edit starter config.
 - `codeguard.ExampleConfigForProfile(name)` returns a starter config for a built-in profile.
+- `codeguard.ApplyDefaults(&cfg)` fills omitted fields on an in-memory config before validation or inspection.
 - `codeguard.LoadConfigFile(path)` loads and validates a config file.
 - `codeguard.ValidateConfig(cfg)` validates config without running a scan.
 - `codeguard.Run(ctx, cfg)` runs a full scan.
@@ -75,6 +76,52 @@ if err != nil {
 if err := codeguard.WriteReport(os.Stdout, report, "json"); err != nil {
 	log.Fatal(err)
 }
+```
+
+## Configuration defaults and recommended sections
+
+`ExampleConfig` and `ApplyDefaults` serve different purposes. `ExampleConfig`
+returns CodeGuard's complete starter configuration, suitable as the beginning
+of a new config. `ApplyDefaults` fills omitted values on a `Config` that your
+program constructed or decoded in memory. File loading and writing already
+apply defaults. Call `ApplyDefaults` yourself before validating or inspecting
+a partial in-memory config.
+
+The optional recommended section policy is controlled under `checks`:
+
+```yaml
+checks:
+  use_recommended_defaults: true
+  disabled:
+    - prompts
+```
+
+When `use_recommended_defaults` is `true`, CodeGuard additionally enables the
+recommended baseline: `quality`, `design`, `security`, `prompts`, and `ci`.
+`performance` and `supply_chain` remain opt-in. Existing explicit section
+enables are retained, and `checks.disabled` is applied last, so it always wins
+over both an explicit enable and the recommended baseline. Use the canonical
+section names in `disabled`: `quality`, `performance`, `design`, `security`,
+`prompts`, `ci`, `supply_chain`, `context`, or `contracts`; aliases are not
+accepted.
+
+When `use_recommended_defaults` is absent or `false`, CodeGuard preserves the
+existing section behavior. Built-in profiles remain independent of this flag:
+they supply their own thresholds and policy settings, but do not implicitly
+select or replace the recommended section baseline.
+
+`CheckConfig` is an exported struct alias. Adding fields for this policy means
+unkeyed composite literals such as `codeguard.CheckConfig{true, ...}` are no
+longer source-compatible across SDK versions. Use keyed literals instead:
+
+```go
+cfg := codeguard.Config{
+	Checks: codeguard.CheckConfig{
+		UseRecommendedDefaults: true,
+		Disabled:                []string{"prompts"},
+	},
+}
+codeguard.ApplyDefaults(&cfg)
 ```
 
 ### Loading standalone design policies

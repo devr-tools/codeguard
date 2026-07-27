@@ -59,11 +59,13 @@ type TargetConfig struct {
 }
 
 type CheckConfig struct {
-	Quality  bool `json:"quality" yaml:"quality"`
-	Design   bool `json:"design" yaml:"design"`
-	Security bool `json:"security" yaml:"security"`
-	Prompts  bool `json:"prompts" yaml:"prompts"`
-	CI       bool `json:"ci" yaml:"ci"`
+	UseRecommendedDefaults bool     `json:"use_recommended_defaults,omitempty" yaml:"use_recommended_defaults,omitempty"`
+	Disabled               []string `json:"disabled,omitempty" yaml:"disabled,omitempty"`
+	Quality                bool     `json:"quality" yaml:"quality"`
+	Design                 bool     `json:"design" yaml:"design"`
+	Security               bool     `json:"security" yaml:"security"`
+	Prompts                bool     `json:"prompts" yaml:"prompts"`
+	CI                     bool     `json:"ci" yaml:"ci"`
 	// Performance toggles the performance section (N+1 queries, alloc-heavy
 	// loops, blocking I/O in request paths, unbounded concurrency). Off by
 	// default while the rules settle into their new section; the rules

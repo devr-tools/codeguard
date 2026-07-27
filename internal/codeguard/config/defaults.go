@@ -80,7 +80,7 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	applyContractDefaults(&cfg.Checks.ContractRules, def.Checks.ContractRules)
 	applyProductionRiskDefaults(&cfg.Checks.ProductionRisk, def.Checks.ProductionRisk)
 	applyAIDefaults(&cfg.AI, def.AI)
-
+	applyCheckActivationDefaults(&cfg.Checks)
 }
 
 func applyRulePackDefaults(cfg *core.Config) {

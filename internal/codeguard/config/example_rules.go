@@ -8,7 +8,7 @@ func exampleQualityRules() core.QualityRulesConfig {
 		MaxFunctionLines:        80,
 		MaxParameters:           5,
 		MaxCyclomaticComplexity: 10,
-		CloneTokenThreshold:     60,
+		CloneTokenThreshold:     90,
 		AIProvenance: core.AIProvenanceConfig{
 			Enabled:                boolPtr(true),
 			EnvVars:                []string{"CODEGUARD_AI_ASSISTED"},
