@@ -13,6 +13,7 @@ type QualityRulesConfig struct {
 	AIChecks                AIChecksConfig                  `json:"ai_checks,omitempty" yaml:"ai_checks,omitempty"`
 	CoverageDelta           CoverageDeltaConfig             `json:"coverage_delta,omitempty" yaml:"coverage_delta,omitempty"`
 	CPPTooling              CPPToolingConfig                `json:"cpp_tooling,omitempty" yaml:"cpp_tooling,omitempty"`
+	LocalPrecision          *bool                           `json:"local_precision,omitempty" yaml:"local_precision,omitempty"`
 }
 
 // PerformanceRulesConfig tunes the performance section (checks.performance).
@@ -254,6 +255,42 @@ type DataRulesConfig struct {
 	DetectCacheWithoutPolicy      *bool `json:"detect_cache_without_policy,omitempty" yaml:"detect_cache_without_policy,omitempty"`
 	MaxUnboundedReadRows          int   `json:"max_unbounded_read_rows,omitempty" yaml:"max_unbounded_read_rows,omitempty"`
 	MaxWritesWithoutTransaction   int   `json:"max_writes_without_transaction,omitempty" yaml:"max_writes_without_transaction,omitempty"`
+}
+
+// ChangeRulesConfig tunes the change-safety, testability, and refactor
+// confidence section. Nil rule toggles default to enabled when the section is
+// enabled by configuration or a profile.
+type ChangeRulesConfig struct {
+	DetectBehaviorChangeWithoutTest   *bool `json:"detect_behavior_change_without_test,omitempty" yaml:"detect_behavior_change_without_test,omitempty"`
+	DetectFailurePathMissing          *bool `json:"detect_failure_path_missing,omitempty" yaml:"detect_failure_path_missing,omitempty"`
+	DetectHardwiredDependency         *bool `json:"detect_hardwired_dependency,omitempty" yaml:"detect_hardwired_dependency,omitempty"`
+	DetectNondeterministicDomain      *bool `json:"detect_nondeterministic_domain,omitempty" yaml:"detect_nondeterministic_domain,omitempty"`
+	DetectLegacyHotspotUncovered      *bool `json:"detect_legacy_hotspot_uncovered,omitempty" yaml:"detect_legacy_hotspot_uncovered,omitempty"`
+	DetectMixedConcerns               *bool `json:"detect_mixed_concerns,omitempty" yaml:"detect_mixed_concerns,omitempty"`
+	DetectOversizedDiff               *bool `json:"detect_oversized_diff,omitempty" yaml:"detect_oversized_diff,omitempty"`
+	DetectMixedRefactorAndBehavior    *bool `json:"detect_mixed_refactor_and_behavior,omitempty" yaml:"detect_mixed_refactor_and_behavior,omitempty"`
+	DetectTooManyConcerns             *bool `json:"detect_too_many_concerns,omitempty" yaml:"detect_too_many_concerns,omitempty"`
+	DetectUnnecessarySurfaceArea      *bool `json:"detect_unnecessary_surface_area,omitempty" yaml:"detect_unnecessary_surface_area,omitempty"`
+	DetectOneUseAbstraction           *bool `json:"detect_one_use_abstraction,omitempty" yaml:"detect_one_use_abstraction,omitempty"`
+	DetectDuplicateHelper             *bool `json:"detect_duplicate_helper,omitempty" yaml:"detect_duplicate_helper,omitempty"`
+	DetectCleanupRegression           *bool `json:"detect_cleanup_regression,omitempty" yaml:"detect_cleanup_regression,omitempty"`
+	DetectComplexityIncreased         *bool `json:"detect_complexity_increased,omitempty" yaml:"detect_complexity_increased,omitempty"`
+	DetectMoveWithoutVerification     *bool `json:"detect_move_without_verification,omitempty" yaml:"detect_move_without_verification,omitempty"`
+	DetectRefactorBehaviorChange      *bool `json:"detect_refactor_behavior_change,omitempty" yaml:"detect_refactor_behavior_change,omitempty"`
+	DetectRefactorPublicContract      *bool `json:"detect_refactor_public_contract,omitempty" yaml:"detect_refactor_public_contract,omitempty"`
+	DetectRefactorTestCoverageDrop    *bool `json:"detect_refactor_test_coverage_drop,omitempty" yaml:"detect_refactor_test_coverage_drop,omitempty"`
+	DetectRefactorErrorPathChange     *bool `json:"detect_refactor_error_path_change,omitempty" yaml:"detect_refactor_error_path_change,omitempty"`
+	DetectRefactorSideEffectReorder   *bool `json:"detect_refactor_side_effect_reorder,omitempty" yaml:"detect_refactor_side_effect_reorder,omitempty"`
+	DetectRefactorVisibilityExpand    *bool `json:"detect_refactor_visibility_expand,omitempty" yaml:"detect_refactor_visibility_expand,omitempty"`
+	DetectRefactorDependencyWorsened  *bool `json:"detect_refactor_dependency_worsened,omitempty" yaml:"detect_refactor_dependency_worsened,omitempty"`
+	DetectRefactorDuplicateLeftBehind *bool `json:"detect_refactor_duplicate_left_behind,omitempty" yaml:"detect_refactor_duplicate_left_behind,omitempty"`
+	DetectRefactorDeadPathLeftBehind  *bool `json:"detect_refactor_dead_path_left_behind,omitempty" yaml:"detect_refactor_dead_path_left_behind,omitempty"`
+	MaxChangedFiles                   int   `json:"max_changed_files,omitempty" yaml:"max_changed_files,omitempty"`
+	MaxChangedDirectories             int   `json:"max_changed_directories,omitempty" yaml:"max_changed_directories,omitempty"`
+	MaxChangedLines                   int   `json:"max_changed_lines,omitempty" yaml:"max_changed_lines,omitempty"`
+	MaxPublicInterfacesChanged        int   `json:"max_public_interfaces_changed,omitempty" yaml:"max_public_interfaces_changed,omitempty"`
+	MaxConcernFamilies                int   `json:"max_concern_families,omitempty" yaml:"max_concern_families,omitempty"`
+	MinTestToProductionRatioPercent   int   `json:"min_test_to_production_ratio_percent,omitempty" yaml:"min_test_to_production_ratio_percent,omitempty"`
 }
 
 // ProductionRiskConfig controls the additive PR-summary production-risk

@@ -41,6 +41,7 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.CIRules.RequiredReleaseFiles = []string{".goreleaser.yaml"}
 			cfg.Checks.CIRules.RequiredAutomationPaths = []string{"Makefile", ".github/workflows/ci.yml"}
 			cfg.Checks.Data = boolPtr(true)
+			cfg.Checks.Change = boolPtr(true)
 		},
 	},
 	"ai-safe": {
@@ -59,6 +60,11 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.QualityRules.AIProvenance.SlopScoreFailThreshold = 25
 			cfg.Checks.Reliability = boolPtr(true)
 			cfg.Checks.Data = boolPtr(true)
+			cfg.Checks.Change = boolPtr(true)
+			cfg.Checks.ChangeRules.MaxChangedFiles = 20
+			cfg.Checks.ChangeRules.MaxChangedDirectories = 6
+			cfg.Checks.ChangeRules.MaxChangedLines = 600
+			cfg.Checks.ChangeRules.MinTestToProductionRatioPercent = 30
 		},
 	},
 }
@@ -75,6 +81,7 @@ func applyStrictProfile(cfg *core.Config) {
 	cfg.Checks.SecurityRules.GovulncheckMode = "required"
 	cfg.Checks.Contracts = boolPtr(true)
 	cfg.Checks.Reliability = boolPtr(true)
+	cfg.Checks.Change = boolPtr(true)
 }
 
 func ExampleConfig() core.Config {
@@ -186,6 +193,36 @@ func RenderPolicyProfileComparison() string {
 			return "scan-mode"
 		}
 		return strconv.FormatBool(*cfg.Checks.Contracts)
+	})
+	writeProfileComparisonRow(&b, "`reliability`", configs, func(cfg core.Config) string {
+		if cfg.Checks.Reliability == nil {
+			return "scan-mode"
+		}
+		return strconv.FormatBool(*cfg.Checks.Reliability)
+	})
+	writeProfileComparisonRow(&b, "`data`", configs, func(cfg core.Config) string {
+		if cfg.Checks.Data == nil {
+			return "scan-mode"
+		}
+		return strconv.FormatBool(*cfg.Checks.Data)
+	})
+	writeProfileComparisonRow(&b, "`change`", configs, func(cfg core.Config) string {
+		if cfg.Checks.Change == nil {
+			return "scan-mode"
+		}
+		return strconv.FormatBool(*cfg.Checks.Change)
+	})
+	writeProfileComparisonRow(&b, "`change_rules.max_changed_files`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.ChangeRules.MaxChangedFiles)
+	})
+	writeProfileComparisonRow(&b, "`change_rules.max_changed_directories`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.ChangeRules.MaxChangedDirectories)
+	})
+	writeProfileComparisonRow(&b, "`change_rules.max_changed_lines`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.ChangeRules.MaxChangedLines)
+	})
+	writeProfileComparisonRow(&b, "`change_rules.min_test_to_production_ratio_percent`", configs, func(cfg core.Config) string {
+		return strconv.Itoa(cfg.Checks.ChangeRules.MinTestToProductionRatioPercent)
 	})
 	b.WriteString("<!-- END GENERATED: policy-profile-comparison -->\n")
 	return b.String()

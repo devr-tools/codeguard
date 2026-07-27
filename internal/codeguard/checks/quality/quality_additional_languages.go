@@ -31,8 +31,12 @@ func javaFindingsForFile(env support.Context, file string, data []byte) []core.F
 
 func cppFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
 	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each function appends a variable number
-	for _, fn := range clikeQualityFunctions(string(data), support.CLikeCPP, braceComplexity) {
+	parsed := support.ParseCLike(string(data), support.CLikeCPP)
+	for _, fn := range parsedFunctionMetrics(parsed, braceComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
+	}
+	if localPrecisionEnabled(env) {
+		findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
 	}
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }

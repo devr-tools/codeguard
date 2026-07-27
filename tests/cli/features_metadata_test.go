@@ -89,6 +89,51 @@ func TestSDKRuleMetadataForDataRule(t *testing.T) {
 	}
 }
 
+func TestSDKRuleMetadataForChangeSafetyRule(t *testing.T) {
+	rule := requireRuleMetadata(t, "change.oversized-diff")
+	assertExecutionModel(t, rule, codeguard.RuleExecutionModelLanguageAgnostic)
+	assertLanguageCoverage(t, rule, codeguard.RuleLanguageCoverageRepositoryWide)
+	if rule.FixTemplate.Kind != codeguard.FixTemplateKindGuided {
+		t.Fatalf("expected guided change safety fix template, got %q", rule.FixTemplate.Kind)
+	}
+}
+
+func TestSDKRuleMetadataForTestabilityRule(t *testing.T) {
+	rule := requireRuleMetadata(t, "testing.behavior-change-without-test")
+	assertExecutionModel(t, rule, codeguard.RuleExecutionModelLanguageAgnostic)
+	assertLanguageCoverage(
+		t,
+		rule,
+		codeguard.RuleLanguageCoverageFixed,
+		codeguard.RuleLanguageCPP,
+		codeguard.RuleLanguageGo,
+		codeguard.RuleLanguageJavaScript,
+		codeguard.RuleLanguagePython,
+		codeguard.RuleLanguageTypeScript,
+	)
+	if rule.FixTemplate.Kind != codeguard.FixTemplateKindGuided {
+		t.Fatalf("expected guided testability fix template, got %q", rule.FixTemplate.Kind)
+	}
+}
+
+func TestSDKRuleMetadataForRefactorRule(t *testing.T) {
+	rule := requireRuleMetadata(t, "refactor.behavior-change-detected")
+	assertExecutionModel(t, rule, codeguard.RuleExecutionModelLanguageAgnostic)
+	assertLanguageCoverage(
+		t,
+		rule,
+		codeguard.RuleLanguageCoverageFixed,
+		codeguard.RuleLanguageCPP,
+		codeguard.RuleLanguageGo,
+		codeguard.RuleLanguageJavaScript,
+		codeguard.RuleLanguagePython,
+		codeguard.RuleLanguageTypeScript,
+	)
+	if rule.FixTemplate.Kind != codeguard.FixTemplateKindGuided {
+		t.Fatalf("expected guided refactor fix template, got %q", rule.FixTemplate.Kind)
+	}
+}
+
 func TestSDKRuleMetadataForNonExpandContractMigration(t *testing.T) {
 	rule := requireRuleMetadata(t, "contracts.non-expand-contract-migration")
 	assertExecutionModel(t, rule, codeguard.RuleExecutionModelLanguageAgnostic)

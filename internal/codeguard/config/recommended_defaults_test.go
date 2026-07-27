@@ -53,6 +53,7 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 				SupplyChain: true,
 				Reliability: falseValue,
 				Data:        falseValue,
+				Change:      falseValue,
 				Context:     falseValue,
 				Contracts:   trueValue,
 			},
@@ -71,6 +72,7 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 				CI:                     true,
 				Reliability:            falseValue,
 				Data:                   falseValue,
+				Change:                 falseValue,
 			},
 		},
 		{
@@ -81,6 +83,7 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 				SupplyChain:            true,
 				Reliability:            trueValue,
 				Data:                   trueValue,
+				Change:                 trueValue,
 			},
 			want: core.CheckConfig{
 				UseRecommendedDefaults: true,
@@ -93,6 +96,7 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 				SupplyChain:            true,
 				Reliability:            trueValue,
 				Data:                   trueValue,
+				Change:                 trueValue,
 			},
 		},
 		{
@@ -105,8 +109,9 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 				Contracts:              trueValue,
 				Reliability:            trueValue,
 				Data:                   trueValue,
+				Change:                 trueValue,
 				Disabled: []string{
-					"quality", "performance", "design", "security", "prompts", "ci", "supply_chain", "reliability", "data", "context", "contracts",
+					"quality", "performance", "design", "security", "prompts", "ci", "supply_chain", "reliability", "data", "change", "context", "contracts",
 				},
 			},
 			want: core.CheckConfig{
@@ -116,8 +121,9 @@ func recommendedDefaultsCases(trueValue, falseValue *bool) []recommendedDefaults
 				Contracts:              falseValue,
 				Reliability:            falseValue,
 				Data:                   falseValue,
+				Change:                 falseValue,
 				Disabled: []string{
-					"quality", "performance", "design", "security", "prompts", "ci", "supply_chain", "reliability", "data", "context", "contracts",
+					"quality", "performance", "design", "security", "prompts", "ci", "supply_chain", "reliability", "data", "change", "context", "contracts",
 				},
 			},
 		},
@@ -136,6 +142,7 @@ func sameCheckActivation(got, want core.CheckConfig) bool {
 		reflect.DeepEqual(got.Performance, want.Performance) &&
 		reflect.DeepEqual(got.Reliability, want.Reliability) &&
 		reflect.DeepEqual(got.Data, want.Data) &&
+		reflect.DeepEqual(got.Change, want.Change) &&
 		reflect.DeepEqual(got.Context, want.Context) &&
 		reflect.DeepEqual(got.Contracts, want.Contracts)
 }
@@ -217,6 +224,55 @@ func TestValidateRejectsNegativeBasicThresholds(t *testing.T) {
 		{name: "design max declarations", set: func(cfg *core.Config) { cfg.Checks.DesignRules.MaxDeclsPerFile = -1 }, want: "design_rules.max_decls_per_file must not be negative"},
 		{name: "design max methods", set: func(cfg *core.Config) { cfg.Checks.DesignRules.MaxMethodsPerType = -1 }, want: "design_rules.max_methods_per_type must not be negative"},
 		{name: "design max interface methods", set: func(cfg *core.Config) { cfg.Checks.DesignRules.MaxInterfaceMethods = -1 }, want: "design_rules.max_interface_methods must not be negative"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := ExampleConfig()
+			tt.set(&cfg)
+
+			err := Validate(cfg)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestApplyDefaultsPopulatesChangeRules(t *testing.T) {
+	cfg := core.Config{}
+	ApplyDefaults(&cfg)
+
+	if cfg.Checks.Change == nil || *cfg.Checks.Change {
+		t.Fatalf("default change activation = %v, want explicit false", cfg.Checks.Change)
+	}
+	if cfg.Checks.ChangeRules.DetectBehaviorChangeWithoutTest == nil || !*cfg.Checks.ChangeRules.DetectBehaviorChangeWithoutTest {
+		t.Fatal("expected behavior-change-without-test detector to default on")
+	}
+	if cfg.Checks.ChangeRules.DetectRefactorBehaviorChange == nil || !*cfg.Checks.ChangeRules.DetectRefactorBehaviorChange {
+		t.Fatal("expected refactor behavior-change detector to default on")
+	}
+	if cfg.Checks.ChangeRules.MaxChangedFiles != 25 {
+		t.Fatalf("max changed files = %d, want 25", cfg.Checks.ChangeRules.MaxChangedFiles)
+	}
+	if cfg.Checks.ChangeRules.MinTestToProductionRatioPercent != 20 {
+		t.Fatalf("min test ratio percent = %d, want 20", cfg.Checks.ChangeRules.MinTestToProductionRatioPercent)
+	}
+}
+
+func TestValidateRejectsInvalidChangeRuleThresholds(t *testing.T) {
+	tests := []struct {
+		name string
+		set  func(*core.Config)
+		want string
+	}{
+		{name: "changed files", set: func(cfg *core.Config) { cfg.Checks.ChangeRules.MaxChangedFiles = -1 }, want: "change_rules.max_changed_files must not be negative"},
+		{name: "changed directories", set: func(cfg *core.Config) { cfg.Checks.ChangeRules.MaxChangedDirectories = -1 }, want: "change_rules.max_changed_directories must not be negative"},
+		{name: "changed lines", set: func(cfg *core.Config) { cfg.Checks.ChangeRules.MaxChangedLines = -1 }, want: "change_rules.max_changed_lines must not be negative"},
+		{name: "public interfaces", set: func(cfg *core.Config) { cfg.Checks.ChangeRules.MaxPublicInterfacesChanged = -1 }, want: "change_rules.max_public_interfaces_changed must not be negative"},
+		{name: "concern families", set: func(cfg *core.Config) { cfg.Checks.ChangeRules.MaxConcernFamilies = -1 }, want: "change_rules.max_concern_families must not be negative"},
+		{name: "test ratio low", set: func(cfg *core.Config) { cfg.Checks.ChangeRules.MinTestToProductionRatioPercent = -1 }, want: "change_rules.min_test_to_production_ratio_percent must be between 0 and 100"},
+		{name: "test ratio high", set: func(cfg *core.Config) { cfg.Checks.ChangeRules.MinTestToProductionRatioPercent = 101 }, want: "change_rules.min_test_to_production_ratio_percent must be between 0 and 100"},
 	}
 
 	for _, tt := range tests {

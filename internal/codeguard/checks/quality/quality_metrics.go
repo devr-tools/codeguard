@@ -72,6 +72,9 @@ func maintainabilityFindings(env support.Context, file string, fn functionMetric
 	if fn.Params > env.Config.Checks.QualityRules.MaxParameters {
 		findings = append(findings, warnFinding(env, "quality.max-parameters", file, fn.StartLine, 1,
 			fmt.Sprintf("function %s has %d parameters; max is %d", fn.Name, fn.Params, env.Config.Checks.QualityRules.MaxParameters)))
+		if localPrecisionEnabled(env) {
+			findings = append(findings, excessiveParameterFinding(env, file, fn)...)
+		}
 	}
 	if fn.Complexity > env.Config.Checks.QualityRules.MaxCyclomaticComplexity {
 		findings = append(findings, warnFinding(env, "quality.cyclomatic-complexity", file, fn.StartLine, 1,

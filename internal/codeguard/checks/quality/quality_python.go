@@ -9,18 +9,15 @@ import (
 
 func pythonFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
 	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each function appends a variable number
-	for _, fn := range pythonFunctions(string(data)) {
+	parsed := support.ParsePython(string(data))
+	for _, fn := range parsedFunctionMetrics(parsed, pythonComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
+	}
+	if localPrecisionEnabled(env) {
+		findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
 	}
 	findings = append(findings, pythonAIQualityFindings(env, file, data)...)
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
-}
-
-// pythonFunctions extracts function metrics from the structured Python
-// parser, so strings or comments that merely look like code are ignored and
-// multiline signatures are handled.
-func pythonFunctions(source string) []functionMetrics {
-	return parsedFunctionMetrics(support.ParsePython(source), pythonComplexity)
 }
 
 // maskedFunctionBody joins the masked statements of a function and its

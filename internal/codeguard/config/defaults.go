@@ -67,6 +67,9 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	if cfg.Checks.Data == nil {
 		cfg.Checks.Data = def.Checks.Data
 	}
+	if cfg.Checks.Change == nil {
+		cfg.Checks.Change = def.Checks.Change
+	}
 	applyQualityDefaults(&cfg.Checks.QualityRules, def.Checks.QualityRules)
 	applyPerformanceDefaults(&cfg.Checks.PerformanceRules)
 	applyDesignDefaults(&cfg.Checks.DesignRules, def.Checks.DesignRules)
@@ -76,6 +79,7 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	applySupplyChainDefaults(&cfg.Checks.SupplyChainRules, def.Checks.SupplyChainRules)
 	applyReliabilityDefaults(&cfg.Checks.ReliabilityRules, def.Checks.ReliabilityRules)
 	applyDataDefaults(&cfg.Checks.DataRules, def.Checks.DataRules)
+	applyChangeDefaults(&cfg.Checks.ChangeRules, def.Checks.ChangeRules)
 	applyContextDefaults(&cfg.Checks.ContextRules, def.Checks.ContextRules)
 	applyContractDefaults(&cfg.Checks.ContractRules, def.Checks.ContractRules)
 	applyProductionRiskDefaults(&cfg.Checks.ProductionRisk, def.Checks.ProductionRisk)

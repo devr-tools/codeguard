@@ -28,10 +28,11 @@ This glossary is the quick map of every built-in check family and the main subse
 
 | Check family | Report section | Config key | Main subsections / rule themes |
 | --- | --- | --- | --- |
-| Quality | `Code Quality` | `checks.quality` | formatting and parseability; maintainability thresholds; file/function size; cyclomatic complexity; clone detection; language-specific quality rules; TypeScript/JavaScript type-safety rules; AI-failure-mode checks; semantic review; changed-line coverage; C++ formatter/compiler validation |
+| Quality | `Code Quality` | `checks.quality` | formatting and parseability; maintainability thresholds; file/function size; cyclomatic complexity; clone detection; language-specific quality rules; local-quality precision for naming, function shape, error handling, and defensive programming; TypeScript/JavaScript type-safety rules; AI-failure-mode checks; semantic review; changed-line coverage; C++ formatter/compiler validation |
 | Performance | `Performance` | `checks.performance` | N+1 query/fetch patterns; allocation-heavy loops; repeated work in loops; blocking I/O in request paths; unbounded concurrency; sequential await; timer/listener leaks; unbounded whole-input reads; framework-aware performance smells; rebuild-cascade analysis; complexity regression; size budgets; build regression; benchmark regression |
 | Reliability | `Reliability` | `checks.reliability` | missing outbound timeouts; unbounded retries; retries without backoff/jitter; non-idempotent retries; missing cancellation propagation; unbounded work; missing concurrency limits; resource leaks; hidden partial failures; missing graceful shutdown; swallowed errors; lost error context; recoverable panics/exceptions |
 | Data Correctness | `Data Correctness` | `checks.data` | read-modify-write races; missing transaction boundaries; external side effects inside transactions; non-idempotent consumers; missing deduplication; unsafe dual writes; missing outbox strategy; unstable pagination; unbounded reads; exactly-once assumptions; cache writes without TTL/policy |
+| Change Safety | `Change Safety`, `Change Safety / Testability`, `Change Safety / Refactors` | `checks.change` | implemented diff-size and mixed-concern detectors; behavior changes without tests; failure-path coverage gaps; hardwired or nondeterministic domain dependencies; safe-refactor confidence checks; PR-summary rollups |
 | API Contracts | `API Contracts` | `checks.contracts` | exported Go API breaks; public C++ header breaks; OpenAPI breaking changes; protobuf breaking changes; destructive migrations; non-expand/contract schema migration risk |
 | Design | `Design Patterns` | `checks.design` | architecture boundaries; import/module cycles; god modules; graph reachability and stability; high-impact changes; public surface policy; production/test isolation; package/module naming; declarations per file; methods per type; interface/protocol size |
 | Security | `Security` | `checks.security` | hardcoded secrets and credentials; private keys; insecure TLS; shell execution; dynamic code execution; unsafe HTML sinks; SSRF and taint-style flow; unsafe C string APIs; optional `govulncheck`; OWASP category metadata |
@@ -50,6 +51,9 @@ Related report artifacts:
 | `file_risk` / `pr_hotspots` | `quality_rules.risk_scoring` | Ranks changed files by configurable risk evidence. |
 | `performance_score` | `performance_rules.score_history` | Tracks performance-smell trends. |
 | `pr_summary.production_risk` | `checks.production_risk` | Rolls reliability, data-correctness, and non-expand/contract migration findings into PR-level production-risk evidence. |
+| `pr_summary.change_safety` | `checks.change` | Aggregates diff-size, mixed-concern, missing-test, and high-risk change evidence into a PR-level safety signal when the change-summary postprocessor is available. |
+| `pr_summary.refactor_confidence` | `checks.change` | Summarizes whether refactor-labeled or refactor-shaped diffs look behavior-preserving. |
+| `pr_summary.maintainability_delta` | `checks.change` | Summarizes whether the PR appears to improve or regress maintainability evidence such as public surface, dependencies, complexity, duplication, and testability. |
 
 ## Top-level shape
 
@@ -67,6 +71,7 @@ Related report artifacts:
     "supply_chain": false,
     "reliability": false,
     "data": false,
+    "change": false,
     "contracts": true,
     "context": true
   }
@@ -74,6 +79,12 @@ Related report artifacts:
 ```
 
 Each top-level boolean enables or disables an entire check family.
+
+`quality_rules.local_precision` controls the local-quality precision subset
+(`naming.*`, `function.*`, `error.*`, `defensive.*`, selected
+`maintainability.*`, and history-aware `smell.*` signals). It defaults to
+enabled, but repositories can set it to `false` while they refactor legacy
+hotspots or avoid broad historical noise in full self-scans.
 
 ### Recommended section policy
 
@@ -86,7 +97,7 @@ opt-in.
 after both the recommended baseline and explicit section enables are resolved.
 It is therefore the final precedence layer. Accepted names are `quality`,
 `performance`, `design`, `security`, `prompts`, `ci`, `supply_chain`,
-`context`, and `contracts`; blank, duplicate, unknown, and alias names are
+`reliability`, `data`, `change`, `context`, and `contracts`; blank, duplicate, unknown, and alias names are
 invalid.
 
 When `use_recommended_defaults` is absent or `false`, section behavior is
@@ -103,6 +114,8 @@ baseline.
 `reliability` covers production reliability checks for Go, Python, TypeScript, JavaScript, and C++: missing outbound timeouts, unbounded or immediate retries, non-idempotent retries, cancellation propagation gaps, unbounded work, missing concurrency limits, resource cleanup gaps, hidden partial failures, missing graceful shutdown evidence, swallowed/lost errors, and recoverable panics.
 
 `data` covers distributed-system and data-correctness checks for Go, Python, TypeScript, JavaScript, and C++: read-modify-write race patterns, missing transaction boundaries, side effects in transaction callbacks, non-idempotent consumers, missing deduplication, unsafe dual writes, missing outbox strategy, unstable pagination, unbounded reads, exactly-once assumptions, and cache writes without TTL/policy evidence.
+
+`change` covers diff-mode change safety, testability, and refactor-confidence checks. The startup profile leaves it off unless explicitly enabled; strict, enterprise, and AI-safe enable it through their profile defaults. It is designed for PR review and expects a diff/base revision for the strongest evidence.
 
 Set `output.format` to `cyclonedx` (or pass `codeguard scan -format cyclonedx`) to emit the normalized dependency artifacts as deterministic CycloneDX 1.6 JSON. The SBOM contains declared dependency versions or requirements when a resolver version is unavailable; it does not execute project code or contact a registry.
 
@@ -316,6 +329,13 @@ the configuration tests.
 | `ci_rules.required_release_files` | .goreleaser.yaml | — | .goreleaser.yaml | .goreleaser.yaml | .goreleaser.yaml |
 | `ci_rules.required_automation_paths` | Makefile | Makefile | Makefile | Makefile<br>.github/workflows/ci.yml | Makefile |
 | `contracts` | scan-mode | scan-mode | true | true | scan-mode |
+| `reliability` | false | false | true | true | true |
+| `data` | false | false | false | true | true |
+| `change` | false | false | true | true | true |
+| `change_rules.max_changed_files` | 25 | 25 | 25 | 25 | 20 |
+| `change_rules.max_changed_directories` | 8 | 8 | 8 | 8 | 6 |
+| `change_rules.max_changed_lines` | 800 | 800 | 800 | 800 | 600 |
+| `change_rules.min_test_to_production_ratio_percent` | 20 | 20 | 20 | 20 | 30 |
 <!-- END GENERATED: policy-profile-comparison -->
 
 CLI:
@@ -367,6 +387,7 @@ Current inference behavior:
 | Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, unsafe C string APIs, taint flow, SSRF | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
 | Reliability | missing timeouts, cancellation gaps, retry policy gaps, non-idempotent retry evidence, unbounded goroutines/work, resource cleanup, swallowed/lost errors, recoverable panic, graceful shutdown | retry policy gaps, non-idempotent retry evidence, unbounded thread/task launch, raw allocation cleanup gaps, generic runtime throws | missing HTTP timeouts, retry policy gaps, non-idempotent retry evidence, unbounded asyncio work, swallowed exceptions, generic raises, resource cleanup | missing timeout/abort evidence, promise/HTTP work in loops, retry policy gaps, non-idempotent retry evidence, swallowed catches, generic throws | - | - | - | - |
 | Data Correctness | read-modify-write races, transaction gaps, side effects in transactions, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded SQL reads, exactly-once assumptions, cache policy | transaction gaps, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded reads, exactly-once assumptions, cache policy | transaction gaps, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded reads, exactly-once assumptions, cache policy | transaction gaps, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded reads, exactly-once assumptions, cache policy | - | - | - | - |
+| Change Safety | cataloged diff/testability/refactor checks for Go changes | repository-wide change concentration plus cataloged C++ testability/refactor checks | cataloged diff/testability/refactor checks for Python changes | cataloged diff/testability/refactor checks for TypeScript/JavaScript changes | - | - | - | - |
 | Commands | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config |
 
 TypeScript semantic runtime:
@@ -934,6 +955,133 @@ Config keys:
 
 Rules are implemented for Go, Python, TypeScript, JavaScript, and C++. Contracting database migrations are also surfaced as `contracts.non-expand-contract-migration` in the `API Contracts` section so production-risk scoring can treat unsafe rolling schema changes as data-correctness evidence without renaming the legacy destructive-migration rule.
 
+## Change Safety
+
+Purpose:
+- Keep PRs reviewable, incremental, and testable.
+- Surface risky combinations such as large diffs, mixed concerns, behavior changes without tests, failure-path gaps, hardwired dependencies, and nondeterministic domain logic.
+- Feed PR-summary signals for change safety, refactor confidence, and maintainability delta without changing individual rule severities.
+
+Config keys:
+
+```json
+{
+  "checks": {
+    "change": true,
+    "change_rules": {
+      "detect_behavior_change_without_test": true,
+      "detect_failure_path_missing": true,
+      "detect_hardwired_dependency": true,
+      "detect_nondeterministic_domain": true,
+      "detect_legacy_hotspot_uncovered": true,
+      "detect_mixed_concerns": true,
+      "detect_oversized_diff": true,
+      "detect_mixed_refactor_and_behavior": true,
+      "detect_too_many_concerns": true,
+      "detect_unnecessary_surface_area": true,
+      "detect_one_use_abstraction": true,
+      "detect_duplicate_helper": true,
+      "detect_cleanup_regression": true,
+      "detect_complexity_increased": true,
+      "detect_move_without_verification": true,
+      "detect_refactor_behavior_change": true,
+      "detect_refactor_public_contract": true,
+      "detect_refactor_test_coverage_drop": true,
+      "detect_refactor_error_path_change": true,
+      "detect_refactor_side_effect_reorder": true,
+      "detect_refactor_visibility_expand": true,
+      "detect_refactor_dependency_worsened": true,
+      "detect_refactor_duplicate_left_behind": true,
+      "detect_refactor_dead_path_left_behind": true,
+      "max_changed_files": 25,
+      "max_changed_directories": 8,
+      "max_changed_lines": 800,
+      "max_public_interfaces_changed": 3,
+      "max_concern_families": 3,
+      "min_test_to_production_ratio_percent": 20
+    }
+  }
+}
+```
+
+Profile defaults:
+- `startup`: leaves `checks.change` disabled unless explicitly enabled.
+- `strict`: enables `checks.change`.
+- `enterprise`: enables `checks.change`.
+- `ai-safe`: enables `checks.change` with tighter diff-size and test-ratio budgets.
+
+Current detector rollout:
+
+- Implemented `Change Safety` diff detectors: `change.oversized-diff`, `change.mixed-concerns`, `change.too-many-concerns`, `change.mixed-refactor-and-behavior`, `change.unnecessary-surface-area`, `change.one-use-abstraction`, `change.duplicate-helper`, `change.cleanup-regression`, `change.complexity-increased`, and `change.move-without-verification`.
+- Implemented `Change Safety / Testability` detectors: `testing.behavior-change-without-test`, `testing.failure-path-missing`, `testing.hardwired-dependency`, and `testing.nondeterministic-domain-logic` for Go, Python, TypeScript, JavaScript, and C++ path/text evidence. `testing.legacy-hotspot-uncovered` is cataloged and configured, but intentionally skips when reliable history/hotspot inputs are unavailable.
+- Implemented `Change Safety / Refactors` detectors: the direct `refactor.*` family below has stable metadata, language coverage, fix templates, config toggles, and diff-mode safe-refactor detector tests.
+- Implemented local-quality support rules live in the `Code Quality` section: `naming.generic-identifier`, `function.excessive-parameters`, `function.mixed-abstraction-level`, `function.command-query-mix`, `error.logged-and-ignored`, `error.context-lost`, `defensive.unchecked-type-assertion`, `defensive.unsafe-numeric-conversion`, `maintainability.public-surface-growth`, and `maintainability.dependency-growth`.
+- Implemented history-aware maintainability/smell rules live in `Code Quality`-adjacent report sections and skip when git history is unavailable: `maintainability.hotspot`, `maintainability.high-churn-hotspot`, `maintainability.repeat-defect-area`, `maintainability.unstable-interface`, `maintainability.change-amplification`, `smell.shotgun-surgery-history`, and `smell.divergent-change-history`.
+
+Cataloged rule glossary:
+
+| Subsection / family | Rule ID | Default | Short description |
+| --- | --- | --- | --- |
+| Testability | `testing.behavior-change-without-test` | fail | Production behavior changed without nearby test evidence in the same diff. |
+| Testability | `testing.failure-path-missing` | warn | High-risk error, retry, fallback, auth, or external-dependency paths changed without failure-path tests. |
+| Testability | `testing.hardwired-dependency` | warn | Business logic directly constructs clocks, random sources, network clients, filesystem access, or infrastructure dependencies. |
+| Testability | `testing.nondeterministic-domain-logic` | warn | Domain logic reads time, randomness, filesystem, network, or environment state directly. |
+| Testability | `testing.legacy-hotspot-uncovered` | warn | A high-churn or complex legacy hotspot was touched without characterization or regression-test evidence. |
+| Change concentration | `change.mixed-concerns` | warn | One PR combines unrelated subsystems, architectural layers, or rule families. |
+| Change concentration | `change.oversized-diff` | warn | Changed-file, directory, line, public-interface, or test-ratio budgets make the PR hard to review safely. |
+| Change concentration | `change.mixed-refactor-and-behavior` | warn | The diff combines moves, renames, or extraction with observable behavior changes. |
+| Change concentration | `change.too-many-concerns` | warn | Change evidence shows too many unrelated concepts being modified at once. |
+| Change concentration | `change.unnecessary-surface-area` | warn | A narrow change touches more files, directories, or public interfaces than the behavior requires. |
+| Change concentration | `change.move-without-verification` | warn | Files or symbols moved without test, build, or behavior-preservation evidence. |
+| Local quality / cleanup | `change.one-use-abstraction` | warn | A new abstraction has only one consumer or delegates without simplifying the caller. |
+| Local quality / cleanup | `change.duplicate-helper` | warn | A change introduces helper logic that overlaps existing project vocabulary or utilities. |
+| Local quality / cleanup | `change.cleanup-regression` | warn | A cleanup-labeled change increases complexity, duplication, public surface, or dependency count. |
+| Local quality / cleanup | `change.complexity-increased` | warn | Touched functions, files, or hotspots became materially more complex in the diff. |
+| Refactor confidence | `refactor.behavior-change-detected` | fail | A refactor-labeled diff changes return paths, side effects, auth checks, writes, events, or external calls. |
+| Refactor confidence | `refactor.public-contract-changed` | fail | Exported signatures, API schemas, events, or persistence contracts changed in a refactor-only PR. |
+| Refactor confidence | `refactor.test-coverage-reduced` | warn | A refactor removes or weakens tests over moved or reshaped behavior. |
+| Refactor confidence | `refactor.error-path-changed` | fail | A refactor changes wrapping, returned errors, ignored errors, panic behavior, or partial-failure handling. |
+| Refactor confidence | `refactor.side-effect-order-changed` | fail | Database writes, event publishing, network calls, cleanup, or authorization side effects were reordered. |
+| Refactor confidence | `refactor.visibility-expanded` | warn | Private symbols became public or cross-package visible during a refactor. |
+| Refactor confidence | `refactor.dependency-direction-worsened` | warn | Refactoring introduces an inward dependency on infrastructure, UI, persistence, or framework code. |
+| Refactor confidence | `refactor.duplicate-implementation-left-behind` | warn | Extraction or movement leaves the previous implementation active in another path. |
+| Refactor confidence | `refactor.dead-path-left-behind` | warn | Refactoring leaves obsolete branches, feature flags, wrappers, or compatibility paths without consumers. |
+
+Status and precision:
+- Repository-wide change concentration rules are designed for diff scans. Full scans should not repeat PR-scoped findings without a base revision.
+- Implemented testability detectors use confidence-based path/text evidence across Go, Python, TypeScript, JavaScript, and C++ where support has landed. Treat medium-confidence findings as review cues, not proof of a bug.
+- `testing.legacy-hotspot-uncovered` depends on history/hotspot inputs. When those inputs are unavailable or shallow, CodeGuard skips rather than emitting misleading evidence.
+- Implemented `refactor.*` detectors are conservative, diff-mode, and evidence-based; they do not claim semantic equivalence.
+
+Local quality precision glossary:
+
+These rules live outside the repository-wide `Change Safety` section in report output, but they support the same review goal: make local changes easier to understand, test, and maintain. Use `codeguard rules` on your installed build to confirm which rollout subset is present before writing waivers or hard policy.
+
+| Subsection / family | Rule ID | Default | Short description |
+| --- | --- | --- | --- |
+| Naming | `naming.generic-identifier` | warn | Placeholder names such as `foo`, `tmp`, `thing`, or `obj` hide the role an identifier plays. |
+| Function shape | `function.excessive-parameters` | warn | A function exceeds the configured parameter threshold and likely needs grouped inputs or split responsibilities. |
+| Function shape | `function.mixed-abstraction-level` | warn | One function combines orchestration-level calls with low-level SQL, HTTP, filesystem, environment, or infrastructure work. |
+| Function shape | `function.command-query-mix` | warn | A function returns a value while also invoking mutating side-effect operations. |
+| Error handling | `error.logged-and-ignored` | warn | An error is logged and then ignored, converted to success, or allowed to continue without propagation. |
+| Error handling | `error.context-lost` | warn | An error is returned or rethrown without operation-specific context. |
+| Defensive programming | `defensive.unchecked-type-assertion` | warn | A type assertion or cast bypasses runtime validation or omits the safe checked form. |
+| Defensive programming | `defensive.unsafe-numeric-conversion` | warn | A narrowing or sign-changing numeric conversion can truncate, wrap, or lose precision. |
+| Maintainability delta | `maintainability.public-surface-growth` | warn | A changed file exports more public symbols than it did at the base ref. |
+| Maintainability delta | `maintainability.dependency-growth` | warn | A changed file imports or includes more direct dependencies than it did at the base ref. |
+| Maintainability history | `maintainability.hotspot` | warn | A changed file has high recent churn, defect history, or both. |
+| Maintainability history | `maintainability.high-churn-hotspot` | warn | A changed file combines repeated churn with current complexity hints. |
+| Maintainability history | `maintainability.repeat-defect-area` | warn | A changed file has multiple recent fix, regression, incident, or defect-linked commits. |
+| Maintainability history | `maintainability.unstable-interface` | warn | A changed public-surface file has repeated churn or defect history. |
+| Maintainability history | `maintainability.change-amplification` | warn | A changed file historically fans out into many co-changed partner files. |
+| Code smell history | `smell.shotgun-surgery-history` | warn | A changed file repeatedly co-changes with several partners, suggesting scattered responsibility. |
+| Code smell history | `smell.divergent-change-history` | warn | A changed file has recent commit subjects spanning several concern families. |
+
+Broader smell and history-aware families such as `smell.*`, additional
+`naming.*`/`function.*`/`error.*`/`defensive.*` rules, and deeper
+`maintainability.*` deltas are follow-on roadmap unless they appear in
+`codeguard rules` for the active build.
+
 ## PR Summary Production Risk
 
 `checks.production_risk` enables an additive diff-mode `pr_summary.production_risk` artifact. It scores reliability, data-correctness, and `contracts.non-expand-contract-migration` findings into deterministic PR-level evidence. It does not change individual rule severities, SARIF output, GitHub annotations, or the text summary line.
@@ -949,6 +1097,20 @@ Rules are implemented for Go, Python, TypeScript, JavaScript, and C++. Contracti
   }
 }
 ```
+
+## PR Summary Change Signals
+
+When the change-summary postprocessor is available, diff scans can add three
+change-quality fields under the existing `pr_summary` artifact:
+
+| Field | Source evidence | Meaning |
+| --- | --- | --- |
+| `change_safety` | `change.*`, `testing.*`, high-risk fail/warn findings, test-to-production ratio, diff concentration | Whether the PR looks reviewable, incremental, and sufficiently verified. |
+| `refactor_confidence` | `refactor.*`, move/rename evidence, behavior-preservation tests, public contract and error/side-effect changes | Whether refactor-shaped work appears behavior-preserving. |
+| `maintainability_delta` | maintainability-oriented findings and metrics such as public-surface growth, dependency growth, complexity, duplication, and testability | Whether the PR appears to improve or regress the code it touches. |
+
+These fields are artifact-only summary evidence: they should not create extra
+SARIF entries, GitHub annotations, or severity changes by themselves.
 
 ## Supply Chain
 

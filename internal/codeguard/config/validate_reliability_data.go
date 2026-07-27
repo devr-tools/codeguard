@@ -26,6 +26,27 @@ func validateDataRules(rules core.DataRulesConfig) error {
 	return nil
 }
 
+func validateChangeRules(rules core.ChangeRulesConfig) error {
+	for _, item := range []struct {
+		field string
+		value int
+	}{
+		{"change_rules.max_changed_files", rules.MaxChangedFiles},
+		{"change_rules.max_changed_directories", rules.MaxChangedDirectories},
+		{"change_rules.max_changed_lines", rules.MaxChangedLines},
+		{"change_rules.max_public_interfaces_changed", rules.MaxPublicInterfacesChanged},
+		{"change_rules.max_concern_families", rules.MaxConcernFamilies},
+	} {
+		if item.value < 0 {
+			return fmt.Errorf("%s must not be negative", item.field)
+		}
+	}
+	if rules.MinTestToProductionRatioPercent < 0 || rules.MinTestToProductionRatioPercent > 100 {
+		return fmt.Errorf("change_rules.min_test_to_production_ratio_percent must be between 0 and 100")
+	}
+	return nil
+}
+
 func validateProductionRisk(risk core.ProductionRiskConfig) error {
 	if risk.WarnThreshold < 0 || risk.WarnThreshold > 100 {
 		return fmt.Errorf("production_risk.warn_threshold must be between 0 and 100")

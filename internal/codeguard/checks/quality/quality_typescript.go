@@ -27,8 +27,12 @@ func typeScriptFindingsForFile(env support.Context, file string, data []byte) []
 	findings = append(findings, appendTypeScriptDirectiveFindings(ctx)...)
 	findings = append(findings, typeScriptPatternFindings(ctx)...)
 	findings = append(findings, typeScriptAIQualityFindings(ctx)...)
-	for _, fn := range typeScriptFunctions(source) {
+	parsed := support.ParseCLike(source, support.CLikeTypeScript)
+	for _, fn := range parsedFunctionMetrics(parsed, typeScriptComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
+	}
+	if localPrecisionEnabled(env) {
+		findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
 	}
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }

@@ -26,6 +26,7 @@ func Validate(cfg core.Config) error {
 		validateSupplyChainRules(cfg.Checks.SupplyChainRules),
 		validateReliabilityRules(cfg.Checks.ReliabilityRules),
 		validateDataRules(cfg.Checks.DataRules),
+		validateChangeRules(cfg.Checks.ChangeRules),
 		validateProductionRisk(cfg.Checks.ProductionRisk),
 		validateContractRules(cfg.Checks.ContractRules),
 		validateContextRules(cfg.Checks.ContextRules),

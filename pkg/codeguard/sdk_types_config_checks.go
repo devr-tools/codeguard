@@ -10,6 +10,7 @@ type CIRulesConfig = core.CIRulesConfig
 type SupplyChainRulesConfig = core.SupplyChainRulesConfig
 type ReliabilityRulesConfig = core.ReliabilityRulesConfig
 type DataRulesConfig = core.DataRulesConfig
+type ChangeRulesConfig = core.ChangeRulesConfig
 type ProductionRiskConfig = core.ProductionRiskConfig
 type ContractRulesConfig = core.ContractRulesConfig
 type ContextRulesConfig = core.ContextRulesConfig
