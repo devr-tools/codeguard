@@ -18,6 +18,18 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	applyCoverageDeltaDefaults(&dst.CoverageDelta)
 	applyCPPToolingDefaults(&dst.CPPTooling)
 	defaultBoolPtr(&dst.LocalPrecision, boolValueOrTrue(def.LocalPrecision))
+	applyQualityNamingDefaults(&dst.Naming, def.Naming)
+}
+
+func applyQualityNamingDefaults(dst *core.QualityNamingConfig, def core.QualityNamingConfig) {
+	defaultStringSlice(&dst.AllowedAbbreviations, def.AllowedAbbreviations)
+	if dst.RoleSuffixWarnThreshold == 0 {
+		if def.RoleSuffixWarnThreshold != 0 {
+			dst.RoleSuffixWarnThreshold = def.RoleSuffixWarnThreshold
+		} else {
+			dst.RoleSuffixWarnThreshold = 4
+		}
+	}
 }
 
 func applyRiskScoringDefaults(dst *core.RiskScoringConfig) {

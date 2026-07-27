@@ -14,6 +14,17 @@ type QualityRulesConfig struct {
 	CoverageDelta           CoverageDeltaConfig             `json:"coverage_delta,omitempty" yaml:"coverage_delta,omitempty"`
 	CPPTooling              CPPToolingConfig                `json:"cpp_tooling,omitempty" yaml:"cpp_tooling,omitempty"`
 	LocalPrecision          *bool                           `json:"local_precision,omitempty" yaml:"local_precision,omitempty"`
+	Naming                  QualityNamingConfig             `json:"naming,omitempty" yaml:"naming,omitempty"`
+}
+
+type QualityNamingConfig struct {
+	Glossary                map[string]QualityNamingGlossaryEntry `json:"glossary,omitempty" yaml:"glossary,omitempty"`
+	AllowedAbbreviations    []string                              `json:"allowed_abbreviations,omitempty" yaml:"allowed_abbreviations,omitempty"`
+	RoleSuffixWarnThreshold int                                   `json:"role_suffix_warn_threshold,omitempty" yaml:"role_suffix_warn_threshold,omitempty"`
+}
+
+type QualityNamingGlossaryEntry struct {
+	Avoid []string `json:"avoid,omitempty" yaml:"avoid,omitempty"`
 }
 
 // PerformanceRulesConfig tunes the performance section (checks.performance).

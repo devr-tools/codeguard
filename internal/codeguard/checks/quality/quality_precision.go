@@ -116,6 +116,7 @@ func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, 
 	})
 	findings = append(findings, redundantCommentFindings(env, file, string(data))...)
 	findings = append(findings, sourceDuplicatedKnowledgeFindings(env, file, string(data))...)
+	findings = append(findings, sourceNamingFindings(env, file, string(data))...)
 	return findings
 }
 
@@ -351,6 +352,7 @@ func parsedPrecisionFindings(env support.Context, file string, parsed *support.P
 	findings = append(findings, sourceMutableGlobalFindings(env, file, parsed.Source)...)
 	findings = append(findings, sourceDuplicatedKnowledgeFindings(env, file, parsed.Source)...)
 	findings = append(findings, redundantCommentFindings(env, file, parsed.Source)...)
+	findings = append(findings, sourceNamingFindings(env, file, parsed.Source)...)
 	return findings
 }
 
@@ -417,6 +419,7 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, functionCommandQueryMixRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s returns a value while also invoking mutating side-effect operations", fn.Name), core.ConfidenceMedium))
 	}
+	findings = append(findings, additionalPrecisionFunctionFindings(env, file, fn)...)
 	if primitiveObsession(fn) {
 		findings = append(findings, precisionWarnFinding(env, qualityPrimitiveObsessionRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s passes several domain concepts as raw primitives", fn.Name), core.ConfidenceMedium))

@@ -116,15 +116,15 @@ Candidate rules:
 
 | Status | Rule ID | Signal |
 | --- | --- | --- |
-| Todo | `naming.behavior-mismatch` | Name says query/format/build but body mutates/sends/writes, or name says save/delete but body only reads. |
-| Todo | `naming.boolean-not-predicate` | Boolean variable/field/return names without `is/has/can/should/allow/enabled` style predicate. |
-| Todo | `naming.domain-vocabulary-drift` | Configured glossary detects multiple terms for one domain concept. |
-| Todo | `naming.unknown-abbreviation` | Identifier contains abbreviation not established in repo/config. |
-| Todo | `naming.cardinality-mismatch` | Plural name used for scalar or singular name used for collection-like value. |
-| Todo | `naming.implementation-leak` | Domain/API names encode infrastructure details like SQL, HTTP, Redis, Kafka, ORM. |
-| Todo | `naming.missing-unit` | Numeric names for durations/sizes/money lack unit suffix. |
-| Todo | `naming.role-suffix-overuse` | Excessive `Manager`, `Helper`, `Util`, `Service`, `Processor` suffixes. |
-| Todo | `naming.cross-layer-inconsistency` | Same concept renamed across API/domain/persistence layers. |
+| Done | `naming.behavior-mismatch` | Name says query/format/build but body mutates/sends/writes, or name says save/delete but body only reads. |
+| Done | `naming.boolean-not-predicate` | Boolean variable/field/return names without `is/has/can/should/allow/enabled` style predicate. |
+| Done | `naming.domain-vocabulary-drift` | Configured glossary detects multiple terms for one domain concept. |
+| Done | `naming.unknown-abbreviation` | Identifier contains abbreviation not established in repo/config. |
+| Done | `naming.cardinality-mismatch` | Plural name used for scalar or singular name used for collection-like value. |
+| Done | `naming.implementation-leak` | Domain/API names encode infrastructure details like SQL, HTTP, Redis, Kafka, ORM. |
+| Done | `naming.missing-unit` | Numeric names for durations/sizes/money lack unit suffix. |
+| Done | `naming.role-suffix-overuse` | Excessive `Manager`, `Helper`, `Util`, `Service`, `Processor` suffixes. |
+| Done | `naming.cross-layer-inconsistency` | Same concept renamed across API/domain/persistence layers. |
 
 Config shape proposal:
 
@@ -164,13 +164,14 @@ Candidate rules:
 | Todo | `function.excessive-branching` | Decision count above threshold. |
 | Todo | `function.excessive-nesting` | Nesting depth above threshold. |
 | Todo | `function.excessive-returns` | Too many return paths. |
-| Todo | `function.hidden-mutation` | Function mutates input/global/collaborator without name making it explicit. |
-| Todo | `function.inconsistent-return-contract` | Mixed nil/value/error/partial shapes or inconsistent success semantics. |
-| Todo | `function.multiple-responsibilities` | Responsibility count from validation, load, write, send, emit, auth, transform, cache, etc. |
-| Todo | `function.orchestration-domain-mix` | Handler/job orchestration mixed with domain decisions. |
+| Done | `function.command-query-mix` | Function returns a value while also invoking mutating side-effect operations. |
+| Done | `function.hidden-mutation` | Function mutates input/global/collaborator without name making it explicit. |
+| Done | `function.inconsistent-return-contract` | Mixed nil/value/error/partial shapes or inconsistent success semantics. |
+| Done | `function.multiple-responsibilities` | Responsibility count from validation, load, write, send, emit, auth, transform, cache, etc. |
+| Done | `function.orchestration-domain-mix` | Handler/job orchestration mixed with domain decisions. |
 | Todo | `function.control-flow-needs-explanation` | Complex control flow with no extracted helper or named decision. |
 | Todo | `function.name-behavior-mismatch` | Function name conflicts with dominant behavior. |
-| Todo | `function.partial-result` | Returns partially valid result without explicit partial/error contract. |
+| Done | `function.partial-result` | Returns partially valid result without explicit partial/error contract. |
 
 Maintainability delta extensions:
 
