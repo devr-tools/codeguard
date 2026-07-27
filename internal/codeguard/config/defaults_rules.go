@@ -197,3 +197,51 @@ func applySupplyChainDefaults(dst *core.SupplyChainRulesConfig, def core.SupplyC
 	defaultStringSlice(&dst.DeniedLicenses, def.DeniedLicenses, false)
 	defaultSingleCommandMap(&dst.LicenseCommands, def.LicenseCommands)
 }
+
+func applyReliabilityDefaults(dst *core.ReliabilityRulesConfig, def core.ReliabilityRulesConfig) {
+	applyDefaultBoolPtrs(
+		&dst.DetectMissingTimeout,
+		&dst.DetectUnboundedRetry,
+		&dst.DetectRetryWithoutBackoff,
+		&dst.DetectNonIdempotentRetry,
+		&dst.DetectMissingCancellation,
+		&dst.DetectUnboundedWork,
+		&dst.DetectMissingConcurrencyLimit,
+		&dst.DetectResourceLeak,
+		&dst.DetectPartialFailureHidden,
+		&dst.DetectMissingGracefulShutdown,
+		&dst.DetectSwallowedError,
+		&dst.DetectLostErrorContext,
+		&dst.DetectRecoverablePanic,
+	)
+	defaultInt(&dst.MaxRetryAttempts, def.MaxRetryAttempts)
+	defaultInt(&dst.MaxInlineGoroutinesPerFunction, def.MaxInlineGoroutinesPerFunction)
+}
+
+func applyDataDefaults(dst *core.DataRulesConfig, def core.DataRulesConfig) {
+	applyDefaultBoolPtrs(
+		&dst.DetectReadModifyWriteRace,
+		&dst.DetectMissingTransaction,
+		&dst.DetectSideEffectInTransaction,
+		&dst.DetectNonIdempotentConsumer,
+		&dst.DetectMissingDeduplication,
+		&dst.DetectUnsafeDualWrite,
+		&dst.DetectMissingOutboxStrategy,
+		&dst.DetectUnstablePagination,
+		&dst.DetectUnboundedRead,
+		&dst.DetectExactlyOnceAssumption,
+		&dst.DetectCacheWithoutPolicy,
+	)
+	defaultInt(&dst.MaxUnboundedReadRows, def.MaxUnboundedReadRows)
+	defaultInt(&dst.MaxWritesWithoutTransaction, def.MaxWritesWithoutTransaction)
+}
+
+func applyProductionRiskDefaults(dst *core.ProductionRiskConfig, def core.ProductionRiskConfig) {
+	defaultBoolPtr(&dst.Enabled, boolValueOrTrue(def.Enabled))
+	defaultInt(&dst.WarnThreshold, def.WarnThreshold)
+	defaultInt(&dst.FailThreshold, def.FailThreshold)
+	defaultInt(&dst.ReliabilityWeight, def.ReliabilityWeight)
+	defaultInt(&dst.DataWeight, def.DataWeight)
+	defaultInt(&dst.FailWeight, def.FailWeight)
+	defaultInt(&dst.WarnWeight, def.WarnWeight)
+}

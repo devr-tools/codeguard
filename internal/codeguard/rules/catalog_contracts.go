@@ -53,4 +53,14 @@ var contractsCatalog = map[string]core.RuleMetadata{
 		Description:      "Warns when migration files contain destructive operations such as DROP TABLE, DROP COLUMN, TRUNCATE, or ALTER ... NOT NULL without a DEFAULT.",
 		HowToFix:         "Confirm the data loss is intended, back up affected data first, and prefer additive or reversible migrations.",
 	},
+	"contracts.non-expand-contract-migration": {
+		ID:               "contracts.non-expand-contract-migration",
+		Section:          "API Contracts",
+		DefaultLevel:     "fail",
+		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.RepositoryWideRuleLanguageCoverage(),
+		Title:            "Non-expand/contract schema migration",
+		Description:      "Fails when a rolling database schema migration contracts a schema before compatible code and backfill steps are in place.",
+		HowToFix:         "Split the migration into expand, migrate/backfill, and contract releases with compatibility across rolling deploys.",
+	},
 }

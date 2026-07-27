@@ -49,9 +49,15 @@ This page lists the current `codeguard` feature surface and the main config entr
   - Rust and C++ loop-smell coverage for regex construction, non-preallocated string growth, and polling sleeps
   - C++ loop-driven unbounded thread/task launch detection
   - build regression, benchmark regression, artifact-size budgets, and clang `-ftime-trace` budgets
+- `reliability`
+  - production-readiness checks for Go, Python, TypeScript, JavaScript, and C++
+  - missing outbound timeouts, retry policy gaps, non-idempotent retries, cancellation gaps, unbounded work, resource cleanup, swallowed/lost errors, recoverable panics, and graceful-shutdown evidence
+- `data`
+  - distributed-system and data-correctness checks for Go, Python, TypeScript, JavaScript, and C++
+  - read-modify-write race patterns, missing transaction boundaries, side effects in transactions, consumer idempotency/deduplication gaps, unsafe dual writes, missing outbox strategy, unstable pagination, unbounded reads, exactly-once assumptions, and cache policy gaps
 - `contracts`
   - exported Go and public C++ API compatibility against a diff base
-  - OpenAPI, protobuf, and destructive migration checks
+  - OpenAPI, protobuf, destructive migration checks, and non-expand/contract migration risk
 
 ## Agent-native features
 
@@ -105,6 +111,9 @@ Imported reports are never passed to AI triage.
 - Diff-mode file risk and PR hotspots
   - emits `file_risk` and `pr_hotspots` artifacts that rank every changed file without changing finding severity
   - explains each score with stable, configurable contributions from findings, security and supply-chain signals, changed-line coverage, AI provenance, and slop-score artifacts where available
+- Diff-mode production risk
+  - emits `pr_summary.production_risk` when configured, using reliability, data-correctness, and non-expand/contract migration findings as deterministic PR-level risk evidence
+  - does not change SARIF, GitHub annotations, or individual finding severity
 
 ## Parsers
 

@@ -12,9 +12,11 @@
   </a>
 
 
-`codeguard` is a standalone Go service and CLI for repository checks across code quality, design boundaries, security, CI/CD hygiene, AI prompt governance, and repo-specific policy rules.
+`codeguard` is a standalone Go service and CLI for repository checks across code quality, production reliability, data correctness, design boundaries, security, CI/CD hygiene, AI prompt governance, and repo-specific policy rules.
 
-It now supports repository exclusions, baselines, waivers, changed-lines diff scans, SARIF output, GitHub annotations, custom rule packs, natural-language custom rules through an optional AI runtime, policy profiles, scan caching, doctor checks, rule discovery from the CLI, native TypeScript/Python quality, design, and security heuristics, and language-specific command checks.
+It now supports repository exclusions, baselines, waivers, changed-lines diff scans, SARIF output, GitHub annotations, custom rule packs, natural-language custom rules through an optional AI runtime, policy profiles, scan caching, doctor checks, rule discovery from the CLI, native TypeScript/Python quality, design, security, reliability, and data-correctness heuristics, and language-specific command checks.
+
+For a user-facing glossary of every check family and subsection, see [docs/checks.md](docs/checks.md).
 
 AI-generated-code quality coverage includes an AI-failure-mode rule pack, `slop_score` artifacts, provenance-aware review policy hooks, local idiom drift checks, optional provider-backed hybrid triage and semantic review passes, natural-language custom rules through an optional AI runtime, and a verified-fix flow that only returns patches after isolated patch validation plus test reruns succeed.
 
@@ -110,7 +112,7 @@ For production rollout, start in a narrow mode and expand deliberately:
 1. Run `codeguard doctor` and `codeguard validate` in CI first so config and toolchain issues fail early.
 2. Start with `codeguard scan -mode diff` on pull requests so only changed lines and diff-aware checks gate merges.
 3. Create a baseline for legacy findings with `codeguard baseline` before turning on full-repo enforcement.
-4. Enable stricter families such as `design`, `security`, `contracts`, `performance`, and `supply_chain` incrementally per repository.
+4. Enable stricter families such as `security`, `reliability`, `data`, `design`, `contracts`, `performance`, and `supply_chain` incrementally per repository.
 5. Use `codeguard rules` and `codeguard explain <rule-id>` to document what a failure means before asking teams to act on it.
 
 When a scan fails:

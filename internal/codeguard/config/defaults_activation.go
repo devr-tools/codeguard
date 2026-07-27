@@ -29,6 +29,8 @@ var checkDisablers = map[string]func(*core.CheckConfig){
 	"prompts":      func(checks *core.CheckConfig) { checks.Prompts = false },
 	"ci":           func(checks *core.CheckConfig) { checks.CI = false },
 	"supply_chain": func(checks *core.CheckConfig) { checks.SupplyChain = false },
+	"reliability":  func(checks *core.CheckConfig) { checks.Reliability = boolPtr(false) },
+	"data":         func(checks *core.CheckConfig) { checks.Data = boolPtr(false) },
 	"context":      func(checks *core.CheckConfig) { checks.Context = boolPtr(false) },
 	"contracts":    func(checks *core.CheckConfig) { checks.Contracts = boolPtr(false) },
 }

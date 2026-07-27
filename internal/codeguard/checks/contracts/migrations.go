@@ -86,13 +86,13 @@ func statementFindings(env support.Context, file string, statement string, start
 	findings := make([]core.Finding, 0)
 	for _, pattern := range destructivePatterns {
 		for _, loc := range pattern.re.FindAllStringIndex(statement, -1) {
-			findings = append(findings, newMigrationFinding(env, file, lineAt(statement, startLine, loc[0]),
-				fmt.Sprintf("destructive migration operation: %s", pattern.summary)))
+			findings = append(findings, newMigrationFindings(env, file, lineAt(statement, startLine, loc[0]),
+				fmt.Sprintf("destructive migration operation: %s", pattern.summary))...)
 		}
 	}
 	if loc := alterNotNullRe.FindStringIndex(statement); loc != nil && !defaultClauseRe.MatchString(statement) {
-		findings = append(findings, newMigrationFinding(env, file, lineAt(statement, startLine, loc[0]),
-			"destructive migration operation: ALTER ... NOT NULL without DEFAULT"))
+		findings = append(findings, newMigrationFindings(env, file, lineAt(statement, startLine, loc[0]),
+			"destructive migration operation: ALTER ... NOT NULL without DEFAULT")...)
 	}
 	return findings
 }
@@ -101,13 +101,23 @@ func lineAt(statement string, startLine int, offset int) int {
 	return startLine + strings.Count(statement[:offset], "\n")
 }
 
-func newMigrationFinding(env support.Context, file string, line int, message string) core.Finding {
-	return env.NewFinding(support.FindingInput{
-		RuleID:  "contracts.migration-destructive",
-		Level:   "warn",
-		Path:    file,
-		Line:    line,
-		Column:  1,
-		Message: message,
-	})
+func newMigrationFindings(env support.Context, file string, line int, message string) []core.Finding {
+	return []core.Finding{
+		env.NewFinding(support.FindingInput{
+			RuleID:  "contracts.migration-destructive",
+			Level:   "warn",
+			Path:    file,
+			Line:    line,
+			Column:  1,
+			Message: message,
+		}),
+		env.NewFinding(support.FindingInput{
+			RuleID:  "contracts.non-expand-contract-migration",
+			Level:   "fail",
+			Path:    file,
+			Line:    line,
+			Column:  1,
+			Message: "non-expand/contract schema migration risk: " + message,
+		}),
+	}
 }

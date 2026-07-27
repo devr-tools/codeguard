@@ -22,6 +22,35 @@ codeguard explain quality.ai.semantic-runtime
 Use `codeguard rules` to discover what exists and `codeguard explain <rule-id>` to
 understand why a specific finding failed and what remediation path it expects.
 
+## Check glossary
+
+This glossary is the quick map of every built-in check family and the main subsections users will see in reports, rule IDs, and config.
+
+| Check family | Report section | Config key | Main subsections / rule themes |
+| --- | --- | --- | --- |
+| Quality | `Code Quality` | `checks.quality` | formatting and parseability; maintainability thresholds; file/function size; cyclomatic complexity; clone detection; language-specific quality rules; TypeScript/JavaScript type-safety rules; AI-failure-mode checks; semantic review; changed-line coverage; C++ formatter/compiler validation |
+| Performance | `Performance` | `checks.performance` | N+1 query/fetch patterns; allocation-heavy loops; repeated work in loops; blocking I/O in request paths; unbounded concurrency; sequential await; timer/listener leaks; unbounded whole-input reads; framework-aware performance smells; rebuild-cascade analysis; complexity regression; size budgets; build regression; benchmark regression |
+| Reliability | `Reliability` | `checks.reliability` | missing outbound timeouts; unbounded retries; retries without backoff/jitter; non-idempotent retries; missing cancellation propagation; unbounded work; missing concurrency limits; resource leaks; hidden partial failures; missing graceful shutdown; swallowed errors; lost error context; recoverable panics/exceptions |
+| Data Correctness | `Data Correctness` | `checks.data` | read-modify-write races; missing transaction boundaries; external side effects inside transactions; non-idempotent consumers; missing deduplication; unsafe dual writes; missing outbox strategy; unstable pagination; unbounded reads; exactly-once assumptions; cache writes without TTL/policy |
+| API Contracts | `API Contracts` | `checks.contracts` | exported Go API breaks; public C++ header breaks; OpenAPI breaking changes; protobuf breaking changes; destructive migrations; non-expand/contract schema migration risk |
+| Design | `Design Patterns` | `checks.design` | architecture boundaries; import/module cycles; god modules; graph reachability and stability; high-impact changes; public surface policy; production/test isolation; package/module naming; declarations per file; methods per type; interface/protocol size |
+| Security | `Security` | `checks.security` | hardcoded secrets and credentials; private keys; insecure TLS; shell execution; dynamic code execution; unsafe HTML sinks; SSRF and taint-style flow; unsafe C string APIs; optional `govulncheck`; OWASP category metadata |
+| Supply Chain | `Supply Chain` | `checks.supply_chain` | manifest normalization; SBOM output; missing lockfiles; lockfile drift; unpinned dependencies; license policy; offline advisory-cache vulnerability matching; Cargo manifest hygiene; C++ package-manager metadata for vcpkg, Conan, and CMake |
+| Prompts | `Prompts` | `checks.prompts` | prompt-asset governance; secret interpolation; unsafe instructions; dangerous agent instructions; standing permissions; MCP config risk |
+| CI/CD | `CI/CD` | `checks.ci` | required workflow directories/files; workflow content policy; release automation files; test file location; test assertions; conditional/always-true assertions; cross-language test-quality heuristics |
+| Agent Context | `Agent Context` | `checks.context` | missing agent docs; README/doc drift; oversized files; ambiguous symbols; undocumented commands; oversized agent docs; doc link rot; repository readiness for coding agents |
+| External Reports | `External Reports` | `external_reports` | imported SARIF, Gitleaks JSON, and Trivy JSON findings from scanners that already ran; normalized into CodeGuard report sections with namespaced rule IDs |
+
+Related report artifacts:
+
+| Artifact | Config key | Purpose |
+| --- | --- | --- |
+| `slop_score` | `quality_rules.ai_checks.slop_history` | Trends AI-failure-mode signals over time. |
+| `change_risk` | `quality_rules.ai_change_risk` | Aggregates AI-quality and review-risk signals. |
+| `file_risk` / `pr_hotspots` | `quality_rules.risk_scoring` | Ranks changed files by configurable risk evidence. |
+| `performance_score` | `performance_rules.score_history` | Tracks performance-smell trends. |
+| `pr_summary.production_risk` | `checks.production_risk` | Rolls reliability, data-correctness, and non-expand/contract migration findings into PR-level production-risk evidence. |
+
 ## Top-level shape
 
 ```json
@@ -36,6 +65,8 @@ understand why a specific finding failed and what remediation path it expects.
     "prompts": true,
     "ci": true,
     "supply_chain": false,
+    "reliability": false,
+    "data": false,
     "contracts": true,
     "context": true
   }
@@ -68,6 +99,10 @@ baseline.
 `context` covers agent-context legibility: when the key is omitted the family defaults to enabled in full scans and disabled in diff scans; see [Agent Context](#agent-context).
 
 `supply_chain` is opt-in and currently covers normalized manifest parsing plus initial policy checks for missing lockfiles, content-based lockfile drift validation, unpinned dependencies, dependency license policy resolved from local manifest and installed metadata where available, local advisory-cache vulnerability matching, and Cargo manifest hygiene for missing package licenses and nonhermetic dependency sources.
+
+`reliability` covers production reliability checks for Go, Python, TypeScript, JavaScript, and C++: missing outbound timeouts, unbounded or immediate retries, non-idempotent retries, cancellation propagation gaps, unbounded work, missing concurrency limits, resource cleanup gaps, hidden partial failures, missing graceful shutdown evidence, swallowed/lost errors, and recoverable panics.
+
+`data` covers distributed-system and data-correctness checks for Go, Python, TypeScript, JavaScript, and C++: read-modify-write race patterns, missing transaction boundaries, side effects in transaction callbacks, non-idempotent consumers, missing deduplication, unsafe dual writes, missing outbox strategy, unstable pagination, unbounded reads, exactly-once assumptions, and cache writes without TTL/policy evidence.
 
 Set `output.format` to `cyclonedx` (or pass `codeguard scan -format cyclonedx`) to emit the normalized dependency artifacts as deterministic CycloneDX 1.6 JSON. The SBOM contains declared dependency versions or requirements when a resolver version is unavailable; it does not execute project code or contact a registry.
 
@@ -105,7 +140,7 @@ The first supported cache schema is `schema_version: 1`. Each advisory has an ec
 
 Findings contain the advisory identifier, source, generated timestamp, and cache age as non-sensitive metadata. Refreshing the cache is intentionally outside scan execution and should be handled by an approved, auditable update process.
 
-`contracts` covers API compatibility against a diff base. When omitted, it is enabled in diff scans and disabled in full scans. It checks exported Go declarations, public C++ headers, OpenAPI documents, protobuf schemas, and destructive migrations.
+`contracts` covers API compatibility against a diff base. When omitted, it is enabled in diff scans and disabled in full scans. It checks exported Go declarations, public C++ headers, OpenAPI documents, protobuf schemas, destructive migrations, and non-expand/contract migration risk.
 
 For ecosystems where local metadata is not present, `supply_chain_rules.license_commands` can provide an opt-in per-ecosystem command that prints JSON license mappings for unresolved dependencies.
 
@@ -330,6 +365,8 @@ Current inference behavior:
 | Quality | `gofmt`, parseability, maintainability thresholds | maintainability thresholds across sources, headers, templates, and modules; optional `clang-format` and sanitized `clang++` validation | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, `explicit any`, double assertions, non-null assertions, `debugger` statements | maintainability thresholds | maintainability thresholds | maintainability thresholds | maintainability thresholds |
 | Design | package boundary rules, generic package names, declarations per file, methods per type, interface size, graph reachability/stability/impact | include and named-module cycles, reachability, stability, graph impact, generic filenames, declarations per file, method counts, contract surface checks, boundary-policy enforcement | public/private and entrypoint coupling, import cycles, generic module names, methods per type, protocol size | generic module names, max methods per class, max members per interface/object type, graph resolution through `tsconfig` paths, package `imports`, and workspace package exports | module cycles, graph impact, generic module names, methods per type, trait size | import cycles and graph impact | - | - |
 | Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, unsafe C string APIs, taint flow, SSRF | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
+| Reliability | missing timeouts, cancellation gaps, retry policy gaps, non-idempotent retry evidence, unbounded goroutines/work, resource cleanup, swallowed/lost errors, recoverable panic, graceful shutdown | retry policy gaps, non-idempotent retry evidence, unbounded thread/task launch, raw allocation cleanup gaps, generic runtime throws | missing HTTP timeouts, retry policy gaps, non-idempotent retry evidence, unbounded asyncio work, swallowed exceptions, generic raises, resource cleanup | missing timeout/abort evidence, promise/HTTP work in loops, retry policy gaps, non-idempotent retry evidence, swallowed catches, generic throws | - | - | - | - |
+| Data Correctness | read-modify-write races, transaction gaps, side effects in transactions, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded SQL reads, exactly-once assumptions, cache policy | transaction gaps, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded reads, exactly-once assumptions, cache policy | transaction gaps, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded reads, exactly-once assumptions, cache policy | transaction gaps, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded reads, exactly-once assumptions, cache policy | - | - | - | - |
 | Commands | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config | language command mappings via config |
 
 TypeScript semantic runtime:
@@ -833,6 +870,86 @@ Repo-specific performance policies can also be expressed as natural-language cus
 
 **Future work:** pprof profile ingestion/fusion (attributing regressions to functions by diffing CPU/heap profiles) is deliberately out of scope for this version.
 
+## Reliability
+
+Purpose:
+- Detect production failure modes that are not captured by style linters.
+- Surface risky outbound calls, retries, cancellation, fan-out, cleanup, shutdown, and error-handling paths.
+
+Config keys:
+
+```json
+{
+  "checks": {
+    "reliability": true,
+    "reliability_rules": {
+      "detect_missing_timeout": true,
+      "detect_unbounded_retry": true,
+      "detect_retry_without_backoff": true,
+      "detect_non_idempotent_retry": true,
+      "detect_missing_cancellation": true,
+      "detect_unbounded_work": true,
+      "detect_missing_concurrency_limit": true,
+      "detect_resource_leak": true,
+      "detect_partial_failure_hidden": true,
+      "detect_missing_graceful_shutdown": true,
+      "detect_swallowed_error": true,
+      "detect_lost_error_context": true,
+      "detect_recoverable_panic": true
+    }
+  }
+}
+```
+
+Rules are implemented for Go, Python, TypeScript, JavaScript, and C++. Some rules are high-confidence syntax checks, such as Go `http.Get` without a timeout or response bodies without `Close`; others are confidence-based heuristics around retry/idempotency naming, concurrency limits, and shutdown evidence.
+
+## Data Correctness
+
+Purpose:
+- Detect distributed-system and persistence risks that can cause data loss, duplicated side effects, or unsafe production rollout.
+- Surface transaction, idempotency, outbox, pagination, unbounded-read, delivery-semantics, and cache-policy gaps.
+
+Config keys:
+
+```json
+{
+  "checks": {
+    "data": true,
+    "data_rules": {
+      "detect_read_modify_write_race": true,
+      "detect_missing_transaction": true,
+      "detect_side_effect_in_transaction": true,
+      "detect_non_idempotent_consumer": true,
+      "detect_missing_deduplication": true,
+      "detect_unsafe_dual_write": true,
+      "detect_missing_outbox_strategy": true,
+      "detect_unstable_pagination": true,
+      "detect_unbounded_read": true,
+      "detect_exactly_once_assumption": true,
+      "detect_cache_without_policy": true
+    }
+  }
+}
+```
+
+Rules are implemented for Go, Python, TypeScript, JavaScript, and C++. Contracting database migrations are also surfaced as `contracts.non-expand-contract-migration` in the `API Contracts` section so production-risk scoring can treat unsafe rolling schema changes as data-correctness evidence without renaming the legacy destructive-migration rule.
+
+## PR Summary Production Risk
+
+`checks.production_risk` enables an additive diff-mode `pr_summary.production_risk` artifact. It scores reliability, data-correctness, and `contracts.non-expand-contract-migration` findings into deterministic PR-level evidence. It does not change individual rule severities, SARIF output, GitHub annotations, or the text summary line.
+
+```json
+{
+  "checks": {
+    "production_risk": {
+      "enabled": true,
+      "warn_threshold": 25,
+      "fail_threshold": 70
+    }
+  }
+}
+```
+
 ## Supply Chain
 
 Purpose:
@@ -890,6 +1007,8 @@ Config keys:
 ```
 
 `contracts.cpp-public-breaking` compares changed or deleted `.h`, `.hh`, `.hpp`, `.hxx`, and `.h++` files under an `include`, `public`, or `api` directory with the base ref. It conservatively reports removed/renamed types and aliases plus removed or changed function declarations. Private implementation headers outside those public roots are ignored.
+
+Destructive migration evidence is reported both as the legacy warning `contracts.migration-destructive` and as the production-readiness failure `contracts.non-expand-contract-migration`. The dual reporting preserves existing waivers/baselines while making unsafe rolling schema migration risk available to production-risk scoring.
 
 The contracts family needs a base revision, so it runs in diff mode. When `checks.contracts` is omitted it defaults to enabled for diff scans and disabled for full scans.
 
