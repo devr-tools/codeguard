@@ -3,6 +3,17 @@ package rules
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 var changeSafetyCatalog = map[string]core.RuleMetadata{
+	"naming.generic-identifier":             localQualityRule("naming.generic-identifier", "warn", "Generic identifier", "Warns when a function, parameter, or local variable uses placeholder names such as foo, tmp, thing, or obj instead of domain vocabulary.", "Rename the identifier to describe the role it plays in the surrounding behavior."),
+	"function.excessive-parameters":         localQualityRule("function.excessive-parameters", "warn", "Excessive parameters", "Warns when a function exceeds the configured parameter threshold and should likely group related inputs or split responsibilities.", "Group cohesive inputs into a named object or split the function along separate responsibilities."),
+	"function.mixed-abstraction-level":      localQualityRule("function.mixed-abstraction-level", "warn", "Mixed abstraction level", "Warns when one function combines orchestration-level calls with low-level infrastructure operations such as SQL, HTTP, filesystem, or environment access.", "Move low-level infrastructure details behind a helper or boundary so the function operates at one clear level of abstraction."),
+	"function.command-query-mix":            localQualityRule("function.command-query-mix", "warn", "Command/query mix", "Warns when a function returns a value while also invoking mutating side-effect operations.", "Separate state-changing commands from value-returning queries, or make the side effect explicit in the function name and tests."),
+	"error.logged-and-ignored":              localQualityRule("error.logged-and-ignored", "warn", "Logged and ignored error", "Warns when an error is logged and then ignored, converted to a success value, or allowed to continue without propagation.", "Return, wrap, or otherwise handle the error instead of only logging it."),
+	"error.context-lost":                    localQualityRule("error.context-lost", "warn", "Error context lost", "Warns when an error is rethrown or returned bare from a lower-level call without contextual wrapping.", "Wrap the error with operation-specific context while preserving the original error for callers."),
+	"defensive.unchecked-type-assertion":    localQualityRule("defensive.unchecked-type-assertion", "warn", "Unchecked type assertion", "Warns when a type assertion or cast bypasses runtime validation or omits the safe comma-ok form.", "Use a checked assertion, runtime validation, or type narrowing before consuming the value."),
+	"defensive.unsafe-numeric-conversion":   localQualityRule("defensive.unsafe-numeric-conversion", "warn", "Unsafe numeric conversion", "Warns when a narrowing or sign-changing numeric conversion can truncate, wrap, or lose precision.", "Validate bounds before converting, or keep values in a type wide enough for the source range."),
+	"maintainability.public-surface-growth": maintainabilityDeltaRule("maintainability.public-surface-growth", "warn", "Public surface growth", "Warns in diff scans when a changed file exports more public symbols than it did at the base ref.", "Keep newly exported symbols intentional, documented, and covered by tests; avoid widening API surface for internal-only behavior."),
+	"maintainability.dependency-growth":     maintainabilityDeltaRule("maintainability.dependency-growth", "warn", "Dependency growth", "Warns in diff scans when a changed file imports or includes more direct dependencies than it did at the base ref.", "Remove unnecessary imports/includes or hide optional integrations behind a narrow boundary."),
+
 	"testing.behavior-change-without-test":  testabilityRule("testing.behavior-change-without-test", "fail", "Behavior change without test", "Fails when production behavior changes without nearby test evidence in the same diff.", "Add or update tests that exercise the changed behavior, including observable success and failure outcomes."),
 	"testing.failure-path-missing":          testabilityRule("testing.failure-path-missing", "warn", "Failure path missing", "Warns when high-risk branches add error, retry, fallback, authorization, or external dependency paths without failure-path tests.", "Add tests that force the failure path and assert the returned error, fallback behavior, or partial-failure result."),
 	"testing.hardwired-dependency":          testabilityRule("testing.hardwired-dependency", "warn", "Hardwired dependency", "Warns when business logic constructs clocks, random sources, network clients, filesystem access, or infrastructure dependencies directly.", "Inject the dependency or route it through a narrow interface so tests can provide deterministic fakes."),
@@ -48,6 +59,31 @@ func testabilityRule(id string, level string, title string, description string, 
 		Description: description,
 		HowToFix:    howToFix,
 	}
+}
+
+func localQualityRule(id string, level string, title string, description string, howToFix string) core.RuleMetadata {
+	return core.RuleMetadata{
+		ID:             id,
+		Section:        "Code Quality / Local Precision",
+		DefaultLevel:   level,
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.FixedRuleLanguageCoverage(
+			core.RuleLanguageGo,
+			core.RuleLanguageTypeScript,
+			core.RuleLanguageJavaScript,
+			core.RuleLanguagePython,
+			core.RuleLanguageCPP,
+		),
+		Title:       title,
+		Description: description,
+		HowToFix:    howToFix,
+	}
+}
+
+func maintainabilityDeltaRule(id string, level string, title string, description string, howToFix string) core.RuleMetadata {
+	meta := localQualityRule(id, level, title, description, howToFix)
+	meta.Section = "Maintainability Delta"
+	return meta
 }
 
 func refactorRule(id string, level string, title string, description string, howToFix string) core.RuleMetadata {

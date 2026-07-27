@@ -9,9 +9,11 @@ import (
 
 func pythonFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
 	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each function appends a variable number
-	for _, fn := range pythonFunctions(string(data)) {
+	parsed := support.ParsePython(string(data))
+	for _, fn := range parsedFunctionMetrics(parsed, pythonComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}
+	findings = append(findings, parsedPrecisionFindings(env, file, parsed)...)
 	findings = append(findings, pythonAIQualityFindings(env, file, data)...)
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
