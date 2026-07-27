@@ -26,6 +26,7 @@ func qualityTargetFindings(ctx context.Context, env support.Context, target core
 	findings = append(findings, commandFindings(ctx, env, target)...)
 	findings = append(findings, coverageDeltaFindings(ctx, env, target)...)
 	findings = append(findings, maintainabilityDeltaFindings(env, target)...)
+	findings = append(findings, maintainabilityHistoryFindings(ctx, env, target)...)
 	maybePutAISlopArtifact(env, target, findings)
 	findings = append(findings, changeRiskFindings(env, target, findings)...) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
 	return findings

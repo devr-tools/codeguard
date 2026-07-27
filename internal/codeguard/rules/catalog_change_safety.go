@@ -13,6 +13,13 @@ var changeSafetyCatalog = map[string]core.RuleMetadata{
 	"defensive.unsafe-numeric-conversion":   localQualityRule("defensive.unsafe-numeric-conversion", "warn", "Unsafe numeric conversion", "Warns when a narrowing or sign-changing numeric conversion can truncate, wrap, or lose precision.", "Validate bounds before converting, or keep values in a type wide enough for the source range."),
 	"maintainability.public-surface-growth": maintainabilityDeltaRule("maintainability.public-surface-growth", "warn", "Public surface growth", "Warns in diff scans when a changed file exports more public symbols than it did at the base ref.", "Keep newly exported symbols intentional, documented, and covered by tests; avoid widening API surface for internal-only behavior."),
 	"maintainability.dependency-growth":     maintainabilityDeltaRule("maintainability.dependency-growth", "warn", "Dependency growth", "Warns in diff scans when a changed file imports or includes more direct dependencies than it did at the base ref.", "Remove unnecessary imports/includes or hide optional integrations behind a narrow boundary."),
+	"maintainability.high-churn-hotspot":    maintainabilityHistoryRule("maintainability.high-churn-hotspot", "warn", "High-churn hotspot", "Warns when a changed file combines repeated churn with current complexity hints, making safe review and future changes harder.", "Reduce local complexity, split the change if possible, and add focused regression coverage around the behavior being touched."),
+	"maintainability.repeat-defect-area":    maintainabilityHistoryRule("maintainability.repeat-defect-area", "warn", "Repeat defect area", "Warns when a changed file has multiple recent fix, regression, incident, or defect-linked commits in git history.", "Add regression tests for the failure modes that have changed here before and keep the patch narrow."),
+	"maintainability.unstable-interface":    maintainabilityHistoryRule("maintainability.unstable-interface", "warn", "Unstable interface", "Warns when a changed public-surface file has repeated churn or defect history, suggesting compatibility risk.", "Keep interface changes explicit, document caller impact, and preserve backwards compatibility or add migration tests."),
+	"maintainability.change-amplification":  maintainabilityHistoryRule("maintainability.change-amplification", "warn", "Change amplification", "Warns when a changed file historically fans out into many co-changed partners.", "Identify the coupled responsibilities and consider extracting a narrower boundary or updating the usual partner files intentionally."),
+	"maintainability.hotspot":               maintainabilityHistoryRule("maintainability.hotspot", "warn", "Maintainability hotspot", "Warns when a changed file has high recent churn, defect history, or both.", "Treat the file as risky legacy surface: keep changes small, add characterization tests, and note the hotspot evidence for reviewers."),
+	"smell.shotgun-surgery-history":         smellHistoryRule("smell.shotgun-surgery-history", "warn", "Shotgun surgery history", "Warns when a changed file repeatedly co-changes with several partners, indicating one concept may be spread across files.", "Consider consolidating the scattered responsibility or make the related partner updates explicit in this PR."),
+	"smell.divergent-change-history":        smellHistoryRule("smell.divergent-change-history", "warn", "Divergent change history", "Warns when a changed file has recent commit subjects spanning several concern families.", "Split unrelated responsibilities out of the file or isolate the concern being changed behind a clearer boundary."),
 
 	"testing.behavior-change-without-test":  testabilityRule("testing.behavior-change-without-test", "fail", "Behavior change without test", "Fails when production behavior changes without nearby test evidence in the same diff.", "Add or update tests that exercise the changed behavior, including observable success and failure outcomes."),
 	"testing.failure-path-missing":          testabilityRule("testing.failure-path-missing", "warn", "Failure path missing", "Warns when high-risk branches add error, retry, fallback, authorization, or external dependency paths without failure-path tests.", "Add tests that force the failure path and assert the returned error, fallback behavior, or partial-failure result."),
@@ -83,6 +90,18 @@ func localQualityRule(id string, level string, title string, description string,
 func maintainabilityDeltaRule(id string, level string, title string, description string, howToFix string) core.RuleMetadata {
 	meta := localQualityRule(id, level, title, description, howToFix)
 	meta.Section = "Maintainability Delta"
+	return meta
+}
+
+func maintainabilityHistoryRule(id string, level string, title string, description string, howToFix string) core.RuleMetadata {
+	meta := localQualityRule(id, level, title, description, howToFix)
+	meta.Section = "Maintainability History"
+	return meta
+}
+
+func smellHistoryRule(id string, level string, title string, description string, howToFix string) core.RuleMetadata {
+	meta := localQualityRule(id, level, title, description, howToFix)
+	meta.Section = "Code Smells / History"
 	return meta
 }
 
