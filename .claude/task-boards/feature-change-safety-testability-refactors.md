@@ -1,9 +1,186 @@
 # Task board: feature/change-safety-testability-refactors
 
-Status: staging
+Status: active
 Branch: feature/change-safety-testability-refactors
 Last updated: 2026-07-27
 Not final product docs: this is implementation planning for the branch, not shipped user-facing documentation.
+
+## Branch setup update
+
+Completed before implementation work:
+
+- Rebased `feature/change-safety-testability-refactors` onto latest `main` after `feature/production-reliability-data-readiness` was merged.
+- Force-updated the remote branch with `--force-with-lease` after the rebase.
+- Verified the working tree is clean before assigning implementation workstreams.
+
+Agent spawning note:
+
+- New worker spawns were attempted after the rebase, but the workspace was at the agent thread limit.
+- Existing completed-agent summaries were collected and used to refine the workstream split below.
+- The branch can proceed with these workstreams as soon as agent capacity is available, or the main thread can take the first workstream locally.
+
+## Agent workstreams
+
+These workstreams are intentionally disjoint. Workers must not revert unrelated edits and should list changed files in their handoff.
+
+### Workstream A: scaffolding, config, catalogs, and profiles
+
+Ownership:
+
+- `internal/codeguard/core/config_types.go`
+- `internal/codeguard/core/config_rule_types.go`
+- `internal/codeguard/config/defaults*.go`
+- `internal/codeguard/config/example*.go`
+- `internal/codeguard/config/profile.go`
+- `internal/codeguard/config/validate*.go`
+- `internal/codeguard/rules/catalog_change.go`
+- `internal/codeguard/rules/catalog_testing.go`
+- `internal/codeguard/rules/catalog_refactor.go`
+- `internal/codeguard/rules/catalog_fix_templates_change.go`
+- `pkg/codeguard/sdk_types_config_checks.go`
+- config/profile/metadata tests
+
+Tasks:
+
+- Add a minimal top-level `change` section toggle and `ChangeRulesConfig`.
+- Add thresholds for changed files, changed directories, changed lines, changed public interfaces, concern-family count, and production/test ratio.
+- Add defaults, examples, validation, and SDK aliases.
+- Add initial metadata/fix templates for the Phase 1/2/4 rules that will have detector support in this branch.
+- Wire profile behavior:
+  - `startup`: keep change-safety off unless explicitly enabled.
+  - `strict`: enable high-confidence change/testability gates.
+  - `enterprise`: inherit strict.
+  - `ai-safe`: enable stronger oversized-diff, missing-test, weak-refactor-confidence, duplicated-helper, and unnecessary-abstraction signals.
+
+Targeted verification:
+
+```sh
+go test ./internal/codeguard/config ./tests/cli ./pkg/codeguard
+```
+
+### Workstream B: change section and diff concentration detectors
+
+Ownership:
+
+- `internal/codeguard/checks/change/**`
+- `internal/codeguard/runner/checks/registry.go`
+- `tests/checks/change*_test.go`
+- helper additions under `internal/codeguard/checks/support/**` only if needed
+
+Tasks:
+
+- Add the `Change Safety` section runner.
+- Run primarily in diff mode; full scans should no-op or emit only explicitly safe repo-level diagnostics.
+- Compute change concentration evidence:
+  - files touched
+  - directories touched
+  - architectural layer/path categories touched
+  - production/test file ratio
+  - public-surface file hints
+- Detect:
+  - `change.oversized-diff`
+  - `change.mixed-concerns`
+  - `change.too-many-concerns`
+  - `change.mixed-refactor-and-behavior`
+  - `change.unnecessary-surface-area`
+  - `change.move-without-verification`
+- Keep findings deterministic and confidence-based.
+
+Targeted verification:
+
+```sh
+go test ./tests/checks -run 'TestChange'
+go test ./internal/codeguard/runner/checks
+```
+
+### Workstream C: testability detectors
+
+Ownership:
+
+- `internal/codeguard/checks/change/testability*.go` or a clearly named sibling under the change package
+- `tests/checks/testing*_test.go`
+- no catalog/config edits except small integration adjustments coordinated with Workstream A
+
+Tasks:
+
+- Detect:
+  - `testing.behavior-change-without-test`
+  - `testing.failure-path-missing`
+  - `testing.hardwired-dependency`
+  - `testing.nondeterministic-domain-logic`
+  - `testing.legacy-hotspot-uncovered` as warn-only if history inputs are available; otherwise leave a documented TODO and do not emit a misleading finding.
+- Start with Go, Python, TypeScript, JavaScript, and C++ path/text heuristics where safe.
+- Add positive and negative tests for changed production files with/without changed tests.
+- Avoid duplicating CI test-quality findings unless the evidence is about change safety, not test style.
+
+Targeted verification:
+
+```sh
+go test ./tests/checks -run 'TestTesting'
+```
+
+### Workstream D: PR-summary metrics
+
+Ownership:
+
+- `internal/codeguard/core/report_artifact_types.go`
+- `internal/codeguard/checks/support/artifacts.go`
+- `internal/codeguard/runner/pr_summary.go`
+- `internal/codeguard/runner/pr_summary_test.go`
+- `pkg/codeguard/sdk_types_runtime_report.go`
+- report serialization tests only if artifact shape requires them
+
+Tasks:
+
+- Extend existing `pr_summary` additively with:
+  - `change_safety`
+  - `maintainability_delta`
+  - `refactor_confidence`
+- Preserve existing `production_risk` behavior from the merged production-readiness branch.
+- Keep metrics artifact-only; do not emit GitHub annotations for metrics.
+- Keep the existing text `Summary:` sentence unchanged.
+- Sort evidence deterministically.
+
+Targeted verification:
+
+```sh
+go test ./internal/codeguard/runner ./tests/codeguard ./tests/checks -run 'Test.*PRSummary|TestWriteReport'
+```
+
+### Workstream E: local quality precision and maintainability delta
+
+Ownership:
+
+- `internal/codeguard/checks/quality/**`
+- `internal/codeguard/checks/design/**` only for graph/delta helpers
+- `internal/codeguard/history/**` only for read-only history metrics
+- `tests/checks/naming*_test.go`
+- `tests/checks/function*_test.go`
+- `tests/checks/error*_test.go`
+- `tests/checks/defensive*_test.go`
+- `tests/checks/maintainability*_test.go`
+
+Tasks:
+
+- Start with a small, high-value subset instead of every planned smell:
+  - `naming.generic-identifier`
+  - `function.excessive-parameters`
+  - `function.mixed-abstraction-level`
+  - `function.command-query-mix`
+  - `error.logged-and-ignored`
+  - `error.context-lost`
+  - `defensive.unchecked-type-assertion`
+  - `defensive.unsafe-numeric-conversion`
+  - `maintainability.public-surface-growth`
+  - `maintainability.dependency-growth`
+- Reuse existing quality/design metrics where possible.
+- Prefer warnings unless evidence is direct and high-confidence.
+
+Targeted verification:
+
+```sh
+go test ./tests/checks -run 'Test(Naming|Function|Error|Defensive|Maintainability)'
+```
 
 ## Goal
 
