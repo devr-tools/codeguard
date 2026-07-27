@@ -84,7 +84,7 @@ func partnerFunctionName(path string) string {
 func TestMaintainabilityHistoryHotspotRulesUseGitEvidence(t *testing.T) {
 	dir := initMaintainabilityHistoryRepo(t)
 
-	report := runMaintainabilityDeltaScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runMaintainabilityDeltaScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRulePresent(t, report, "Code Quality", "maintainability.hotspot")
 	assertFindingRulePresent(t, report, "Code Quality", "maintainability.high-churn-hotspot")
@@ -105,7 +105,7 @@ func TestMaintainabilityHistoryUnavailableDoesNotFailScan(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "plain.go"), "package sample\n\nfunc Value() int { return 1 }\n")
 
-	report, err := codeguard.Run(context.Background(), qualityPrecisionConfig(dir, "go"))
+	report, err := codeguard.Run(context.Background(), qualityPrecisionConfig(dir))
 	if err != nil {
 		t.Fatalf("full scan without git history: %v", err)
 	}

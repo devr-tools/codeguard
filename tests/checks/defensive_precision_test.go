@@ -17,7 +17,7 @@ func TestDefensiveUncheckedTypeAssertionWarnsForSingleValueAssertion(t *testing.
 		"",
 	}, "\n"))
 
-	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRulePresent(t, report, "Code Quality", "defensive.unchecked-type-assertion")
 	assertFindingLevel(t, report, "Code Quality", "defensive.unchecked-type-assertion", "warn")
@@ -35,7 +35,7 @@ func TestDefensiveUncheckedTypeAssertionAllowsCommaOKAssertion(t *testing.T) {
 		"",
 	}, "\n"))
 
-	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.unchecked-type-assertion")
 }
@@ -51,7 +51,7 @@ func TestDefensiveUnsafeNumericConversionWarnsForNarrowingConversion(t *testing.
 		"",
 	}, "\n"))
 
-	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRulePresent(t, report, "Code Quality", "defensive.unsafe-numeric-conversion")
 	assertFindingLevel(t, report, "Code Quality", "defensive.unsafe-numeric-conversion", "warn")

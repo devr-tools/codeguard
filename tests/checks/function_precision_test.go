@@ -16,7 +16,7 @@ func TestFunctionExcessiveParametersWarnsWithSpecificRule(t *testing.T) {
 		"}",
 		"",
 	}, "\n"))
-	cfg := qualityPrecisionConfig(dir, "go")
+	cfg := qualityPrecisionConfig(dir)
 	cfg.Checks.QualityRules.MaxParameters = 2
 
 	report := runQualityPrecisionScan(t, cfg)
@@ -44,7 +44,7 @@ func TestFunctionMixedAbstractionLevelWarnsForInfrastructureInsideOrchestration(
 		"",
 	}, "\n"))
 
-	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRulePresent(t, report, "Code Quality", "function.mixed-abstraction-level")
 	assertFindingLevel(t, report, "Code Quality", "function.mixed-abstraction-level", "warn")
@@ -71,7 +71,7 @@ func TestFunctionCommandQueryMixWarnsWhenQueryMutatesState(t *testing.T) {
 		"",
 	}, "\n"))
 
-	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRulePresent(t, report, "Code Quality", "function.command-query-mix")
 	assertFindingLevel(t, report, "Code Quality", "function.command-query-mix", "warn")

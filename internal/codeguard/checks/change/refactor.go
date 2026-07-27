@@ -61,7 +61,7 @@ func refactorFindings(ctx context.Context, env support.Context) []core.Finding {
 			if !isSourceFile(pair.afterPath) && !isSourceFile(pair.beforePath) {
 				continue
 			}
-			for _, evidence := range refactorPairEvidence(env, rules, pair) {
+			for _, evidence := range refactorPairEvidence(rules, pair) {
 				findings = append(findings, env.NewFinding(support.FindingInput{
 					RuleID:     evidence.ruleID,
 					Level:      evidence.level,
@@ -137,7 +137,7 @@ func changedFilesFromCore(files []core.ChangedFile) []changedFile {
 	return out
 }
 
-func refactorPairEvidence(env support.Context, rules core.ChangeRulesConfig, pair refactorFilePair) []refactorFindingEvidence {
+func refactorPairEvidence(rules core.ChangeRulesConfig, pair refactorFilePair) []refactorFindingEvidence {
 	baseText := string(pair.base)
 	afterText := string(pair.after)
 	production := isProductionFile(pair.afterPath)

@@ -138,7 +138,7 @@ func readBaseFile(env support.Context, target core.TargetConfig, rel string) ([]
 }
 
 func oneUseAbstractionFindings(env support.Context, files []changedFileContent) []core.Finding {
-	decls := make([]abstractionDecl, 0)
+	decls := make([]abstractionDecl, 0, len(files)*2)
 	for _, file := range files {
 		decls = append(decls, newAbstractionDecls(file)...)
 	}

@@ -20,13 +20,6 @@ func pythonFindingsForFile(env support.Context, file string, data []byte) []core
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 
-// pythonFunctions extracts function metrics from the structured Python
-// parser, so strings or comments that merely look like code are ignored and
-// multiline signatures are handled.
-func pythonFunctions(source string) []functionMetrics {
-	return parsedFunctionMetrics(support.ParsePython(source), pythonComplexity)
-}
-
 // maskedFunctionBody joins the masked statements of a function and its
 // nested functions, mirroring the full lexical body.
 func maskedFunctionBody(fn *support.ParsedFunction) string {

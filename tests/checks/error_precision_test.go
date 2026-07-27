@@ -25,7 +25,7 @@ func TestErrorLoggedAndIgnoredWarnsWhenErrorBecomesSuccess(t *testing.T) {
 		"",
 	}, "\n"))
 
-	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRulePresent(t, report, "Code Quality", "error.logged-and-ignored")
 	assertFindingLevel(t, report, "Code Quality", "error.logged-and-ignored", "warn")
@@ -47,7 +47,7 @@ func TestErrorContextLostWarnsForBareErrorReturn(t *testing.T) {
 		"",
 	}, "\n"))
 
-	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRulePresent(t, report, "Code Quality", "error.context-lost")
 	assertFindingLevel(t, report, "Code Quality", "error.context-lost", "warn")

@@ -107,7 +107,7 @@ type changeMetricsParser struct {
 func (p *changeMetricsParser) handleLine(line string) {
 	if strings.HasPrefix(line, changeCommitMarker) {
 		p.flush()
-		subject := line
+		var subject string
 		if idx := strings.IndexByte(line, 0); idx >= 0 {
 			subject = line[idx+1:]
 		} else {

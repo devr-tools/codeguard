@@ -8,7 +8,7 @@ import (
 func TestSmellHistoryRulesUseCoChangeEvidence(t *testing.T) {
 	dir := initMaintainabilityHistoryRepo(t)
 
-	report := runMaintainabilityDeltaScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runMaintainabilityDeltaScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRulePresent(t, report, "Code Quality", "smell.shotgun-surgery-history")
 	assertFindingRulePresent(t, report, "Code Quality", "smell.divergent-change-history")
@@ -28,7 +28,7 @@ func TestSmellHistoryRulesUseCoChangeEvidence(t *testing.T) {
 func TestChangeAmplificationDeterministicMetadataOrdering(t *testing.T) {
 	dir := initMaintainabilityHistoryRepo(t)
 
-	report := runMaintainabilityDeltaScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runMaintainabilityDeltaScan(t, qualityPrecisionConfig(dir))
 
 	finding := findFinding(t, report, "Code Quality", "maintainability.change-amplification")
 	if got := finding.Metadata["top_partners"]; !strings.HasPrefix(got, "partner_a.go:") {

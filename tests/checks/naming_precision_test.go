@@ -9,10 +9,10 @@ import (
 	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
-func qualityPrecisionConfig(dir string, language string) codeguard.Config {
+func qualityPrecisionConfig(dir string) codeguard.Config {
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "quality-precision"
-	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: language}}
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
 	cfg.Checks.Quality = true
 	cfg.Checks.Design = false
 	cfg.Checks.Security = false
@@ -45,7 +45,7 @@ func TestNamingGenericIdentifierWarnsForPlaceholderNames(t *testing.T) {
 		"",
 	}, "\n"))
 
-	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRulePresent(t, report, "Code Quality", "naming.generic-identifier")
 	assertFindingLevel(t, report, "Code Quality", "naming.generic-identifier", "warn")
@@ -63,7 +63,7 @@ func TestNamingGenericIdentifierSkipsTestFixtures(t *testing.T) {
 		"",
 	}, "\n"))
 
-	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRuleAbsent(t, report, "Code Quality", "naming.generic-identifier")
 }

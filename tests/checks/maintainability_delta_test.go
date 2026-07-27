@@ -56,7 +56,7 @@ func TestMaintainabilityPublicSurfaceGrowthWarnsInDiffScan(t *testing.T) {
 		"",
 	}, "\n"))
 
-	report := runMaintainabilityDeltaScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runMaintainabilityDeltaScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRulePresent(t, report, "Code Quality", "maintainability.public-surface-growth")
 	assertFindingLevel(t, report, "Code Quality", "maintainability.public-surface-growth", "warn")
@@ -87,7 +87,7 @@ func TestMaintainabilityDependencyGrowthWarnsInDiffScan(t *testing.T) {
 		"",
 	}, "\n"))
 
-	report := runMaintainabilityDeltaScan(t, qualityPrecisionConfig(dir, "go"))
+	report := runMaintainabilityDeltaScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRulePresent(t, report, "Code Quality", "maintainability.dependency-growth")
 	assertFindingLevel(t, report, "Code Quality", "maintainability.dependency-growth", "warn")

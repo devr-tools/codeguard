@@ -95,9 +95,7 @@ func fileTestabilityEvidence(env support.Context, path string, data []byte, rang
 	lines := strings.Split(string(data), "\n")
 	out := make([]testabilityEvidence, 0, 4)
 
-	behaviorLine := firstChangedLineMatching(lines, ranges, func(line string) bool {
-		return isBehaviorLine(line)
-	})
+	behaviorLine := firstChangedLineMatching(lines, ranges, isBehaviorLine)
 	if enabled(env.Config.Checks.ChangeRules.DetectBehaviorChangeWithoutTest) && behaviorLine > 0 && !hasChangedTests {
 		out = append(out, testabilityEvidence{
 			path:          path,
@@ -110,9 +108,7 @@ func fileTestabilityEvidence(env support.Context, path string, data []byte, rang
 		})
 	}
 
-	failureLine := firstChangedLineMatching(lines, ranges, func(line string) bool {
-		return isFailurePathLine(line)
-	})
+	failureLine := firstChangedLineMatching(lines, ranges, isFailurePathLine)
 	if enabled(env.Config.Checks.ChangeRules.DetectFailurePathMissing) && failureLine > 0 && !testHasFailureEvidence {
 		out = append(out, testabilityEvidence{
 			path:          path,
@@ -125,9 +121,7 @@ func fileTestabilityEvidence(env support.Context, path string, data []byte, rang
 		})
 	}
 
-	hardwiredLine := firstChangedLineMatching(lines, ranges, func(line string) bool {
-		return isHardwiredDependencyLine(line)
-	})
+	hardwiredLine := firstChangedLineMatching(lines, ranges, isHardwiredDependencyLine)
 	if enabled(env.Config.Checks.ChangeRules.DetectHardwiredDependency) && hardwiredLine > 0 {
 		out = append(out, testabilityEvidence{
 			path:          path,

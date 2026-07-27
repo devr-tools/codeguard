@@ -169,11 +169,12 @@ func collectMaintainabilityHints(env support.Context, target core.TargetConfig, 
 
 func complexityScore(hints fileMaintainabilityHints) int {
 	score := hints.decisionHits
-	if hints.lines >= 120 {
+	switch {
+	case hints.lines >= 120:
 		score += 4
-	} else if hints.lines >= 80 {
+	case hints.lines >= 80:
 		score += 3
-	} else if hints.lines >= 50 {
+	case hints.lines >= 50:
 		score += 2
 	}
 	return score

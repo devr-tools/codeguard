@@ -266,8 +266,9 @@ func unsafeGoNumericConversionTarget(call *ast.CallExpr) string {
 }
 
 func parsedPrecisionFindings(env support.Context, file string, parsed *support.ParsedFile) []core.Finding {
-	findings := make([]core.Finding, 0)
-	for _, fn := range parsed.AllFunctions() {
+	functions := parsed.AllFunctions()
+	findings := make([]core.Finding, 0, len(functions))
+	for _, fn := range functions {
 		findings = append(findings, precisionFunctionFindings(env, file, parsedPrecisionFunction(fn))...)
 	}
 	findings = append(findings, parsedDefensiveFindings(env, file, parsed)...)
@@ -597,7 +598,7 @@ func publicSurfaceCount(language string, rel string, source string) int {
 	case "typescript", "javascript":
 		return len(tsPublicDeclPattern.FindAllStringSubmatch(source, -1))
 	case "c++", "cpp":
-		if !(strings.HasSuffix(rel, ".h") || strings.HasSuffix(rel, ".hh") || strings.HasSuffix(rel, ".hpp")) {
+		if !strings.HasSuffix(rel, ".h") && !strings.HasSuffix(rel, ".hh") && !strings.HasSuffix(rel, ".hpp") {
 			return 0
 		}
 		return len(cppPublicDeclPattern.FindAllStringSubmatch(source, -1))
