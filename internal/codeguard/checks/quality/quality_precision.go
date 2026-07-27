@@ -383,7 +383,7 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, fn.StartLine,
 			fmt.Sprintf("function name %q is too generic to communicate intent", fn.Name), core.ConfidenceHigh))
 	}
-	if isAmbiguousIdentifier(fn.Name) {
+	if isAmbiguousIdentifier(fn.Name) && !isUIConventionalAmbiguousName(file, fn, fn.Name, "", fn.StartLine) {
 		findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, fn.StartLine,
 			fmt.Sprintf("function name %q is ambiguous without domain context", fn.Name), core.ConfidenceHigh))
 	}
@@ -392,7 +392,7 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 			findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, fn.StartLine,
 				fmt.Sprintf("parameter %q is too generic to communicate intent", param.Name), core.ConfidenceHigh))
 		}
-		if isAmbiguousIdentifier(param.Name) {
+		if isAmbiguousIdentifier(param.Name) && !isUIConventionalAmbiguousName(file, fn, param.Name, param.Type, fn.StartLine) {
 			findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, fn.StartLine,
 				fmt.Sprintf("parameter %q is ambiguous without domain context", param.Name), core.ConfidenceHigh))
 		}
@@ -406,7 +406,7 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 			findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, assignment.Line,
 				fmt.Sprintf("identifier %q is too generic to explain its role", assignment.Name), core.ConfidenceHigh))
 		}
-		if isAmbiguousIdentifier(assignment.Name) {
+		if isAmbiguousIdentifier(assignment.Name) && !isUIConventionalAmbiguousName(file, fn, assignment.Name, "", assignment.Line) {
 			findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, assignment.Line,
 				fmt.Sprintf("identifier %q is ambiguous without domain context", assignment.Name), core.ConfidenceHigh))
 		}
@@ -417,7 +417,7 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, qualityMixedAbstractionLevelsRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mixes domain intent with low-level implementation details", fn.Name), core.ConfidenceMedium))
 	}
-	if commandQueryMix(fn) {
+	if commandQueryMix(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, functionCommandQueryMixRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s returns a value while also invoking mutating side-effect operations", fn.Name), core.ConfidenceMedium))
 	}
@@ -516,7 +516,10 @@ func isDomainLevelCall(callee string) bool {
 	return strings.Contains(callee, ".") || queryFunctionPrefixPattern.MatchString(lowered) || len(callee) > 3
 }
 
-func commandQueryMix(fn precisionFunction) bool {
+func commandQueryMix(file string, fn precisionFunction) bool {
+	if isFrameworkCommandBoundary(file, fn.Name) || isReactComponentOrHookBoundary(file, fn) {
+		return false
+	}
 	if !fn.Returns {
 		return false
 	}
@@ -622,6 +625,9 @@ func parsedMutableGlobalFindings(env support.Context, file string, parsed *suppo
 		if text == "" || strings.HasPrefix(text, "const ") || strings.HasPrefix(text, "final ") {
 			continue
 		}
+		if isScriptLikeSourcePath(file) && !moduleStatementLooksTopLevel(statement) {
+			continue
+		}
 		if mutableGlobalLinePattern.MatchString(text) {
 			findings = append(findings, precisionWarnFinding(env, qualityMutableGlobalStateRuleID, file, statement.Line,
 				"mutable module-level state makes behavior harder to isolate and test", core.ConfidenceHigh))
@@ -639,7 +645,7 @@ func parsedDuplicatedKnowledgeFindings(env support.Context, file string, parsed 
 		for _, literal := range domainKnowledgeLiterals(statement.Raw) {
 			if first, exists := seen[literal]; exists {
 				return []core.Finding{precisionWarnFinding(env, qualityDuplicatedKnowledgeRuleID, file, statement.Line,
-					fmt.Sprintf("business literal is duplicated near line %d; centralize shared domain knowledge", first), core.ConfidenceLow)}
+					fmt.Sprintf("business literal %s is duplicated near line %d; centralize shared domain knowledge", literal, first), core.ConfidenceLow)}
 			}
 			seen[literal] = statement.Line
 		}
@@ -672,6 +678,9 @@ func sourceMutableGlobalFindings(env support.Context, file string, source string
 		return nil
 	}
 	for idx, line := range strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n") {
+		if isScriptLikeSourcePath(file) && !scriptSourceLineAtModuleScope(source, idx) {
+			continue
+		}
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") ||
 			strings.HasPrefix(trimmed, "const ") || strings.HasPrefix(trimmed, "final ") {
@@ -697,7 +706,7 @@ func sourceDuplicatedKnowledgeFindings(env support.Context, file string, source 
 		for _, literal := range domainKnowledgeLiterals(line) {
 			if first, exists := seen[literal]; exists {
 				return []core.Finding{precisionWarnFinding(env, qualityDuplicatedKnowledgeRuleID, file, idx+1,
-					fmt.Sprintf("business literal is duplicated near line %d; centralize shared domain knowledge", first), core.ConfidenceLow)}
+					fmt.Sprintf("business literal %s is duplicated near line %d; centralize shared domain knowledge", literal, first), core.ConfidenceLow)}
 			}
 			seen[literal] = idx + 1
 		}
@@ -714,6 +723,9 @@ func redundantCommentVerb(comment string) string {
 }
 
 func domainKnowledgeLiterals(line string) []string {
+	if duplicatedKnowledgeLineIsDisplayOnly(line) {
+		return nil
+	}
 	matches := regexp.MustCompile(`"([^"]{2,80})"|'([^']{2,80})'|\b\d+(?:\.\d+)?\b`).FindAllString(line, -1)
 	out := make([]string, 0, len(matches))
 	for _, match := range matches {
@@ -724,15 +736,47 @@ func domainKnowledgeLiterals(line string) []string {
 	return out
 }
 
+func duplicatedKnowledgeLineIsDisplayOnly(line string) bool {
+	lowered := strings.ToLower(line)
+	if strings.Contains(lowered, "classname") || strings.Contains(lowered, "clasname") || strings.Contains(lowered, "class:") {
+		return true
+	}
+	if strings.Contains(line, "<") && strings.Contains(line, ">") {
+		return true
+	}
+	if strings.Contains(lowered, "label:") || strings.Contains(lowered, "placeholder:") || strings.Contains(lowered, "title:") ||
+		strings.Contains(lowered, "aria-label") {
+		return true
+	}
+	return false
+}
+
 func domainKnowledgeLiteral(value string) bool {
 	trimmed := strings.Trim(value, `"'`)
 	if trimmed == "" || len(trimmed) > 80 {
 		return false
 	}
+	if len(trimmed) < 4 && !strings.ContainsAny(trimmed, "0123456789") {
+		return false
+	}
 	if _, err := strconv.Atoi(trimmed); err == nil {
 		return true
 	}
+	if likelyDisplayLabel(trimmed) {
+		return false
+	}
 	return domainPrimitiveNamePattern.MatchString(trimmed) || strings.Contains(trimmed, "_")
+}
+
+func likelyDisplayLabel(value string) bool {
+	if strings.Contains(value, "_") {
+		return false
+	}
+	if strings.ContainsAny(value, "-/:.") {
+		return false
+	}
+	words := strings.Fields(value)
+	return len(words) > 0 && len(words) <= 3
 }
 
 func unsafeScriptNumericConversion(text string) bool {

@@ -112,7 +112,7 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 		if item.name == "" {
 			continue
 		}
-		if isBooleanNameCandidate(item.name, item.typ, item.expr, fn) && !isPredicateName(item.name) {
+		if isBooleanNameCandidate(item.name, item.typ, item.expr, fn) && !isPredicateName(item.name) && !isAllowedBooleanUIName(file, fn, item.name) {
 			findings = append(findings, precisionWarnFinding(env, namingBooleanNotPredicateRuleID, file, item.line,
 				fmt.Sprintf("boolean name %q should read as a predicate such as is/has/can/should", item.name), core.ConfidenceMedium))
 		}
@@ -416,12 +416,12 @@ func isPredicateName(name string) bool {
 
 func cardinalityMismatch(name string, typ string, expr string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
-	if base == "" || base == "item" || base == "items" || base == "status" || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
+	if base == "" || conventionalCardinalityName(base) || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
 		return false
 	}
 	plural := isPluralName(base)
-	collection := collectionTypePattern.MatchString(typ) || collectionExpr(expr)
-	scalar := scalarTypePattern.MatchString(typ) || scalarExpr(expr)
+	collection := collectionTypePattern.MatchString(typ)
+	scalar := scalarTypePattern.MatchString(typ)
 	if plural && scalar && !collection {
 		return true
 	}
@@ -433,27 +433,6 @@ func isPluralName(name string) bool {
 		return false
 	}
 	return strings.HasSuffix(name, "s") && !strings.HasSuffix(name, "ss") && !strings.HasSuffix(name, "us")
-}
-
-func collectionExpr(expr string) bool {
-	expr = strings.TrimSpace(strings.ToLower(expr))
-	return strings.HasPrefix(expr, "[]") || strings.HasPrefix(expr, "[") || strings.HasPrefix(expr, "map[") ||
-		strings.HasPrefix(expr, "make([]") || strings.Contains(expr, "new map") || strings.Contains(expr, "new set") ||
-		strings.Contains(expr, "array<") || strings.Contains(expr, "list<") || strings.Contains(expr, "vector<")
-}
-
-func scalarExpr(expr string) bool {
-	expr = strings.TrimSpace(strings.TrimSuffix(expr, ";"))
-	if expr == "" {
-		return false
-	}
-	if booleanExprPattern.MatchString(expr) {
-		return true
-	}
-	if expr[0] == '"' || expr[0] == '\'' || (expr[0] >= '0' && expr[0] <= '9') {
-		return true
-	}
-	return false
 }
 
 func implementationLeakName(name string) bool {

@@ -4,9 +4,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 )
 
 var conventionalMutationBoundaryPattern = regexp.MustCompile(`^(accept|apply|approve|archive|clear|close|commit|deliver|download|drop|ensure|exists|fetch|import|list|notify|open|process|read|reconcile|record|run|seed|submit|sync|toggle|upload)`)
+
+var localAccumulatorExprPattern = regexp.MustCompile(`(?i)^(?:new\s+)?(?:array|formdata|map|object|set|urlsearchparams|weakmap|weakset)\b|^\[\]|^\{\}|^make\s*\(|^(?:bytes|strings)\.buffer\b|^strings\.builder\b`)
 
 func localMutationTargets(fn precisionFunction) map[string]struct{} {
 	params := paramNames(fn)
@@ -19,9 +23,39 @@ func localMutationTargets(fn precisionFunction) map[string]struct{} {
 		if _, isParam := params[name]; isParam {
 			continue
 		}
-		targets[name] = struct{}{}
+		if assignmentLooksLocalAccumulator(fn, assignment) {
+			targets[name] = struct{}{}
+		}
 	}
 	return targets
+}
+
+func assignmentLooksLocalAccumulator(fn precisionFunction, assignment support.ParsedAssignment) bool {
+	expr := strings.TrimSpace(assignment.Expr)
+	if localAccumulatorExprPattern.MatchString(expr) {
+		return true
+	}
+	statement := assignmentStatement(fn, assignment.Line)
+	if statement == "" {
+		return false
+	}
+	name := regexp.QuoteMeta(assignment.Name)
+	return regexp.MustCompile(`(?i)\b(?:const|let|var)\s+`+name+`\b.*=\s*(?:new\s+)?(?:array|formdata|map|object|set|urlsearchparams|weakmap|weakset)\b`).MatchString(statement) ||
+		regexp.MustCompile(`(?i)\bvar\s+`+name+`\s+(?:bytes\.buffer|strings\.builder)\b`).MatchString(statement) ||
+		regexp.MustCompile(`(?i)\bstd::(?:vector|map|set|unordered_map|unordered_set|stringstream)\b[^;\n]*\b`+name+`\b`).MatchString(statement) ||
+		regexp.MustCompile(`\b`+name+`\s*:=\s*(?:\[\]|\{\}|make\s*\(|(?:bytes|strings)\.Buffer\b|strings\.Builder\b)`).MatchString(statement)
+}
+
+func assignmentStatement(fn precisionFunction, line int) string {
+	for _, statement := range fn.Statements {
+		if statement.Line == line {
+			if strings.TrimSpace(statement.Raw) != "" {
+				return statement.Raw
+			}
+			return statement.Text
+		}
+	}
+	return ""
 }
 
 func paramNames(fn precisionFunction) map[string]struct{} {

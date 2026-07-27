@@ -121,7 +121,8 @@ func leakFindings(env support.Context, file string, source string) []core.Findin
 			findings = append(findings, designFinding(env, ruleInfrastructureLeak, file, lineNo,
 				"infrastructure/framework type leaks into a domain or public boundary", core.ConfidenceHigh))
 		}
-		if (apiPath || handlerPath || isPublicDeclaration(trimmed)) && persistenceLeakPattern.MatchString(trimmed) {
+		if (apiPath || handlerPath || isPublicDeclaration(trimmed)) && persistenceLeakPattern.MatchString(trimmed) &&
+			!allowedGeneratedPersistenceEnumLine(trimmed) && !allowedTypeScriptRecordUtilityLine(trimmed) {
 			findings = append(findings, designFinding(env, rulePersistenceLeak, file, lineNo,
 				"persistence model or ORM concept leaks through a public/API boundary", core.ConfidenceHigh))
 		}
@@ -134,6 +135,54 @@ func leakFindings(env support.Context, file string, source string) []core.Findin
 		findings = append(findings, domainLogicHandlerFinding(env, file, lines)...)
 	}
 	return firstFindingPerRule(findings)
+}
+
+func allowedTypeScriptRecordUtilityLine(line string) bool {
+	return strings.Contains(line, "Record<") &&
+		!strings.Contains(line, "PrismaClient") &&
+		!strings.Contains(line, "Model") &&
+		!strings.Contains(line, "Entity") &&
+		!strings.Contains(line, "Row")
+}
+
+func allowedGeneratedPersistenceEnumLine(line string) bool {
+	lowered := strings.ToLower(line)
+	if !strings.Contains(lowered, "from") || !strings.Contains(lowered, "@prisma/client") {
+		return false
+	}
+	if strings.Contains(line, "PrismaClient") || strings.Contains(line, "Prisma.") {
+		return false
+	}
+	open := strings.Index(line, "{")
+	close := strings.Index(line, "}")
+	if open < 0 || close <= open {
+		return false
+	}
+	for _, part := range strings.Split(line[open+1:close], ",") {
+		name := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(part), "type "))
+		if name == "" {
+			continue
+		}
+		if strings.Contains(strings.ToLower(name), " as ") {
+			name = strings.TrimSpace(strings.SplitN(name, " as ", 2)[0])
+		}
+		if !looksLikeGeneratedEnumType(name) {
+			return false
+		}
+	}
+	return true
+}
+
+func looksLikeGeneratedEnumType(name string) bool {
+	if strings.Contains(name, "Client") || strings.Contains(name, "Model") || strings.Contains(name, "Record") ||
+		strings.Contains(name, "Row") || strings.Contains(name, "Entity") {
+		return false
+	}
+	if name == "" {
+		return false
+	}
+	first := rune(name[0])
+	return first >= 'A' && first <= 'Z'
 }
 
 func domainLogicHandlerFinding(env support.Context, file string, lines []string) []core.Finding {
