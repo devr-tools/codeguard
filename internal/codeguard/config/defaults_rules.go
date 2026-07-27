@@ -115,6 +115,9 @@ func applyCIDefaults(dst *core.CIRulesConfig, def core.CIRulesConfig) {
 	if dst.RequiredWorkflowFiles == nil {
 		dst.RequiredWorkflowFiles = append([]string(nil), def.RequiredWorkflowFiles...)
 	}
+	if dst.RequiredGates == nil {
+		dst.RequiredGates = append([]string(nil), def.RequiredGates...)
+	}
 	if dst.WorkflowContentRules == nil {
 		dst.WorkflowContentRules = append([]core.WorkflowRuleConfig(nil), def.WorkflowContentRules...)
 	}
@@ -191,12 +194,28 @@ func applySupplyChainDefaults(dst *core.SupplyChainRulesConfig, def core.SupplyC
 	defaultBoolPtr(&dst.RequireLockfile, boolValueOrTrue(def.RequireLockfile))
 	defaultBoolPtr(&dst.DetectLockfileDrift, boolValueOrTrue(def.DetectLockfileDrift))
 	defaultBoolPtr(&dst.DetectUnpinned, boolValueOrTrue(def.DetectUnpinned))
+	defaultBoolPtr(&dst.DetectProvenance, boolValueOrTrue(def.DetectProvenance))
 	// Vulnerability matching is opt-in: a repository must choose and maintain
 	// the advisory cache it trusts.
 	defaultBoolPtr(&dst.DetectVulnerabilities, false)
 	defaultStringSlice(&dst.AllowedLicenses, def.AllowedLicenses, false)
 	defaultStringSlice(&dst.DeniedLicenses, def.DeniedLicenses, false)
 	defaultSingleCommandMap(&dst.LicenseCommands, def.LicenseCommands)
+}
+
+func applyDeliveryDefaults(dst *core.DeliveryRulesConfig, def core.DeliveryRulesConfig) {
+	applyDefaultBoolPtrs(
+		&dst.DetectMissingRollbackStrategy,
+		&dst.DetectUnsafeMigrationOrder,
+		&dst.DetectHighRiskChangeWithoutKillSwitch,
+		&dst.DetectMissingPostDeployVerification,
+	)
+	defaultStringSlice(&dst.RollbackEvidencePatterns, def.RollbackEvidencePatterns, false)
+	defaultStringSlice(&dst.KillSwitchPatterns, def.KillSwitchPatterns, false)
+	defaultStringSlice(&dst.PostDeployVerificationPatterns, def.PostDeployVerificationPatterns, false)
+	defaultStringSlice(&dst.MigrationPathPatterns, def.MigrationPathPatterns, false)
+	defaultStringSlice(&dst.HighRiskPathPatterns, def.HighRiskPathPatterns, false)
+	defaultStringSlice(&dst.BootstrapPathPatterns, def.BootstrapPathPatterns, false)
 }
 
 func applyReliabilityDefaults(dst *core.ReliabilityRulesConfig, def core.ReliabilityRulesConfig) {

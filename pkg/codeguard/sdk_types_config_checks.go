@@ -7,6 +7,7 @@ type CPPToolingConfig = core.CPPToolingConfig
 type DesignRulesConfig = core.DesignRulesConfig
 type PromptRulesConfig = core.PromptRulesConfig
 type CIRulesConfig = core.CIRulesConfig
+type DeliveryRulesConfig = core.DeliveryRulesConfig
 type SupplyChainRulesConfig = core.SupplyChainRulesConfig
 type ReliabilityRulesConfig = core.ReliabilityRulesConfig
 type DataRulesConfig = core.DataRulesConfig

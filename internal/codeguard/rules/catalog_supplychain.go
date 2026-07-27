@@ -43,6 +43,16 @@ var supplyChainCatalog = map[string]core.RuleMetadata{
 		Description:      "Fails when a manifest change is not reflected in the associated lockfile.",
 		HowToFix:         "Regenerate the lockfile from the updated manifest and commit both files together.",
 	},
+	"supply_chain.missing-provenance": {
+		ID:               "supply_chain.missing-provenance",
+		Section:          "Supply Chain",
+		DefaultLevel:     "fail",
+		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.RepositoryWideRuleLanguageCoverage(),
+		Title:            "Missing artifact provenance",
+		Description:      "Fails when artifact build or publish automation exists without provenance, attestation, SBOM, or signing evidence.",
+		HowToFix:         "Add artifact provenance or attestation generation to the build/publish workflow, such as SLSA provenance or GitHub artifact attestations.",
+	},
 	"supply_chain.denied-license": {
 		ID:               "supply_chain.denied-license",
 		Section:          "Supply Chain",

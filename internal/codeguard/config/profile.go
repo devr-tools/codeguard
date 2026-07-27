@@ -40,6 +40,9 @@ var profileCatalog = map[string]profileSpec{
 			applyStrictProfile(cfg)
 			cfg.Checks.CIRules.RequiredReleaseFiles = []string{".goreleaser.yaml"}
 			cfg.Checks.CIRules.RequiredAutomationPaths = []string{"Makefile", ".github/workflows/ci.yml"}
+			cfg.Checks.CIRules.RequiredGates = []string{"test", "security"}
+			cfg.Checks.SupplyChain = true
+			cfg.Checks.Delivery = boolPtr(true)
 			cfg.Checks.Data = boolPtr(true)
 			cfg.Checks.Change = boolPtr(true)
 			cfg.Checks.Observability = boolPtr(true)
@@ -64,6 +67,7 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.Data = boolPtr(true)
 			cfg.Checks.Change = boolPtr(true)
 			cfg.Checks.Observability = boolPtr(true)
+			cfg.Checks.Delivery = boolPtr(true)
 			cfg.Checks.ChangeRules.MaxChangedFiles = 20
 			cfg.Checks.ChangeRules.MaxChangedDirectories = 6
 			cfg.Checks.ChangeRules.MaxChangedLines = 600
@@ -220,6 +224,12 @@ func RenderPolicyProfileComparison() string {
 			return "scan-mode"
 		}
 		return strconv.FormatBool(*cfg.Checks.Operations)
+	})
+	writeProfileComparisonRow(&b, "`delivery`", configs, func(cfg core.Config) string {
+		if cfg.Checks.Delivery == nil {
+			return "scan-mode"
+		}
+		return strconv.FormatBool(*cfg.Checks.Delivery)
 	})
 	writeProfileComparisonRow(&b, "`change`", configs, func(cfg core.Config) string {
 		if cfg.Checks.Change == nil {

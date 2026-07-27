@@ -8,6 +8,7 @@ import (
 	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
 	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
 	dataCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/data"
+	deliveryCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/delivery"
 	designCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/design"
 	observabilityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/observability"
 	operationsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/operations"
@@ -143,6 +144,16 @@ var sectionRegistry = []sectionDef{
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.CI },
 		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return ciCheck.Run(ctx, checkEnv)
+		},
+	},
+	{
+		id:   "delivery",
+		name: "Delivery",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Delivery != nil && *sc.Cfg.Checks.Delivery
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return deliveryCheck.Run(ctx, checkEnv)
 		},
 	},
 	{

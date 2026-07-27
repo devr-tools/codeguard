@@ -76,11 +76,15 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	if cfg.Checks.Change == nil {
 		cfg.Checks.Change = def.Checks.Change
 	}
+	if cfg.Checks.Delivery == nil {
+		cfg.Checks.Delivery = def.Checks.Delivery
+	}
 	applyQualityDefaults(&cfg.Checks.QualityRules, def.Checks.QualityRules)
 	applyPerformanceDefaults(&cfg.Checks.PerformanceRules)
 	applyDesignDefaults(&cfg.Checks.DesignRules, def.Checks.DesignRules)
 	applyPromptDefaults(&cfg.Checks.PromptRules, def.Checks.PromptRules)
 	applyCIDefaults(&cfg.Checks.CIRules, def.Checks.CIRules)
+	applyDeliveryDefaults(&cfg.Checks.DeliveryRules, def.Checks.DeliveryRules)
 	applySecurityDefaults(&cfg.Checks.SecurityRules, def.Checks.SecurityRules)
 	applySupplyChainDefaults(&cfg.Checks.SupplyChainRules, def.Checks.SupplyChainRules)
 	applyReliabilityDefaults(&cfg.Checks.ReliabilityRules, def.Checks.ReliabilityRules)

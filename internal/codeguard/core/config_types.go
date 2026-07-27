@@ -77,6 +77,9 @@ type CheckConfig struct {
 	// SupplyChain toggles dependency-policy checks such as manifest hygiene,
 	// lockfile drift, license policy, and SBOM-oriented validation.
 	SupplyChain bool `json:"supply_chain,omitempty" yaml:"supply_chain,omitempty"`
+	// Delivery toggles rollout-governance checks such as rollback evidence,
+	// migration sequencing, kill switches, and post-deploy verification.
+	Delivery *bool `json:"delivery,omitempty" yaml:"delivery,omitempty"`
 	// Reliability toggles production reliability checks such as missing
 	// timeouts, unbounded retries, cancellation propagation, concurrency bounds,
 	// cleanup handling, and graceful shutdown.
@@ -112,6 +115,7 @@ type CheckConfig struct {
 	DesignRules        DesignRulesConfig        `json:"design_rules" yaml:"design_rules"`
 	PromptRules        PromptRulesConfig        `json:"prompt_rules" yaml:"prompt_rules"`
 	CIRules            CIRulesConfig            `json:"ci_rules" yaml:"ci_rules"`
+	DeliveryRules      DeliveryRulesConfig      `json:"delivery_rules,omitempty" yaml:"delivery_rules,omitempty"`
 	SecurityRules      SecurityRulesConfig      `json:"security_rules" yaml:"security_rules"`
 	SupplyChainRules   SupplyChainRulesConfig   `json:"supply_chain_rules" yaml:"supply_chain_rules"`
 	ReliabilityRules   ReliabilityRulesConfig   `json:"reliability_rules,omitempty" yaml:"reliability_rules,omitempty"`

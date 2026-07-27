@@ -66,6 +66,7 @@ func exampleCIRules() core.CIRulesConfig {
 		RequiredWorkflowFiles: []string{
 			".github/workflows/ci.yml",
 		},
+		RequiredGates: []string{"test"},
 		WorkflowContentRules: []core.WorkflowRuleConfig{{
 			Path:             ".github/workflows/ci.yml",
 			RequiredContains: []string{"actions/checkout", "go test ./..."},

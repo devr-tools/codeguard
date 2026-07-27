@@ -360,4 +360,21 @@ var qualityCatalog = map[string]core.RuleMetadata{
 		Description:      "Warns when a comment repeats nearby code instead of explaining intent, constraints, or tradeoffs.",
 		HowToFix:         "Delete the restatement or replace it with context that is not visible from the code.",
 	},
+	"quality.environment-branching": {
+		ID:             "quality.environment-branching",
+		Section:        "Code Quality",
+		DefaultLevel:   "warn",
+		ExecutionModel: core.RuleExecutionModelLanguageAgnostic,
+		LanguageCoverage: core.FixedRuleLanguageCoverage(
+			core.RuleLanguageGo,
+			core.RuleLanguagePython,
+			core.RuleLanguageTypeScript,
+			core.RuleLanguageJavaScript,
+			core.RuleLanguageCPP,
+			core.RuleLanguageRuby,
+		),
+		Title:       "Environment branching",
+		Description: "Warns when domain or application source code branches on production/staging/development environment instead of isolating that policy in configuration or bootstrap boundaries.",
+		HowToFix:    "Move environment-specific choices to configuration, dependency injection, or bootstrap code and keep domain behavior environment-agnostic.",
+	},
 }

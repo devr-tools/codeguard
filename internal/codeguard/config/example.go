@@ -36,6 +36,7 @@ func exampleChecks() core.CheckConfig {
 		Prompts:            true,
 		CI:                 true,
 		SupplyChain:        false,
+		Delivery:           boolPtr(false),
 		Reliability:        boolPtr(false),
 		Data:               boolPtr(false),
 		Observability:      boolPtr(false),
@@ -46,6 +47,7 @@ func exampleChecks() core.CheckConfig {
 		DesignRules:        exampleDesignRules(),
 		PromptRules:        examplePromptRules(),
 		CIRules:            exampleCIRules(),
+		DeliveryRules:      exampleDeliveryRules(),
 		SecurityRules:      exampleSecurityRules(),
 		SupplyChainRules:   exampleSupplyChainRules(),
 		ReliabilityRules:   exampleReliabilityRules(),
@@ -80,6 +82,22 @@ func exampleSupplyChainRules() core.SupplyChainRulesConfig {
 		RequireLockfile:     boolPtr(true),
 		DetectLockfileDrift: boolPtr(true),
 		DetectUnpinned:      boolPtr(true),
+		DetectProvenance:    boolPtr(true),
+	}
+}
+
+func exampleDeliveryRules() core.DeliveryRulesConfig {
+	return core.DeliveryRulesConfig{
+		DetectMissingRollbackStrategy:         boolPtr(true),
+		DetectUnsafeMigrationOrder:            boolPtr(true),
+		DetectHighRiskChangeWithoutKillSwitch: boolPtr(true),
+		DetectMissingPostDeployVerification:   boolPtr(true),
+		RollbackEvidencePatterns:              []string{"rollback", "roll back", "revert", "restore", "previous version"},
+		KillSwitchPatterns:                    []string{"feature flag", "feature_flag", "kill switch", "killswitch", "rollout", "launchdarkly"},
+		PostDeployVerificationPatterns:        []string{"smoke", "health", "synthetic", "post-deploy", "post deploy", "curl", "slo"},
+		MigrationPathPatterns:                 []string{"migrations/**", "db/migrate/**", "alembic/**"},
+		HighRiskPathPatterns:                  []string{"**/payment/**", "**/payments/**", "**/auth/**", "**/checkout/**", "**/billing/**", "**/migration/**", "**/migrations/**"},
+		BootstrapPathPatterns:                 []string{"cmd/**", "config/**", "configs/**", "**/config/**", "**/bootstrap/**", "scripts/**", ".github/**"},
 	}
 }
 

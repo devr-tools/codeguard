@@ -20,6 +20,7 @@ var catalog = withSecurityOWASP(mergeRuleCatalogs(
 	observabilityCatalog,
 	operationsCatalog,
 	changeSafetyCatalog,
+	deliveryCatalog,
 	supplyChainCatalog,
 	contextCatalog,
 	contextReadinessCatalog,

@@ -27,6 +27,7 @@ var fixTemplates = mergeFixTemplates(
 	observabilityFixTemplates,
 	operationsFixTemplates,
 	changeSafetyFixTemplates,
+	deliveryFixTemplates,
 	securityFixTemplates,
 	securityLanguageFixTemplates,
 	designFixTemplates,

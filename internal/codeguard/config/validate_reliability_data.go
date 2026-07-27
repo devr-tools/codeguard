@@ -38,7 +38,7 @@ func validateObservabilityRules(rules core.ObservabilityRulesConfig) error {
 		{"observability_rules.healthcheck_path_patterns", rules.HealthcheckPathPatterns},
 		{"observability_rules.instrumentation_evidence_patterns", rules.InstrumentationEvidencePatterns},
 	} {
-		if err := validateNonEmptyStringList(item.field, item.values); err != nil {
+		if err := validateNonEmptyStrings(item.field, item.values); err != nil {
 			return err
 		}
 	}
@@ -54,17 +54,27 @@ func validateOperationsRules(rules core.OperationsRulesConfig) error {
 		{"operations_rules.runbook_path_patterns", rules.RunbookPathPatterns},
 		{"operations_rules.critical_path_patterns", rules.CriticalPathPatterns},
 	} {
-		if err := validateNonEmptyStringList(item.field, item.values); err != nil {
+		if err := validateNonEmptyStrings(item.field, item.values); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateNonEmptyStringList(field string, values []string) error {
-	for idx, value := range values {
-		if value == "" {
-			return fmt.Errorf("%s[%d] must not be empty", field, idx)
+func validateDeliveryRules(rules core.DeliveryRulesConfig) error {
+	for _, item := range []struct {
+		field  string
+		values []string
+	}{
+		{"delivery_rules.rollback_evidence_patterns", rules.RollbackEvidencePatterns},
+		{"delivery_rules.kill_switch_patterns", rules.KillSwitchPatterns},
+		{"delivery_rules.post_deploy_verification_patterns", rules.PostDeployVerificationPatterns},
+		{"delivery_rules.migration_path_patterns", rules.MigrationPathPatterns},
+		{"delivery_rules.high_risk_path_patterns", rules.HighRiskPathPatterns},
+		{"delivery_rules.bootstrap_path_patterns", rules.BootstrapPathPatterns},
+	} {
+		if err := validateNonEmptyStrings(item.field, item.values); err != nil {
+			return err
 		}
 	}
 	return nil

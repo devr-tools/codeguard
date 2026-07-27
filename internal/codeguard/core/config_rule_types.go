@@ -173,6 +173,7 @@ type PromptRulesConfig struct {
 type CIRulesConfig struct {
 	RequireWorkflowDir      *bool                  `json:"require_workflow_dir,omitempty" yaml:"require_workflow_dir,omitempty"`
 	RequiredWorkflowFiles   []string               `json:"required_workflow_files,omitempty" yaml:"required_workflow_files,omitempty"`
+	RequiredGates           []string               `json:"required_gates,omitempty" yaml:"required_gates,omitempty"`
 	WorkflowContentRules    []WorkflowRuleConfig   `json:"workflow_content_rules,omitempty" yaml:"workflow_content_rules,omitempty"`
 	RequiredReleaseFiles    []string               `json:"required_release_files,omitempty" yaml:"required_release_files,omitempty"`
 	RequiredAutomationPaths []string               `json:"required_automation_paths,omitempty" yaml:"required_automation_paths,omitempty"`
@@ -207,6 +208,7 @@ type SupplyChainRulesConfig struct {
 	RequireLockfile     *bool `json:"require_lockfile,omitempty" yaml:"require_lockfile,omitempty"`
 	DetectLockfileDrift *bool `json:"detect_lockfile_drift,omitempty" yaml:"detect_lockfile_drift,omitempty"`
 	DetectUnpinned      *bool `json:"detect_unpinned,omitempty" yaml:"detect_unpinned,omitempty"`
+	DetectProvenance    *bool `json:"detect_provenance,omitempty" yaml:"detect_provenance,omitempty"`
 	// DetectVulnerabilities enables matching normalized dependencies against the
 	// local advisory cache. It never contacts an advisory service during a scan.
 	DetectVulnerabilities *bool `json:"detect_vulnerabilities,omitempty" yaml:"detect_vulnerabilities,omitempty"`
@@ -246,6 +248,21 @@ type OperationsRulesConfig struct {
 	OwnerFilePatterns    []string `json:"owner_file_patterns,omitempty" yaml:"owner_file_patterns,omitempty"`
 	RunbookPathPatterns  []string `json:"runbook_path_patterns,omitempty" yaml:"runbook_path_patterns,omitempty"`
 	CriticalPathPatterns []string `json:"critical_path_patterns,omitempty" yaml:"critical_path_patterns,omitempty"`
+}
+
+// DeliveryRulesConfig tunes rollout-governance checks. Nil rule toggles
+// default to enabled when the delivery section itself is enabled.
+type DeliveryRulesConfig struct {
+	DetectMissingRollbackStrategy         *bool    `json:"detect_missing_rollback_strategy,omitempty" yaml:"detect_missing_rollback_strategy,omitempty"`
+	DetectUnsafeMigrationOrder            *bool    `json:"detect_unsafe_migration_order,omitempty" yaml:"detect_unsafe_migration_order,omitempty"`
+	DetectHighRiskChangeWithoutKillSwitch *bool    `json:"detect_high_risk_change_without_kill_switch,omitempty" yaml:"detect_high_risk_change_without_kill_switch,omitempty"`
+	DetectMissingPostDeployVerification   *bool    `json:"detect_missing_post_deploy_verification,omitempty" yaml:"detect_missing_post_deploy_verification,omitempty"`
+	RollbackEvidencePatterns              []string `json:"rollback_evidence_patterns,omitempty" yaml:"rollback_evidence_patterns,omitempty"`
+	KillSwitchPatterns                    []string `json:"kill_switch_patterns,omitempty" yaml:"kill_switch_patterns,omitempty"`
+	PostDeployVerificationPatterns        []string `json:"post_deploy_verification_patterns,omitempty" yaml:"post_deploy_verification_patterns,omitempty"`
+	MigrationPathPatterns                 []string `json:"migration_path_patterns,omitempty" yaml:"migration_path_patterns,omitempty"`
+	HighRiskPathPatterns                  []string `json:"high_risk_path_patterns,omitempty" yaml:"high_risk_path_patterns,omitempty"`
+	BootstrapPathPatterns                 []string `json:"bootstrap_path_patterns,omitempty" yaml:"bootstrap_path_patterns,omitempty"`
 }
 
 // ReliabilityRulesConfig tunes the reliability section. Nil rule toggles
