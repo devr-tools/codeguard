@@ -140,7 +140,8 @@ func TestCheckConfigRecommendedDefaultsSerialization(t *testing.T) {
 		t.Fatalf("JSON did not preserve recommended defaults fields: %s", jsonData)
 	}
 	var jsonLoaded core.CheckConfig
-	if err := json.Unmarshal(jsonData, &jsonLoaded); err != nil {
+	err = json.Unmarshal(jsonData, &jsonLoaded)
+	if err != nil {
 		t.Fatalf("unmarshal JSON: %v", err)
 	}
 	if !reflect.DeepEqual(jsonLoaded, want) {
@@ -155,7 +156,8 @@ func TestCheckConfigRecommendedDefaultsSerialization(t *testing.T) {
 		t.Fatalf("YAML did not preserve recommended defaults fields: %s", yamlData)
 	}
 	var yamlLoaded core.CheckConfig
-	if err := yaml.Unmarshal(yamlData, &yamlLoaded); err != nil {
+	err = yaml.Unmarshal(yamlData, &yamlLoaded)
+	if err != nil {
 		t.Fatalf("unmarshal YAML: %v", err)
 	}
 	if !reflect.DeepEqual(yamlLoaded, want) {
