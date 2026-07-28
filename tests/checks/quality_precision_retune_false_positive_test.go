@@ -238,3 +238,49 @@ func TestDefensiveIntegerOverflowSkipsGuardedP2002SequenceRetry(t *testing.T) {
 
 	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
 }
+
+func TestDefensiveIntegerArithmeticSplitsSequenceAndMetricContexts(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/external-id.ts"), strings.Join([]string{
+		"export async function allocateExternalId(db: Db) {",
+		"  const count = await db.file.count();",
+		"  const externalId = count + 1;",
+		"  return db.file.create({ data: { externalId } });",
+		"}",
+		"export function recordMetric(stats: Stats, count: number, total: number) {",
+		"  const nextTotal = total + count;",
+		"  stats.histogram('documents_total').record(nextTotal);",
+		"  return nextTotal;",
+		"}",
+		"interface Db { file: { count(): Promise<number>; create(input: unknown): Promise<unknown> } }",
+		"interface Stats { histogram(name: string): { record(value: number): void } }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Code Quality", "defensive.sequence-collision-risk")
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
+}
+
+func TestDefensiveResourceLimitRecognizesSliceAndCountProofs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/uploads.ts"), strings.Join([]string{
+		"export async function readChunk(request: Request, maxCount: number) {",
+		"  const raw = await request.body?.getReader().read();",
+		"  const count = raw?.value?.length ?? 0;",
+		"  if (count > maxCount) throw new Error('too many bytes');",
+		"  return raw?.value?.slice(0, maxCount);",
+		"}",
+		"export async function uploadPreview(file: File) {",
+		"  const preview = file.slice(0, INTERNAL_UPLOAD_MAX_BYTES);",
+		"  await uploadClient.upload(preview);",
+		"  return preview;",
+		"}",
+		"declare const INTERNAL_UPLOAD_MAX_BYTES: number;",
+		"declare const uploadClient: { upload(file: Blob): Promise<void> };",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.missing-resource-limit")
+}
