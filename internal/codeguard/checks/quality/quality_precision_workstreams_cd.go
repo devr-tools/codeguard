@@ -114,7 +114,7 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 		if item.name == fn.Name && isReactComponentOrHookBoundary(file, fn) {
 			continue
 		}
-		if isBooleanNameCandidate(item.name, item.typ, item.expr, fn) &&
+		if isBooleanNameCandidate(item.name, item.typ, fn) &&
 			!isInferredUIBooleanAssignment(file, fn, item.typ, item.expr, item.line) &&
 			!isPredicateName(item.name) &&
 			!isAllowedBooleanUIName(file, fn, item.name) {
@@ -514,7 +514,7 @@ func orchestrationDomainMix(fn precisionFunction) bool {
 	return hasInfra && hasDomainDecision
 }
 
-func isBooleanNameCandidate(name string, typ string, expr string, fn precisionFunction) bool {
+func isBooleanNameCandidate(name string, typ string, fn precisionFunction) bool {
 	if name == fn.Name {
 		if explicitMutationName(name) || explicitNonBooleanFunctionName(name) {
 			return false
