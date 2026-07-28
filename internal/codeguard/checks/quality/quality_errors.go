@@ -187,6 +187,9 @@ func cleanupIgnoredLine(statements []support.ParsedStatement) (int, bool) {
 }
 
 func partialFailureHiddenLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if partialFailureSurfacedInResult(loweredBody) {
+		return 0, false
+	}
 	if strings.Contains(loweredBody, "allsettled") && !containsAny(loweredBody, []string{"rejected", "throw", "return err", "return error"}) {
 		return fn.StartLine, true
 	}
@@ -203,6 +206,24 @@ func partialFailureHiddenLine(fn precisionFunction, loweredBody string) (int, bo
 		}
 	}
 	return 0, false
+}
+
+func partialFailureSurfacedInResult(loweredBody string) bool {
+	if !containsAny(loweredBody, []string{"diagnostic", "diagnostics", "errors", "failures", "warnings"}) {
+		return false
+	}
+	recordsFailure := containsAny(loweredBody, []string{
+		"diagnostics.push", "errors.push", "failures.push", "warnings.push",
+		"append(diagnostics", "append(errors", "append(failures", "append(warnings",
+		"diagnostics = append", "errors = append", "failures = append", "warnings = append",
+	})
+	if !recordsFailure {
+		return false
+	}
+	return containsAny(loweredBody, []string{
+		"return {", "return result", "diagnostics:", "errors:", "failures:", "warnings:",
+		"diagnostics,", "errors,", "failures,", "warnings,",
+	})
 }
 
 func fallbackHidesCorruptionLine(fn precisionFunction, loweredBody string) (int, bool) {

@@ -25,10 +25,10 @@ const (
 )
 
 var (
-	indexAccessPattern      = regexp.MustCompile(`\b([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)\s*\[\s*(?:0|[A-Za-z_][\w$]*)\s*\]`)
+	indexAccessPattern      = regexp.MustCompile(`\b([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)\s*\[\s*([^\]\n]+)\s*\]`)
 	jsonDecodePattern       = regexp.MustCompile(`(?i)(json\.Unmarshal|json\.NewDecoder|JSON\.parse|json\.loads|nlohmann::json::parse|decode_json|parseJson)`)
 	externalCallPattern     = regexp.MustCompile(`(?i)(http\.Get|client\.Do|fetch\s*\(|axios\.|requests\.(get|post|put|delete)|curl_easy_perform|httplib::|http_client)`)
-	resourceReadPattern     = regexp.MustCompile(`(?i)(io\.ReadAll|ReadAll|read_to_string|read_to_end|\.read\s*\(|bodyParser|multer|upload|request\.body|r\.Body)`)
+	resourceReadPattern     = regexp.MustCompile(`(?i)(io\.ReadAll|ReadAll|read_to_string|read_to_end|\.read\s*\(|bodyParser|multer|upload|formData\s*\(|request\.body|r\.Body|findMany\s*\(|findFirst\s*\()`)
 	unsafeDefaultPattern    = regexp.MustCompile(`(?i)(getenv|process\.env|os\.environ|std::getenv|config).*?(default|fallback|\|\||!=|,\s*['"]).*?(true|false|allow|disable|skip|insecure)`)
 	switchLikePattern       = regexp.MustCompile(`(?i)\b(switch|match)\b[^{:\n]*(status|state|kind|type)`)
 	stateAssignmentPattern  = regexp.MustCompile(`(?i)(status|state)\s*(?:=|:=|=>)\s*["']?(paid|active|complete|completed|shipped|deleted|approved)["']?`)
@@ -40,6 +40,7 @@ var (
 	resourceNamedCountLimit = regexp.MustCompile(`(?i)\b(?:max|limit|quota|cap)[A-Za-z0-9_]*(?:count|size|length|len|bytes)\b`)
 	sequenceAllocationLine  = regexp.MustCompile(`(?i)\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b.*(?:count|max)\s*\+\s*1|(?:count|max)\s*\+\s*1.*\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b`)
 	jsonReaderSchemaCall    = regexp.MustCompile(`(?i)\b(?:read|parse|decode)Json[A-Za-z0-9_]*\s*\([^)\n,]+,\s*[A-Za-z_$][\w$]*(?:Schema|Validator|Codec|Parser)\b`)
+	prismaTakePattern       = regexp.MustCompile(`(?is)\b(?:findMany|findFirst|findUnique|query|search)\s*\([^)]*\btake\s*:`)
 )
 
 func defensiveBoundaryFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -58,7 +59,7 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, defensiveNullAssumptionRuleID, file, line,
 			"nullable boundary value is dereferenced without a nil/null guard", core.ConfidenceMedium))
 	}
-	if line, ok := sequenceCollisionRiskLine(fn, loweredBody); ok {
+	if line, ok := sequenceCollisionRiskLine(file, fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveSequenceCollisionRiskRuleID, file, line,
 			"external ID allocation derives the next value from current count without guarded unique-collision retry", core.ConfidenceMedium))
 	}
@@ -230,7 +231,7 @@ func firstUseLine(fn precisionFunction, name string) int {
 }
 
 func integerOverflowLine(file string, fn precisionFunction, loweredBody string) (int, bool) {
-	if isUIRenderArithmeticContext(file, fn, loweredBody) {
+	if isUIRenderArithmeticContext(file, fn, loweredBody) || isSeedOrScriptSourcePath(file) {
 		return 0, false
 	}
 	if sequenceAllocationArithmetic(loweredBody) || metricStatArithmeticContext(fn, loweredBody) || dateCountFormattingContext(fn, loweredBody) {
@@ -248,8 +249,8 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 	return 0, false
 }
 
-func sequenceCollisionRiskLine(fn precisionFunction, loweredBody string) (int, bool) {
-	if !sequenceAllocationArithmetic(loweredBody) || guardedSequenceCollisionRetry(loweredBody) {
+func sequenceCollisionRiskLine(file string, fn precisionFunction, loweredBody string) (int, bool) {
+	if isSeedOrScriptSourcePath(file) || !sequenceAllocationArithmetic(loweredBody) || guardedSequenceCollisionRetry(loweredBody) {
 		return 0, false
 	}
 	return firstSequenceAllocationLine(fn), true
@@ -273,7 +274,7 @@ func firstSequenceAllocationLine(fn precisionFunction) int {
 }
 
 func guardedSequenceCollisionRetry(loweredBody string) bool {
-	if containsAny(loweredBody, []string{"withexternalidretry", "with_external_id_retry"}) &&
+	if containsAny(loweredBody, []string{"withexternalidretry", "with_external_id_retry", "externalidretry", "external_id_retry"}) &&
 		containsAny(loweredBody, []string{"p2002", "unique", "collision", "externalid", "external_id"}) {
 		return true
 	}
@@ -296,12 +297,13 @@ func metricStatArithmeticContext(fn precisionFunction, loweredBody string) bool 
 
 func dateCountFormattingContext(fn precisionFunction, loweredBody string) bool {
 	loweredName := strings.ToLower(fn.Name)
-	if !containsAny(loweredName, []string{"format", "display", "label", "render", "summary", "calendar", "date", "time"}) {
+	if !containsAny(loweredName, []string{"format", "display", "label", "render", "summary", "calendar", "date", "time", "bucket", "group"}) {
 		return false
 	}
 	return containsAny(loweredBody, []string{
 		"date", "time", "calendar", "duration", "intl.", "datetimeformat", "formatdistance",
-		"formatrelative", "plural", "label", "title", "subtitle", "`${", " + \"", " + '",
+		"formatrelative", "plural", "label", "title", "subtitle", "bucket", "startof", "endof",
+		"adddays", "subdays", "dayjs", "date-fns", "`${", " + \"", " + '",
 	})
 }
 
@@ -321,6 +323,24 @@ func isUIRenderArithmeticContext(file string, fn precisionFunction, loweredBody 
 	})
 }
 
+func isSeedOrScriptSourcePath(file string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	base := normalized
+	if slash := strings.LastIndex(base, "/"); slash >= 0 {
+		base = base[slash+1:]
+	}
+	return strings.Contains(normalized, "/scripts/") ||
+		strings.Contains(normalized, "/script/") ||
+		strings.Contains(normalized, "/seed") ||
+		strings.Contains(normalized, "/seeds/") ||
+		strings.Contains(normalized, "/backfill") ||
+		strings.Contains(normalized, "/import") ||
+		strings.HasPrefix(base, "seed") ||
+		strings.HasPrefix(base, "backfill") ||
+		strings.HasPrefix(base, "import") ||
+		strings.HasPrefix(base, "cleanup")
+}
+
 func boundsAssumptionLine(fn precisionFunction, loweredBody string) (int, bool) {
 	if containsAny(loweredBody, []string{"len(", ".length", ".size()", "empty()", "bounds", "range", "count >"}) {
 		return 0, false
@@ -334,14 +354,36 @@ func boundsAssumptionLine(fn precisionFunction, loweredBody string) (int, bool) 
 		if match == nil {
 			continue
 		}
+		if !indexExpressionLooksSequenceAccess(match[1], match[2], raw) {
+			continue
+		}
 		if nearbyBoundsGuard(fn.Statements, idx, match[1]) {
 			continue
 		}
-		if indexAccessPattern.MatchString(raw) {
-			return statement.Line, true
-		}
+		return statement.Line, true
 	}
 	return 0, false
+}
+
+func indexExpressionLooksSequenceAccess(target string, key string, raw string) bool {
+	loweredTarget := strings.ToLower(strings.TrimSpace(target))
+	loweredKey := strings.ToLower(strings.TrimSpace(strings.Trim(key, `"'`)))
+	loweredRaw := strings.ToLower(raw)
+	if strings.Contains(loweredTarget, "process.env") || strings.Contains(loweredTarget, "env") ||
+		strings.Contains(loweredTarget, "map") || strings.Contains(loweredTarget, "dict") || strings.Contains(loweredTarget, "lookup") {
+		return false
+	}
+	if containsAny(loweredRaw, []string{"record<", "map<", "dictionary", "dict", "object.", "hasown", " in ", ".has("}) {
+		return false
+	}
+	if regexp.MustCompile(`^\d+$`).MatchString(loweredKey) {
+		return true
+	}
+	if containsAny(loweredKey, []string{"index", "idx", "offset", "position", "pos", "i", "j", "n"}) {
+		return true
+	}
+	return containsAny(loweredTarget, []string{"array", "list", "slice", "items", "rows", "columns", "chars", "parts", "tokens", "segments", "lines", "values"}) &&
+		!containsAny(loweredKey, []string{"name", "key", "id", "type", "status", "field"})
 }
 
 func nearbyBoundsGuard(statements []support.ParsedStatement, idx int, target string) bool {
@@ -427,17 +469,21 @@ func missingResourceLimitLine(fn precisionFunction, loweredBody string) (int, bo
 	if boundedReadByteLengthCheck(loweredBody) {
 		return 0, false
 	}
+	if preFormDataContentLengthHelperGuard(loweredBody) {
+		return 0, false
+	}
 	return firstPatternLine(fn, resourceReadPattern), true
 }
 
 func resourceLimitProofPattern(loweredBody string) bool {
 	if containsAny(loweredBody, []string{
 		"limitreader", "maxbytes", "max_bytes", "content-length", "contentlength",
-		"limit(", "take(", "slice(", ".slice(", "buffer_size", "quota",
+		"limit(", "take(", "take:", ".take", "slice(", ".slice(", "buffer_size", "quota",
+		"maxresults", "max_results", "page_size", "pagesize",
 	}) {
 		return true
 	}
-	return resourceCountGuard.MatchString(loweredBody) || resourceNamedCountLimit.MatchString(loweredBody)
+	return resourceCountGuard.MatchString(loweredBody) || resourceNamedCountLimit.MatchString(loweredBody) || prismaTakePattern.MatchString(loweredBody)
 }
 
 func uploadValidationHelperPattern(loweredBody string) bool {
@@ -450,6 +496,17 @@ func boundedReadByteLengthCheck(loweredBody string) bool {
 		return false
 	}
 	return containsAny(loweredBody, []string{"bytelength", "byte_length", ".length > max", ".length > limit", "buffer.length", "bytes.length"})
+}
+
+func preFormDataContentLengthHelperGuard(loweredBody string) bool {
+	if !strings.Contains(loweredBody, "formdata") {
+		return false
+	}
+	return containsAny(loweredBody, []string{
+		"assertcontentlength", "ensurecontentlength", "validatecontentlength", "guardcontentlength",
+		"assertrequestsize", "ensurerequestsize", "validaterequestsize", "guardrequestsize",
+		"assertuploadsize", "ensureuploadsize", "validateuploadsize", "guarduploadsize",
+	})
 }
 
 func invalidStateTransitionLine(fn precisionFunction, loweredBody string) (int, bool) {

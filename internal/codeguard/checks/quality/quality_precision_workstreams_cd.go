@@ -330,7 +330,7 @@ func explicitMutationName(name string) bool {
 }
 
 func inconsistentReturnContract(fn precisionFunction) bool {
-	if nextResponseNullableGuardHelper(fn) {
+	if nextResponseNullableGuardHelper(fn) || nullableParserLookupContract(fn) {
 		return false
 	}
 	returns := returnCategories(fn.Body)
@@ -349,6 +349,21 @@ func nextResponseNullableGuardHelper(fn precisionFunction) bool {
 		return false
 	}
 	return strings.Contains(body, "return null") && hasNextResponseBody
+}
+
+func nullableParserLookupContract(fn precisionFunction) bool {
+	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
+	if !regexp.MustCompile(`^(as|exists|extract|find|get|lookup|parse|read|resolve|to)`).MatchString(loweredName) {
+		return false
+	}
+	body := strings.ToLower(fn.Body)
+	if loweredName == "exists" || strings.HasPrefix(loweredName, "exists") {
+		return containsAny(body, []string{"return false", "return true"})
+	}
+	signature := strings.ToLower(fn.Signature)
+	hasNullableReturnEvidence := containsAny(signature, []string{"| null", "|null", "null", "undefined", "optional"}) ||
+		containsAny(body, []string{"return null", "return undefined", "return none", "return nil"})
+	return hasNullableReturnEvidence && containsAny(body, []string{"return null", "return undefined", "return none", "return nil"})
 }
 
 type returnShapeCounts struct {
@@ -387,7 +402,7 @@ func returnCategories(body string) returnShapeCounts {
 func isEmptyReturnExpr(expr string) bool {
 	expr = strings.TrimSpace(strings.TrimSuffix(expr, ";"))
 	switch strings.ToLower(expr) {
-	case "", "nil", "none", "null", "undefined", "false":
+	case "", "nil", "none", "null", "undefined":
 		return true
 	default:
 		return strings.HasPrefix(expr, "nil,") || strings.HasPrefix(expr, "none,") || strings.HasPrefix(expr, "null,")
