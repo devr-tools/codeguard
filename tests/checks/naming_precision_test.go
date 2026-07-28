@@ -154,7 +154,7 @@ func TestNamingPredicateAndCardinalityPositiveNegative(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "names.ts"), strings.Join([]string{
 		"export function evaluate(users: number, user: Array<string>, enabled: boolean): boolean {",
-		"  const active = enabled === true;",
+		"  const active: boolean = enabled === true;",
 		"  const isReady = users > 0;",
 		"  return active && isReady;",
 		"}",
@@ -201,6 +201,31 @@ func TestNamingBooleanPredicateAllowsRouteParserAndVerifierHelpers(t *testing.T)
 		"}",
 		"export function verifyHmac(body: string, signature: string): boolean {",
 		"  return body.length === signature.length;",
+		"}",
+		"export function passesActiveFilters(status: string): boolean {",
+		"  return status === 'ACTIVE';",
+		"}",
+		"export function datesEqual(a: Date, b: Date): boolean {",
+		"  return a.getTime() === b.getTime();",
+		"}",
+		"export function valueDiffers(a: string, b: string): boolean {",
+		"  return a !== b;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+}
+
+func TestNamingBooleanPredicateDoesNotInferFromArrowsOrGenerics(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/arrow-values.ts"), strings.Join([]string{
+		"export function buildValues<T>(items: T[]) {",
+		"  const timer = setTimeout(() => undefined, 100);",
+		"  const rowClass = items.length > 0 ? 'active' : 'empty';",
+		"  const payload = { values: items.map((item) => String(item)) };",
+		"  return { timer, rowClass, payload };",
 		"}",
 	}, "\n"))
 

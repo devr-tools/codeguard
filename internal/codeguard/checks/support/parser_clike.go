@@ -64,7 +64,7 @@ func newCLikeFunction(file *ParsedFile, span clikeSpan, lang CLikeLanguage) *Par
 	if span.bodyOpen > paramsClose {
 		trailing := strings.TrimSpace(squashWhitespace(file.Masked[paramsClose+1 : span.bodyOpen]))
 		if trailing != "" {
-			signature = strings.TrimSpace(signature + " " + trailing)
+			signature = strings.TrimSpace(signature + " -> " + trailing)
 		}
 	}
 	fn := &ParsedFunction{

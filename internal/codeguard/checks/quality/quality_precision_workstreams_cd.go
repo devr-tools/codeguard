@@ -41,7 +41,6 @@ var (
 	unitSuffixPattern            = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|usd|eur|gbp|aud|cad)$`)
 	collectionTypePattern        = regexp.MustCompile(`(?i)(\[\]|\[\s*\]|array|list|slice|map|dict|record|set|vector|collection|iterable|sequence|promise<[^>]*\[\])`)
 	scalarTypePattern            = regexp.MustCompile(`(?i)\b(bool|boolean|char|double|float|float64|int|int32|int64|number|string|str|uint|uint64)\b`)
-	booleanExprPattern           = regexp.MustCompile(`(?i)^(true|false|nil|none|null|undefined|[A-Za-z_$][\w$]*\s*(===|!==|==|!=|<=|>=|<|>)|.*(\band\b|\bor\b|&&|\|\||\binstanceof\b|\bis\s+not\b|\bis\b).*)$`)
 	paramMutationPattern         = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
 	returnLinePattern            = regexp.MustCompile(`(?m)^\s*return(?:\s+([^;\n]+))?`)
 	partialReturnPattern         = regexp.MustCompile(`(?i)\breturn\s+[^;\n,]+,\s*(err|error)\b|\breturn\s+\{[^}\n]*(data|result|value)[^}\n]*(err|error)[^}\n]*\}`)
@@ -58,7 +57,7 @@ func additionalPrecisionFunctionFindings(env support.Context, file string, fn pr
 		findings = append(findings, precisionWarnFinding(env, functionHiddenMutationRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mutates state without an explicit command-style name", fn.Name), core.ConfidenceMedium))
 	}
-	if inconsistentReturnContract(fn) {
+	if !isReactComponentOrHookBoundary(file, fn) && !isScriptEntrypoint(file, fn.Name) && inconsistentReturnContract(fn) {
 		findings = append(findings, precisionWarnFinding(env, functionInconsistentReturnContractRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mixes empty and value return shapes; make the success/error contract explicit", fn.Name), core.ConfidenceMedium))
 	}
@@ -520,12 +519,12 @@ func isBooleanNameCandidate(name string, typ string, expr string, fn precisionFu
 		if explicitMutationName(name) || explicitNonBooleanFunctionName(name) {
 			return false
 		}
-		return functionLooksBoolean(fn)
+		return functionReturnLooksBoolean(fn.Signature)
 	}
 	if isBooleanType(typ) {
 		return true
 	}
-	return expr != "" && booleanExprPattern.MatchString(strings.TrimSpace(expr))
+	return false
 }
 
 func explicitNonBooleanFunctionName(name string) bool {
@@ -542,24 +541,22 @@ func explicitNonBooleanFunctionName(name string) bool {
 	return false
 }
 
+func functionReturnLooksBoolean(signature string) bool {
+	signature = strings.ToLower(strings.TrimSpace(signature))
+	if signature == "" {
+		return false
+	}
+	if idx := strings.LastIndex(signature, "->"); idx >= 0 {
+		return isBooleanType(signature[idx+len("->"):])
+	}
+	return isBooleanType(signature)
+}
+
 func isInferredUIBooleanAssignment(file string, fn precisionFunction, typ string, expr string, line int) bool {
 	if expr == "" || isBooleanType(typ) {
 		return false
 	}
 	return isUIHelperOrMappingContext(file, fn) || isReactComponentOrHookBoundary(file, fn) || nearbyUICallbackStatement(fn, line)
-}
-
-func functionLooksBoolean(fn precisionFunction) bool {
-	if isPredicateName(fn.Name) {
-		return false
-	}
-	for _, statement := range fn.Statements {
-		text := strings.TrimSpace(strings.TrimSuffix(statement.Text, ";"))
-		if strings.HasPrefix(text, "return ") && booleanExprPattern.MatchString(strings.TrimSpace(strings.TrimPrefix(text, "return "))) {
-			return true
-		}
-	}
-	return false
 }
 
 func isBooleanType(typ string) bool {
@@ -569,8 +566,13 @@ func isBooleanType(typ string) bool {
 
 func isPredicateName(name string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
-	for _, prefix := range []string{"is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "verify", "visible", "ready", "show", "matches"} {
+	for _, prefix := range []string{"is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "verify", "visible", "ready", "show", "matches", "pass", "passes"} {
 		if strings.HasPrefix(lowered, prefix) {
+			return true
+		}
+	}
+	for _, suffix := range []string{"equal", "equals", "differs", "matches"} {
+		if strings.HasSuffix(lowered, suffix) {
 			return true
 		}
 	}

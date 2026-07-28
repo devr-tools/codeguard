@@ -197,10 +197,11 @@ func isResourceIdentifierName(name string) bool {
 func conventionalCardinalityName(name string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
 	switch base {
-	case "all", "answers", "args", "claims", "columns", "contracts", "docs", "entries", "files", "filtered", "ids", "items", "k", "keys", "krs", "matters", "messages", "next", "out", "params", "props", "quarters", "records", "risks", "rows", "searchparams", "sections", "source", "status", "thresholds", "users", "versions", "v", "i", "j", "x", "y":
+	case "accept", "activity", "adjacency", "aliases", "all", "answers", "apply", "args", "arr", "body", "changes", "claims", "claimed", "columns", "comments", "content", "contracts", "counts", "currentpatch", "data", "docs", "entries", "expectedkeys", "files", "filtered", "fixes", "grid", "grouped", "groups", "header", "history", "ids", "input", "inputs", "items", "jobs", "k", "keys", "kindcounts", "known", "krs", "matters", "messages", "model", "newrisks", "next", "nodes", "objectives", "obligations", "openrequests", "out", "params", "parsed", "patch", "policy", "prev", "prisma", "projects", "props", "quarter", "quarters", "records", "requests", "resources", "results", "risks", "roledefaults", "roles", "rows", "schemas", "searchparams", "sections", "skipreasons", "source", "state", "status", "tags", "team", "thresholds", "threads", "tools", "users", "values", "vec", "versions", "where", "window", "v", "i", "j", "x", "y":
 		return true
 	default:
 		return len(name) <= 2 ||
+			strings.HasPrefix(base, "by") ||
 			strings.HasSuffix(base, "dates") ||
 			strings.HasSuffix(base, "fields") ||
 			strings.HasSuffix(base, "filters") ||
@@ -219,6 +220,14 @@ func conventionalCardinalityName(name string) bool {
 			strings.HasSuffix(base, "snapshots") ||
 			strings.HasSuffix(base, "tasks") ||
 			strings.HasSuffix(base, "types") ||
+			strings.HasSuffix(base, "bykey") ||
+			strings.HasSuffix(base, "byrisk") ||
+			strings.HasSuffix(base, "bytext") ||
+			strings.HasSuffix(base, "counts") ||
+			strings.HasSuffix(base, "patch") ||
+			strings.HasSuffix(base, "reasons") ||
+			strings.HasSuffix(base, "risks") ||
+			strings.HasSuffix(base, "soon") ||
 			strings.HasSuffix(base, "weeks")
 	}
 }
