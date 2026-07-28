@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.6](https://github.com/devr-tools/codeguard/compare/v1.3.5...v1.3.6) (2026-07-28)
+
+
+### Bug Fixes
+
+* report retry-mitigated sequence debt ([8c7a6d5](https://github.com/devr-tools/codeguard/commit/8c7a6d54a190a6ed2c7c899088466e28ed58422a))
+* retune defensive precision followups ([a9367ae](https://github.com/devr-tools/codeguard/commit/a9367ae38197ee4d1a23fdfaeafa56267a8d2cbf))
+* retune defensive precision followups ([#83](https://github.com/devr-tools/codeguard/issues/83)) ([ef6111a](https://github.com/devr-tools/codeguard/commit/ef6111a29c2102a32789e41870b625fbe69ca8a4))
+* treat allocators as command style ([4d7dfa9](https://github.com/devr-tools/codeguard/commit/4d7dfa955d381f7a680e2a293ee7123c1484fca4))
+
 ## [1.3.5](https://github.com/devr-tools/codeguard/compare/v1.3.4...v1.3.5) (2026-07-28)
 
 
