@@ -183,6 +183,22 @@ func TestFunctionHiddenMutationWarnsAcrossLanguages(t *testing.T) {
 	}
 }
 
+func TestFunctionHiddenMutationWarnsForObjectAssignIntoParameter(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "mutation.ts"), strings.Join([]string{
+		"export function prepareUser(user: User, patch: Partial<User>): User {",
+		"  Object.assign(user, patch);",
+		"  return user;",
+		"}",
+		"interface User { name: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
+	assertFindingRulePresent(t, report, "Code Quality", "function.command-query-mix")
+}
+
 func TestFunctionHiddenMutationAllowsReactHookLocalStateBoundaries(t *testing.T) {
 	cases := []struct {
 		name     string

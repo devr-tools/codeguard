@@ -194,12 +194,35 @@ func isValidationOrExtractionHelperName(name string) bool {
 
 func hasBoundaryParam(params []support.ParsedParam) bool {
 	for _, param := range params {
-		name := strings.ToLower(param.Name)
-		if containsAny(name, []string{"req", "request", "event", "payload", "body", "input"}) {
+		name := strings.ToLower(strings.Trim(param.Name, "_$"))
+		typ := strings.ToLower(param.Type)
+		switch name {
+		case "req", "event", "payload", "body", "params", "query":
 			return true
+		case "request":
+			if typ == "" || isTransportRequestType(typ) {
+				return true
+			}
+		case "input":
+			if typ == "" || containsAny(typ, []string{"unknown", "any", "record", "json", "request", "payload", "body", "params", "query"}) {
+				return true
+			}
+		default:
+			if strings.HasSuffix(name, "payload") || strings.HasSuffix(name, "body") || strings.HasSuffix(name, "params") || strings.HasSuffix(name, "query") {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+func isTransportRequestType(typ string) bool {
+	typ = strings.TrimSpace(strings.ToLower(typ))
+	return typ == "request" ||
+		strings.Contains(typ, "nextrequest") ||
+		strings.Contains(typ, "httprequest") ||
+		strings.Contains(typ, "express.request") ||
+		strings.Contains(typ, "incomingmessage")
 }
 
 func nullAssumptionLine(file string, fn precisionFunction, loweredBody string) (int, bool) {
@@ -211,10 +234,10 @@ func nullAssumptionLine(file string, fn precisionFunction, loweredBody string) (
 		if name == "" || !nullableParam(param) {
 			continue
 		}
-		if containsAny(loweredBody, []string{name + " == nil", name + " != nil", name + " is none", name + " is not none", name + " === null", name + " !== null", name + " == nullptr", name + " != nullptr"}) {
+		if nullableParamGuarded(loweredBody, name) {
 			continue
 		}
-		if containsAny(loweredBody, []string{name + ".", name + "->", name + "[", "*" + name}) {
+		if nullableUseLine(fn, name) > 0 {
 			return firstUseLine(fn, name), true
 		}
 	}
@@ -222,18 +245,66 @@ func nullAssumptionLine(file string, fn precisionFunction, loweredBody string) (
 }
 
 func nullableParam(param support.ParsedParam) bool {
-	typ := strings.ToLower(param.Type)
-	return strings.Contains(typ, "*") || strings.Contains(typ, "optional") ||
-		strings.Contains(typ, "null") || strings.Contains(typ, "none") ||
-		strings.Contains(typ, "maybe") || strings.Contains(typ, "?")
+	typ := strings.ToLower(strings.TrimSpace(param.Type))
+	if typ == "" {
+		return false
+	}
+	if strings.Contains(typ, "*") || strings.Contains(typ, "optional") || strings.Contains(typ, "maybe") {
+		return true
+	}
+	if strings.Contains(typ, "{") && strings.Contains(typ, "}") &&
+		!containsAny(typ, []string{"} | null", "}|null", "} | undefined", "}|undefined", "} | none", "}|none"}) {
+		return false
+	}
+	if strings.HasSuffix(strings.TrimSpace(typ), "[]") &&
+		!regexp.MustCompile(`\]\s*\|\s*(null|undefined|none)\b`).MatchString(typ) {
+		return false
+	}
+	return regexp.MustCompile(`(^|\|)\s*(null|undefined|none)\b|\b(null|undefined|none)\s*\|`).MatchString(typ) ||
+		strings.Contains(typ, "?")
 }
 
-func firstUseLine(fn precisionFunction, name string) int {
+func nullableParamGuarded(loweredBody string, name string) bool {
+	guards := []string{
+		name + " == nil",
+		name + " != nil",
+		name + " is none",
+		name + " is not none",
+		name + " === null",
+		name + " !== null",
+		name + " == null",
+		name + " != null",
+		name + " == nullptr",
+		name + " != nullptr",
+		"typeof " + name + " === ",
+		"typeof " + name + " == ",
+	}
+	if containsAny(loweredBody, guards) {
+		return true
+	}
+	return regexp.MustCompile(`if\s*\(\s*!\s*` + regexp.QuoteMeta(name) + `\s*\)\s*(?:return|throw|continue|break)\b`).MatchString(loweredBody)
+}
+
+func nullableUseLine(fn precisionFunction, name string) int {
 	for _, statement := range fn.Statements {
 		lowered := strings.ToLower(firstNonEmptyString(statement.Raw, statement.Text))
+		if nullableStatementUsesOnlyNullSafeOperators(lowered, name) {
+			continue
+		}
 		if containsAny(lowered, []string{name + ".", name + "->", name + "[", "*" + name}) {
 			return statement.Line
 		}
+	}
+	return 0
+}
+
+func nullableStatementUsesOnlyNullSafeOperators(statement string, name string) bool {
+	return containsAny(statement, []string{name + "?.", name + "?.[", name + " ??"})
+}
+
+func firstUseLine(fn precisionFunction, name string) int {
+	if line := nullableUseLine(fn, name); line > 0 {
+		return line
 	}
 	return fn.StartLine
 }
@@ -251,10 +322,24 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 	if !regexp.MustCompile(`(?i)\b(count|size|length|len|capacity|offset|total|bytes)\b`).MatchString(loweredBody) {
 		return 0, false
 	}
-	if regexp.MustCompile(`[A-Za-z_][\w$]*\s*(\*|\+|<<)\s*[A-Za-z0-9_]`).MatchString(loweredBody) {
-		return fn.StartLine, true
+	if !resourceAllocationArithmeticContext(loweredBody) {
+		return 0, false
+	}
+	arithmetic := regexp.MustCompile(`[A-Za-z_][\w$]*\s*(\*|\+|<<)\s*[A-Za-z0-9_]`)
+	for _, statement := range fn.Statements {
+		if arithmetic.MatchString(firstNonEmptyString(statement.Raw, statement.Text)) {
+			return statement.Line, true
+		}
 	}
 	return 0, false
+}
+
+func resourceAllocationArithmeticContext(loweredBody string) bool {
+	return containsAny(loweredBody, []string{
+		"buffer.alloc", "allocunsafe", "new uint8array", "new arraybuffer", "new array(",
+		"make([]", "bytearray(", "vector<", "reserve(", "resize(", "setlength(", "content-length", "contentlength",
+		"readall", "read_all", "readtoend", "read_to_end",
+	})
 }
 
 func sequenceCollisionRiskLine(file string, fn precisionFunction, loweredBody string) (int, string, string, bool) {
@@ -354,8 +439,11 @@ func isSeedOrScriptSourcePath(file string) bool {
 		strings.Contains(normalized, "/backfill") ||
 		strings.Contains(normalized, "/import") ||
 		strings.HasPrefix(base, "seed") ||
+		strings.Contains(base, "seed") ||
 		strings.HasPrefix(base, "backfill") ||
+		strings.Contains(base, "backfill") ||
 		strings.HasPrefix(base, "import") ||
+		strings.Contains(base, "import") ||
 		strings.HasPrefix(base, "cleanup")
 }
 

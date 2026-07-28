@@ -10,7 +10,7 @@ import (
 
 var conventionalMutationBoundaryPattern = regexp.MustCompile(`^(accept|apply|approve|archive|clear|close|commit|deliver|download|drop|ensure|exists|fetch|import|list|notify|open|process|read|reconcile|record|run|seed|submit|sync|toggle|upload)`)
 
-var localAccumulatorExprPattern = regexp.MustCompile(`(?i)^(?:new\s+)?(?:array|formdata|map|object|set|urlsearchparams|weakmap|weakset)\b|^\[|^\{|^make\s*\(|^array\.from\b|\.map\s*\(|\.filter\s*\(|\.reduce\s*\(|\.split\s*\(|cheerio\.load\s*\(|^(?:bytes|strings)\.buffer\b|^strings\.builder\b`)
+var localAccumulatorExprPattern = regexp.MustCompile(`(?i)^(?:new\s+)?(?:array|date|filereader|formdata|image|map|object|set|url|urlsearchparams|weakmap|weakset)\b|^\[|^\{|^make\s*\(|^array\.from\b|\.map\s*\(|\.filter\s*\(|\.reduce\s*\(|\.split\s*\(|cheerio\.load\s*\(|document\.createelement\s*\(|^(?:bytes|strings)\.buffer\b|^strings\.builder\b`)
 
 func localMutationTargets(fn precisionFunction) map[string]struct{} {
 	params := paramNames(fn)
@@ -24,6 +24,10 @@ func localMutationTargets(fn precisionFunction) map[string]struct{} {
 			continue
 		}
 		if assignmentLooksLocalAccumulator(fn, assignment) {
+			targets[name] = struct{}{}
+			continue
+		}
+		if assignmentDerivedFromLocalMutationTarget(assignment, targets) {
 			targets[name] = struct{}{}
 			continue
 		}
@@ -127,11 +131,27 @@ func assignmentLooksLocalBuilder(fn precisionFunction, assignment support.Parsed
 		strings.Contains(expr, "make")
 }
 
+func assignmentDerivedFromLocalMutationTarget(assignment support.ParsedAssignment, localTargets map[string]struct{}) bool {
+	expr := strings.TrimSpace(assignment.Expr)
+	if expr == "" || len(localTargets) == 0 {
+		return false
+	}
+	for target := range localTargets {
+		if target == "" {
+			continue
+		}
+		if strings.HasPrefix(expr, target+".") || strings.HasPrefix(expr, target+"->") || strings.HasPrefix(expr, target+"::") {
+			return true
+		}
+	}
+	return false
+}
+
 func isAccumulatorLikeLocalName(name string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
 	for _, token := range []string{
 		"bucket", "buckets", "buffer", "builder", "calendar", "cells", "copy", "doc",
-		"document", "filter", "filters", "form", "items", "lines", "params", "parts",
+		"canvas", "ctx", "cursor", "date", "document", "filter", "filters", "form", "img", "items", "lines", "params", "parts",
 		"payload", "primarycells", "query", "result", "rows", "scopes", "sections",
 		"serializer", "text", "urlparams", "values", "csv", "export", "map", "$",
 	} {
@@ -177,7 +197,26 @@ func paramNames(fn precisionFunction) map[string]struct{} {
 	return params
 }
 
-func isLocalMutationCall(callee string, localTargets map[string]struct{}) bool {
+func isLocalMutationCall(call support.ParsedCall, localTargets map[string]struct{}) bool {
+	if isObjectAssignToLocalTarget(call, localTargets) {
+		return true
+	}
+	return isLocalMutationCallee(call.Callee, localTargets)
+}
+
+func isLocalBuilderMutationCall(fn precisionFunction, call support.ParsedCall) bool {
+	loweredCallee := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(call.Callee), " ", ""))
+	if loweredCallee == "createhmac" || loweredCallee == "createhash" {
+		return true
+	}
+	if loweredCallee != "update" && !strings.HasSuffix(loweredCallee, ".update") {
+		return false
+	}
+	statement := strings.ToLower(assignmentStatement(fn, call.Line))
+	return strings.Contains(statement, "createhmac(") || strings.Contains(statement, "createhash(")
+}
+
+func isLocalMutationCallee(callee string, localTargets map[string]struct{}) bool {
 	if isDerivedCollectionMutationCall(callee) {
 		return true
 	}
@@ -189,6 +228,35 @@ func isLocalMutationCall(callee string, localTargets map[string]struct{}) bool {
 		return false
 	}
 	return isLocalMutationTarget(target, localTargets)
+}
+
+func isObjectAssignToLocalTarget(call support.ParsedCall, localTargets map[string]struct{}) bool {
+	if !isObjectAssignCall(call) {
+		return false
+	}
+	target := firstCallArgName(call)
+	return target != "" && isLocalMutationTarget(target, localTargets)
+}
+
+func isObjectAssignCall(call support.ParsedCall) bool {
+	return strings.EqualFold(strings.TrimSpace(call.Callee), "Object.assign")
+}
+
+func firstCallArgName(call support.ParsedCall) string {
+	if len(call.Args) == 0 {
+		return ""
+	}
+	arg := strings.TrimSpace(call.Args[0])
+	if arg == "" {
+		return ""
+	}
+	if idx := strings.IndexAny(arg, ".[("); idx > 0 {
+		arg = strings.TrimSpace(arg[:idx])
+	}
+	if regexp.MustCompile(`^[A-Za-z_$][\w$]*$`).MatchString(arg) {
+		return arg
+	}
+	return ""
 }
 
 func isDerivedCollectionMutationCall(callee string) bool {
@@ -231,6 +299,9 @@ func isBuilderAccumulatorMutationCall(fn precisionFunction, call support.ParsedC
 		return false
 	}
 	target := mutationCallTarget(call.Callee)
+	if isObjectAssignCall(call) {
+		target = firstCallArgName(call)
+	}
 	if target == "" {
 		return isBareLocalMutationCall(call.Callee)
 	}

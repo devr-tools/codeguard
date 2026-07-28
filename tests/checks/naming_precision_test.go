@@ -154,7 +154,7 @@ func TestNamingPredicateAndCardinalityPositiveNegative(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "names.ts"), strings.Join([]string{
 		"export function evaluate(users: number, user: Array<string>, enabled: boolean): boolean {",
-		"  const active = enabled === true;",
+		"  const active: boolean = enabled === true;",
 		"  const isReady = users > 0;",
 		"  return active && isReady;",
 		"}",
@@ -164,6 +164,119 @@ func TestNamingPredicateAndCardinalityPositiveNegative(t *testing.T) {
 
 	assertFindingRulePresent(t, report, "Code Quality", "naming.boolean-not-predicate")
 	assertFindingRulePresent(t, report, "Code Quality", "naming.cardinality-mismatch")
+}
+
+func TestNamingBooleanPredicateSkipsInferredUIAssignments(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/components/status-chip.tsx"), strings.Join([]string{
+		"export function StatusChip({ status, flag }: { status: string; flag: boolean }) {",
+		"  const active = status === 'ACTIVE';",
+		"  const blocked = status === 'BLOCKED';",
+		"  return <span>{active ? 'Active' : blocked ? 'Blocked' : 'Other'}{flag ? '!' : ''}</span>;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/flag.ts"), strings.Join([]string{
+		"export function evaluateFlag(flag: boolean) {",
+		"  return flag;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Code Quality", "naming.boolean-not-predicate")
+	assertCodeQualityRuleAbsentForPath(t, report, "naming.boolean-not-predicate", "status-chip.tsx:2")
+	assertCodeQualityRuleAbsentForPath(t, report, "naming.boolean-not-predicate", "status-chip.tsx:3")
+}
+
+func TestNamingBooleanPredicateAllowsRouteParserAndVerifierHelpers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/api/files/upload/route.ts"), strings.Join([]string{
+		"export function rejectOversizedMultipartRequest(req: Request): Response | null {",
+		"  if (Number(req.headers.get('content-length') ?? 0) > 1000) return new Response('too large');",
+		"  return null;",
+		"}",
+		"export async function readOAuthJson(res: Response): Promise<Record<string, unknown> | null> {",
+		"  if (!res.ok) return null;",
+		"  return await res.json();",
+		"}",
+		"export function verifyHmac(body: string, signature: string): boolean {",
+		"  return body.length === signature.length;",
+		"}",
+		"export function passesActiveFilters(status: string): boolean {",
+		"  return status === 'ACTIVE';",
+		"}",
+		"export function datesEqual(a: Date, b: Date): boolean {",
+		"  return a.getTime() === b.getTime();",
+		"}",
+		"export function valueDiffers(a: string, b: string): boolean {",
+		"  return a !== b;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+}
+
+func TestNamingBooleanPredicateDoesNotInferFromArrowsOrGenerics(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/arrow-values.ts"), strings.Join([]string{
+		"export function buildValues<T>(items: T[]) {",
+		"  const timer = setTimeout(() => undefined, 100);",
+		"  const rowClass = items.length > 0 ? 'active' : 'empty';",
+		"  const payload = { values: items.map((item) => String(item)) };",
+		"  return { timer, rowClass, payload };",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+}
+
+func TestNamingCardinalityCreditsCollectionTypesBeforeScalarWords(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/collections.ts"), strings.Join([]string{
+		"export function previousQuarter(quarters: { externalId: string }[] | undefined) {",
+		"  return quarters?.at(0)?.externalId ?? null;",
+		"}",
+		"export function confidentialityFilter(responsibleFields: string[]) {",
+		"  return responsibleFields.map((field) => ({ [field]: true }));",
+		"}",
+		"export function badName(user: string[]) {",
+		"  return user.length;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Code Quality", "naming.cardinality-mismatch")
+	assertCodeQualityRuleAbsentForPath(t, report, "naming.cardinality-mismatch", "collections.ts:1")
+	assertCodeQualityRuleAbsentForPath(t, report, "naming.cardinality-mismatch", "collections.ts:4")
+}
+
+func TestNamingCardinalityAllowsUICollectiveAndMapNames(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/risks/_components/use-risk-filters.ts"), strings.Join([]string{
+		"export function RiskFilterBar(team: User[], form: FormState[], result: Result[], byMonth: Map<string, Result[]>, kindByType: Record<string, string>, allowed: string[]) {",
+		"  const displayRisks: Risk[] = [];",
+		"  return { team, form, result, byMonth, kindByType, allowed, displayRisks };",
+		"}",
+		"interface User { id: string }",
+		"interface FormState { id: string }",
+		"interface Result { id: string }",
+		"interface Risk { id: string }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/bad.ts"), strings.Join([]string{
+		"export function badName(user: string[]) {",
+		"  return user.length;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "naming.cardinality-mismatch", "use-risk-filters.ts")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "naming.cardinality-mismatch", "bad.ts", "user")
 }
 
 func TestNamingUnitsAbbreviationsAndImplementationLeak(t *testing.T) {

@@ -42,6 +42,21 @@ func TestDefensiveIntegerOverflowFollowupRetunes(t *testing.T) {
 		"  return new Uint8Array(totalBytes);",
 		"}",
 	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/integrations/src/embeddings/vector.ts"), strings.Join([]string{
+		"export function cosine(a: Float32Array, b: Float32Array) {",
+		"  if (a.length !== b.length || a.length === 0) return 0;",
+		"  let dot = 0;",
+		"  for (let i = 0; i < a.length; i++) dot += a[i] * b[i];",
+		"  return dot;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/integrations/src/crypto/envelope.ts"), strings.Join([]string{
+		"export function validateHex(ivHex: string, tagHex: string) {",
+		"  return ivHex.length === IV_LEN * 2 && tagHex.length === TAG_LEN * 2;",
+		"}",
+		"declare const IV_LEN: number;",
+		"declare const TAG_LEN: number;",
+	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
@@ -49,8 +64,48 @@ func TestDefensiveIntegerOverflowFollowupRetunes(t *testing.T) {
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "external-id-retry.ts")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "seed-contracts.ts")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "date-buckets.ts")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "vector.ts")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "envelope.ts")
 	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.sequence-collision-risk", "external-id-retry.ts", "architectural debt", "database sequence", "transactional allocator")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.sequence-collision-risk", "seed-contracts.ts")
+}
+
+func TestFunctionMultipleResponsibilitiesUsesHigherThresholdForUIBoundaries(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/claims/claim-detail.tsx"), strings.Join([]string{
+		"export function ClaimDetail({ claim, repo, logger, canEdit }: Props) {",
+		"  if (!claim.id) logger.warn('missing id');",
+		"  const rows = claim.items.map((item) => ({ label: item.label }));",
+		"  const owner = repo.find(claim.ownerId);",
+		"  function onSave() { repo.update({ id: claim.id, rows }); }",
+		"  return <button disabled={!canEdit} onClick={onSave}>{owner.name}{rows.length}</button>;",
+		"}",
+		"interface Props { claim: { id: string; ownerId: string; items: Array<{ label: string }> }; repo: Repo; logger: Logger; canEdit: boolean }",
+		"interface Repo { find(id: string): { name: string }; update(input: unknown): void }",
+		"interface Logger { warn(message: string): void }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/routers/claim-detail.ts"), strings.Join([]string{
+		"export async function buildClaimDetail(input: Input, repo: Repo, logger: Logger, sender: Sender) {",
+		"  validateInput(input);",
+		"  if (!input.id) logger.warn('missing id');",
+		"  const claim = await repo.find(input.id);",
+		"  const rows = claim.items.map((item) => ({ label: item.label }));",
+		"  await repo.update({ id: input.id, rows });",
+		"  await sender.send(rows);",
+		"  return { claim, rows };",
+		"}",
+		"interface Input { id: string }",
+		"interface Claim { items: Array<{ label: string }> }",
+		"interface Repo { find(id: string): Promise<Claim>; update(input: unknown): Promise<void> }",
+		"interface Logger { warn(message: string): void }",
+		"interface Sender { send(input: unknown): Promise<void> }",
+		"declare function validateInput(input: Input): void;",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "function.multiple-responsibilities", "claim-detail.tsx")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "function.multiple-responsibilities", "packages/api/src/routers/claim-detail.ts", "combines")
 }
 
 func TestAllocateExternalIDIsCommandStyleReturningValue(t *testing.T) {
@@ -193,6 +248,94 @@ func TestDefensiveBroadeningSkipsUIBoundsAndInternalORMReads(t *testing.T) {
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.missing-resource-limit", "search-tools.ts:4")
 }
 
+func TestDefensiveNullAssumptionCreditsTypeScriptNarrowing(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/null-narrowing.ts"), strings.Join([]string{
+		"export function fromNullableString(summary: string | null | undefined) {",
+		"  const trimmed = typeof summary === 'string' ? summary.trim() : '';",
+		"  return trimmed;",
+		"}",
+		"export function fromNullableDate(value: Date | null) {",
+		"  if (!value) return null;",
+		"  return value.toISOString();",
+		"}",
+		"export function fromNullableElements(recipientIds: (string | null | undefined)[]) {",
+		"  return recipientIds.filter((id): id is string => !!id).map((id) => id.toUpperCase());",
+		"}",
+		"export function fromNullableField(row: { status: string | null; title: string }) {",
+		"  return row.status === 'ACTIVE' ? row.title : null;",
+		"}",
+		"export function unsafeNullableUser(user: { email: string } | null) {",
+		"  return user.email;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:2")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:7")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:10")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:13")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.null-assumption", "null-narrowing.ts:16", "nullable boundary value")
+}
+
+func TestDefensiveBoundaryInputSkipsTypedInternalDTOs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/routers/internal-dtos.ts"), strings.Join([]string{
+		"export function buildMyDayResult(inputs: MyDayInputs) {",
+		"  return { count: inputs.myRequests.length };",
+		"}",
+		"export function createPrdAnalysis(request: PrdAnalysisRequest) {",
+		"  return { title: request.title, body: request.prdContent };",
+		"}",
+		"export function consumeBoundaryInput(input: unknown) {",
+		"  return JSON.stringify(input);",
+		"}",
+		"interface MyDayInputs { myRequests: unknown[] }",
+		"interface PrdAnalysisRequest { title: string; prdContent: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.unvalidated-boundary-input", "internal-dtos.ts:1")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.unvalidated-boundary-input", "internal-dtos.ts:4")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.unvalidated-boundary-input", "internal-dtos.ts:7", "boundary input")
+}
+
+func TestExceptionControlFlowSkipsValidationThrows(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/routers/validation-errors.ts"), strings.Join([]string{
+		"export function validateSourceFile(file: File | null) {",
+		"  if (!file) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Source file not found' });",
+		"  return file.id;",
+		"}",
+		"export function requireProfile(profile: Profile | null) {",
+		"  if (!profile) throw new AppError('Attorney not found');",
+		"  return profile.id;",
+		"}",
+		"export function parseTokenResponse(payload: unknown) {",
+		"  if (!payload || typeof payload !== 'object') throw new Error('token exchange returned invalid JSON');",
+		"  return payload;",
+		"}",
+		"export function findUser(userId: string | null) {",
+		"  if (!userId) throw new Exception('not found');",
+		"  return userId;",
+		"}",
+		"interface File { id: string }",
+		"interface Profile { id: string }",
+		"declare class TRPCError extends Error { constructor(input: unknown); }",
+		"declare class AppError extends Error { constructor(message: string); }",
+		"declare class Exception extends Error { constructor(message: string); }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "error.exception-used-for-control-flow", "validation-errors.ts:2")
+	assertCodeQualityRuleAbsentForPath(t, report, "error.exception-used-for-control-flow", "validation-errors.ts:6")
+	assertCodeQualityRuleAbsentForPath(t, report, "error.exception-used-for-control-flow", "validation-errors.ts:10")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "error.exception-used-for-control-flow", "validation-errors.ts:14", "ordinary branch control")
+}
+
 func TestFunctionReturnContractAllowsNullableParserLookupAndExistsHelpers(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/integrations/src/slack/slack-client.ts"), strings.Join([]string{
@@ -209,6 +352,30 @@ func TestFunctionReturnContractAllowsNullableParserLookupAndExistsHelpers(t *tes
 		"}",
 		"interface SlackMessage { id: string }",
 		"declare function isRecord(value: unknown): value is Record<string, unknown>;",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.inconsistent-return-contract")
+}
+
+func TestFunctionReturnContractAllowsExplicitNullableServiceContracts(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/integrations/src/anthropic/summarize-content.ts"), strings.Join([]string{
+		"export async function buildFileContentBlocks(prompt: string, storageKey?: string | null): Promise<Block[] | null> {",
+		"  if (!storageKey) return null;",
+		"  return [{ type: 'text', text: prompt }];",
+		"}",
+		"export async function fetchMatterContext(userId: string): Promise<MatterContext | null> {",
+		"  if (!process.env.DAINTREE_MCP_URL) return null;",
+		"  return { userId };",
+		"}",
+		"export async function autoRoute(pillar: string): Promise<string | null> {",
+		"  if (!pillar) return null;",
+		"  return 'user_1';",
+		"}",
+		"interface Block { type: string; text: string }",
+		"interface MatterContext { userId: string }",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))

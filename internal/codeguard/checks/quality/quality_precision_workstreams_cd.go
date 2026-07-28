@@ -41,7 +41,6 @@ var (
 	unitSuffixPattern            = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|usd|eur|gbp|aud|cad)$`)
 	collectionTypePattern        = regexp.MustCompile(`(?i)(\[\]|\[\s*\]|array|list|slice|map|dict|record|set|vector|collection|iterable|sequence|promise<[^>]*\[\])`)
 	scalarTypePattern            = regexp.MustCompile(`(?i)\b(bool|boolean|char|double|float|float64|int|int32|int64|number|string|str|uint|uint64)\b`)
-	booleanExprPattern           = regexp.MustCompile(`(?i)^(true|false|nil|none|null|undefined|[A-Za-z_$][\w$]*\s*(===|!==|==|!=|<=|>=|<|>)|.*(\band\b|\bor\b|&&|\|\||\binstanceof\b|\bis\s+not\b|\bis\b).*)$`)
 	paramMutationPattern         = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
 	returnLinePattern            = regexp.MustCompile(`(?m)^\s*return(?:\s+([^;\n]+))?`)
 	partialReturnPattern         = regexp.MustCompile(`(?i)\breturn\s+[^;\n,]+,\s*(err|error)\b|\breturn\s+\{[^}\n]*(data|result|value)[^}\n]*(err|error)[^}\n]*\}`)
@@ -58,7 +57,7 @@ func additionalPrecisionFunctionFindings(env support.Context, file string, fn pr
 		findings = append(findings, precisionWarnFinding(env, functionHiddenMutationRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mutates state without an explicit command-style name", fn.Name), core.ConfidenceMedium))
 	}
-	if inconsistentReturnContract(fn) {
+	if !isReactComponentOrHookBoundary(file, fn) && !isScriptEntrypoint(file, fn.Name) && inconsistentReturnContract(fn) {
 		findings = append(findings, precisionWarnFinding(env, functionInconsistentReturnContractRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mixes empty and value return shapes; make the success/error contract explicit", fn.Name), core.ConfidenceMedium))
 	}
@@ -66,7 +65,7 @@ func additionalPrecisionFunctionFindings(env support.Context, file string, fn pr
 		findings = append(findings, precisionWarnFinding(env, functionPartialResultRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s can return a value alongside an error without an explicit partial-result contract", fn.Name), core.ConfidenceMedium))
 	}
-	if count, labels := responsibilityCount(fn); count >= 4 {
+	if count, labels := responsibilityCount(fn); count >= responsibilityThreshold(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, functionMultipleResponsibilitiesRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s combines %d responsibilities (%s); split orchestration from focused work", fn.Name, count, strings.Join(labels, ", ")), core.ConfidenceMedium))
 	}
@@ -115,11 +114,14 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 		if item.name == fn.Name && isReactComponentOrHookBoundary(file, fn) {
 			continue
 		}
-		if isBooleanNameCandidate(item.name, item.typ, item.expr, fn) && !isPredicateName(item.name) && !isAllowedBooleanUIName(file, fn, item.name) {
+		if isBooleanNameCandidate(item.name, item.typ, fn) &&
+			!isInferredUIBooleanAssignment(file, fn, item.typ, item.expr, item.line) &&
+			!isPredicateName(item.name) &&
+			!isAllowedBooleanUIName(file, fn, item.name) {
 			findings = append(findings, precisionWarnFinding(env, namingBooleanNotPredicateRuleID, file, item.line,
 				fmt.Sprintf("boolean name %q should read as a predicate such as is/has/can/should", item.name), core.ConfidenceMedium))
 		}
-		if cardinalityMismatch(item.name, item.typ) {
+		if cardinalityMismatch(file, fn, item.name, item.typ) {
 			findings = append(findings, precisionWarnFinding(env, namingCardinalityMismatchRuleID, file, item.line,
 				fmt.Sprintf("identifier %q has plural/singular wording that conflicts with its value shape", item.name), core.ConfidenceMedium))
 		}
@@ -176,7 +178,7 @@ func behaviorMismatch(file string, fn precisionFunction) bool {
 }
 
 func hiddenMutation(file string, fn precisionFunction) bool {
-	if explicitMutationName(fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) {
+	if explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) {
 		return false
 	}
 	if isReactComponentOrNamedHookBoundary(file, fn) {
@@ -200,7 +202,7 @@ func hasLikelyExternalMutationCall(fn precisionFunction) bool {
 		if !mutatingCallPattern.MatchString(call.Callee) {
 			continue
 		}
-		if isLocalMutationCall(call.Callee, localTargets) || isBuilderAccumulatorMutationCall(fn, call) {
+		if isLocalMutationCall(call, localTargets) || isLocalBuilderMutationCall(fn, call) || isBuilderAccumulatorMutationCall(fn, call) {
 			continue
 		}
 		target := mutationCallTarget(call.Callee)
@@ -240,7 +242,7 @@ func hasLikelyParameterAssignment(fn precisionFunction) bool {
 func mutatingFunctionEvidence(fn precisionFunction) bool {
 	localTargets := localMutationTargets(fn)
 	for _, call := range directCalls(fn) {
-		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) && !isBuilderAccumulatorMutationCall(fn, call) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call, localTargets) && !isLocalBuilderMutationCall(fn, call) && !isBuilderAccumulatorMutationCall(fn, call) {
 			return true
 		}
 	}
@@ -333,11 +335,28 @@ func inconsistentReturnContract(fn precisionFunction) bool {
 	if nextResponseNullableGuardHelper(fn) || nullableParserLookupContract(fn) {
 		return false
 	}
+	if explicitNullableReturnContract(fn) {
+		return false
+	}
 	returns := returnCategories(fn.Body)
 	if returns.total < 2 {
 		return false
 	}
 	return returns.empty && returns.value
+}
+
+func explicitNullableReturnContract(fn precisionFunction) bool {
+	signature := strings.ToLower(fn.Signature)
+	if signature == "" {
+		return false
+	}
+	return containsAny(signature, []string{
+		"| null", "|null", "| undefined", "|undefined",
+		"null>", "undefined>", "optional<", "option<",
+		"promise<", "result<",
+	}) && containsAny(fn.Body, []string{
+		"return null", "return undefined", "return none", "return nil",
+	})
 }
 
 func nextResponseNullableGuardHelper(fn precisionFunction) bool {
@@ -443,6 +462,13 @@ func responsibilityCount(fn precisionFunction) (int, []string) {
 	return len(labels), labels
 }
 
+func responsibilityThreshold(file string, fn precisionFunction) int {
+	if isReactComponentOrHookBoundary(file, fn) {
+		return 6
+	}
+	return 4
+}
+
 func classifyResponsibility(text string, record func(string)) {
 	switch {
 	case strings.Contains(text, "validat") || strings.Contains(text, "sanitize"):
@@ -488,27 +514,49 @@ func orchestrationDomainMix(fn precisionFunction) bool {
 	return hasInfra && hasDomainDecision
 }
 
-func isBooleanNameCandidate(name string, typ string, expr string, fn precisionFunction) bool {
+func isBooleanNameCandidate(name string, typ string, fn precisionFunction) bool {
 	if name == fn.Name {
-		return functionLooksBoolean(fn)
+		if explicitMutationName(name) || explicitNonBooleanFunctionName(name) {
+			return false
+		}
+		return functionReturnLooksBoolean(fn.Signature)
 	}
 	if isBooleanType(typ) {
 		return true
 	}
-	return expr != "" && booleanExprPattern.MatchString(strings.TrimSpace(expr))
+	return false
 }
 
-func functionLooksBoolean(fn precisionFunction) bool {
-	if isPredicateName(fn.Name) {
-		return false
-	}
-	for _, statement := range fn.Statements {
-		text := strings.TrimSpace(strings.TrimSuffix(statement.Text, ";"))
-		if strings.HasPrefix(text, "return ") && booleanExprPattern.MatchString(strings.TrimSpace(strings.TrimPrefix(text, "return "))) {
+func explicitNonBooleanFunctionName(name string) bool {
+	lowered := strings.ToLower(strings.Trim(name, "_$"))
+	for _, prefix := range []string{
+		"build", "call", "create", "decode", "extract", "fetch", "format", "hydrate",
+		"load", "lookup", "normalize", "parse", "read", "reject", "render", "resolve",
+		"serialize", "strip", "to", "write",
+	} {
+		if strings.HasPrefix(lowered, prefix) {
 			return true
 		}
 	}
 	return false
+}
+
+func functionReturnLooksBoolean(signature string) bool {
+	signature = strings.ToLower(strings.TrimSpace(signature))
+	if signature == "" {
+		return false
+	}
+	if idx := strings.LastIndex(signature, "->"); idx >= 0 {
+		return isBooleanType(signature[idx+len("->"):])
+	}
+	return isBooleanType(signature)
+}
+
+func isInferredUIBooleanAssignment(file string, fn precisionFunction, typ string, expr string, line int) bool {
+	if expr == "" || isBooleanType(typ) {
+		return false
+	}
+	return isUIHelperOrMappingContext(file, fn) || isReactComponentOrHookBoundary(file, fn) || nearbyUICallbackStatement(fn, line)
 }
 
 func isBooleanType(typ string) bool {
@@ -518,26 +566,54 @@ func isBooleanType(typ string) bool {
 
 func isPredicateName(name string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
-	for _, prefix := range []string{"is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "visible", "ready", "show", "matches"} {
+	for _, prefix := range []string{"is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "verify", "visible", "ready", "show", "matches", "pass", "passes"} {
 		if strings.HasPrefix(lowered, prefix) {
+			return true
+		}
+	}
+	for _, suffix := range []string{"equal", "equals", "differs", "matches"} {
+		if strings.HasSuffix(lowered, suffix) {
 			return true
 		}
 	}
 	return false
 }
 
-func cardinalityMismatch(name string, typ string) bool {
+func cardinalityMismatch(file string, fn precisionFunction, name string, typ string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
 	if base == "" || conventionalCardinalityName(base) || configuredPluralDomainAbbreviation(base) || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
 		return false
 	}
+	if isUIHelperOrMappingContext(file, fn) && conventionalUICardinalityName(base) {
+		return false
+	}
+	if strings.Contains(typ, "{") || strings.Contains(typ, "}") {
+		return false
+	}
 	plural := isPluralName(base)
-	collection := collectionTypePattern.MatchString(typ)
-	scalar := scalarTypePattern.MatchString(typ)
+	collection := collectionTypePattern.MatchString(typ) || strings.Contains(typ, "[") || strings.Contains(typ, "]")
+	scalar := !collection && scalarTypePattern.MatchString(typ)
 	if plural && scalar && !collection {
 		return true
 	}
 	return !plural && collection && !strings.Contains(base, "map") && !strings.Contains(base, "list") && !strings.Contains(base, "set")
+}
+
+func conventionalUICardinalityName(base string) bool {
+	if strings.HasPrefix(base, "by") {
+		return true
+	}
+	switch base {
+	case "active", "allowed", "display", "form", "result", "scope", "team", "view":
+		return true
+	default:
+		return strings.HasSuffix(base, "bytype") ||
+			strings.HasSuffix(base, "bystatus") ||
+			strings.HasSuffix(base, "bymonth") ||
+			strings.HasSuffix(base, "rows") ||
+			strings.HasSuffix(base, "result") ||
+			strings.HasSuffix(base, "results")
+	}
 }
 
 func isPluralName(name string) bool {
