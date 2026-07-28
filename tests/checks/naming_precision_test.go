@@ -166,6 +166,49 @@ func TestNamingPredicateAndCardinalityPositiveNegative(t *testing.T) {
 	assertFindingRulePresent(t, report, "Code Quality", "naming.cardinality-mismatch")
 }
 
+func TestNamingBooleanPredicateSkipsInferredUIAssignments(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/components/status-chip.tsx"), strings.Join([]string{
+		"export function StatusChip({ status, flag }: { status: string; flag: boolean }) {",
+		"  const active = status === 'ACTIVE';",
+		"  const blocked = status === 'BLOCKED';",
+		"  return <span>{active ? 'Active' : blocked ? 'Blocked' : 'Other'}{flag ? '!' : ''}</span>;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/flag.ts"), strings.Join([]string{
+		"export function evaluateFlag(flag: boolean) {",
+		"  return flag;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Code Quality", "naming.boolean-not-predicate")
+	assertCodeQualityRuleAbsentForPath(t, report, "naming.boolean-not-predicate", "status-chip.tsx:2")
+	assertCodeQualityRuleAbsentForPath(t, report, "naming.boolean-not-predicate", "status-chip.tsx:3")
+}
+
+func TestNamingCardinalityCreditsCollectionTypesBeforeScalarWords(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/collections.ts"), strings.Join([]string{
+		"export function previousQuarter(quarters: { externalId: string }[] | undefined) {",
+		"  return quarters?.at(0)?.externalId ?? null;",
+		"}",
+		"export function confidentialityFilter(responsibleFields: string[]) {",
+		"  return responsibleFields.map((field) => ({ [field]: true }));",
+		"}",
+		"export function badName(user: string[]) {",
+		"  return user.length;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Code Quality", "naming.cardinality-mismatch")
+	assertCodeQualityRuleAbsentForPath(t, report, "naming.cardinality-mismatch", "collections.ts:1")
+	assertCodeQualityRuleAbsentForPath(t, report, "naming.cardinality-mismatch", "collections.ts:4")
+}
+
 func TestNamingUnitsAbbreviationsAndImplementationLeak(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "names.py"), strings.Join([]string{

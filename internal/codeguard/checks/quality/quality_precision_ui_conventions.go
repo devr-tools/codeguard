@@ -197,11 +197,17 @@ func isResourceIdentifierName(name string) bool {
 func conventionalCardinalityName(name string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
 	switch base {
-	case "all", "answers", "args", "claims", "columns", "contracts", "docs", "entries", "files", "filtered", "ids", "items", "k", "keys", "krs", "matters", "messages", "next", "out", "params", "props", "records", "risks", "rows", "searchparams", "sections", "source", "status", "thresholds", "users", "versions", "v", "i", "j", "x", "y":
+	case "all", "answers", "args", "claims", "columns", "contracts", "docs", "entries", "files", "filtered", "ids", "items", "k", "keys", "krs", "matters", "messages", "next", "out", "params", "props", "quarters", "records", "risks", "rows", "searchparams", "sections", "source", "status", "thresholds", "users", "versions", "v", "i", "j", "x", "y":
 		return true
 	default:
 		return len(name) <= 2 ||
+			strings.HasSuffix(base, "dates") ||
+			strings.HasSuffix(base, "fields") ||
+			strings.HasSuffix(base, "filters") ||
 			strings.HasSuffix(base, "ids") ||
+			strings.HasSuffix(base, "links") ||
+			strings.HasSuffix(base, "options") ||
+			strings.HasSuffix(base, "points") ||
 			strings.HasSuffix(base, "rows") ||
 			strings.HasSuffix(base, "items") ||
 			strings.HasSuffix(base, "entries") ||
@@ -209,7 +215,11 @@ func conventionalCardinalityName(name string) bool {
 			strings.HasSuffix(base, "props") ||
 			strings.HasSuffix(base, "args") ||
 			strings.HasSuffix(base, "columns") ||
-			strings.HasSuffix(base, "sections")
+			strings.HasSuffix(base, "sections") ||
+			strings.HasSuffix(base, "snapshots") ||
+			strings.HasSuffix(base, "tasks") ||
+			strings.HasSuffix(base, "types") ||
+			strings.HasSuffix(base, "weeks")
 	}
 }
 
@@ -231,6 +241,26 @@ func isUIHelperOrMappingContext(file string, fn precisionFunction) bool {
 	return strings.Contains(loweredFile, "/_components/") || strings.Contains(loweredFile, "/components/") ||
 		strings.Contains(loweredFile, "/screens/") ||
 		strings.Contains(loweredFile, "/app/") && strings.Contains(loweredFile, "web/")
+}
+
+func isUICommandHelperName(file string, name string) bool {
+	normalizedFile := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	if strings.Contains(normalizedFile, "/api/") || !isScriptLikeSourcePath(file) {
+		return false
+	}
+	if !strings.Contains(normalizedFile, "/_components/") &&
+		!strings.Contains(normalizedFile, "/components/") &&
+		!strings.Contains(normalizedFile, "/screens/") &&
+		!isTSXLikeSourcePath(file) {
+		return false
+	}
+	lowered := strings.ToLower(strings.Trim(name, "_$"))
+	for _, prefix := range []string{"click", "confirm", "disarm", "finish", "mark", "pick", "prefill", "select", "start"} {
+		if strings.HasPrefix(lowered, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func moduleStatementLooksTopLevel(statement support.ParsedStatement) bool {

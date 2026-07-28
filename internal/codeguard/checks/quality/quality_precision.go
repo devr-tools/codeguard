@@ -477,7 +477,7 @@ func primitiveObsession(fn precisionFunction) bool {
 }
 
 func hiddenSideEffect(file string, fn precisionFunction) bool {
-	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || explicitMutationName(fn.Name) {
+	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) {
 		return false
 	}
 	if !queryFunctionPrefixPattern.MatchString(strings.ToLower(fn.Name)) {
@@ -488,7 +488,7 @@ func hiddenSideEffect(file string, fn precisionFunction) bool {
 	}
 	localTargets := localMutationTargets(fn)
 	for _, call := range directCalls(fn) {
-		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) && !isBuilderAccumulatorMutationCall(fn, call) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call, localTargets) && !isLocalBuilderMutationCall(fn, call) && !isBuilderAccumulatorMutationCall(fn, call) {
 			return true
 		}
 	}
@@ -522,7 +522,7 @@ func isDomainLevelCall(callee string) bool {
 }
 
 func commandQueryMix(file string, fn precisionFunction) bool {
-	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || explicitMutationName(fn.Name) {
+	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) {
 		return false
 	}
 	if !fn.Returns {
@@ -537,7 +537,7 @@ func commandQueryMix(file string, fn precisionFunction) bool {
 	}
 	localTargets := localMutationTargets(fn)
 	for _, call := range directCalls(fn) {
-		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) && !isBuilderAccumulatorMutationCall(fn, call) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call, localTargets) && !isLocalBuilderMutationCall(fn, call) && !isBuilderAccumulatorMutationCall(fn, call) {
 			return true
 		}
 	}

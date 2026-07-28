@@ -51,6 +51,37 @@ func TestQualityAmbiguousNameAllowsReactNativeRenderParams(t *testing.T) {
 	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ambiguous-name")
 }
 
+func TestFunctionMutationRulesAllowUICommandHelperNamesOnlyInUI(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/components/confirm-button.tsx"), strings.Join([]string{
+		"export function ConfirmButton() {",
+		"  let armed = false;",
+		"  function disarm() {",
+		"    armed = false;",
+		"    return armed;",
+		"  }",
+		"  function confirmDelete() {",
+		"    armed = true;",
+		"    return armed;",
+		"  }",
+		"  return <button onClick={confirmDelete}>{String(disarm())}</button>;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/select-user.ts"), strings.Join([]string{
+		"export function selectUser(user: User): User {",
+		"  user.selected = true;",
+		"  return user;",
+		"}",
+		"interface User { selected: boolean }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "function.hidden-mutation", "confirm-button.tsx")
+	assertCodeQualityRuleAbsentForPath(t, report, "function.command-query-mix", "confirm-button.tsx")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "function.hidden-mutation", "select-user.ts", "mutates state")
+}
+
 func TestFunctionCommandQueryMixAllowsReactAndNextBoundaries(t *testing.T) {
 	cases := []struct {
 		name   string

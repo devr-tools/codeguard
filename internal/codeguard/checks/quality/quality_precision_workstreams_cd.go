@@ -66,7 +66,7 @@ func additionalPrecisionFunctionFindings(env support.Context, file string, fn pr
 		findings = append(findings, precisionWarnFinding(env, functionPartialResultRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s can return a value alongside an error without an explicit partial-result contract", fn.Name), core.ConfidenceMedium))
 	}
-	if count, labels := responsibilityCount(fn); count >= 4 {
+	if count, labels := responsibilityCount(fn); count >= responsibilityThreshold(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, functionMultipleResponsibilitiesRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s combines %d responsibilities (%s); split orchestration from focused work", fn.Name, count, strings.Join(labels, ", ")), core.ConfidenceMedium))
 	}
@@ -115,7 +115,10 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 		if item.name == fn.Name && isReactComponentOrHookBoundary(file, fn) {
 			continue
 		}
-		if isBooleanNameCandidate(item.name, item.typ, item.expr, fn) && !isPredicateName(item.name) && !isAllowedBooleanUIName(file, fn, item.name) {
+		if isBooleanNameCandidate(item.name, item.typ, item.expr, fn) &&
+			!isInferredUIBooleanAssignment(file, fn, item.typ, item.expr, item.line) &&
+			!isPredicateName(item.name) &&
+			!isAllowedBooleanUIName(file, fn, item.name) {
 			findings = append(findings, precisionWarnFinding(env, namingBooleanNotPredicateRuleID, file, item.line,
 				fmt.Sprintf("boolean name %q should read as a predicate such as is/has/can/should", item.name), core.ConfidenceMedium))
 		}
@@ -176,7 +179,7 @@ func behaviorMismatch(file string, fn precisionFunction) bool {
 }
 
 func hiddenMutation(file string, fn precisionFunction) bool {
-	if explicitMutationName(fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) {
+	if explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) {
 		return false
 	}
 	if isReactComponentOrNamedHookBoundary(file, fn) {
@@ -200,7 +203,7 @@ func hasLikelyExternalMutationCall(fn precisionFunction) bool {
 		if !mutatingCallPattern.MatchString(call.Callee) {
 			continue
 		}
-		if isLocalMutationCall(call.Callee, localTargets) || isBuilderAccumulatorMutationCall(fn, call) {
+		if isLocalMutationCall(call, localTargets) || isLocalBuilderMutationCall(fn, call) || isBuilderAccumulatorMutationCall(fn, call) {
 			continue
 		}
 		target := mutationCallTarget(call.Callee)
@@ -240,7 +243,7 @@ func hasLikelyParameterAssignment(fn precisionFunction) bool {
 func mutatingFunctionEvidence(fn precisionFunction) bool {
 	localTargets := localMutationTargets(fn)
 	for _, call := range directCalls(fn) {
-		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) && !isBuilderAccumulatorMutationCall(fn, call) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call, localTargets) && !isLocalBuilderMutationCall(fn, call) && !isBuilderAccumulatorMutationCall(fn, call) {
 			return true
 		}
 	}
@@ -443,6 +446,13 @@ func responsibilityCount(fn precisionFunction) (int, []string) {
 	return len(labels), labels
 }
 
+func responsibilityThreshold(file string, fn precisionFunction) int {
+	if isReactComponentOrHookBoundary(file, fn) {
+		return 6
+	}
+	return 4
+}
+
 func classifyResponsibility(text string, record func(string)) {
 	switch {
 	case strings.Contains(text, "validat") || strings.Contains(text, "sanitize"):
@@ -498,6 +508,13 @@ func isBooleanNameCandidate(name string, typ string, expr string, fn precisionFu
 	return expr != "" && booleanExprPattern.MatchString(strings.TrimSpace(expr))
 }
 
+func isInferredUIBooleanAssignment(file string, fn precisionFunction, typ string, expr string, line int) bool {
+	if expr == "" || isBooleanType(typ) {
+		return false
+	}
+	return isUIHelperOrMappingContext(file, fn) || isReactComponentOrHookBoundary(file, fn) || nearbyUICallbackStatement(fn, line)
+}
+
 func functionLooksBoolean(fn precisionFunction) bool {
 	if isPredicateName(fn.Name) {
 		return false
@@ -531,9 +548,12 @@ func cardinalityMismatch(name string, typ string) bool {
 	if base == "" || conventionalCardinalityName(base) || configuredPluralDomainAbbreviation(base) || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
 		return false
 	}
+	if strings.Contains(typ, "{") || strings.Contains(typ, "}") {
+		return false
+	}
 	plural := isPluralName(base)
-	collection := collectionTypePattern.MatchString(typ)
-	scalar := scalarTypePattern.MatchString(typ)
+	collection := collectionTypePattern.MatchString(typ) || strings.Contains(typ, "[") || strings.Contains(typ, "]")
+	scalar := !collection && scalarTypePattern.MatchString(typ)
 	if plural && scalar && !collection {
 		return true
 	}

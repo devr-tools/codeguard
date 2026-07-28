@@ -43,6 +43,26 @@ func TestFunctionHiddenMutationAllowsPureLocalMutationAcrossLanguages(t *testing
 			},
 		},
 		{
+			name:     "typescript local date cursor",
+			language: "typescript",
+			file:     "apps/web/lib/calendar.ts",
+			source: []string{
+				"export function monthBuckets(start: number, end: number) {",
+				"  const buckets: Array<{ start: number; label: string }> = [];",
+				"  const cursor = new Date(start);",
+				"  cursor.setDate(1);",
+				"  cursor.setHours(0, 0, 0, 0);",
+				"  while (cursor.getTime() < end) {",
+				"    const next = new Date(cursor);",
+				"    next.setMonth(next.getMonth() + 1);",
+				"    buckets.push({ start: cursor.getTime(), label: cursor.toISOString() });",
+				"    cursor.setTime(next.getTime());",
+				"  }",
+				"  return buckets;",
+				"}",
+			},
+		},
+		{
 			name:     "python local list",
 			language: "python",
 			file:     "packages/auth/src/resolve.py",
@@ -92,6 +112,7 @@ func TestFunctionHiddenMutationAllowsPureLocalMutationAcrossLanguages(t *testing
 			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, tc.language))
 
 			assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+			assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
 		})
 	}
 }
@@ -142,6 +163,62 @@ func TestFunctionHiddenMutationAllowsBuilderParserAccumulatorNames(t *testing.T)
 				"  return buckets;",
 				"}",
 				"interface Event { day: string }",
+			},
+		},
+		{
+			name: "local patch object assign",
+			file: "packages/api/src/lib/portal-field-map.ts",
+			source: []string{
+				"export function answersToMatterPatch(answers: Record<string, string>) {",
+				"  const patch: Record<string, unknown> = {};",
+				"  for (const [key, value] of Object.entries(answers)) {",
+				"    Object.assign(patch, coerce(key, value));",
+				"  }",
+				"  return patch;",
+				"}",
+				"declare function coerce(key: string, value: string): Record<string, unknown>;",
+			},
+		},
+		{
+			name: "local map entry alias",
+			file: "apps/web/lib/filter-match.ts",
+			source: []string{
+				"export function passesActiveFilters(active: ActiveFilter[]) {",
+				"  const byId = new Map<string, ActiveFilter[]>();",
+				"  for (const filter of active) {",
+				"    const group = byId.get(filter.id);",
+				"    if (group) group.push(filter);",
+				"    else byId.set(filter.id, [filter]);",
+				"  }",
+				"  return byId.size > 0;",
+				"}",
+				"interface ActiveFilter { id: string }",
+			},
+		},
+		{
+			name: "local url search params",
+			file: "apps/web/lib/integration-oauth.ts",
+			source: []string{
+				"export function redirectToIntegrationProfile(origin: string, params: Record<string, string>) {",
+				"  const url = new URL('/profile', origin);",
+				"  url.hash = 'slack';",
+				"  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);",
+				"  return url.toString();",
+				"}",
+			},
+		},
+		{
+			name: "local crypto hmac builder",
+			file: "apps/web/lib/oauth-state.ts",
+			source: []string{
+				"import { createHmac, timingSafeEqual } from 'node:crypto';",
+				"export function verifySignedOAuthState(state: string, expected: string) {",
+				"  const parts = state.split('.');",
+				"  if (parts.length !== 3) return false;",
+				"  const [nonce, userId, signature] = parts as [string, string, string];",
+				"  const digest = createHmac('sha256', expected).update(`${nonce}.${userId}`).digest('hex');",
+				"  return timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(digest, 'hex'));",
+				"}",
 			},
 		},
 		{

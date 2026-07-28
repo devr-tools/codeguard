@@ -53,6 +53,44 @@ func TestDefensiveIntegerOverflowFollowupRetunes(t *testing.T) {
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.sequence-collision-risk", "seed-contracts.ts")
 }
 
+func TestFunctionMultipleResponsibilitiesUsesHigherThresholdForUIBoundaries(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/claims/claim-detail.tsx"), strings.Join([]string{
+		"export function ClaimDetail({ claim, repo, logger, canEdit }: Props) {",
+		"  if (!claim.id) logger.warn('missing id');",
+		"  const rows = claim.items.map((item) => ({ label: item.label }));",
+		"  const owner = repo.find(claim.ownerId);",
+		"  function onSave() { repo.update({ id: claim.id, rows }); }",
+		"  return <button disabled={!canEdit} onClick={onSave}>{owner.name}{rows.length}</button>;",
+		"}",
+		"interface Props { claim: { id: string; ownerId: string; items: Array<{ label: string }> }; repo: Repo; logger: Logger; canEdit: boolean }",
+		"interface Repo { find(id: string): { name: string }; update(input: unknown): void }",
+		"interface Logger { warn(message: string): void }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/routers/claim-detail.ts"), strings.Join([]string{
+		"export async function buildClaimDetail(input: Input, repo: Repo, logger: Logger, sender: Sender) {",
+		"  validateInput(input);",
+		"  if (!input.id) logger.warn('missing id');",
+		"  const claim = await repo.find(input.id);",
+		"  const rows = claim.items.map((item) => ({ label: item.label }));",
+		"  await repo.update({ id: input.id, rows });",
+		"  await sender.send(rows);",
+		"  return { claim, rows };",
+		"}",
+		"interface Input { id: string }",
+		"interface Claim { items: Array<{ label: string }> }",
+		"interface Repo { find(id: string): Promise<Claim>; update(input: unknown): Promise<void> }",
+		"interface Logger { warn(message: string): void }",
+		"interface Sender { send(input: unknown): Promise<void> }",
+		"declare function validateInput(input: Input): void;",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "function.multiple-responsibilities", "claim-detail.tsx")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "function.multiple-responsibilities", "packages/api/src/routers/claim-detail.ts", "combines")
+}
+
 func TestAllocateExternalIDIsCommandStyleReturningValue(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/api/src/routers/entity-shared.ts"), strings.Join([]string{
