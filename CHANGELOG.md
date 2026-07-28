@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.8](https://github.com/devr-tools/codeguard/compare/v1.3.7...v1.3.8) (2026-07-28)
+
+
+### Bug Fixes
+
+* credit typescript null narrowing ([be628a4](https://github.com/devr-tools/codeguard/commit/be628a4296d9031e6e5941a128dd599470633f5c))
+* focus integer overflow on allocation risk ([712ac16](https://github.com/devr-tools/codeguard/commit/712ac162b66984e002f9f558c4065eab7e95ae6c))
+* make boolean naming precision contract based ([b1da7ca](https://github.com/devr-tools/codeguard/commit/b1da7ca565ce2a29b48c76cb02544ad49a30a44d))
+* narrow boundary input detection ([31c1bc4](https://github.com/devr-tools/codeguard/commit/31c1bc4481023b9a2cd221efcae2a4a3c2655573))
+* remove unused boolean expression parameter ([8f0b1af](https://github.com/devr-tools/codeguard/commit/8f0b1af4d48f9bfa812c300cfce49fc188d8c7c5))
+* retune naming and return precision ([43813e4](https://github.com/devr-tools/codeguard/commit/43813e45f378e33a8c0777893fa74ac4218820cc))
+* retune quality precision false positives ([c61b831](https://github.com/devr-tools/codeguard/commit/c61b831ce4e3d97e0f001b18f67a4d492b2bd5cc))
+* skip validation throws in control-flow rule ([280ccdd](https://github.com/devr-tools/codeguard/commit/280ccdd0546a5035ae9a2573ced291d1c107956c))
+
 ## [1.3.7](https://github.com/devr-tools/codeguard/compare/v1.3.6...v1.3.7) (2026-07-28)
 
 
