@@ -376,7 +376,7 @@ func responsibilityBucket(name string) string {
 func featureEnvyFindings(env support.Context, file string, functions []structuralFunction) []core.Finding {
 	findings := make([]core.Finding, 0)
 	for _, fn := range functions {
-		if isStructuralUIRenderingContext(file, fn) {
+		if isStructuralUIRenderingContext(file, fn) || isStructuralMapperOrBuilderContext(fn) {
 			continue
 		}
 		if len(fn.Params) == 0 || fn.Body == "" {
@@ -489,7 +489,7 @@ func messageChainFindings(env support.Context, file string, source string, langu
 		if trimmed == "" || strings.HasPrefix(trimmed, "import ") || strings.HasPrefix(trimmed, "#include") || strings.HasPrefix(trimmed, "package ") {
 			continue
 		}
-		if chainSeparators(trimmed) >= 4 && !looksLikeAllowedFluentChain(trimmed) {
+		if chainSeparators(trimmed) >= 4 && !looksLikeAllowedFluentChain(trimmed) && !looksLikeAllowedTraversalChain(trimmed) {
 			return []core.Finding{precisionWarnFinding(env, smellMessageChainRuleID, file, idx+1,
 				"long message chain reaches through several collaborators; introduce a named query/helper at the boundary",
 				core.ConfidenceMedium)}
@@ -521,6 +521,23 @@ func chainSeparators(line string) int {
 func looksLikeAllowedFluentChain(line string) bool {
 	lowered := strings.ToLower(line)
 	return strings.Contains(lowered, "builder") || strings.Contains(lowered, ".with") || strings.Contains(lowered, ".set")
+}
+
+func looksLikeAllowedTraversalChain(line string) bool {
+	lowered := strings.ToLower(line)
+	if strings.Contains(line, "?.") {
+		return true
+	}
+	for _, marker := range []string{
+		"response.", "result.", "payload.", "body.", "json.", "config.", "settings.",
+		"process.env", "import.meta.env", "params.", "query.", "headers.",
+		"row.", "record.", "dto.", "args.",
+	} {
+		if strings.Contains(lowered, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func dataClumpFindings(env support.Context, file string, functions []structuralFunction) []core.Finding {

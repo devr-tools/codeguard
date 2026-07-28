@@ -117,18 +117,23 @@ func leakFindings(env support.Context, file string, source string) []core.Findin
 		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
+		codeLine := stripInlineDesignComment(trimmed)
+		if codeLine == "" {
+			continue
+		}
 		lineNo := idx + 1
-		if domainPath && infraLeakPattern.MatchString(trimmed) {
+		if domainPath && infraLeakPattern.MatchString(codeLine) {
 			findings = append(findings, designFinding(env, ruleInfrastructureLeak, file, lineNo,
 				"infrastructure/framework type leaks into a domain or public boundary", core.ConfidenceHigh))
 		}
-		if persistenceBoundaryPath && (apiPath || handlerPath || isPublicDeclaration(trimmed)) && persistenceLeakPattern.MatchString(trimmed) &&
-			!allowedGeneratedPersistenceEnumLine(trimmed) && !allowedTypeScriptRecordUtilityLine(trimmed) &&
-			!allowedUIPropsDerivedTypeLine(file, trimmed) && !allowedFrameworkDTOBoundaryLine(file, trimmed) {
+		if persistenceBoundaryPath && !isPackageAPIImplementationPath(file) && (apiPath || handlerPath || isPublicDeclaration(codeLine)) &&
+			persistenceLeakPattern.MatchString(codeLine) &&
+			!allowedGeneratedPersistenceEnumLine(codeLine) && !allowedTypeScriptRecordUtilityLine(codeLine) &&
+			!allowedUIPropsDerivedTypeLine(file, codeLine) && !allowedFrameworkDTOBoundaryLine(file, codeLine) {
 			findings = append(findings, designFinding(env, rulePersistenceLeak, file, lineNo,
-				fmt.Sprintf("persistence model or ORM concept leaks through boundary at %s:%d: %s", file, lineNo, findingLineExcerpt(trimmed)), core.ConfidenceHigh))
+				fmt.Sprintf("persistence model or ORM concept leaks through boundary at %s:%d: %s", file, lineNo, findingLineExcerpt(codeLine)), core.ConfidenceHigh))
 		}
-		if domainPath && configLeakPattern.MatchString(trimmed) {
+		if domainPath && configLeakPattern.MatchString(codeLine) {
 			findings = append(findings, designFinding(env, ruleConfigurationLeak, file, lineNo,
 				"configuration or environment concern leaks into domain code", core.ConfidenceMedium))
 		}
@@ -481,6 +486,11 @@ func isAPIPath(file string) bool {
 	return strings.Contains(normalized, "/contract/")
 }
 
+func isPackageAPIImplementationPath(file string) bool {
+	normalized := strings.ToLower(filepathSlash(file))
+	return strings.Contains(normalized, "/packages/api/src/") || strings.HasPrefix(normalized, "packages/api/src/")
+}
+
 func isContractBoundaryPath(file string) bool {
 	normalized := strings.ToLower(filepathSlash(file))
 	if isFrontendUIPath(file) {
@@ -520,6 +530,16 @@ func isHandlerPath(file string) bool {
 
 func filepathSlash(path string) string {
 	return strings.ReplaceAll(path, "\\", "/")
+}
+
+func stripInlineDesignComment(line string) string {
+	if idx := strings.Index(line, "//"); idx >= 0 {
+		line = line[:idx]
+	}
+	if idx := strings.Index(line, "#"); idx >= 0 {
+		line = line[:idx]
+	}
+	return strings.TrimSpace(line)
 }
 
 func isPublicDeclaration(line string) bool {
