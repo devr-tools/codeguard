@@ -50,7 +50,7 @@ var (
 
 func additionalPrecisionFunctionFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
 	findings := make([]core.Finding, 0, 8)
-	if behaviorMismatch(fn) {
+	if behaviorMismatch(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, namingBehaviorMismatchRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s name conflicts with observed query/command behavior", fn.Name), core.ConfidenceMedium))
 	}
@@ -153,9 +153,12 @@ func sourceNamingFindings(env support.Context, file string, source string) []cor
 	return findings
 }
 
-func behaviorMismatch(fn precisionFunction) bool {
+func behaviorMismatch(file string, fn precisionFunction) bool {
+	if isFrameworkOrchestrationBoundary(file, fn) {
+		return false
+	}
 	name := strings.ToLower(fn.Name)
-	if hiddenSideEffect(fn) {
+	if hiddenSideEffect(file, fn) {
 		return true
 	}
 	if !commandFunctionPrefixPattern.MatchString(name) || mutatingFunctionEvidence(fn) {
@@ -170,7 +173,7 @@ func behaviorMismatch(fn precisionFunction) bool {
 }
 
 func hiddenMutation(file string, fn precisionFunction) bool {
-	if explicitMutationName(fn.Name) || isFrameworkCommandBoundary(file, fn.Name) || isScriptEntrypoint(file, fn.Name) {
+	if explicitMutationName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) {
 		return false
 	}
 	mutatesParam := mutatesParameter(fn)

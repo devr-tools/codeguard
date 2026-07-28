@@ -416,7 +416,7 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, qualityPrimitiveObsessionRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s passes several domain concepts as raw primitives", fn.Name), core.ConfidenceMedium))
 	}
-	if hiddenSideEffect(fn) {
+	if hiddenSideEffect(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, qualityHiddenSideEffectRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s name implies a query/build operation but it performs side effects", fn.Name), core.ConfidenceMedium))
 	}
@@ -468,7 +468,10 @@ func primitiveObsession(fn precisionFunction) bool {
 	return count >= 3
 }
 
-func hiddenSideEffect(fn precisionFunction) bool {
+func hiddenSideEffect(file string, fn precisionFunction) bool {
+	if isFrameworkOrchestrationBoundary(file, fn) {
+		return false
+	}
 	if !queryFunctionPrefixPattern.MatchString(strings.ToLower(fn.Name)) {
 		return false
 	}
@@ -508,7 +511,7 @@ func isDomainLevelCall(callee string) bool {
 }
 
 func commandQueryMix(file string, fn precisionFunction) bool {
-	if isFrameworkCommandBoundary(file, fn.Name) || isReactComponentOrHookBoundary(file, fn) {
+	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrHookBoundary(file, fn) {
 		return false
 	}
 	if !fn.Returns {

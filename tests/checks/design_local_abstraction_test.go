@@ -251,6 +251,42 @@ func TestDesignPersistenceModelLeakSkipsReactAndReactNativePresentationPaths(t *
 	}
 }
 
+func TestDesignPersistenceModelLeakSkipsNestJSDTOControllerBoundaries(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps", "api", "src", "users", "users.controller.ts"), strings.Join([]string{
+		"import { Body, Controller, Post } from '@nestjs/common';",
+		"@Controller('users')",
+		"export class UsersController {",
+		"  @Post()",
+		"  async create(@Body() data: CreateUserDto): Promise<UserResponseDto> {",
+		"    return this.usersService.create(data);",
+		"  }",
+		"}",
+		"export interface CreateUserDto { id: string }",
+		"export interface UserResponseDto { id: string }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "apps", "api", "src", "users", "users.route.ts"), strings.Join([]string{
+		"export type UserEntity = { id: string };",
+		"export async function GET(): Promise<UserEntity> {",
+		"  return db.user.findFirst();",
+		"}",
+	}, "\n"))
+
+	report := runDesignLocalScan(t, designLocalConfig(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.persistence-model-leak")
+	for _, section := range report.Sections {
+		if section.Name != "Design Patterns" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID == "design.persistence-model-leak" && strings.Contains(finding.Path, "users.controller.ts") {
+				t.Fatalf("NestJS DTO controller boundary should not leak persistence model: %+v", finding)
+			}
+		}
+	}
+}
+
 func TestDesignPersistenceModelLeakKeepsAPIAndDomainBoundaries(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps", "web", "app", "api", "contracts", "route.ts"), strings.Join([]string{

@@ -123,7 +123,8 @@ func leakFindings(env support.Context, file string, source string) []core.Findin
 				"infrastructure/framework type leaks into a domain or public boundary", core.ConfidenceHigh))
 		}
 		if persistenceBoundaryPath && (apiPath || handlerPath || isPublicDeclaration(trimmed)) && persistenceLeakPattern.MatchString(trimmed) &&
-			!allowedGeneratedPersistenceEnumLine(trimmed) && !allowedTypeScriptRecordUtilityLine(trimmed) && !allowedUIPropsDerivedTypeLine(file, trimmed) {
+			!allowedGeneratedPersistenceEnumLine(trimmed) && !allowedTypeScriptRecordUtilityLine(trimmed) &&
+			!allowedUIPropsDerivedTypeLine(file, trimmed) && !allowedFrameworkDTOBoundaryLine(file, trimmed) {
 			findings = append(findings, designFinding(env, rulePersistenceLeak, file, lineNo,
 				fmt.Sprintf("persistence model or ORM concept leaks through boundary at %s:%d: %s", file, lineNo, findingLineExcerpt(trimmed)), core.ConfidenceHigh))
 		}
@@ -156,6 +157,23 @@ func allowedUIPropsDerivedTypeLine(file string, line string) bool {
 		strings.Contains(trimmed, "Pick<") ||
 		strings.Contains(trimmed, "Omit<") ||
 		strings.Contains(trimmed, "typeof ")
+}
+
+func allowedFrameworkDTOBoundaryLine(file string, line string) bool {
+	if !support.IsNestJSBoundaryPath(file) {
+		return false
+	}
+	trimmed := strings.TrimSpace(line)
+	if !strings.Contains(trimmed, "Dto") && !strings.Contains(trimmed, "DTO") {
+		return false
+	}
+	lowered := strings.ToLower(trimmed)
+	for _, blocked := range []string{"prismaclient", "prisma.", "typeorm", "sequelize", "sqlalchemy", "@entity", "entity", "model", "record", "row", "orm"} {
+		if strings.Contains(lowered, blocked) {
+			return false
+		}
+	}
+	return true
 }
 
 func allowedGeneratedPersistenceEnumLine(line string) bool {

@@ -83,6 +83,9 @@ func isUIConventionalAmbiguousName(file string, fn precisionFunction, name strin
 	if !isUIConventionalAmbiguousToken(normalized) {
 		return false
 	}
+	if isFrameworkConventionalAmbiguousName(file, fn, name) {
+		return true
+	}
 	if isReactComponentOrHookBoundary(file, fn) {
 		return true
 	}

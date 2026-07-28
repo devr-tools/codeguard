@@ -92,6 +92,40 @@ func TestFunctionCommandQueryMixAllowsReactAndNextBoundaries(t *testing.T) {
 				"}",
 			},
 		},
+		{
+			name: "next patch route",
+			file: "apps/web/app/api/users/[id]/route.ts",
+			source: []string{
+				"export async function PATCH(request: Request) {",
+				"  await users.update(await request.json());",
+				"  return Response.json({ ok: true });",
+				"}",
+			},
+		},
+		{
+			name: "nest controller",
+			file: "apps/api/src/users/users.controller.ts",
+			source: []string{
+				"import { Body, Controller, Get, Post } from '@nestjs/common';",
+				"@Controller('users')",
+				"export class UsersController {",
+				"  constructor(private readonly usersService: UsersService) {}",
+				"  @Get(':id')",
+				"  async getUser(data: RequestDto) {",
+				"    await this.usersService.recordAccess(data);",
+				"    return this.usersService.findOne(data.id);",
+				"  }",
+				"  @Post()",
+				"  async submit(@Body() value: CreateUserDto) {",
+				"    await this.usersService.create(value);",
+				"    return { ok: true };",
+				"  }",
+				"}",
+				"interface RequestDto { id: string }",
+				"interface CreateUserDto { id: string }",
+				"interface UsersService { recordAccess(input: RequestDto): Promise<void>; findOne(id: string): Promise<unknown>; create(input: CreateUserDto): Promise<void> }",
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -103,6 +137,31 @@ func TestFunctionCommandQueryMixAllowsReactAndNextBoundaries(t *testing.T) {
 			assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
 		})
 	}
+}
+
+func TestQualityAmbiguousNameAllowsNestJSPayloadNames(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/api/src/users/users.controller.ts"), strings.Join([]string{
+		"import { Body, Controller, Patch, Query } from '@nestjs/common';",
+		"@Controller('users')",
+		"export class UsersController {",
+		"  constructor(private readonly usersService: UsersService) {}",
+		"  @Patch(':id')",
+		"  async update(@Body() data: UpdateUserDto, @Query() value: QueryDto) {",
+		"    await this.usersService.update(data);",
+		"    return this.usersService.find(value);",
+		"  }",
+		"}",
+		"interface UpdateUserDto { id: string }",
+		"interface QueryDto { id: string }",
+		"interface UsersService { update(input: UpdateUserDto): Promise<void>; find(input: QueryDto): Promise<unknown> }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ambiguous-name")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
 }
 
 func TestQualityDuplicatedKnowledgeSkipsDisplayStringsAndIncludesLiteral(t *testing.T) {
