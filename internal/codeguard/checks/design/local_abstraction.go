@@ -154,11 +154,11 @@ func allowedGeneratedPersistenceEnumLine(line string) bool {
 		return false
 	}
 	open := strings.Index(line, "{")
-	close := strings.Index(line, "}")
-	if open < 0 || close <= open {
+	closeBrace := strings.Index(line, "}")
+	if open < 0 || closeBrace <= open {
 		return false
 	}
-	for _, part := range strings.Split(line[open+1:close], ",") {
+	for _, part := range strings.Split(line[open+1:closeBrace], ",") {
 		name := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(part), "type "))
 		if name == "" {
 			continue

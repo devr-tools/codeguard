@@ -116,7 +116,7 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 			findings = append(findings, precisionWarnFinding(env, namingBooleanNotPredicateRuleID, file, item.line,
 				fmt.Sprintf("boolean name %q should read as a predicate such as is/has/can/should", item.name), core.ConfidenceMedium))
 		}
-		if cardinalityMismatch(item.name, item.typ, item.expr) {
+		if cardinalityMismatch(item.name, item.typ) {
 			findings = append(findings, precisionWarnFinding(env, namingCardinalityMismatchRuleID, file, item.line,
 				fmt.Sprintf("identifier %q has plural/singular wording that conflicts with its value shape", item.name), core.ConfidenceMedium))
 		}
@@ -414,7 +414,7 @@ func isPredicateName(name string) bool {
 	return false
 }
 
-func cardinalityMismatch(name string, typ string, expr string) bool {
+func cardinalityMismatch(name string, typ string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
 	if base == "" || conventionalCardinalityName(base) || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
 		return false
