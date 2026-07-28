@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.3](https://github.com/devr-tools/codeguard/compare/v1.3.2...v1.3.3) (2026-07-28)
+
+
+### Bug Fixes
+
+* reduce high-volume precision false positives ([cb19b29](https://github.com/devr-tools/codeguard/commit/cb19b295fcc2de870f660be0f98ce62c39e3945d))
+* reduce high-volume precision false positives ([#77](https://github.com/devr-tools/codeguard/issues/77)) ([4cdd646](https://github.com/devr-tools/codeguard/commit/4cdd64697e3f605c9e6fb244e1d9a78d84296acf))
+
 ## [1.3.2](https://github.com/devr-tools/codeguard/compare/v1.3.1...v1.3.2) (2026-07-28)
 
 
