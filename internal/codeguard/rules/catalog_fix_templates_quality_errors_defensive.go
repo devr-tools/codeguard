@@ -18,7 +18,7 @@ var qualityErrorDefensiveFixTemplates = map[string]core.FixTemplate{
 	"defensive.invalid-state-representable": {Kind: guided, Text: "Replace boolean combinations/raw strings with an enum, tagged union, or state machine that encodes valid states."},
 	"defensive.null-assumption":             {Kind: guided, Text: "Guard nil/null/None/optional values before dereference, or make the boundary type non-nullable."},
 	"defensive.integer-overflow":            {Kind: guided, Text: "Guard count/size arithmetic before multiplication, addition, shifts, or allocation sizing."},
-	"defensive.sequence-collision-risk":     {Kind: guided, Text: "Replace count-plus-one external IDs with database sequences/UUIDs, or wrap allocation in a bounded unique-collision retry."},
+	"defensive.sequence-collision-risk":     {Kind: guided, Text: "Replace count-plus-one external IDs with database sequences, UUIDs, or a transactional allocator. A bounded P2002/unique-collision retry mitigates collisions but should still be treated as architecture debt."},
 	"defensive.bounds-assumption":           {Kind: guided, Text: "Check length/existence before indexing, or use a safe lookup API."},
 	"defensive.unsafe-default":              {Kind: guided, Text: "Make security/safety defaults fail closed and require explicit opt-out for unsafe behavior."},
 	"defensive.non-exhaustive-branch":       {Kind: guided, Text: "Add an explicit default/unreachable branch or exhaustive assertion for enum-like state switches."},

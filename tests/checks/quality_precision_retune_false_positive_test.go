@@ -262,7 +262,7 @@ func TestDefensiveIntegerArithmeticSplitsSequenceAndMetricContexts(t *testing.T)
 	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
 }
 
-func TestDefensiveSequenceCollisionRecognizesExternalIDRetryHelper(t *testing.T) {
+func TestDefensiveSequenceCollisionReportsRetryMitigatedArchitecturalDebt(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/api/src/external-id-retry.ts"), strings.Join([]string{
 		"export async function allocateExternalId(db: Db) {",
@@ -278,7 +278,7 @@ func TestDefensiveSequenceCollisionRecognizesExternalIDRetryHelper(t *testing.T)
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
-	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.sequence-collision-risk")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.sequence-collision-risk", "external-id-retry.ts", "architectural debt", "database sequence")
 	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
 }
 
