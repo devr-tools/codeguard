@@ -170,14 +170,14 @@ func TestQualityDuplicatedKnowledgeSkipsDisplayStringsAndIncludesLiteral(t *test
 		"export function Labels() {",
 		"  return <div className=\"status status\">Status</div>;",
 		"}",
-		"export const first = 'claim_status_code';",
-		"export const second = 'claim_status_code';",
+		"export const first = 'invoice_policy_code';",
+		"export const second = 'invoice_policy_code';",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
 	finding := firstFindingForRule(t, report, "Code Quality", "quality.duplicated-knowledge")
-	if !strings.Contains(finding.Message, "'claim_status_code'") {
+	if !strings.Contains(finding.Message, "'invoice_policy_code'") {
 		t.Fatalf("expected duplicated literal in message, got %q", finding.Message)
 	}
 }
@@ -189,8 +189,8 @@ func TestQualityDuplicatedKnowledgeSkipsTrivialRepeatedNumbers(t *testing.T) {
 		"export const start = 0;",
 		"export const second = 2;",
 		"export const columns = 2;",
-		"export const statusA = 'claim_status_code';",
-		"export const statusB = 'claim_status_code';",
+		"export const policyA = 'invoice_policy_code';",
+		"export const policyB = 'invoice_policy_code';",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
@@ -199,8 +199,34 @@ func TestQualityDuplicatedKnowledgeSkipsTrivialRepeatedNumbers(t *testing.T) {
 	if strings.Contains(finding.Message, " 0 ") || strings.Contains(finding.Message, " 2 ") {
 		t.Fatalf("expected duplicated domain literal instead of trivial number, got %q", finding.Message)
 	}
-	if !strings.Contains(finding.Message, "'claim_status_code'") {
+	if !strings.Contains(finding.Message, "'invoice_policy_code'") {
 		t.Fatalf("expected duplicated domain literal in message, got %q", finding.Message)
+	}
+}
+
+func TestQualityDuplicatedKnowledgeSkipsSmallNumbersAndEnumStatusStrings(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/claims/statuses.ts"), strings.Join([]string{
+		"export const retryAttempts = 3;",
+		"export const visibleColumns = 3;",
+		"export const pageSize = 25;",
+		"export const defaultLimit = 25;",
+		"export const statuses = [",
+		"  { value: 'CLAIM_APPROVED', label: 'Approved' },",
+		"  { value: 'CLAIM_APPROVED', label: 'Approved' },",
+		"];",
+		"export const premiumAmountCents = 1000;",
+		"export const vipAmountCents = 1000;",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	finding := firstFindingForRule(t, report, "Code Quality", "quality.duplicated-knowledge")
+	if strings.Contains(finding.Message, "CLAIM_APPROVED") || strings.Contains(finding.Message, "25") || strings.Contains(finding.Message, "3") {
+		t.Fatalf("expected strong numeric domain duplicate, got %q", finding.Message)
+	}
+	if !strings.Contains(finding.Message, "1000") {
+		t.Fatalf("expected duplicated money-like numeric literal, got %q", finding.Message)
 	}
 }
 
@@ -231,6 +257,25 @@ func TestNamingCardinalityMismatchAllowsCollectionSuffixesAndMapPairs(t *testing
 		"  });",
 		"  return krIds;",
 		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.cardinality-mismatch")
+}
+
+func TestNamingCardinalityMismatchAllowsCommonPluralDomainCollections(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/matters/list.ts"), strings.Join([]string{
+		"export function renderSections(answers: Answer[], contracts: Contract[], matters: Matter[], risks: Risk[], sections: Section[], columns: Column[]) {",
+		"  return { answers, contracts, matters, risks, sections, columns };",
+		"}",
+		"interface Answer { id: string }",
+		"interface Contract { id: string }",
+		"interface Matter { id: string }",
+		"interface Risk { id: string }",
+		"interface Section { id: string }",
+		"interface Column { id: string }",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
@@ -276,6 +321,19 @@ func TestNamingBooleanNotPredicateAllowsHandlersAndResourceIdentifiers(t *testin
 		"export function configure(onClick: () => void, onSave: () => Promise<void>, databaseSecretRoleArn: string) {",
 		"  const selectedArn = databaseSecretRoleArn;",
 		"  return { onClick, onSave, selectedArn };",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+}
+
+func TestNamingBooleanNotPredicateAllowsConventionalNonBooleanNames(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/components/actions.tsx"), strings.Join([]string{
+		"export function ActionButton(opts: boolean, message: boolean, className: boolean, Icon: boolean, submit: boolean, compare: boolean, parser: boolean) {",
+		"  return <button className={String(className)}>{String(message)}{String(Icon)}{String(opts)}{String(submit)}{String(compare)}{String(parser)}</button>;",
 		"}",
 	}, "\n"))
 
@@ -406,6 +464,35 @@ func TestUISmellAndOverflowRulesSkipReactNativeRenderingHelpers(t *testing.T) {
 			assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
 		})
 	}
+}
+
+func TestStructuralSmellsSkipAPIConfigTraversalAndDTOBuilders(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/contracts/mappers.ts"), strings.Join([]string{
+		"export function buildContractDto(row: Row) {",
+		"  return {",
+		"    id: row.contract.version.current.owner.profile.id,",
+		"    ownerName: row.contract.version.current.owner.profile.name,",
+		"    ownerEmail: row.contract.version.current.owner.profile.email,",
+		"    status: row.contract.version.current.status.code,",
+		"    updatedAt: row.contract.version.current.timestamps.updatedAt,",
+		"  };",
+		"}",
+		"export function readApiResponse(response: ApiResponse) {",
+		"  return response.data?.claim?.owner?.profile?.department?.name;",
+		"}",
+		"export function readConfig(config: AppConfig) {",
+		"  return config.services.api.endpoints.claims.primary.url;",
+		"}",
+		"interface Row { contract: any }",
+		"interface ApiResponse { data?: any }",
+		"interface AppConfig { services: any }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "smell.feature-envy")
+	assertFindingRuleAbsent(t, report, "Code Quality", "smell.message-chain")
 }
 
 func TestSmellAndOverflowRulesStillFlagNonUIProductionCode(t *testing.T) {

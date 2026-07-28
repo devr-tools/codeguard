@@ -49,3 +49,41 @@ func isUIRenderMappingBody(body string) bool {
 		strings.Contains(lowered, "route.params") ||
 		strings.Contains(lowered, "props.") && (strings.Contains(lowered, "theme") || strings.Contains(lowered, "style"))
 }
+
+func isStructuralMapperOrBuilderContext(fn structuralFunction) bool {
+	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
+	mapperName := false
+	for _, token := range []string{
+		"build", "bucket", "collect", "derive", "format", "group", "map", "normalize",
+		"render", "rows", "serialize", "table", "to", "transform", "writeauditlog",
+	} {
+		if strings.Contains(loweredName, token) {
+			mapperName = true
+			break
+		}
+	}
+	if !mapperName {
+		return false
+	}
+	dominantName, dominantCount, totalExternal := dominantExternalAccess(fn)
+	if dominantCount < 5 || totalExternal < 5 {
+		return false
+	}
+	switch strings.ToLower(strings.Trim(dominantName, "_$")) {
+	case "args", "data", "dto", "input", "item", "message", "payload", "record", "response", "result", "row", "rows", "value":
+		return true
+	default:
+		return mapperReturnsConstructedValue(fn.Body)
+	}
+}
+
+func mapperReturnsConstructedValue(body string) bool {
+	lowered := strings.ToLower(body)
+	return strings.Contains(lowered, "return {") ||
+		strings.Contains(lowered, "return [") ||
+		strings.Contains(lowered, "return new ") ||
+		strings.Contains(lowered, "return object.assign") ||
+		strings.Contains(lowered, "return array.from") ||
+		strings.Contains(lowered, "return rows.map") ||
+		strings.Contains(lowered, ".map(")
+}

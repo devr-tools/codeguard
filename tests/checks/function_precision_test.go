@@ -77,6 +77,34 @@ func TestFunctionCommandQueryMixWarnsWhenQueryMutatesState(t *testing.T) {
 	assertFindingLevel(t, report, "Code Quality", "function.command-query-mix", "warn")
 }
 
+func TestFunctionCommandQueryMixAllowsCommandsReturningUsefulResults(t *testing.T) {
+	cases := []string{
+		"cancelTextEdit",
+		"createNewFile",
+		"notify",
+		"recordJobRun",
+		"uploadVersion",
+	}
+	for _, name := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, "command.ts"), strings.Join([]string{
+				"export async function " + name + "(repo: Repository, input: Input) {",
+				"  await repo.save(input);",
+				"  return repo.find(input.id);",
+				"}",
+				"interface Repository { save(input: Input): Promise<void>; find(id: string): Promise<Input> }",
+				"interface Input { id: string }",
+			}, "\n"))
+
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+			assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+			assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
+		})
+	}
+}
+
 func TestFunctionHiddenMutationWarnsAcrossLanguages(t *testing.T) {
 	cases := []struct {
 		name     string

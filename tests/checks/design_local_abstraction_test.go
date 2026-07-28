@@ -287,6 +287,35 @@ func TestDesignPersistenceModelLeakSkipsNestJSDTOControllerBoundaries(t *testing
 	}
 }
 
+func TestDesignPersistenceModelLeakAllowsPackageAPIImplementationBoundary(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages", "api", "src", "claims", "repository.ts"), strings.Join([]string{
+		"import { PrismaClient } from '@prisma/client';",
+		"export async function loadClaimRows(db: PrismaClient) {",
+		"  // Convert database row shapes before returning API DTOs.",
+		"  const rows = await db.claim.findMany();",
+		"  return rows.map((row) => ({ id: row.id }));",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages", "domain", "claims", "model.ts"), strings.Join([]string{
+		"export type ClaimModel = { id: string };",
+	}, "\n"))
+
+	report := runDesignLocalScan(t, designLocalConfig(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.persistence-model-leak")
+	for _, section := range report.Sections {
+		if section.Name != "Design Patterns" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID == "design.persistence-model-leak" && strings.Contains(finding.Path, "packages/api/src") {
+				t.Fatalf("packages/api/src is an implementation boundary and should allow persistence vocabulary: %+v", finding)
+			}
+		}
+	}
+}
+
 func TestDesignPersistenceModelLeakKeepsAPIAndDomainBoundaries(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps", "web", "app", "api", "contracts", "route.ts"), strings.Join([]string{

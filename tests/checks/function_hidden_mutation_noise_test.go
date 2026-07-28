@@ -274,6 +274,53 @@ func TestFunctionHiddenMutationAllowsReactNativeLocalStateAndHandlers(t *testing
 	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
 }
 
+func TestFunctionHiddenMutationAllowsReactComponentsAndHooksAsBoundaries(t *testing.T) {
+	cases := []struct {
+		name     string
+		language string
+		file     string
+		source   []string
+	}{
+		{
+			name:     "uppercase react component",
+			language: "typescript",
+			file:     "apps/web/app/claims/_components/ClaimEditDialog.tsx",
+			source: []string{
+				"export function ClaimEditDialog(repo: Repository, claim: Claim) {",
+				"  repo.save(claim);",
+				"  return <button>Save</button>;",
+				"}",
+				"interface Repository { save(input: Claim): void }",
+				"interface Claim { id: string }",
+			},
+		},
+		{
+			name:     "react hook orchestrator",
+			language: "typescript",
+			file:     "apps/web/app/files/useNewVersionUpload.ts",
+			source: []string{
+				"export function useNewVersionUpload(uploader: Uploader, file: File) {",
+				"  uploader.upload(file);",
+				"  return { uploading: true };",
+				"}",
+				"interface Uploader { upload(input: File): void }",
+				"interface File { id: string }",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), strings.Join(tc.source, "\n"))
+
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, tc.language))
+
+			assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+			assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
+		})
+	}
+}
+
 func TestFunctionHiddenMutationStillWarnsForReactNativeCollaboratorMutation(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps/mobile/src/screens/ProfileScreen.tsx"), strings.Join([]string{

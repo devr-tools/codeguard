@@ -23,6 +23,23 @@ func isReactComponentOrHookBoundary(file string, fn precisionFunction) bool {
 	return isTSXLikeSourcePath(file) && (strings.Contains(body, "jsx") || strings.Contains(body, "return <") || strings.Contains(body, "react."))
 }
 
+func isReactComponentOrNamedHookBoundary(file string, fn precisionFunction) bool {
+	if !isScriptLikeSourcePath(file) {
+		return false
+	}
+	if isReactHookName(fn.Name) {
+		return true
+	}
+	if isReactNativeComponentOrScreenBoundary(file, fn) {
+		return true
+	}
+	if isTSXLikeSourcePath(file) && isReactComponentName(fn.Name) {
+		return true
+	}
+	body := strings.ToLower(fn.Body)
+	return isTSXLikeSourcePath(file) && (strings.Contains(body, "jsx") || strings.Contains(body, "return <") || strings.Contains(body, "react."))
+}
+
 func isTSXLikeSourcePath(file string) bool {
 	lowered := strings.ToLower(file)
 	return strings.HasSuffix(lowered, ".tsx") || strings.HasSuffix(lowered, ".jsx")
@@ -135,6 +152,9 @@ func isAllowedBooleanUIName(file string, fn precisionFunction, name string) bool
 	if isEventHandlerName(name) {
 		return true
 	}
+	if isConventionalNonPredicateName(name) {
+		return true
+	}
 	if isResourceIdentifierName(name) {
 		return true
 	}
@@ -143,6 +163,15 @@ func isAllowedBooleanUIName(file string, fn precisionFunction, name string) bool
 	}
 	switch strings.ToLower(strings.Trim(name, "_$")) {
 	case "open", "loading", "active", "pending", "checked", "selected", "expanded", "collapsed":
+		return true
+	default:
+		return false
+	}
+}
+
+func isConventionalNonPredicateName(name string) bool {
+	switch strings.ToLower(strings.Trim(name, "_$")) {
+	case "opts", "options", "message", "classname", "class", "icon", "submit", "compare", "parser", "parse", "renderer", "render":
 		return true
 	default:
 		return false
@@ -160,18 +189,21 @@ func isResourceIdentifierName(name string) bool {
 }
 
 func conventionalCardinalityName(name string) bool {
-	switch strings.ToLower(strings.Trim(name, "_$")) {
-	case "args", "rows", "ids", "next", "out", "props", "searchparams", "params", "item", "items", "entries", "status", "k", "v", "i", "j", "x", "y":
+	base := strings.ToLower(strings.Trim(name, "_$"))
+	switch base {
+	case "answers", "args", "columns", "contracts", "entries", "ids", "items", "k", "matters", "next", "out", "params", "props", "risks", "rows", "searchparams", "sections", "status", "v", "i", "j", "x", "y":
 		return true
 	default:
 		return len(name) <= 2 ||
-			strings.HasSuffix(name, "ids") ||
-			strings.HasSuffix(name, "rows") ||
-			strings.HasSuffix(name, "items") ||
-			strings.HasSuffix(name, "entries") ||
-			strings.HasSuffix(name, "params") ||
-			strings.HasSuffix(name, "props") ||
-			strings.HasSuffix(name, "args")
+			strings.HasSuffix(base, "ids") ||
+			strings.HasSuffix(base, "rows") ||
+			strings.HasSuffix(base, "items") ||
+			strings.HasSuffix(base, "entries") ||
+			strings.HasSuffix(base, "params") ||
+			strings.HasSuffix(base, "props") ||
+			strings.HasSuffix(base, "args") ||
+			strings.HasSuffix(base, "columns") ||
+			strings.HasSuffix(base, "sections")
 	}
 }
 

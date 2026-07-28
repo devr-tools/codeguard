@@ -7,7 +7,6 @@ import (
 	"go/printer"
 	"go/token"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -469,7 +468,7 @@ func primitiveObsession(fn precisionFunction) bool {
 }
 
 func hiddenSideEffect(file string, fn precisionFunction) bool {
-	if isFrameworkOrchestrationBoundary(file, fn) {
+	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || explicitMutationName(fn.Name) {
 		return false
 	}
 	if !queryFunctionPrefixPattern.MatchString(strings.ToLower(fn.Name)) {
@@ -511,7 +510,7 @@ func isDomainLevelCall(callee string) bool {
 }
 
 func commandQueryMix(file string, fn precisionFunction) bool {
-	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrHookBoundary(file, fn) {
+	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || explicitMutationName(fn.Name) {
 		return false
 	}
 	if !fn.Returns {
@@ -631,23 +630,6 @@ func parsedMutableGlobalFindings(env support.Context, file string, parsed *suppo
 	return findings
 }
 
-func parsedDuplicatedKnowledgeFindings(env support.Context, file string, parsed *support.ParsedFile) []core.Finding {
-	if isQualityFixturePath(file) {
-		return nil
-	}
-	seen := map[string]int{}
-	for _, statement := range parsed.Module.Statements {
-		for _, literal := range domainKnowledgeLiterals(statement.Raw) {
-			if first, exists := seen[literal]; exists {
-				return []core.Finding{precisionWarnFinding(env, qualityDuplicatedKnowledgeRuleID, file, statement.Line,
-					fmt.Sprintf("business literal %s is duplicated near line %d; centralize shared domain knowledge", literal, first), core.ConfidenceLow)}
-			}
-			seen[literal] = statement.Line
-		}
-	}
-	return nil
-}
-
 func redundantCommentFindings(env support.Context, file string, source string) []core.Finding {
 	if isQualityFixturePath(file) {
 		return nil
@@ -689,100 +671,12 @@ func sourceMutableGlobalFindings(env support.Context, file string, source string
 	return nil
 }
 
-func sourceDuplicatedKnowledgeFindings(env support.Context, file string, source string) []core.Finding {
-	if isQualityFixturePath(file) {
-		return nil
-	}
-	seen := map[string]int{}
-	for idx, line := range strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		for _, literal := range domainKnowledgeLiterals(line) {
-			if first, exists := seen[literal]; exists {
-				return []core.Finding{precisionWarnFinding(env, qualityDuplicatedKnowledgeRuleID, file, idx+1,
-					fmt.Sprintf("business literal %s is duplicated near line %d; centralize shared domain knowledge", literal, first), core.ConfidenceLow)}
-			}
-			seen[literal] = idx + 1
-		}
-	}
-	return nil
-}
-
 func redundantCommentVerb(comment string) string {
 	match := redundantCommentPattern.FindStringSubmatch(comment)
 	if len(match) < 3 {
 		return ""
 	}
 	return strings.ToLower(match[2])
-}
-
-func domainKnowledgeLiterals(line string) []string {
-	if duplicatedKnowledgeLineIsDisplayOnly(line) {
-		return nil
-	}
-	matches := regexp.MustCompile(`"([^"]{2,80})"|'([^']{2,80})'|\b\d+(?:\.\d+)?\b`).FindAllString(line, -1)
-	out := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if domainKnowledgeLiteral(match) {
-			out = append(out, match)
-		}
-	}
-	return out
-}
-
-func duplicatedKnowledgeLineIsDisplayOnly(line string) bool {
-	lowered := strings.ToLower(line)
-	if strings.Contains(lowered, "classname") || strings.Contains(lowered, "clasname") || strings.Contains(lowered, "class:") {
-		return true
-	}
-	if strings.Contains(line, "<") && strings.Contains(line, ">") {
-		return true
-	}
-	if strings.Contains(lowered, "label:") || strings.Contains(lowered, "placeholder:") || strings.Contains(lowered, "title:") ||
-		strings.Contains(lowered, "aria-label") {
-		return true
-	}
-	return false
-}
-
-func domainKnowledgeLiteral(value string) bool {
-	trimmed := strings.Trim(value, `"'`)
-	if trimmed == "" || len(trimmed) > 80 {
-		return false
-	}
-	if len(trimmed) < 4 && !strings.ContainsAny(trimmed, "0123456789") {
-		return false
-	}
-	if numeric, ok := duplicatedKnowledgeNumber(trimmed); ok {
-		return numeric >= 10
-	}
-	if likelyDisplayLabel(trimmed) {
-		return false
-	}
-	return domainPrimitiveNamePattern.MatchString(trimmed) || strings.Contains(trimmed, "_")
-}
-
-func duplicatedKnowledgeNumber(value string) (int, bool) {
-	number, err := strconv.Atoi(value)
-	if err != nil {
-		return 0, false
-	}
-	if number < 0 {
-		number = -number
-	}
-	return number, true
-}
-
-func likelyDisplayLabel(value string) bool {
-	if strings.Contains(value, "_") {
-		return false
-	}
-	if strings.ContainsAny(value, "-/:.") {
-		return false
-	}
-	words := strings.Fields(value)
-	return len(words) > 0 && len(words) <= 3
 }
 
 func unsafeScriptNumericConversion(text string) bool {
