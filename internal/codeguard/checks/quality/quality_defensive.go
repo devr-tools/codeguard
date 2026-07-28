@@ -194,12 +194,35 @@ func isValidationOrExtractionHelperName(name string) bool {
 
 func hasBoundaryParam(params []support.ParsedParam) bool {
 	for _, param := range params {
-		name := strings.ToLower(param.Name)
-		if containsAny(name, []string{"req", "request", "event", "payload", "body", "input"}) {
+		name := strings.ToLower(strings.Trim(param.Name, "_$"))
+		typ := strings.ToLower(param.Type)
+		switch name {
+		case "req", "event", "payload", "body", "params", "query":
 			return true
+		case "request":
+			if typ == "" || isTransportRequestType(typ) {
+				return true
+			}
+		case "input":
+			if typ == "" || containsAny(typ, []string{"unknown", "any", "record", "json", "request", "payload", "body", "params", "query"}) {
+				return true
+			}
+		default:
+			if strings.HasSuffix(name, "payload") || strings.HasSuffix(name, "body") || strings.HasSuffix(name, "params") || strings.HasSuffix(name, "query") {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+func isTransportRequestType(typ string) bool {
+	typ = strings.TrimSpace(strings.ToLower(typ))
+	return typ == "request" ||
+		strings.Contains(typ, "nextrequest") ||
+		strings.Contains(typ, "httprequest") ||
+		strings.Contains(typ, "express.request") ||
+		strings.Contains(typ, "incomingmessage")
 }
 
 func nullAssumptionLine(file string, fn precisionFunction, loweredBody string) (int, bool) {

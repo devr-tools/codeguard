@@ -262,6 +262,29 @@ func TestDefensiveNullAssumptionCreditsTypeScriptNarrowing(t *testing.T) {
 	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.null-assumption", "null-narrowing.ts:16", "nullable boundary value")
 }
 
+func TestDefensiveBoundaryInputSkipsTypedInternalDTOs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/routers/internal-dtos.ts"), strings.Join([]string{
+		"export function buildMyDayResult(inputs: MyDayInputs) {",
+		"  return { count: inputs.myRequests.length };",
+		"}",
+		"export function createPrdAnalysis(request: PrdAnalysisRequest) {",
+		"  return { title: request.title, body: request.prdContent };",
+		"}",
+		"export function consumeBoundaryInput(input: unknown) {",
+		"  return JSON.stringify(input);",
+		"}",
+		"interface MyDayInputs { myRequests: unknown[] }",
+		"interface PrdAnalysisRequest { title: string; prdContent: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.unvalidated-boundary-input", "internal-dtos.ts:1")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.unvalidated-boundary-input", "internal-dtos.ts:4")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.unvalidated-boundary-input", "internal-dtos.ts:7", "boundary input")
+}
+
 func TestFunctionReturnContractAllowsNullableParserLookupAndExistsHelpers(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/integrations/src/slack/slack-client.ts"), strings.Join([]string{
