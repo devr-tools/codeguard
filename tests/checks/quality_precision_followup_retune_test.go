@@ -42,6 +42,21 @@ func TestDefensiveIntegerOverflowFollowupRetunes(t *testing.T) {
 		"  return new Uint8Array(totalBytes);",
 		"}",
 	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/integrations/src/embeddings/vector.ts"), strings.Join([]string{
+		"export function cosine(a: Float32Array, b: Float32Array) {",
+		"  if (a.length !== b.length || a.length === 0) return 0;",
+		"  let dot = 0;",
+		"  for (let i = 0; i < a.length; i++) dot += a[i] * b[i];",
+		"  return dot;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/integrations/src/crypto/envelope.ts"), strings.Join([]string{
+		"export function validateHex(ivHex: string, tagHex: string) {",
+		"  return ivHex.length === IV_LEN * 2 && tagHex.length === TAG_LEN * 2;",
+		"}",
+		"declare const IV_LEN: number;",
+		"declare const TAG_LEN: number;",
+	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
@@ -49,6 +64,8 @@ func TestDefensiveIntegerOverflowFollowupRetunes(t *testing.T) {
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "external-id-retry.ts")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "seed-contracts.ts")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "date-buckets.ts")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "vector.ts")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "envelope.ts")
 	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.sequence-collision-risk", "external-id-retry.ts", "architectural debt", "database sequence", "transactional allocator")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.sequence-collision-risk", "seed-contracts.ts")
 }

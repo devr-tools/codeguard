@@ -322,10 +322,24 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 	if !regexp.MustCompile(`(?i)\b(count|size|length|len|capacity|offset|total|bytes)\b`).MatchString(loweredBody) {
 		return 0, false
 	}
-	if regexp.MustCompile(`[A-Za-z_][\w$]*\s*(\*|\+|<<)\s*[A-Za-z0-9_]`).MatchString(loweredBody) {
-		return fn.StartLine, true
+	if !resourceAllocationArithmeticContext(loweredBody) {
+		return 0, false
+	}
+	arithmetic := regexp.MustCompile(`[A-Za-z_][\w$]*\s*(\*|\+|<<)\s*[A-Za-z0-9_]`)
+	for _, statement := range fn.Statements {
+		if arithmetic.MatchString(firstNonEmptyString(statement.Raw, statement.Text)) {
+			return statement.Line, true
+		}
 	}
 	return 0, false
+}
+
+func resourceAllocationArithmeticContext(loweredBody string) bool {
+	return containsAny(loweredBody, []string{
+		"buffer.alloc", "allocunsafe", "new uint8array", "new arraybuffer", "new array(",
+		"make([]", "reserve(", "resize(", "setlength(", "content-length", "contentlength",
+		"readall", "read_all", "readtoend", "read_to_end",
+	})
 }
 
 func sequenceCollisionRiskLine(file string, fn precisionFunction, loweredBody string) (int, string, string, bool) {
@@ -425,8 +439,11 @@ func isSeedOrScriptSourcePath(file string) bool {
 		strings.Contains(normalized, "/backfill") ||
 		strings.Contains(normalized, "/import") ||
 		strings.HasPrefix(base, "seed") ||
+		strings.Contains(base, "seed") ||
 		strings.HasPrefix(base, "backfill") ||
+		strings.Contains(base, "backfill") ||
 		strings.HasPrefix(base, "import") ||
+		strings.Contains(base, "import") ||
 		strings.HasPrefix(base, "cleanup")
 }
 
