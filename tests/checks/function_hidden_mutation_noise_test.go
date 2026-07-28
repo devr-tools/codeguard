@@ -96,6 +96,80 @@ func TestFunctionHiddenMutationAllowsPureLocalMutationAcrossLanguages(t *testing
 	}
 }
 
+func TestFunctionHiddenMutationAllowsBuilderParserAccumulatorNames(t *testing.T) {
+	cases := []struct {
+		name   string
+		file   string
+		source []string
+	}{
+		{
+			name: "build copy text with array push",
+			file: "apps/web/lib/copy.ts",
+			source: []string{
+				"export function buildCopyText(claim: Claim) {",
+				"  const parts: string[] = [];",
+				"  parts.push(claim.id);",
+				"  parts.push(claim.status);",
+				"  return parts.join('\\n');",
+				"}",
+				"interface Claim { id: string; status: string }",
+			},
+		},
+		{
+			name: "primary cells object array",
+			file: "apps/web/app/claims/_components/cells.ts",
+			source: []string{
+				"export function primaryCells(row: Row) {",
+				"  const cells = [];",
+				"  cells.push({ key: 'status', value: row.status });",
+				"  cells.push({ key: 'owner', value: row.owner });",
+				"  return cells;",
+				"}",
+				"interface Row { status: string; owner: string }",
+			},
+		},
+		{
+			name: "calendar buckets map",
+			file: "apps/web/lib/calendar.ts",
+			source: []string{
+				"export function buildCalendarBuckets(events: Event[]) {",
+				"  const buckets = new Map<string, Event[]>();",
+				"  for (const event of events) {",
+				"    const day = event.day;",
+				"    if (!buckets.has(day)) buckets.set(day, []);",
+				"    buckets.get(day)!.push(event);",
+				"  }",
+				"  return buckets;",
+				"}",
+				"interface Event { day: string }",
+			},
+		},
+		{
+			name: "parser local object",
+			file: "packages/api/src/lib/contract-summary/parse.ts",
+			source: []string{
+				"export function parseContractSummary(raw: string) {",
+				"  const result: Record<string, string> = {};",
+				"  result.raw = raw;",
+				"  return result;",
+				"}",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), strings.Join(tc.source, "\n"))
+
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+			assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+			assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+			assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
+		})
+	}
+}
+
 func TestFunctionHiddenMutationStillWarnsForCollaboratorMutationWithLocalPayload(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "mutation.ts"), strings.Join([]string{

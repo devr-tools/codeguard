@@ -379,6 +379,9 @@ func featureEnvyFindings(env support.Context, file string, functions []structura
 		if isStructuralUIRenderingContext(file, fn) || isStructuralMapperOrBuilderContext(fn) {
 			continue
 		}
+		if isStructuralAdapterOrCrudContext(file, fn) {
+			continue
+		}
 		if len(fn.Params) == 0 || fn.Body == "" {
 			continue
 		}
@@ -483,6 +486,9 @@ func messageChainFindings(env support.Context, file string, source string, langu
 	if isScriptLikeSourcePath(file) && isLikelyUIFile(file) {
 		return nil
 	}
+	if isStructuralTraversalUtilityPath(file) {
+		return nil
+	}
 	masked := maskForStructuralLanguage(source, language)
 	for idx, line := range strings.Split(masked, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -531,7 +537,9 @@ func looksLikeAllowedTraversalChain(line string) bool {
 	for _, marker := range []string{
 		"response.", "result.", "payload.", "body.", "json.", "config.", "settings.",
 		"process.env", "import.meta.env", "params.", "query.", "headers.",
-		"row.", "record.", "dto.", "args.",
+		"row.", "record.", "dto.", "args.", "urlsearchparams", "searchparams.",
+		"include:", "select:", "where:", "prisma.", "serialize", "serializer", "json.stringify",
+		"tojson", ".tojson",
 	} {
 		if strings.Contains(lowered, marker) {
 			return true

@@ -316,6 +316,42 @@ func TestDesignPersistenceModelLeakAllowsPackageAPIImplementationBoundary(t *tes
 	}
 }
 
+func TestDesignPersistenceModelLeakIgnoresCommentsTestsAndStubs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps", "web", "app", "api", "claims", "route.test.ts"), strings.Join([]string{
+		"// Prisma row comment in test should not be a boundary leak.",
+		"export type ClaimRow = { id: string };",
+		"export const prismaStub = { claim: { findMany: async () => [] } };",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "apps", "web", "app", "api", "claims", "__fixtures__", "row-stub.ts"), strings.Join([]string{
+		"// test fixture mentions PrismaClient and row shapes only for stubs.",
+		"export type ClaimRecord = { id: string };",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "apps", "web", "app", "api", "claims", "route.ts"), strings.Join([]string{
+		"export type ClaimModel = { id: string };",
+		"export async function GET() {",
+		"  return Response.json({ ok: true });",
+		"}",
+	}, "\n"))
+
+	report := runDesignLocalScan(t, designLocalConfig(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.persistence-model-leak")
+	for _, section := range report.Sections {
+		if section.Name != "Design Patterns" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID != "design.persistence-model-leak" {
+				continue
+			}
+			if strings.Contains(finding.Path, "route.test.ts") || strings.Contains(finding.Path, "__fixtures__") {
+				t.Fatalf("comments/tests/stubs should not produce persistence leak findings: %+v", finding)
+			}
+		}
+	}
+}
+
 func TestDesignPersistenceModelLeakKeepsAPIAndDomainBoundaries(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps", "web", "app", "api", "contracts", "route.ts"), strings.Join([]string{

@@ -45,7 +45,7 @@ var (
 		"misc": {}, "stuff": {}, "value": {}, "values": {},
 	}
 	queryFunctionPrefixPattern = regexp.MustCompile(`^(get|find|list|load|read|lookup|fetch|is|has|can|should|compute|calculate|build|format|parse)`)
-	mutatingCallPattern        = regexp.MustCompile(`(?i)(^|[.>:\-_])(add|append|assign|create|delete|emit|insert|mutate|persist|publish|remove|save|send|set|store|update|upsert|write)([A-Z_:\-.]|$)`)
+	mutatingCallPattern        = regexp.MustCompile(`(?i)(^|[.>:\-_])(add|append|assign|clear|create|delete|emit|insert|mutate|persist|pop|publish|push|push_back|remove|reverse|save|send|set|sort|splice|store|update|upsert|write)([A-Z_:\-.]|$)`)
 	lowLevelOperationPattern   = regexp.MustCompile(`(?i)(\bsql\.|\.query\(|\.exec\(|\bhttp\.|\bfetch\(|\baxios\.|\brequests\.|\bjson\.|\bJSON\.|\bos\.Getenv\b|\bprocess\.env\b|\bfs\.|#include\b)`)
 	primitiveTypePattern       = regexp.MustCompile(`(?i)\b(string|str|int|int64|float|float64|double|decimal|number|boolean|bool|char|long|short)\b`)
 	domainPrimitiveNamePattern = regexp.MustCompile(`(?i)(id|status|state|type|kind|currency|amount|price|email|phone|country|role|permission|tenant|account|customer|order)`)
@@ -372,7 +372,7 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, fn.StartLine,
 			fmt.Sprintf("function name %q is too generic to communicate intent", fn.Name), core.ConfidenceHigh))
 	}
-	if isAmbiguousIdentifier(fn.Name) && !isUIConventionalAmbiguousName(file, fn, fn.Name, "", fn.StartLine) {
+	if isAmbiguousIdentifier(fn.Name) && !isUIConventionalAmbiguousName(file, fn, fn.Name, "", fn.StartLine) && !isLocallyClearAmbiguousName(fn, fn.Name) {
 		findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, fn.StartLine,
 			fmt.Sprintf("function name %q is ambiguous without domain context", fn.Name), core.ConfidenceHigh))
 	}
@@ -381,7 +381,7 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 			findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, fn.StartLine,
 				fmt.Sprintf("parameter %q is too generic to communicate intent", param.Name), core.ConfidenceHigh))
 		}
-		if isAmbiguousIdentifier(param.Name) && !isUIConventionalAmbiguousName(file, fn, param.Name, param.Type, fn.StartLine) {
+		if isAmbiguousIdentifier(param.Name) && !isUIConventionalAmbiguousName(file, fn, param.Name, param.Type, fn.StartLine) && !isLocallyClearAmbiguousName(fn, param.Name) {
 			findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, fn.StartLine,
 				fmt.Sprintf("parameter %q is ambiguous without domain context", param.Name), core.ConfidenceHigh))
 		}
@@ -395,12 +395,12 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 			findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, assignment.Line,
 				fmt.Sprintf("identifier %q is too generic to explain its role", assignment.Name), core.ConfidenceHigh))
 		}
-		if isAmbiguousIdentifier(assignment.Name) && !isUIConventionalAmbiguousName(file, fn, assignment.Name, "", assignment.Line) {
+		if isAmbiguousIdentifier(assignment.Name) && !isUIConventionalAmbiguousName(file, fn, assignment.Name, "", assignment.Line) && !isLocallyClearAmbiguousName(fn, assignment.Name) {
 			findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, assignment.Line,
 				fmt.Sprintf("identifier %q is ambiguous without domain context", assignment.Name), core.ConfidenceHigh))
 		}
 	}
-	if mixedAbstractionLevel(fn) {
+	if mixedAbstractionLevel(fn) && !isAdapterOrOrchestrationFunction(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, functionMixedAbstractionLevelRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mixes orchestration calls with low-level infrastructure operations", fn.Name), core.ConfidenceMedium))
 		findings = append(findings, precisionWarnFinding(env, qualityMixedAbstractionLevelsRuleID, file, fn.StartLine,
@@ -443,6 +443,15 @@ func isAmbiguousIdentifier(name string) bool {
 	return ok
 }
 
+func isLocallyClearAmbiguousName(fn precisionFunction, name string) bool {
+	normalized := strings.ToLower(strings.Trim(name, "_$"))
+	if normalized != "value" && normalized != "values" {
+		return false
+	}
+	loweredName := strings.ToLower(fn.Name)
+	return containsAny(loweredName, []string{"parse", "normalize", "format", "render", "map", "transform", "compare", "equal", "record", "field", "option"})
+}
+
 func isBooleanParameter(param support.ParsedParam) bool {
 	return strings.EqualFold(strings.TrimSpace(param.Type), "bool") ||
 		strings.EqualFold(strings.TrimSpace(param.Type), "boolean") ||
@@ -474,9 +483,12 @@ func hiddenSideEffect(file string, fn precisionFunction) bool {
 	if !queryFunctionPrefixPattern.MatchString(strings.ToLower(fn.Name)) {
 		return false
 	}
+	if isAccumulatorBuilderFunctionName(fn.Name) && !hasLikelyExternalMutationCall(fn) {
+		return false
+	}
 	localTargets := localMutationTargets(fn)
 	for _, call := range directCalls(fn) {
-		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) && !isBuilderAccumulatorMutationCall(fn, call) {
 			return true
 		}
 	}
@@ -516,13 +528,16 @@ func commandQueryMix(file string, fn precisionFunction) bool {
 	if !fn.Returns {
 		return false
 	}
+	if isAccumulatorBuilderFunctionName(fn.Name) && !hasLikelyExternalMutationCall(fn) {
+		return false
+	}
 	name := strings.ToLower(fn.Name)
 	if !queryFunctionPrefixPattern.MatchString(name) && !strings.Contains(fn.Body, "return ") {
 		return false
 	}
 	localTargets := localMutationTargets(fn)
 	for _, call := range directCalls(fn) {
-		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) && !isBuilderAccumulatorMutationCall(fn, call) {
 			return true
 		}
 	}

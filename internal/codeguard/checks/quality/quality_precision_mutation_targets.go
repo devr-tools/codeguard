@@ -10,7 +10,7 @@ import (
 
 var conventionalMutationBoundaryPattern = regexp.MustCompile(`^(accept|apply|approve|archive|clear|close|commit|deliver|download|drop|ensure|exists|fetch|import|list|notify|open|process|read|reconcile|record|run|seed|submit|sync|toggle|upload)`)
 
-var localAccumulatorExprPattern = regexp.MustCompile(`(?i)^(?:new\s+)?(?:array|formdata|map|object|set|urlsearchparams|weakmap|weakset)\b|^\[\]|^\{\}|^make\s*\(|^(?:bytes|strings)\.buffer\b|^strings\.builder\b`)
+var localAccumulatorExprPattern = regexp.MustCompile(`(?i)^(?:new\s+)?(?:array|formdata|map|object|set|urlsearchparams|weakmap|weakset)\b|^\[|^\{|^make\s*\(|^array\.from\b|\.map\s*\(|\.filter\s*\(|\.reduce\s*\(|^(?:bytes|strings)\.buffer\b|^strings\.builder\b`)
 
 func localMutationTargets(fn precisionFunction) map[string]struct{} {
 	params := paramNames(fn)
@@ -25,6 +25,22 @@ func localMutationTargets(fn precisionFunction) map[string]struct{} {
 		}
 		if assignmentLooksLocalAccumulator(fn, assignment) {
 			targets[name] = struct{}{}
+			continue
+		}
+		if fn.Returns && isAccumulatorLikeLocalName(name) && assignmentLooksLocalBuilder(fn, assignment) {
+			targets[name] = struct{}{}
+		}
+	}
+	if fn.Returns && isAccumulatorBuilderFunctionName(fn.Name) {
+		for _, call := range directCalls(fn) {
+			target := mutationCallTarget(call.Callee)
+			if target == "" || !isAccumulatorLikeLocalName(target) {
+				continue
+			}
+			if _, isParam := params[target]; isParam {
+				continue
+			}
+			targets[target] = struct{}{}
 		}
 	}
 	return targets
@@ -91,7 +107,52 @@ func assignmentLooksLocalAccumulator(fn precisionFunction, assignment support.Pa
 	return regexp.MustCompile(`(?i)\b(?:const|let|var)\s+`+name+`\b.*=\s*(?:new\s+)?(?:array|formdata|map|object|set|urlsearchparams|weakmap|weakset)\b`).MatchString(statement) ||
 		regexp.MustCompile(`(?i)\bvar\s+`+name+`\s+(?:bytes\.buffer|strings\.builder)\b`).MatchString(statement) ||
 		regexp.MustCompile(`(?i)\bstd::(?:vector|map|set|unordered_map|unordered_set|stringstream)\b[^;\n]*\b`+name+`\b`).MatchString(statement) ||
-		regexp.MustCompile(`\b`+name+`\s*:=\s*(?:\[\]|\{\}|make\s*\(|(?:bytes|strings)\.Buffer\b|strings\.Builder\b)`).MatchString(statement)
+		regexp.MustCompile(`\b`+name+`\s*:=\s*(?:\[\]|\{\}|make\s*\(|(?:bytes|strings)\.Buffer\b|strings\.Builder\b)`).MatchString(statement) ||
+		regexp.MustCompile(`(?i)\b(?:const|let|var)\s+`+name+`\b.*=\s*(?:\[|\{|array\.from\b|[^;\n]+\.map\s*\(|[^;\n]+\.filter\s*\(|new\s+urlsearchparams\b)`).MatchString(statement)
+}
+
+func assignmentLooksLocalBuilder(fn precisionFunction, assignment support.ParsedAssignment) bool {
+	statement := strings.ToLower(assignmentStatement(fn, assignment.Line))
+	expr := strings.ToLower(strings.TrimSpace(assignment.Expr))
+	if statement == "" && expr == "" {
+		return false
+	}
+	return strings.Contains(statement, "new ") ||
+		strings.Contains(statement, "create") ||
+		strings.Contains(statement, "build") ||
+		strings.Contains(statement, "make") ||
+		strings.Contains(expr, "new ") ||
+		strings.Contains(expr, "create") ||
+		strings.Contains(expr, "build") ||
+		strings.Contains(expr, "make")
+}
+
+func isAccumulatorLikeLocalName(name string) bool {
+	lowered := strings.ToLower(strings.Trim(name, "_$"))
+	for _, token := range []string{
+		"bucket", "buckets", "buffer", "builder", "calendar", "cells", "copy", "doc",
+		"document", "filter", "filters", "form", "items", "lines", "params", "parts",
+		"payload", "primarycells", "query", "result", "rows", "scopes", "sections",
+		"serializer", "text", "urlparams", "values", "csv", "export", "map",
+	} {
+		if strings.Contains(lowered, token) {
+			return true
+		}
+	}
+	return false
+}
+
+func isAccumulatorBuilderFunctionName(name string) bool {
+	lowered := strings.ToLower(strings.Trim(name, "_$"))
+	for _, token := range []string{
+		"bucket", "build", "collect", "derive", "format", "group", "map", "parse",
+		"primary", "render", "serialize", "transform",
+	} {
+		if strings.Contains(lowered, token) {
+			return true
+		}
+	}
+	return false
 }
 
 func assignmentStatement(fn precisionFunction, line int) string {
@@ -129,7 +190,7 @@ func isLocalMutationCall(callee string, localTargets map[string]struct{}) bool {
 
 func isBareLocalMutationCall(callee string) bool {
 	switch strings.TrimSpace(callee) {
-	case "append", "Set", "Array", "Object", "Map", "WeakMap", "WeakSet":
+	case "append", "Set", "Array", "Object", "Map", "WeakMap", "WeakSet", "push_back":
 		return true
 	default:
 		return false
@@ -152,6 +213,32 @@ func mutationCallTarget(callee string) string {
 func isLocalMutationTarget(name string, localTargets map[string]struct{}) bool {
 	_, ok := localTargets[strings.TrimSpace(name)]
 	return ok
+}
+
+func isBuilderAccumulatorMutationCall(fn precisionFunction, call support.ParsedCall) bool {
+	if !fn.Returns || !isAccumulatorBuilderFunctionName(fn.Name) {
+		return false
+	}
+	target := mutationCallTarget(call.Callee)
+	if target == "" {
+		return isBareLocalMutationCall(call.Callee)
+	}
+	params := paramNames(fn)
+	if _, isParam := params[target]; isParam {
+		return false
+	}
+	return isAccumulatorLikeLocalName(target)
+}
+
+func isBuilderAccumulatorAssignment(fn precisionFunction, assignment support.ParsedAssignment) bool {
+	if !fn.Returns || !isAccumulatorBuilderFunctionName(fn.Name) {
+		return false
+	}
+	params := paramNames(fn)
+	if _, isParam := params[assignment.Name]; isParam {
+		return false
+	}
+	return isAccumulatorLikeLocalName(assignment.Name)
 }
 
 func isFrameworkCommandBoundary(file string, name string) bool {
