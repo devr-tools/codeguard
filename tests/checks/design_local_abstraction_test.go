@@ -132,3 +132,34 @@ func TestDesignLocalAbstractionAdditionalLanguages(t *testing.T) {
 	cppReport := runDesignLocalScan(t, designLocalConfig(dir, "cpp"))
 	assertFindingRulePresent(t, cppReport, "Design Patterns", "design.persistence-model-leak")
 }
+
+func TestDesignPersistenceModelLeakAllowsGeneratedPrismaEnums(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps", "web", "app", "contracts", "_components", "contracts-filters.ts"), strings.Join([]string{
+		"import { ContractStatus, ContractType } from '@prisma/client';",
+		"export const statusLabels: Record<ContractStatus, string> = {",
+		"  DRAFT: 'Draft',",
+		"} as Record<ContractStatus, string>;",
+		"export type ContractFilter = { status?: ContractStatus; type?: ContractType };",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "apps", "web", "app", "api", "contracts", "route.ts"), strings.Join([]string{
+		"export type ContractModel = { id: string };",
+		"export async function GET() {",
+		"  return Response.json({ ok: true });",
+		"}",
+	}, "\n"))
+
+	report := runDesignLocalScan(t, designLocalConfig(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.persistence-model-leak")
+	for _, section := range report.Sections {
+		if section.Name != "Design Patterns" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID == "design.persistence-model-leak" && strings.Contains(finding.Path, "contracts-filters.ts") {
+				t.Fatalf("generated Prisma enum import should not leak persistence model: %+v", finding)
+			}
+		}
+	}
+}

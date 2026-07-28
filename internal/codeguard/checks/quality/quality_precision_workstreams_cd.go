@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	commandFunctionPrefixPattern = regexp.MustCompile(`^(add|append|assign|cancel|create|delete|emit|insert|mutate|persist|publish|remove|save|send|set|store|update|upsert|write)`)
+	commandFunctionPrefixPattern = regexp.MustCompile(`^(add|append|assign|cancel|clear|close|create|delete|disable|emit|enable|insert|mutate|open|persist|publish|remove|reset|save|send|set|store|toggle|update|upsert|write)`)
 	readCallPattern              = regexp.MustCompile(`(?i)(^|[.>:\-_])(count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
 	identifierTokenPattern       = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
 	infraNamePattern             = regexp.MustCompile(`(?i)(sql|http|redis|kafka|grpc|graphql|mongo|s3|dynamo|postgres|mysql|elastic|orm)`)
@@ -54,7 +54,7 @@ func additionalPrecisionFunctionFindings(env support.Context, file string, fn pr
 		findings = append(findings, precisionWarnFinding(env, namingBehaviorMismatchRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s name conflicts with observed query/command behavior", fn.Name), core.ConfidenceMedium))
 	}
-	if hiddenMutation(fn) {
+	if hiddenMutation(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, functionHiddenMutationRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mutates state without an explicit command-style name", fn.Name), core.ConfidenceMedium))
 	}
@@ -112,11 +112,11 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 		if item.name == "" {
 			continue
 		}
-		if isBooleanNameCandidate(item.name, item.typ, item.expr, fn) && !isPredicateName(item.name) {
+		if isBooleanNameCandidate(item.name, item.typ, item.expr, fn) && !isPredicateName(item.name) && !isAllowedBooleanUIName(file, fn, item.name) {
 			findings = append(findings, precisionWarnFinding(env, namingBooleanNotPredicateRuleID, file, item.line,
 				fmt.Sprintf("boolean name %q should read as a predicate such as is/has/can/should", item.name), core.ConfidenceMedium))
 		}
-		if cardinalityMismatch(item.name, item.typ, item.expr) {
+		if cardinalityMismatch(item.name, item.typ) {
 			findings = append(findings, precisionWarnFinding(env, namingCardinalityMismatchRuleID, file, item.line,
 				fmt.Sprintf("identifier %q has plural/singular wording that conflicts with its value shape", item.name), core.ConfidenceMedium))
 		}
@@ -169,21 +169,27 @@ func behaviorMismatch(fn precisionFunction) bool {
 	return false
 }
 
-func hiddenMutation(fn precisionFunction) bool {
-	if explicitMutationName(fn.Name) {
+func hiddenMutation(file string, fn precisionFunction) bool {
+	if explicitMutationName(fn.Name) || isFrameworkCommandBoundary(file, fn.Name) || isScriptEntrypoint(file, fn.Name) {
 		return false
 	}
-	return mutatingFunctionEvidence(fn) || mutatesParameter(fn)
+	mutatesParam := mutatesParameter(fn)
+	mutatesState := mutatingFunctionEvidence(fn)
+	if isReactHookStateBoundary(file, fn) && mutatesState && !mutatesParam && onlyReactHookLocalStateMutation(fn) {
+		return false
+	}
+	return mutatesState || mutatesParam
 }
 
 func mutatingFunctionEvidence(fn precisionFunction) bool {
+	localTargets := localMutationTargets(fn)
 	for _, call := range fn.Calls {
-		if mutatingCallPattern.MatchString(call.Callee) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) {
 			return true
 		}
 	}
 	for _, assignment := range fn.Assignments {
-		if assignment.Augmented {
+		if assignment.Augmented && !isLocalMutationTarget(assignment.Name, localTargets) {
 			return true
 		}
 	}
@@ -237,6 +243,7 @@ func lineHasAssignmentOperator(line string) bool {
 func explicitMutationName(name string) bool {
 	lowered := strings.ToLower(strings.TrimSpace(name))
 	return commandFunctionPrefixPattern.MatchString(lowered) ||
+		conventionalMutationBoundaryPattern.MatchString(lowered) ||
 		strings.Contains(lowered, "mutat") ||
 		strings.Contains(lowered, "persist") ||
 		strings.Contains(lowered, "write")
@@ -407,14 +414,14 @@ func isPredicateName(name string) bool {
 	return false
 }
 
-func cardinalityMismatch(name string, typ string, expr string) bool {
+func cardinalityMismatch(name string, typ string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
-	if base == "" || base == "item" || base == "items" || base == "status" || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
+	if base == "" || conventionalCardinalityName(base) || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
 		return false
 	}
 	plural := isPluralName(base)
-	collection := collectionTypePattern.MatchString(typ) || collectionExpr(expr)
-	scalar := scalarTypePattern.MatchString(typ) || scalarExpr(expr)
+	collection := collectionTypePattern.MatchString(typ)
+	scalar := scalarTypePattern.MatchString(typ)
 	if plural && scalar && !collection {
 		return true
 	}
@@ -426,27 +433,6 @@ func isPluralName(name string) bool {
 		return false
 	}
 	return strings.HasSuffix(name, "s") && !strings.HasSuffix(name, "ss") && !strings.HasSuffix(name, "us")
-}
-
-func collectionExpr(expr string) bool {
-	expr = strings.TrimSpace(strings.ToLower(expr))
-	return strings.HasPrefix(expr, "[]") || strings.HasPrefix(expr, "[") || strings.HasPrefix(expr, "map[") ||
-		strings.HasPrefix(expr, "make([]") || strings.Contains(expr, "new map") || strings.Contains(expr, "new set") ||
-		strings.Contains(expr, "array<") || strings.Contains(expr, "list<") || strings.Contains(expr, "vector<")
-}
-
-func scalarExpr(expr string) bool {
-	expr = strings.TrimSpace(strings.TrimSuffix(expr, ";"))
-	if expr == "" {
-		return false
-	}
-	if booleanExprPattern.MatchString(expr) {
-		return true
-	}
-	if expr[0] == '"' || expr[0] == '\'' || (expr[0] >= '0' && expr[0] <= '9') {
-		return true
-	}
-	return false
 }
 
 func implementationLeakName(name string) bool {
