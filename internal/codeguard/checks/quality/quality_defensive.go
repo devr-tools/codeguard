@@ -28,7 +28,7 @@ var (
 	indexAccessPattern       = regexp.MustCompile(`\b([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)\s*\[\s*([^\]\n]+)\s*\]`)
 	jsonDecodePattern        = regexp.MustCompile(`(?i)(json\.Unmarshal|json\.NewDecoder|JSON\.parse|json\.loads|nlohmann::json::parse|decode_json|parseJson)`)
 	externalCallPattern      = regexp.MustCompile(`(?i)(http\.Get|client\.Do|fetch\s*\(|axios\.|requests\.(get|post|put|delete)|curl_easy_perform|httplib::|http_client)`)
-	resourceReadPattern      = regexp.MustCompile(`(?i)(io\.ReadAll|ReadAll|read_to_string|read_to_end|\.read\s*\(|bodyParser|multer|upload|formData\s*\(|request\.body|r\.Body)`)
+	resourceReadPattern      = regexp.MustCompile(`(?i)(io\.ReadAll|ReadAll|read_to_string|read_to_end|\.read\s*\(|\.text\s*\(|arrayBuffer\s*\(|bodyParser|multer|formData\s*\(|request\.body|r\.Body)`)
 	ormCollectionReadPattern = regexp.MustCompile(`(?i)\bfindMany\s*\(`)
 	unsafeDefaultPattern     = regexp.MustCompile(`(?i)(getenv|process\.env|os\.environ|std::getenv|config).*?(default|fallback|\|\||!=|,\s*['"]).*?(true|false|allow|disable|skip|insecure)`)
 	switchLikePattern        = regexp.MustCompile(`(?i)\b(switch|match)\b[^{:\n]*(status|state|kind|type)`)
@@ -42,6 +42,7 @@ var (
 	sequenceAllocationLine   = regexp.MustCompile(`(?i)\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b.*(?:count|max)\s*\+\s*1|(?:count|max)\s*\+\s*1.*\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b`)
 	jsonReaderSchemaCall     = regexp.MustCompile(`(?i)\b(?:read|parse|decode)Json[A-Za-z0-9_]*\s*\([^)\n,]+,\s*[A-Za-z_$][\w$]*(?:Schema|Validator|Codec|Parser)\b`)
 	prismaTakePattern        = regexp.MustCompile(`(?is)\b(?:findMany|findFirst|findUnique|query|search)\s*\([^)]*\btake\s*:`)
+	sequenceIndexKeyPattern  = regexp.MustCompile(`(?i)^(?:i|j|n|idx|index|offset|position|pos|[A-Za-z_$][\w$]*(?:Index|Idx|Offset|Position|Pos))$`)
 )
 
 func defensiveBoundaryFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -52,11 +53,11 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 	loweredBody := strings.ToLower(body)
 	findings := make([]core.Finding, 0)
 
-	if line, ok := unvalidatedBoundaryInputLine(fn, loweredBody); ok {
+	if line, ok := unvalidatedBoundaryInputLine(file, fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveUnvalidatedBoundaryInputRuleID, file, line,
 			"boundary input is consumed without validation or schema checks", core.ConfidenceMedium))
 	}
-	if line, ok := nullAssumptionLine(fn, loweredBody); ok {
+	if line, ok := nullAssumptionLine(file, fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveNullAssumptionRuleID, file, line,
 			"nullable boundary value is dereferenced without a nil/null guard", core.ConfidenceMedium))
 	}
@@ -137,7 +138,10 @@ func structuralStateContainerLine(line string) bool {
 	return strings.Contains(lowered, "struct") || strings.Contains(lowered, "interface") || strings.Contains(lowered, "class")
 }
 
-func unvalidatedBoundaryInputLine(fn precisionFunction, loweredBody string) (int, bool) {
+func unvalidatedBoundaryInputLine(file string, fn precisionFunction, loweredBody string) (int, bool) {
+	if isUIHelperOrMappingContext(file, fn) || isReactComponentOrHookBoundary(file, fn) {
+		return 0, false
+	}
 	if !boundaryFunctionName(fn.Name) && !hasBoundaryParam(fn.Params) {
 		return 0, false
 	}
@@ -198,7 +202,10 @@ func hasBoundaryParam(params []support.ParsedParam) bool {
 	return false
 }
 
-func nullAssumptionLine(fn precisionFunction, loweredBody string) (int, bool) {
+func nullAssumptionLine(file string, fn precisionFunction, loweredBody string) (int, bool) {
+	if isUIHelperOrMappingContext(file, fn) || isReactComponentOrHookBoundary(file, fn) {
+		return 0, false
+	}
 	for _, param := range fn.Params {
 		name := strings.ToLower(strings.Trim(param.Name, "*& "))
 		if name == "" || !nullableParam(param) {
@@ -393,7 +400,7 @@ func indexExpressionLooksSequenceAccess(target string, key string, raw string) b
 	if regexp.MustCompile(`^\d+$`).MatchString(loweredKey) {
 		return true
 	}
-	if containsAny(loweredKey, []string{"index", "idx", "offset", "position", "pos", "i", "j", "n"}) {
+	if sequenceIndexKeyPattern.MatchString(strings.TrimSpace(strings.Trim(key, `"'`))) {
 		return true
 	}
 	return containsAny(loweredTarget, []string{"array", "list", "slice", "items", "rows", "columns", "chars", "parts", "tokens", "segments", "lines", "values"}) &&
