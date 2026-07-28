@@ -84,9 +84,20 @@ func TestDefensiveBoundsAssumptionDistinguishesDictionaryFromSequenceAccess(t *t
 		"export function envValue(name: string) {",
 		"  return process.env[name];",
 		"}",
+		"export function modelConfig(config: Record<string, string>, modelKey: string) {",
+		"  return config[modelKey] ?? 'default';",
+		"}",
+		"export async function promiseTuple(db: Db, ids: string[]) {",
+		"  const [contracts, risks] = await Promise.all([",
+		"    db.contract.findMany({ where: { id: { in: ids } }, take: 10 }),",
+		"    db.risk.findMany({ where: { id: { in: ids } }, take: 10 }),",
+		"  ]);",
+		"  return { contracts, risks };",
+		"}",
 		"export function firstSegment(segments: string[]) {",
 		"  return segments[0];",
 		"}",
+		"interface Db { contract: { findMany(input: unknown): Promise<unknown[]> }; risk: { findMany(input: unknown): Promise<unknown[]> } }",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
@@ -94,6 +105,8 @@ func TestDefensiveBoundsAssumptionDistinguishesDictionaryFromSequenceAccess(t *t
 	assertFindingRulePresent(t, report, "Code Quality", "defensive.bounds-assumption")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.bounds-assumption", "field-map.ts:2")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.bounds-assumption", "field-map.ts:5")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.bounds-assumption", "field-map.ts:8")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.bounds-assumption", "field-map.ts:11")
 }
 
 func TestDefensiveResourceLimitCreditsPrismaTakeAndContentLengthHelpers(t *testing.T) {
@@ -117,12 +130,67 @@ func TestDefensiveResourceLimitCreditsPrismaTakeAndContentLengthHelpers(t *testi
 		"  const form = await request.formData();",
 		"  return form;",
 		"}",
+		"export async function readRaw(file: File) {",
+		"  return Buffer.from(await file.arrayBuffer());",
+		"}",
+		"export function uploadsRoot() {",
+		"  const fromEnv = process.env.LEGAL_OS_UPLOADS_ROOT?.trim();",
+		"  return fromEnv ?? '/tmp/uploads';",
+		"}",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
 	assertFindingRulePresent(t, report, "Code Quality", "defensive.missing-resource-limit")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.missing-resource-limit", "search-tools.ts")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.missing-resource-limit", "unbounded-upload.ts:8")
+}
+
+func TestDefensiveBroadeningSkipsUIBoundsAndInternalORMReads(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/components/relationship-tree.tsx"), strings.Join([]string{
+		"export function RelationshipTree({ nodes, columns }: Props) {",
+		"  const firstNode = nodes[0];",
+		"  const selectedColumn = columns[activeIndex];",
+		"  return <div>{firstNode?.id}{selectedColumn?.label}</div>;",
+		"}",
+		"interface Props { nodes: Array<{ id: string }>; columns: Array<{ label: string }>; activeIndex: number }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "apps/web/components/use-filter-state.tsx"), strings.Join([]string{
+		"export function useFilterState(input?: { query?: string }) {",
+		"  const query = input?.query ?? '';",
+		"  return { query };",
+		"}",
+		"export function SearchToolbar({ input }: { input?: { query?: string } }) {",
+		"  return <button>{input?.query ?? 'Search'}</button>;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/legal-roster.ts"), strings.Join([]string{
+		"export async function getLegalRoster(db: Db) {",
+		"  const rows = await db.user.findMany({ where: { active: true } });",
+		"  return rows.map((row) => ({ id: row.id, name: row.name }));",
+		"}",
+		"interface Db { user: { findMany(input: unknown): Promise<Array<{ id: string; name: string }>> } }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/routers/search-tools.ts"), strings.Join([]string{
+		"export async function searchTools(db: Db, query: string) {",
+		"  return db.tool.findMany({ where: { name: { contains: query } } });",
+		"}",
+		"export async function searchToolsLimited(db: Db, query: string) {",
+		"  return db.tool.findMany({ where: { name: { contains: query } }, take: TOOL_SEARCH_LIMIT });",
+		"}",
+		"declare const TOOL_SEARCH_LIMIT: number;",
+		"interface Db { tool: { findMany(input: unknown): Promise<unknown[]> } }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.bounds-assumption", "relationship-tree.tsx")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "use-filter-state.tsx")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.unvalidated-boundary-input", "use-filter-state.tsx")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.missing-resource-limit", "legal-roster.ts")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.missing-resource-limit", "search-tools.ts", "resource limit")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.missing-resource-limit", "search-tools.ts:4")
 }
 
 func TestFunctionReturnContractAllowsNullableParserLookupAndExistsHelpers(t *testing.T) {

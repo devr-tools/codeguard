@@ -439,7 +439,7 @@ func TestQualityDefensiveBoundariesDetectMultiLanguageSignals(t *testing.T) {
 				"  return payload.user.id;",
 				"}",
 				"",
-				"export function renderUser(user: User | null): string {",
+				"export function loadUserName(user: User | null): string {",
 				"  return user.name;",
 				"}",
 				"",
