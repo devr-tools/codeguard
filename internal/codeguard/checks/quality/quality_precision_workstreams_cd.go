@@ -122,7 +122,7 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 			findings = append(findings, precisionWarnFinding(env, namingBooleanNotPredicateRuleID, file, item.line,
 				fmt.Sprintf("boolean name %q should read as a predicate such as is/has/can/should", item.name), core.ConfidenceMedium))
 		}
-		if cardinalityMismatch(item.name, item.typ) {
+		if cardinalityMismatch(file, fn, item.name, item.typ) {
 			findings = append(findings, precisionWarnFinding(env, namingCardinalityMismatchRuleID, file, item.line,
 				fmt.Sprintf("identifier %q has plural/singular wording that conflicts with its value shape", item.name), core.ConfidenceMedium))
 		}
@@ -336,11 +336,28 @@ func inconsistentReturnContract(fn precisionFunction) bool {
 	if nextResponseNullableGuardHelper(fn) || nullableParserLookupContract(fn) {
 		return false
 	}
+	if explicitNullableReturnContract(fn) {
+		return false
+	}
 	returns := returnCategories(fn.Body)
 	if returns.total < 2 {
 		return false
 	}
 	return returns.empty && returns.value
+}
+
+func explicitNullableReturnContract(fn precisionFunction) bool {
+	signature := strings.ToLower(fn.Signature)
+	if signature == "" {
+		return false
+	}
+	return containsAny(signature, []string{
+		"| null", "|null", "| undefined", "|undefined",
+		"null>", "undefined>", "optional<", "option<",
+		"promise<", "result<",
+	}) && containsAny(fn.Body, []string{
+		"return null", "return undefined", "return none", "return nil",
+	})
 }
 
 func nextResponseNullableGuardHelper(fn precisionFunction) bool {
@@ -500,12 +517,29 @@ func orchestrationDomainMix(fn precisionFunction) bool {
 
 func isBooleanNameCandidate(name string, typ string, expr string, fn precisionFunction) bool {
 	if name == fn.Name {
+		if explicitMutationName(name) || explicitNonBooleanFunctionName(name) {
+			return false
+		}
 		return functionLooksBoolean(fn)
 	}
 	if isBooleanType(typ) {
 		return true
 	}
 	return expr != "" && booleanExprPattern.MatchString(strings.TrimSpace(expr))
+}
+
+func explicitNonBooleanFunctionName(name string) bool {
+	lowered := strings.ToLower(strings.Trim(name, "_$"))
+	for _, prefix := range []string{
+		"build", "call", "create", "decode", "extract", "fetch", "format", "hydrate",
+		"load", "lookup", "normalize", "parse", "read", "reject", "render", "resolve",
+		"serialize", "strip", "to", "write",
+	} {
+		if strings.HasPrefix(lowered, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func isInferredUIBooleanAssignment(file string, fn precisionFunction, typ string, expr string, line int) bool {
@@ -535,7 +569,7 @@ func isBooleanType(typ string) bool {
 
 func isPredicateName(name string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
-	for _, prefix := range []string{"is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "visible", "ready", "show", "matches"} {
+	for _, prefix := range []string{"is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "verify", "visible", "ready", "show", "matches"} {
 		if strings.HasPrefix(lowered, prefix) {
 			return true
 		}
@@ -543,9 +577,12 @@ func isPredicateName(name string) bool {
 	return false
 }
 
-func cardinalityMismatch(name string, typ string) bool {
+func cardinalityMismatch(file string, fn precisionFunction, name string, typ string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
 	if base == "" || conventionalCardinalityName(base) || configuredPluralDomainAbbreviation(base) || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
+		return false
+	}
+	if isUIHelperOrMappingContext(file, fn) && conventionalUICardinalityName(base) {
 		return false
 	}
 	if strings.Contains(typ, "{") || strings.Contains(typ, "}") {
@@ -558,6 +595,23 @@ func cardinalityMismatch(name string, typ string) bool {
 		return true
 	}
 	return !plural && collection && !strings.Contains(base, "map") && !strings.Contains(base, "list") && !strings.Contains(base, "set")
+}
+
+func conventionalUICardinalityName(base string) bool {
+	if strings.HasPrefix(base, "by") {
+		return true
+	}
+	switch base {
+	case "active", "allowed", "display", "form", "result", "scope", "team", "view":
+		return true
+	default:
+		return strings.HasSuffix(base, "bytype") ||
+			strings.HasSuffix(base, "bystatus") ||
+			strings.HasSuffix(base, "bymonth") ||
+			strings.HasSuffix(base, "rows") ||
+			strings.HasSuffix(base, "result") ||
+			strings.HasSuffix(base, "results")
+	}
 }
 
 func isPluralName(name string) bool {

@@ -188,6 +188,27 @@ func TestNamingBooleanPredicateSkipsInferredUIAssignments(t *testing.T) {
 	assertCodeQualityRuleAbsentForPath(t, report, "naming.boolean-not-predicate", "status-chip.tsx:3")
 }
 
+func TestNamingBooleanPredicateAllowsRouteParserAndVerifierHelpers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/api/files/upload/route.ts"), strings.Join([]string{
+		"export function rejectOversizedMultipartRequest(req: Request): Response | null {",
+		"  if (Number(req.headers.get('content-length') ?? 0) > 1000) return new Response('too large');",
+		"  return null;",
+		"}",
+		"export async function readOAuthJson(res: Response): Promise<Record<string, unknown> | null> {",
+		"  if (!res.ok) return null;",
+		"  return await res.json();",
+		"}",
+		"export function verifyHmac(body: string, signature: string): boolean {",
+		"  return body.length === signature.length;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+}
+
 func TestNamingCardinalityCreditsCollectionTypesBeforeScalarWords(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/api/src/lib/collections.ts"), strings.Join([]string{
@@ -207,6 +228,30 @@ func TestNamingCardinalityCreditsCollectionTypesBeforeScalarWords(t *testing.T) 
 	assertFindingRulePresent(t, report, "Code Quality", "naming.cardinality-mismatch")
 	assertCodeQualityRuleAbsentForPath(t, report, "naming.cardinality-mismatch", "collections.ts:1")
 	assertCodeQualityRuleAbsentForPath(t, report, "naming.cardinality-mismatch", "collections.ts:4")
+}
+
+func TestNamingCardinalityAllowsUICollectiveAndMapNames(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/risks/_components/use-risk-filters.ts"), strings.Join([]string{
+		"export function RiskFilterBar(team: User[], form: FormState[], result: Result[], byMonth: Map<string, Result[]>, kindByType: Record<string, string>, allowed: string[]) {",
+		"  const displayRisks: Risk[] = [];",
+		"  return { team, form, result, byMonth, kindByType, allowed, displayRisks };",
+		"}",
+		"interface User { id: string }",
+		"interface FormState { id: string }",
+		"interface Result { id: string }",
+		"interface Risk { id: string }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/bad.ts"), strings.Join([]string{
+		"export function badName(user: string[]) {",
+		"  return user.length;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "naming.cardinality-mismatch", "use-risk-filters.ts")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "naming.cardinality-mismatch", "bad.ts", "user")
 }
 
 func TestNamingUnitsAbbreviationsAndImplementationLeak(t *testing.T) {

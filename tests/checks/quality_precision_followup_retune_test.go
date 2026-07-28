@@ -254,6 +254,30 @@ func TestFunctionReturnContractAllowsNullableParserLookupAndExistsHelpers(t *tes
 	assertFindingRuleAbsent(t, report, "Code Quality", "function.inconsistent-return-contract")
 }
 
+func TestFunctionReturnContractAllowsExplicitNullableServiceContracts(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/integrations/src/anthropic/summarize-content.ts"), strings.Join([]string{
+		"export async function buildFileContentBlocks(prompt: string, storageKey?: string | null): Promise<Block[] | null> {",
+		"  if (!storageKey) return null;",
+		"  return [{ type: 'text', text: prompt }];",
+		"}",
+		"export async function fetchMatterContext(userId: string): Promise<MatterContext | null> {",
+		"  if (!process.env.DAINTREE_MCP_URL) return null;",
+		"  return { userId };",
+		"}",
+		"export async function autoRoute(pillar: string): Promise<string | null> {",
+		"  if (!pillar) return null;",
+		"  return 'user_1';",
+		"}",
+		"interface Block { type: string; text: string }",
+		"interface MatterContext { userId: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.inconsistent-return-contract")
+}
+
 func TestErrorPartialFailureHiddenCreditsSurfacedDiagnostics(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/integrations/src/gmail/digest-fetch.ts"), strings.Join([]string{

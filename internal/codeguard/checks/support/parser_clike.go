@@ -60,11 +60,18 @@ func newCLikeFunction(file *ParsedFile, span clikeSpan, lang CLikeLanguage) *Par
 	if paramsClose > span.paramsOpen {
 		paramText = file.Masked[span.paramsOpen+1 : paramsClose]
 	}
+	signature := strings.TrimSpace(squashWhitespace(paramText))
+	if span.bodyOpen > paramsClose {
+		trailing := strings.TrimSpace(squashWhitespace(file.Masked[paramsClose+1 : span.bodyOpen]))
+		if trailing != "" {
+			signature = strings.TrimSpace(signature + " " + trailing)
+		}
+	}
 	fn := &ParsedFunction{
 		Name:      span.name,
 		StartLine: LineNumberForOffset(file.Source, span.start),
 		EndLine:   LineNumberForOffset(file.Source, span.bodyEnd),
-		Signature: strings.TrimSpace(squashWhitespace(paramText)),
+		Signature: signature,
 		Params:    parseCLikeParams(paramText, lang),
 	}
 	if span.bodyOpen >= 0 && span.bodyEnd > span.bodyOpen {
