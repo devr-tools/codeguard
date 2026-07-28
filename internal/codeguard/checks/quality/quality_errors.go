@@ -302,10 +302,17 @@ func exceptionControlFlowLine(fn precisionFunction) (int, bool) {
 	for idx, statement := range fn.Statements {
 		raw := firstNonEmptyString(statement.Raw, statement.Text)
 		lowered := strings.ToLower(raw)
-		if !throwRaisePattern.MatchString(raw) || !containsAny(lowered, []string{"invalid", "not found", "missing", "stop", "continue", "break"}) {
+		if !throwRaisePattern.MatchString(raw) || validationExceptionThrow(lowered) {
 			continue
 		}
 		if strings.Contains(lowered, "panic(") {
+			continue
+		}
+		controlWord := containsAny(lowered, []string{"stop", "continue", "break"})
+		genericLookupSentinel := containsAny(strings.ToLower(fn.Name), []string{"find", "lookup", "get", "control"}) &&
+			containsAny(lowered, []string{"not found", "missing"}) &&
+			containsAny(lowered, []string{"exception", "runtimeerror", "runtime_error", "valueerror"})
+		if !controlWord && !genericLookupSentinel {
 			continue
 		}
 		if strings.Contains(lowered, " if ") || strings.HasPrefix(strings.TrimSpace(lowered), "if ") ||
@@ -314,6 +321,17 @@ func exceptionControlFlowLine(fn precisionFunction) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+func validationExceptionThrow(lowered string) bool {
+	if containsAny(lowered, []string{"stop", "continue", "break"}) {
+		return false
+	}
+	return containsAny(lowered, []string{
+		"new trpcerror", "new apperror", "new error", "bad_request", "unauthorized",
+		"forbidden", "unsupported", "invalid json", "invalid input", "invalid response",
+		"missing required", "source file not found",
+	})
 }
 
 func boundaryFunctionName(name string) bool {

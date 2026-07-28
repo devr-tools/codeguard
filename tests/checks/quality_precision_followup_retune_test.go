@@ -302,6 +302,40 @@ func TestDefensiveBoundaryInputSkipsTypedInternalDTOs(t *testing.T) {
 	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.unvalidated-boundary-input", "internal-dtos.ts:7", "boundary input")
 }
 
+func TestExceptionControlFlowSkipsValidationThrows(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/routers/validation-errors.ts"), strings.Join([]string{
+		"export function validateSourceFile(file: File | null) {",
+		"  if (!file) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Source file not found' });",
+		"  return file.id;",
+		"}",
+		"export function requireProfile(profile: Profile | null) {",
+		"  if (!profile) throw new AppError('Attorney not found');",
+		"  return profile.id;",
+		"}",
+		"export function parseTokenResponse(payload: unknown) {",
+		"  if (!payload || typeof payload !== 'object') throw new Error('token exchange returned invalid JSON');",
+		"  return payload;",
+		"}",
+		"export function findUser(userId: string | null) {",
+		"  if (!userId) throw new Exception('not found');",
+		"  return userId;",
+		"}",
+		"interface File { id: string }",
+		"interface Profile { id: string }",
+		"declare class TRPCError extends Error { constructor(input: unknown); }",
+		"declare class AppError extends Error { constructor(message: string); }",
+		"declare class Exception extends Error { constructor(message: string); }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "error.exception-used-for-control-flow", "validation-errors.ts:2")
+	assertCodeQualityRuleAbsentForPath(t, report, "error.exception-used-for-control-flow", "validation-errors.ts:6")
+	assertCodeQualityRuleAbsentForPath(t, report, "error.exception-used-for-control-flow", "validation-errors.ts:10")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "error.exception-used-for-control-flow", "validation-errors.ts:14", "ordinary branch control")
+}
+
 func TestFunctionReturnContractAllowsNullableParserLookupAndExistsHelpers(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/integrations/src/slack/slack-client.ts"), strings.Join([]string{
