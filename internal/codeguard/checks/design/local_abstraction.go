@@ -111,6 +111,7 @@ func leakFindings(env support.Context, file string, source string) []core.Findin
 	domainPath := isDomainPath(file)
 	apiPath := isAPIPath(file)
 	handlerPath := isHandlerPath(file)
+	persistenceBoundaryPath := domainPath || apiPath || handlerPath || isContractBoundaryPath(file)
 	for idx, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") {
@@ -121,10 +122,10 @@ func leakFindings(env support.Context, file string, source string) []core.Findin
 			findings = append(findings, designFinding(env, ruleInfrastructureLeak, file, lineNo,
 				"infrastructure/framework type leaks into a domain or public boundary", core.ConfidenceHigh))
 		}
-		if (apiPath || handlerPath || isPublicDeclaration(trimmed)) && persistenceLeakPattern.MatchString(trimmed) &&
-			!allowedGeneratedPersistenceEnumLine(trimmed) && !allowedTypeScriptRecordUtilityLine(trimmed) {
+		if persistenceBoundaryPath && (apiPath || handlerPath || isPublicDeclaration(trimmed)) && persistenceLeakPattern.MatchString(trimmed) &&
+			!allowedGeneratedPersistenceEnumLine(trimmed) && !allowedTypeScriptRecordUtilityLine(trimmed) && !allowedUIPropsDerivedTypeLine(file, trimmed) {
 			findings = append(findings, designFinding(env, rulePersistenceLeak, file, lineNo,
-				"persistence model or ORM concept leaks through a public/API boundary", core.ConfidenceHigh))
+				fmt.Sprintf("persistence model or ORM concept leaks through boundary at %s:%d: %s", file, lineNo, findingLineExcerpt(trimmed)), core.ConfidenceHigh))
 		}
 		if domainPath && configLeakPattern.MatchString(trimmed) {
 			findings = append(findings, designFinding(env, ruleConfigurationLeak, file, lineNo,
@@ -143,6 +144,18 @@ func allowedTypeScriptRecordUtilityLine(line string) bool {
 		!strings.Contains(line, "Model") &&
 		!strings.Contains(line, "Entity") &&
 		!strings.Contains(line, "Row")
+}
+
+func allowedUIPropsDerivedTypeLine(file string, line string) bool {
+	if !isFrontendUIPath(file) {
+		return false
+	}
+	trimmed := strings.TrimSpace(line)
+	return strings.Contains(trimmed, "Props") ||
+		strings.Contains(trimmed, "ComponentProps") ||
+		strings.Contains(trimmed, "Pick<") ||
+		strings.Contains(trimmed, "Omit<") ||
+		strings.Contains(trimmed, "typeof ")
 }
 
 func allowedGeneratedPersistenceEnumLine(line string) bool {
@@ -441,8 +454,44 @@ func isDomainPath(file string) bool {
 
 func isAPIPath(file string) bool {
 	normalized := strings.ToLower(filepathSlash(file))
-	return strings.Contains(normalized, "/api/") || strings.Contains(normalized, "/contract/") ||
-		strings.Contains(normalized, "/contracts/")
+	if strings.Contains(normalized, "/api/") {
+		return true
+	}
+	if isFrontendUIPath(file) {
+		return false
+	}
+	return strings.Contains(normalized, "/contract/")
+}
+
+func isContractBoundaryPath(file string) bool {
+	normalized := strings.ToLower(filepathSlash(file))
+	if isFrontendUIPath(file) {
+		return false
+	}
+	return strings.Contains(normalized, "/contracts/") ||
+		strings.Contains(normalized, "/dto/") ||
+		strings.Contains(normalized, "/schema/")
+}
+
+func isFrontendUIPath(file string) bool {
+	normalized := strings.ToLower(filepathSlash(file))
+	if strings.Contains(normalized, "/api/") ||
+		strings.Contains(normalized, "/server/") ||
+		strings.Contains(normalized, "/backend/") ||
+		strings.Contains(normalized, "/route.") {
+		return false
+	}
+	return strings.Contains(normalized, "/_components/") ||
+		strings.Contains(normalized, "/components/") ||
+		strings.Contains(normalized, "/screens/") ||
+		strings.Contains(normalized, "/navigation/") ||
+		strings.Contains(normalized, "/hooks/") ||
+		strings.Contains(normalized, "/packages/ui/") ||
+		strings.Contains(normalized, "/packages/design-system/") ||
+		strings.Contains(normalized, "/apps/mobile/") ||
+		strings.Contains(normalized, "/apps/native/") ||
+		strings.Contains(normalized, "/react-native/") ||
+		strings.Contains(normalized, "/app/") && strings.Contains(normalized, "web/")
 }
 
 func isHandlerPath(file string) bool {
@@ -484,4 +533,13 @@ func designFinding(env support.Context, ruleID string, file string, line int, me
 		Message:    message,
 		Confidence: confidence,
 	})
+}
+
+func findingLineExcerpt(line string) string {
+	const maxExcerptLen = 120
+	line = strings.Join(strings.Fields(line), " ")
+	if len(line) <= maxExcerptLen {
+		return line
+	}
+	return line[:maxExcerptLen-1] + "…"
 }

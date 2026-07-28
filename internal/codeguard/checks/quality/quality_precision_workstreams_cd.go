@@ -175,7 +175,7 @@ func hiddenMutation(file string, fn precisionFunction) bool {
 	}
 	mutatesParam := mutatesParameter(fn)
 	mutatesState := mutatingFunctionEvidence(fn)
-	if isReactHookStateBoundary(file, fn) && mutatesState && !mutatesParam && onlyReactHookLocalStateMutation(fn) {
+	if isReactLocalStateBoundary(file, fn) && mutatesState && !mutatesParam && onlyReactHookLocalStateMutation(fn) {
 		return false
 	}
 	return mutatesState || mutatesParam
@@ -183,12 +183,12 @@ func hiddenMutation(file string, fn precisionFunction) bool {
 
 func mutatingFunctionEvidence(fn precisionFunction) bool {
 	localTargets := localMutationTargets(fn)
-	for _, call := range fn.Calls {
+	for _, call := range directCalls(fn) {
 		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) {
 			return true
 		}
 	}
-	for _, assignment := range fn.Assignments {
+	for _, assignment := range directAssignments(fn) {
 		if assignment.Augmented && !isLocalMutationTarget(assignment.Name, localTargets) {
 			return true
 		}
@@ -206,7 +206,8 @@ func mutatesParameter(fn precisionFunction) bool {
 	if len(params) == 0 {
 		return false
 	}
-	for _, line := range strings.Split(fn.Body, "\n") {
+	for _, statement := range directStatements(fn) {
+		line := firstNonEmptyString(statement.Raw, statement.Text)
 		if !lineHasAssignmentOperator(line) {
 			continue
 		}
@@ -244,6 +245,7 @@ func explicitMutationName(name string) bool {
 	lowered := strings.ToLower(strings.TrimSpace(name))
 	return commandFunctionPrefixPattern.MatchString(lowered) ||
 		conventionalMutationBoundaryPattern.MatchString(lowered) ||
+		isEventHandlerName(name) ||
 		strings.Contains(lowered, "mutat") ||
 		strings.Contains(lowered, "persist") ||
 		strings.Contains(lowered, "write")

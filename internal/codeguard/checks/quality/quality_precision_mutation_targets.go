@@ -15,7 +15,7 @@ var localAccumulatorExprPattern = regexp.MustCompile(`(?i)^(?:new\s+)?(?:array|f
 func localMutationTargets(fn precisionFunction) map[string]struct{} {
 	params := paramNames(fn)
 	targets := make(map[string]struct{})
-	for _, assignment := range fn.Assignments {
+	for _, assignment := range directAssignments(fn) {
 		name := strings.TrimSpace(assignment.Name)
 		if name == "" || assignment.Augmented {
 			continue
@@ -28,6 +28,54 @@ func localMutationTargets(fn precisionFunction) map[string]struct{} {
 		}
 	}
 	return targets
+}
+
+func directAssignments(fn precisionFunction) []support.ParsedAssignment {
+	if len(fn.Nested) == 0 {
+		return fn.Assignments
+	}
+	assignments := make([]support.ParsedAssignment, 0, len(fn.Assignments))
+	for _, assignment := range fn.Assignments {
+		if !callInNestedFunction(fn, assignment.Line) {
+			assignments = append(assignments, assignment)
+		}
+	}
+	return assignments
+}
+
+func directCalls(fn precisionFunction) []support.ParsedCall {
+	if len(fn.Nested) == 0 {
+		return fn.Calls
+	}
+	calls := make([]support.ParsedCall, 0, len(fn.Calls))
+	for _, call := range fn.Calls {
+		if !callInNestedFunction(fn, call.Line) {
+			calls = append(calls, call)
+		}
+	}
+	return calls
+}
+
+func directStatements(fn precisionFunction) []support.ParsedStatement {
+	if len(fn.Nested) == 0 {
+		return fn.Statements
+	}
+	statements := make([]support.ParsedStatement, 0, len(fn.Statements))
+	for _, statement := range fn.Statements {
+		if !callInNestedFunction(fn, statement.Line) {
+			statements = append(statements, statement)
+		}
+	}
+	return statements
+}
+
+func callInNestedFunction(fn precisionFunction, line int) bool {
+	for _, nested := range fn.Nested {
+		if line >= nested.Start && line <= nested.End {
+			return true
+		}
+	}
+	return false
 }
 
 func assignmentLooksLocalAccumulator(fn precisionFunction, assignment support.ParsedAssignment) bool {
@@ -81,7 +129,7 @@ func isLocalMutationCall(callee string, localTargets map[string]struct{}) bool {
 
 func isBareLocalMutationCall(callee string) bool {
 	switch strings.TrimSpace(callee) {
-	case "append", "Set":
+	case "append", "Set", "Array", "Object", "Map", "WeakMap", "WeakSet":
 		return true
 	default:
 		return false

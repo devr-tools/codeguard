@@ -13,6 +13,9 @@ func isReactComponentOrHookBoundary(file string, fn precisionFunction) bool {
 	if isReactHookName(fn.Name) || isReactHookFile(file) {
 		return true
 	}
+	if isReactNativeComponentOrScreenBoundary(file, fn) {
+		return true
+	}
 	if isTSXLikeSourcePath(file) && isReactComponentName(fn.Name) {
 		return true
 	}
@@ -34,6 +37,44 @@ func isReactComponentName(name string) bool {
 	return first >= 'A' && first <= 'Z'
 }
 
+func isEventHandlerName(name string) bool {
+	name = strings.TrimSpace(name)
+	if len(name) > len("on") && strings.HasPrefix(name, "on") {
+		next := rune(name[len("on")])
+		return next >= 'A' && next <= 'Z'
+	}
+	if len(name) <= len("handle") || !strings.HasPrefix(name, "handle") {
+		return false
+	}
+	next := rune(name[len("handle")])
+	return next >= 'A' && next <= 'Z'
+}
+
+func isReactNativeComponentOrScreenBoundary(file string, fn precisionFunction) bool {
+	if !isScriptLikeSourcePath(file) {
+		return false
+	}
+	if !isReactNativeContext(file, fn) {
+		return false
+	}
+	return isReactComponentName(fn.Name) || strings.Contains(strings.ToLower(fn.Name), "screen")
+}
+
+func isReactNativeContext(file string, fn precisionFunction) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	if strings.Contains(normalized, ".native.") ||
+		strings.Contains(normalized, "/screens/") ||
+		strings.Contains(normalized, "/screen/") {
+		return true
+	}
+	body := strings.ToLower(fn.Body)
+	return strings.Contains(body, "react-native") ||
+		strings.Contains(body, "stylesheet.create") ||
+		strings.Contains(body, "<flatlist") ||
+		strings.Contains(body, "<pressable") ||
+		strings.Contains(body, "<touchable")
+}
+
 func isUIConventionalAmbiguousName(file string, fn precisionFunction, name string, typ string, line int) bool {
 	if !isScriptLikeSourcePath(file) {
 		return false
@@ -45,7 +86,12 @@ func isUIConventionalAmbiguousName(file string, fn precisionFunction, name strin
 	if isReactComponentOrHookBoundary(file, fn) {
 		return true
 	}
-	if strings.HasPrefix(strings.ToLower(fn.Name), "on") || strings.Contains(strings.ToLower(fn.Name), "render") {
+	if isReactNativeContext(file, fn) {
+		return true
+	}
+	loweredFnName := strings.ToLower(fn.Name)
+	if strings.HasPrefix(loweredFnName, "on") || strings.HasPrefix(loweredFnName, "handle") ||
+		strings.Contains(loweredFnName, "render") || strings.Contains(loweredFnName, "keyextractor") {
 		return true
 	}
 	if strings.Contains(strings.ToLower(typ), "reactnode") || strings.Contains(strings.ToLower(typ), "jsx") {
@@ -69,9 +115,13 @@ func nearbyUICallbackStatement(fn precisionFunction, line int) bool {
 			continue
 		}
 		lowered := strings.ToLower(statement.Raw + " " + statement.Text)
-		if strings.Contains(lowered, ".map(") || strings.Contains(lowered, "onchange") ||
-			strings.Contains(lowered, "onsave") || strings.Contains(lowered, "onclick") ||
-			strings.Contains(lowered, "render") || strings.Contains(lowered, "form") {
+		if strings.Contains(lowered, ".map(") || strings.Contains(lowered, ".foreach(") ||
+			strings.Contains(lowered, "onchange") || strings.Contains(lowered, "onsave") ||
+			strings.Contains(lowered, "onclick") || strings.Contains(lowered, "onpress") ||
+			strings.Contains(lowered, "onsubmit") || strings.Contains(lowered, "render") ||
+			strings.Contains(lowered, "renderitem") || strings.Contains(lowered, "keyextractor") ||
+			strings.Contains(lowered, "flatlist") || strings.Contains(lowered, "pressable") ||
+			strings.Contains(lowered, "touchable") || strings.Contains(lowered, "form") {
 			return true
 		}
 	}
@@ -79,6 +129,12 @@ func nearbyUICallbackStatement(fn precisionFunction, line int) bool {
 }
 
 func isAllowedBooleanUIName(file string, fn precisionFunction, name string) bool {
+	if isEventHandlerName(name) {
+		return true
+	}
+	if isResourceIdentifierName(name) {
+		return true
+	}
 	if !isReactComponentOrHookBoundary(file, fn) {
 		return false
 	}
@@ -90,15 +146,50 @@ func isAllowedBooleanUIName(file string, fn precisionFunction, name string) bool
 	}
 }
 
+func isResourceIdentifierName(name string) bool {
+	lowered := strings.ToLower(strings.Trim(name, "_$"))
+	for _, suffix := range []string{"arn", "url", "uri", "id", "ids", "key", "token", "secret", "rolearn"} {
+		if strings.HasSuffix(lowered, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
 func conventionalCardinalityName(name string) bool {
 	switch strings.ToLower(strings.Trim(name, "_$")) {
-	case "args", "rows", "ids", "next", "out", "props", "searchparams", "params", "item", "items", "status":
+	case "args", "rows", "ids", "next", "out", "props", "searchparams", "params", "item", "items", "entries", "status", "k", "v", "i", "j", "x", "y":
 		return true
 	default:
-		return strings.HasSuffix(name, "params") ||
+		return len(name) <= 2 ||
+			strings.HasSuffix(name, "ids") ||
+			strings.HasSuffix(name, "rows") ||
+			strings.HasSuffix(name, "items") ||
+			strings.HasSuffix(name, "entries") ||
+			strings.HasSuffix(name, "params") ||
 			strings.HasSuffix(name, "props") ||
 			strings.HasSuffix(name, "args")
 	}
+}
+
+func isUIHelperOrMappingContext(file string, fn precisionFunction) bool {
+	if !isScriptLikeSourcePath(file) {
+		return false
+	}
+	if isReactComponentOrHookBoundary(file, fn) {
+		return true
+	}
+	loweredName := strings.ToLower(fn.Name)
+	if strings.Contains(loweredName, "render") || strings.Contains(loweredName, "map") ||
+		strings.Contains(loweredName, "format") || strings.Contains(loweredName, "filter") ||
+		strings.Contains(loweredName, "columns") || strings.Contains(loweredName, "options") ||
+		strings.Contains(loweredName, "screen") {
+		return true
+	}
+	loweredFile := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	return strings.Contains(loweredFile, "/_components/") || strings.Contains(loweredFile, "/components/") ||
+		strings.Contains(loweredFile, "/screens/") ||
+		strings.Contains(loweredFile, "/app/") && strings.Contains(loweredFile, "web/")
 }
 
 func moduleStatementLooksTopLevel(statement support.ParsedStatement) bool {

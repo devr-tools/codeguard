@@ -29,6 +29,28 @@ func TestQualityAmbiguousNameAllowsConventionalUIParams(t *testing.T) {
 	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ambiguous-name")
 }
 
+func TestQualityAmbiguousNameAllowsReactNativeRenderParams(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/mobile/src/screens/ProfileScreen.tsx"), strings.Join([]string{
+		"import { FlatList, Pressable, Text } from 'react-native';",
+		"export function ProfileScreen({ users }: Props) {",
+		"  function renderItem({ item }: { item: User }) {",
+		"    return <Pressable onPress={() => item.onPress(item.id)}><Text>{item.name}</Text></Pressable>;",
+		"  }",
+		"  function keyExtractor(value: User) {",
+		"    return value.id;",
+		"  }",
+		"  return <FlatList data={users} renderItem={renderItem} keyExtractor={keyExtractor} />;",
+		"}",
+		"interface User { id: string; name: string; onPress(id: string): void }",
+		"interface Props { users: User[] }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ambiguous-name")
+}
+
 func TestFunctionCommandQueryMixAllowsReactAndNextBoundaries(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -101,6 +123,28 @@ func TestQualityDuplicatedKnowledgeSkipsDisplayStringsAndIncludesLiteral(t *test
 	}
 }
 
+func TestQualityDuplicatedKnowledgeSkipsTrivialRepeatedNumbers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/claims/_components/rows.tsx"), strings.Join([]string{
+		"export const page = 0;",
+		"export const start = 0;",
+		"export const second = 2;",
+		"export const columns = 2;",
+		"export const statusA = 'claim_status_code';",
+		"export const statusB = 'claim_status_code';",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	finding := firstFindingForRule(t, report, "Code Quality", "quality.duplicated-knowledge")
+	if strings.Contains(finding.Message, " 0 ") || strings.Contains(finding.Message, " 2 ") {
+		t.Fatalf("expected duplicated domain literal instead of trivial number, got %q", finding.Message)
+	}
+	if !strings.Contains(finding.Message, "'claim_status_code'") {
+		t.Fatalf("expected duplicated domain literal in message, got %q", finding.Message)
+	}
+}
+
 func TestNamingCardinalityMismatchAllowsFrameworkConventions(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps/web/app/okrs/use-kr-drag.ts"), strings.Join([]string{
@@ -112,6 +156,22 @@ func TestNamingCardinalityMismatchAllowsFrameworkConventions(t *testing.T) {
 		"interface DragArgs { id: string }",
 		"interface Props { row: string }",
 		"interface Result { id: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.cardinality-mismatch")
+}
+
+func TestNamingCardinalityMismatchAllowsCollectionSuffixesAndMapPairs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/okrs/use-kr-drag.ts"), strings.Join([]string{
+		"export function buildKrLookup(krIds: string[], entries: Map<string, string>) {",
+		"  entries.forEach((v: string, k: string) => {",
+		"    console.log(k, v);",
+		"  });",
+		"  return krIds;",
+		"}",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
@@ -149,6 +209,162 @@ func TestNamingBooleanNotPredicateAllowsUIPropsAndHandlers(t *testing.T) {
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
 	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+}
+
+func TestNamingBooleanNotPredicateAllowsHandlersAndResourceIdentifiers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/contracts/actions.ts"), strings.Join([]string{
+		"export function configure(onClick: () => void, onSave: () => Promise<void>, databaseSecretRoleArn: string) {",
+		"  const selectedArn = databaseSecretRoleArn;",
+		"  return { onClick, onSave, selectedArn };",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+}
+
+func TestFunctionCommandQueryMixAllowsLocalBuilderMutation(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/lib/filters.ts"), strings.Join([]string{
+		"export function buildAvailableFilters(rows: Row[]) {",
+		"  const data = new Map<string, string>();",
+		"  for (const row of rows) {",
+		"    data.set(row.id, row.label);",
+		"  }",
+		"  return data;",
+		"}",
+		"interface Row { id: string; label: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
+}
+
+func TestReactNativeScreenAllowsUIBooleanAndLocalCollections(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/mobile/src/screens/ClaimsScreen.tsx"), strings.Join([]string{
+		"import { FlatList, Pressable, Text } from 'react-native';",
+		"export function ClaimsScreen(open: boolean, loading: boolean, onPress: () => void, krIds: string[], rows: Row[]) {",
+		"  const ids = new Set<string>();",
+		"  rows.forEach((item) => ids.add(item.id));",
+		"  const data = Array.from(ids);",
+		"  if (open && !loading) {",
+		"    onPress();",
+		"  }",
+		"  return <FlatList data={data} renderItem={({ item }) => <Pressable onPress={onPress}><Text>{item}</Text></Pressable>} />;",
+		"}",
+		"interface Row { id: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.cardinality-mismatch")
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.mutable-global-state")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+}
+
+func TestUISmellAndOverflowRulesSkipMappingHelpers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/claims/_components/claim-map.tsx"), strings.Join([]string{
+		"export function renderClaimRows(props: Props) {",
+		"  const width = props.table.columns.length * props.theme.spacing.size;",
+		"  const label = props.claim.owner.profile.department.name.toUpperCase();",
+		"  return <span>{label}{width}</span>;",
+		"}",
+		"interface Props { table: any; theme: any; claim: any }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "smell.message-chain")
+	assertFindingRuleAbsent(t, report, "Code Quality", "smell.feature-envy")
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
+}
+
+func TestUISmellAndOverflowRulesSkipReactNativeRenderingHelpers(t *testing.T) {
+	cases := []struct {
+		name string
+		file string
+		body []string
+	}{
+		{
+			name: "screen mapping helper",
+			file: "apps/mobile/src/screens/claims/claimRows.ts",
+			body: []string{
+				"export function collectClaimRows(props: Props) {",
+				"  const width = props.route.params.claim.items.length * props.theme.spacing.medium;",
+				"  const label = props.route.params.claim.owner.profile.department.name.toUpperCase();",
+				"  return props.route.params.claim.items.map((item) => ({",
+				"    id: item.id,",
+				"    title: label,",
+				"    width,",
+				"  }));",
+				"}",
+				"interface Props { route: any; theme: any }",
+			},
+		},
+		{
+			name: "native style helper",
+			file: "apps/mobile/src/components/ClaimCard.native.ts",
+			body: []string{
+				"export function buildClaimCardStyles(theme: Theme, props: Props) {",
+				"  const width = props.layout.window.size.width * theme.spacing.medium;",
+				"  const color = props.route.params.claim.owner.profile.department.color;",
+				"  return { width, color, padding: theme.spacing.small };",
+				"}",
+				"interface Theme { spacing: any }",
+				"interface Props { layout: any; route: any }",
+			},
+		},
+		{
+			name: "tsx react native component",
+			file: "apps/mobile/src/screens/claims/ClaimScreen.tsx",
+			body: []string{
+				"import { View, Text } from 'react-native';",
+				"export function ClaimScreen(props: Props) {",
+				"  const width = props.route.params.claim.items.length * props.theme.spacing.medium;",
+				"  const label = props.route.params.claim.owner.profile.department.name.toUpperCase();",
+				"  return <View><Text>{label}{width}</Text></View>;",
+				"}",
+				"interface Props { route: any; theme: any }",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), strings.Join(tc.body, "\n"))
+
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+			assertFindingRuleAbsent(t, report, "Code Quality", "smell.message-chain")
+			assertFindingRuleAbsent(t, report, "Code Quality", "smell.feature-envy")
+			assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
+		})
+	}
+}
+
+func TestSmellAndOverflowRulesStillFlagNonUIProductionCode(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/domain/src/account-risk.ts"), strings.Join([]string{
+		"export function scoreCustomer(customer: Customer, count: number) {",
+		"  const score = count * 4096;",
+		"  const code = customer.profile.address.country.region.zone.owner.name.toUpperCase();",
+		"  return customer.profile.name + customer.profile.email + customer.account.region + customer.account.plan + customer.account.status + code + score;",
+		"}",
+		"interface Customer { profile: any; account: any }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertStructuralSmellPresent(t, report, "smell.message-chain")
+	assertStructuralSmellPresent(t, report, "smell.feature-envy")
+	assertStructuralSmellPresent(t, report, "defensive.integer-overflow")
 }
 
 func firstFindingForRule(t *testing.T, report codeguard.Report, sectionName string, ruleID string) codeguard.Finding {

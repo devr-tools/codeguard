@@ -68,20 +68,9 @@ type precisionFunction struct {
 	Assignments []support.ParsedAssignment
 	Calls       []support.ParsedCall
 	Statements  []support.ParsedStatement
+	Nested      []precisionLineRange
 	Body        string
 	Returns     bool
-}
-
-func precisionWarnFinding(env support.Context, ruleID string, file string, line int, message string, confidence string) core.Finding {
-	return env.NewFinding(support.FindingInput{
-		RuleID:     ruleID,
-		Level:      "warn",
-		Path:       file,
-		Line:       line,
-		Column:     1,
-		Message:    message,
-		Confidence: confidence,
-	})
 }
 
 func localPrecisionEnabled(env support.Context) bool {
@@ -271,7 +260,7 @@ func goDuplicatedKnowledgeFindings(env support.Context, file string, fset *token
 			}
 			if first, exists := seen[lit.Value]; exists {
 				return []core.Finding{precisionWarnFinding(env, qualityDuplicatedKnowledgeRuleID, file, fset.Position(expr.Pos()).Line,
-					fmt.Sprintf("business literal is duplicated near line %d; centralize shared domain knowledge", fset.Position(first).Line), core.ConfidenceLow)}
+					fmt.Sprintf("business literal %s is duplicated near line %d; centralize shared domain knowledge", lit.Value, fset.Position(first).Line), core.ConfidenceLow)}
 			}
 			seen[lit.Value] = expr.Pos()
 		}
@@ -369,6 +358,7 @@ func parsedPrecisionFunction(fn *support.ParsedFunction) precisionFunction {
 		Assignments: fn.Assignments,
 		Calls:       fn.Calls,
 		Statements:  fn.Statements,
+		Nested:      nestedPrecisionLineRanges(fn),
 		Body:        body,
 		Returns:     strings.Contains(body, "return "),
 	}
@@ -482,8 +472,9 @@ func hiddenSideEffect(fn precisionFunction) bool {
 	if !queryFunctionPrefixPattern.MatchString(strings.ToLower(fn.Name)) {
 		return false
 	}
-	for _, call := range fn.Calls {
-		if mutatingCallPattern.MatchString(call.Callee) {
+	localTargets := localMutationTargets(fn)
+	for _, call := range directCalls(fn) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) {
 			return true
 		}
 	}
@@ -527,8 +518,9 @@ func commandQueryMix(file string, fn precisionFunction) bool {
 	if !queryFunctionPrefixPattern.MatchString(name) && !strings.Contains(fn.Body, "return ") {
 		return false
 	}
-	for _, call := range fn.Calls {
-		if mutatingCallPattern.MatchString(call.Callee) {
+	localTargets := localMutationTargets(fn)
+	for _, call := range directCalls(fn) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) {
 			return true
 		}
 	}
@@ -759,13 +751,24 @@ func domainKnowledgeLiteral(value string) bool {
 	if len(trimmed) < 4 && !strings.ContainsAny(trimmed, "0123456789") {
 		return false
 	}
-	if _, err := strconv.Atoi(trimmed); err == nil {
-		return true
+	if numeric, ok := duplicatedKnowledgeNumber(trimmed); ok {
+		return numeric >= 10
 	}
 	if likelyDisplayLabel(trimmed) {
 		return false
 	}
 	return domainPrimitiveNamePattern.MatchString(trimmed) || strings.Contains(trimmed, "_")
+}
+
+func duplicatedKnowledgeNumber(value string) (int, bool) {
+	number, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, false
+	}
+	if number < 0 {
+		number = -number
+	}
+	return number, true
 }
 
 func likelyDisplayLabel(value string) bool {

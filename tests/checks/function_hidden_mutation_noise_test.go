@@ -172,6 +172,66 @@ func TestFunctionHiddenMutationAllowsNextRouteHandlerNames(t *testing.T) {
 	}
 }
 
+func TestFunctionHiddenMutationDoesNotBubbleNestedUICallbackMutationToComponent(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/claims/_components/claim-card.tsx"), strings.Join([]string{
+		"export function ClaimCard(repo: Repository, claim: Claim) {",
+		"  async function onSave() {",
+		"    await repo.save(claim);",
+		"  }",
+		"  return <button onClick={onSave}>Save</button>;",
+		"}",
+		"interface Repository { save(input: unknown): Promise<void> }",
+		"interface Claim { id: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+}
+
+func TestFunctionHiddenMutationAllowsReactNativeLocalStateAndHandlers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/mobile/src/screens/ProfileScreen.tsx"), strings.Join([]string{
+		"import { FlatList, Pressable, Text, View } from 'react-native';",
+		"import { useState } from 'react';",
+		"export function ProfileScreen({ users }: Props) {",
+		"  const [selected, setSelected] = useState<string | null>(null);",
+		"  const visibleIds = new Set<string>();",
+		"  users.forEach((item) => visibleIds.add(item.id));",
+		"  function handlePress(value: string) {",
+		"    setSelected(value);",
+		"  }",
+		"  return <View><FlatList data={users} renderItem={({ item }) => <Pressable onPress={() => handlePress(item.id)}><Text>{item.name}</Text></Pressable>} /></View>;",
+		"}",
+		"interface Props { users: Array<{ id: string; name: string }> }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+}
+
+func TestFunctionHiddenMutationStillWarnsForReactNativeCollaboratorMutation(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/mobile/src/screens/ProfileScreen.tsx"), strings.Join([]string{
+		"import { Pressable, Text } from 'react-native';",
+		"export function ProfileScreen(repo: Repository, user: User) {",
+		"  function loadUser() {",
+		"    repo.save(user);",
+		"    return user;",
+		"  }",
+		"  return <Pressable onPress={loadUser}><Text>{user.name}</Text></Pressable>;",
+		"}",
+		"interface Repository { save(input: User): void }",
+		"interface User { name: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
+}
+
 func TestFunctionHiddenMutationAllowsConventionalCommandNames(t *testing.T) {
 	cases := []struct {
 		name string

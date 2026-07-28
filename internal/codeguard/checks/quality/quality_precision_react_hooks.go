@@ -40,6 +40,13 @@ func isReactHookStateBoundary(file string, fn precisionFunction) bool {
 	return false
 }
 
+func isReactLocalStateBoundary(file string, fn precisionFunction) bool {
+	if isReactHookStateBoundary(file, fn) {
+		return true
+	}
+	return isReactComponentOrHookBoundary(file, fn) && callsReactLocalStateSetter(fn)
+}
+
 func isScriptLikeSourcePath(file string) bool {
 	lowered := strings.ToLower(file)
 	return strings.HasSuffix(lowered, ".ts") || strings.HasSuffix(lowered, ".tsx") ||
