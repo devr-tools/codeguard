@@ -112,6 +112,9 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 		if item.name == "" {
 			continue
 		}
+		if item.name == fn.Name && isReactComponentOrHookBoundary(file, fn) {
+			continue
+		}
 		if isBooleanNameCandidate(item.name, item.typ, item.expr, fn) && !isPredicateName(item.name) && !isAllowedBooleanUIName(file, fn, item.name) {
 			findings = append(findings, precisionWarnFinding(env, namingBooleanNotPredicateRuleID, file, item.line,
 				fmt.Sprintf("boolean name %q should read as a predicate such as is/has/can/should", item.name), core.ConfidenceMedium))
@@ -326,38 +329,6 @@ func explicitMutationName(name string) bool {
 		strings.Contains(lowered, "write")
 }
 
-func isDomainSideEffectBoundaryName(name string) bool {
-	lowered := strings.ToLower(strings.TrimSpace(name))
-	if lowered == "" {
-		return false
-	}
-	if strings.HasPrefix(lowered, "maybe") && containsAny(lowered, []string{"alert", "notify", "record", "track", "emit"}) {
-		return true
-	}
-	if strings.HasPrefix(lowered, "evaluate") && containsAny(lowered, []string{"abuse", "policy", "rule", "risk", "fraud", "quota", "limit"}) {
-		return true
-	}
-	if strings.HasPrefix(lowered, "load") && containsAny(lowered, []string{"config", "defaults", "settings", "policy"}) {
-		return true
-	}
-	return false
-}
-
-func isAdapterOrOrchestrationFunction(file string, fn precisionFunction) bool {
-	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
-	if containsAny(loweredName, []string{"adapter", "bugreport", "bug_report", "slack", "webhook", "sync", "abuseconfig", "abuse_config"}) {
-		return true
-	}
-	if strings.HasPrefix(loweredName, "save") || strings.HasPrefix(loweredName, "insert") || strings.HasPrefix(loweredName, "post") ||
-		strings.HasPrefix(loweredName, "send") || strings.HasPrefix(loweredName, "publish") || strings.HasPrefix(loweredName, "record") {
-		if containsAny(loweredName, []string{"config", "report", "slack", "webhook", "audit", "event", "job"}) {
-			return true
-		}
-	}
-	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
-	return containsAny(normalized, []string{"/adapters/", "/adapter/", "/connectors/", "/connector/", "/integrations/", "/webhooks/", "/slack/", "/jobs/"})
-}
-
 func inconsistentReturnContract(fn precisionFunction) bool {
 	returns := returnCategories(fn.Body)
 	if returns.total < 2 {
@@ -443,11 +414,6 @@ func responsibilityCount(fn precisionFunction) (int, []string) {
 	return len(labels), labels
 }
 
-func isAdapterOrchestrationName(name string) bool {
-	loweredName := strings.ToLower(strings.Trim(name, "_$"))
-	return containsAny(loweredName, []string{"abuseconfig", "abuse_config", "bugreport", "bug_report", "slack", "webhook", "adapter"})
-}
-
 func classifyResponsibility(text string, record func(string)) {
 	switch {
 	case strings.Contains(text, "validat") || strings.Contains(text, "sanitize"):
@@ -523,7 +489,7 @@ func isBooleanType(typ string) bool {
 
 func isPredicateName(name string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
-	for _, prefix := range []string{"is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "visible", "ready"} {
+	for _, prefix := range []string{"is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "visible", "ready", "show", "matches"} {
 		if strings.HasPrefix(lowered, prefix) {
 			return true
 		}
@@ -533,7 +499,7 @@ func isPredicateName(name string) bool {
 
 func cardinalityMismatch(name string, typ string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
-	if base == "" || conventionalCardinalityName(base) || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
+	if base == "" || conventionalCardinalityName(base) || configuredPluralDomainAbbreviation(base) || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
 		return false
 	}
 	plural := isPluralName(base)

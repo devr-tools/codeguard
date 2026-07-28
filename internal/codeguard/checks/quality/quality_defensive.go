@@ -130,6 +130,9 @@ func unvalidatedBoundaryInputLine(fn precisionFunction, loweredBody string) (int
 	if !boundaryFunctionName(fn.Name) && !hasBoundaryParam(fn.Params) {
 		return 0, false
 	}
+	if isValidationOrExtractionHelperName(fn.Name) {
+		return 0, false
+	}
 	if validatedBoundaryInputPattern(fn, loweredBody) {
 		return 0, false
 	}
@@ -149,13 +152,26 @@ func formDataHasContentLengthPreflight(loweredBody string) bool {
 }
 
 func validatedBoundaryInputPattern(fn precisionFunction, loweredBody string) bool {
-	if containsAny(loweredBody, []string{"validate", "schema", "sanitize", "bind", "decodevalid", "safeparse", "zod.", "yup.", "pydantic", "jsonschema"}) {
+	if containsAny(loweredBody, []string{"validate", "schema", "sanitize", "bind", "decodevalid", "safeparse", "z.safeparse", "zod.", "yup.", "pydantic", "jsonschema"}) {
+		return true
+	}
+	if strings.Contains(loweredBody, "nextresponse.") && containsAny(loweredBody, []string{"return nextresponse", ".json(", "redirect("}) && containsAny(loweredBody, []string{"if (!", "if (!", "if(", "if "}) {
 		return true
 	}
 	if regexp.MustCompile(`(?i)\b(parse|assert|guard|ensure|decode)[A-Z_][A-Za-z0-9_]*(?:Input|Payload|Body|Params|Query|Record|Request|Event|Config)?\s*\(`).MatchString(functionRawBody(fn)) {
 		return true
 	}
 	return false
+}
+
+func isValidationOrExtractionHelperName(name string) bool {
+	lowered := strings.ToLower(strings.Trim(name, "_$"))
+	if strings.HasPrefix(lowered, "parse") || strings.HasPrefix(lowered, "assert") ||
+		strings.HasPrefix(lowered, "guard") || strings.HasPrefix(lowered, "ensure") ||
+		strings.HasPrefix(lowered, "decode") {
+		return true
+	}
+	return containsAny(lowered, []string{"bearertokenfrom", "tokenfrom", "headerfrom", "requestbodyfrom"})
 }
 
 func hasBoundaryParam(params []support.ParsedParam) bool {
@@ -343,6 +359,9 @@ func missingResourceLimitLine(fn precisionFunction, loweredBody string) (int, bo
 	if !resourceReadPattern.MatchString(functionRawBody(fn)) {
 		return 0, false
 	}
+	if uploadValidationHelperPattern(loweredBody) {
+		return 0, false
+	}
 	if containsAny(loweredBody, []string{"limitreader", "maxbytes", "max_bytes", "content-length", "contentlength", "limit(", "take(", "buffer_size", "quota"}) {
 		return 0, false
 	}
@@ -350,6 +369,11 @@ func missingResourceLimitLine(fn precisionFunction, loweredBody string) (int, bo
 		return 0, false
 	}
 	return firstPatternLine(fn, resourceReadPattern), true
+}
+
+func uploadValidationHelperPattern(loweredBody string) bool {
+	return containsAny(loweredBody, []string{"validateinternaluploadfile", "validateuploadfile", "validatefileupload", "validateupload"}) ||
+		containsAny(loweredBody, []string{"internal_upload_max_bytes", "upload_max_bytes", "max_upload_bytes", "max_file_bytes"})
 }
 
 func boundedReadByteLengthCheck(loweredBody string) bool {
