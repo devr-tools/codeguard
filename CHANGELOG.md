@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.5](https://github.com/devr-tools/codeguard/compare/v1.3.4...v1.3.5) (2026-07-28)
+
+
+### Bug Fixes
+
+* cover remaining precision retunes ([1fd6f2b](https://github.com/devr-tools/codeguard/commit/1fd6f2b55a0e6a1f68b9dbfb475d3c55ee0d3277))
+* retune precision false positives ([6a09863](https://github.com/devr-tools/codeguard/commit/6a09863f48212492e7ce87f4d1f70f260499988b))
+* retune precision false positives ([#81](https://github.com/devr-tools/codeguard/issues/81)) ([a63ff23](https://github.com/devr-tools/codeguard/commit/a63ff236d7ca77a14b15a369241fb14583cecb2c))
+* split defensive sequence collision signal ([c734e9a](https://github.com/devr-tools/codeguard/commit/c734e9ab4e26bb6122a88835aab57972237d1c27))
+
 ## [1.3.4](https://github.com/devr-tools/codeguard/compare/v1.3.3...v1.3.4) (2026-07-28)
 
 
