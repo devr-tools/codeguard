@@ -13,6 +13,7 @@ const (
 	defensiveInvalidStateRepresentableRuleID = "defensive.invalid-state-representable"
 	defensiveNullAssumptionRuleID            = "defensive.null-assumption"
 	defensiveIntegerOverflowRuleID           = "defensive.integer-overflow"
+	defensiveSequenceCollisionRiskRuleID     = "defensive.sequence-collision-risk"
 	defensiveBoundsAssumptionRuleID          = "defensive.bounds-assumption"
 	defensiveUnsafeDefaultRuleID             = "defensive.unsafe-default"
 	defensiveNonExhaustiveBranchRuleID       = "defensive.non-exhaustive-branch"
@@ -35,6 +36,10 @@ var (
 	structStartPattern      = regexp.MustCompile(`(?i)\b(type\s+\w+\s+struct|interface\s+\w+|class\s+\w+|struct\s+\w+)`)
 	boolFieldPattern        = regexp.MustCompile(`(?i)\b(bool|boolean)\b`)
 	stringStateFieldPattern = regexp.MustCompile(`(?i)\b(status|state|kind)\b.*\b(string|str|std::string|String)\b|\b(string|str|std::string|String)\b.*\b(status|state|kind)\b`)
+	resourceCountGuard      = regexp.MustCompile(`(?i)\b(?:count|size|length|len|bytes)\s*(?:<=|<|>|>=)\s*(?:max|limit|quota|cap|[0-9])`)
+	resourceNamedCountLimit = regexp.MustCompile(`(?i)\b(?:max|limit|quota|cap)[A-Za-z0-9_]*(?:count|size|length|len|bytes)\b`)
+	sequenceAllocationLine  = regexp.MustCompile(`(?i)\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b.*(?:count|max)\s*\+\s*1|(?:count|max)\s*\+\s*1.*\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b`)
+	jsonReaderSchemaCall    = regexp.MustCompile(`(?i)\b(?:read|parse|decode)Json[A-Za-z0-9_]*\s*\([^)\n,]+,\s*[A-Za-z_$][\w$]*(?:Schema|Validator|Codec|Parser)\b`)
 )
 
 func defensiveBoundaryFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -52,6 +57,10 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 	if line, ok := nullAssumptionLine(fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveNullAssumptionRuleID, file, line,
 			"nullable boundary value is dereferenced without a nil/null guard", core.ConfidenceMedium))
+	}
+	if line, ok := sequenceCollisionRiskLine(fn, loweredBody); ok {
+		findings = append(findings, precisionWarnFinding(env, defensiveSequenceCollisionRiskRuleID, file, line,
+			"external ID allocation derives the next value from current count without guarded unique-collision retry", core.ConfidenceMedium))
 	}
 	if line, ok := integerOverflowLine(file, fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveIntegerOverflowRuleID, file, line,
@@ -130,6 +139,9 @@ func unvalidatedBoundaryInputLine(fn precisionFunction, loweredBody string) (int
 	if !boundaryFunctionName(fn.Name) && !hasBoundaryParam(fn.Params) {
 		return 0, false
 	}
+	if isValidationOrExtractionHelperName(fn.Name) {
+		return 0, false
+	}
 	if validatedBoundaryInputPattern(fn, loweredBody) {
 		return 0, false
 	}
@@ -149,13 +161,29 @@ func formDataHasContentLengthPreflight(loweredBody string) bool {
 }
 
 func validatedBoundaryInputPattern(fn precisionFunction, loweredBody string) bool {
-	if containsAny(loweredBody, []string{"validate", "schema", "sanitize", "bind", "decodevalid", "safeparse", "zod.", "yup.", "pydantic", "jsonschema"}) {
+	if containsAny(loweredBody, []string{"validate", "schema", "sanitize", "bind", "decodevalid", "safeparse", "z.safeparse", "zod.", "yup.", "pydantic", "jsonschema"}) {
+		return true
+	}
+	if jsonReaderSchemaCall.MatchString(functionRawBody(fn)) {
+		return true
+	}
+	if strings.Contains(loweredBody, "nextresponse.") && containsAny(loweredBody, []string{"return nextresponse", ".json(", "redirect("}) && containsAny(loweredBody, []string{"if (!", "if (!", "if(", "if "}) {
 		return true
 	}
 	if regexp.MustCompile(`(?i)\b(parse|assert|guard|ensure|decode)[A-Z_][A-Za-z0-9_]*(?:Input|Payload|Body|Params|Query|Record|Request|Event|Config)?\s*\(`).MatchString(functionRawBody(fn)) {
 		return true
 	}
 	return false
+}
+
+func isValidationOrExtractionHelperName(name string) bool {
+	lowered := strings.ToLower(strings.Trim(name, "_$"))
+	if strings.HasPrefix(lowered, "parse") || strings.HasPrefix(lowered, "assert") ||
+		strings.HasPrefix(lowered, "guard") || strings.HasPrefix(lowered, "ensure") ||
+		strings.HasPrefix(lowered, "decode") {
+		return true
+	}
+	return containsAny(lowered, []string{"bearertokenfrom", "tokenfrom", "headerfrom", "requestbodyfrom"})
 }
 
 func hasBoundaryParam(params []support.ParsedParam) bool {
@@ -205,7 +233,7 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 	if isUIRenderArithmeticContext(file, fn, loweredBody) {
 		return 0, false
 	}
-	if guardedSequenceCollisionRetry(loweredBody) {
+	if sequenceAllocationArithmetic(loweredBody) || metricStatArithmeticContext(fn, loweredBody) || dateCountFormattingContext(fn, loweredBody) {
 		return 0, false
 	}
 	if containsAny(loweredBody, []string{"maxint", "math.max", "checked", "saturating", "overflow", "limits<", "safeint"}) {
@@ -220,7 +248,35 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 	return 0, false
 }
 
+func sequenceCollisionRiskLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if !sequenceAllocationArithmetic(loweredBody) || guardedSequenceCollisionRetry(loweredBody) {
+		return 0, false
+	}
+	return firstSequenceAllocationLine(fn), true
+}
+
+func sequenceAllocationArithmetic(loweredBody string) bool {
+	if !containsAny(loweredBody, []string{"count + 1", "count+1", "max + 1", "max+1"}) {
+		return false
+	}
+	return containsAny(loweredBody, []string{"externalid", "external_id", "nextid", "next_id", "sequence", "slug", "number"})
+}
+
+func firstSequenceAllocationLine(fn precisionFunction) int {
+	for _, statement := range fn.Statements {
+		raw := firstNonEmptyString(statement.Raw, statement.Text)
+		if sequenceAllocationLine.MatchString(raw) {
+			return statement.Line
+		}
+	}
+	return fn.StartLine
+}
+
 func guardedSequenceCollisionRetry(loweredBody string) bool {
+	if containsAny(loweredBody, []string{"withexternalidretry", "with_external_id_retry"}) &&
+		containsAny(loweredBody, []string{"p2002", "unique", "collision", "externalid", "external_id"}) {
+		return true
+	}
 	if !containsAny(loweredBody, []string{"p2002", "unique", "collision", "prisma"}) {
 		return false
 	}
@@ -228,6 +284,25 @@ func guardedSequenceCollisionRetry(loweredBody string) bool {
 		return false
 	}
 	return containsAny(loweredBody, []string{"count + 1", "count+1", "externalid", "external_id", "nextid", "next_id"})
+}
+
+func metricStatArithmeticContext(fn precisionFunction, loweredBody string) bool {
+	loweredName := strings.ToLower(fn.Name)
+	if containsAny(loweredName, []string{"metric", "metrics", "stat", "stats", "counter", "histogram", "telemetry"}) {
+		return true
+	}
+	return containsAny(loweredBody, []string{"metric.", "metrics.", "counter.", "histogram", "stat.", "stats.", "telemetry", "prometheus", "datadog"})
+}
+
+func dateCountFormattingContext(fn precisionFunction, loweredBody string) bool {
+	loweredName := strings.ToLower(fn.Name)
+	if !containsAny(loweredName, []string{"format", "display", "label", "render", "summary", "calendar", "date", "time"}) {
+		return false
+	}
+	return containsAny(loweredBody, []string{
+		"date", "time", "calendar", "duration", "intl.", "datetimeformat", "formatdistance",
+		"formatrelative", "plural", "label", "title", "subtitle", "`${", " + \"", " + '",
+	})
 }
 
 func isUIRenderArithmeticContext(file string, fn precisionFunction, loweredBody string) bool {
@@ -333,7 +408,7 @@ func missingSchemaValidationLine(fn precisionFunction, loweredBody string) (int,
 	if !jsonDecodePattern.MatchString(functionRawBody(fn)) {
 		return 0, false
 	}
-	if validatedBoundaryInputPattern(fn, loweredBody) || containsAny(loweredBody, []string{"jsonschema", "isvalid", "required"}) {
+	if validatedBoundaryInputPattern(fn, loweredBody) || jsonReaderSchemaCall.MatchString(functionRawBody(fn)) || containsAny(loweredBody, []string{"jsonschema", "isvalid", "required"}) {
 		return 0, false
 	}
 	return firstPatternLine(fn, jsonDecodePattern), true
@@ -343,13 +418,31 @@ func missingResourceLimitLine(fn precisionFunction, loweredBody string) (int, bo
 	if !resourceReadPattern.MatchString(functionRawBody(fn)) {
 		return 0, false
 	}
-	if containsAny(loweredBody, []string{"limitreader", "maxbytes", "max_bytes", "content-length", "contentlength", "limit(", "take(", "buffer_size", "quota"}) {
+	if uploadValidationHelperPattern(loweredBody) {
+		return 0, false
+	}
+	if resourceLimitProofPattern(loweredBody) {
 		return 0, false
 	}
 	if boundedReadByteLengthCheck(loweredBody) {
 		return 0, false
 	}
 	return firstPatternLine(fn, resourceReadPattern), true
+}
+
+func resourceLimitProofPattern(loweredBody string) bool {
+	if containsAny(loweredBody, []string{
+		"limitreader", "maxbytes", "max_bytes", "content-length", "contentlength",
+		"limit(", "take(", "slice(", ".slice(", "buffer_size", "quota",
+	}) {
+		return true
+	}
+	return resourceCountGuard.MatchString(loweredBody) || resourceNamedCountLimit.MatchString(loweredBody)
+}
+
+func uploadValidationHelperPattern(loweredBody string) bool {
+	return containsAny(loweredBody, []string{"validateinternaluploadfile", "validateuploadfile", "validatefileupload", "validateupload"}) ||
+		containsAny(loweredBody, []string{"internal_upload_max_bytes", "upload_max_bytes", "max_upload_bytes", "max_file_bytes"})
 }
 
 func boundedReadByteLengthCheck(loweredBody string) bool {

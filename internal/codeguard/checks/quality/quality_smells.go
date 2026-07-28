@@ -603,6 +603,9 @@ func normalizedParamConcept(name string) string {
 
 func switchOnTypeFindings(env support.Context, file string, source string, language string) []core.Finding {
 	masked := maskForStructuralLanguage(source, language)
+	if centralizedEnumDispatchContext(file, masked) {
+		return nil
+	}
 	typeBranches := len(typeBranchPattern.FindAllStringIndex(masked, -1))
 	kindBranches := 0
 	switch language {
@@ -623,6 +626,19 @@ func switchOnTypeFindings(env support.Context, file string, source string, langu
 			core.ConfidenceMedium)}
 	}
 	return nil
+}
+
+func centralizedEnumDispatchContext(file string, source string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	lowered := strings.ToLower(source)
+	if containsAny(normalized, []string{"label", "labels", "status", "statuses", "option", "options", "map", "maps", "display"}) {
+		return true
+	}
+	if containsAny(lowered, []string{"label:", "labels", "record<", " as const", "satisfies record", "displayname", "display_name"}) &&
+		!regexp.MustCompile(`(?is)\b(?:if|switch)\b.*\b(?:save|update|delete|send|publish|emit|write)\b`).MatchString(lowered) {
+		return true
+	}
+	return false
 }
 
 func firstTypeBranchLine(masked string) int {

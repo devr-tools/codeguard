@@ -161,7 +161,13 @@ func isAllowedBooleanUIName(file string, fn precisionFunction, name string) bool
 	if !isReactComponentOrHookBoundary(file, fn) {
 		return false
 	}
-	switch strings.ToLower(strings.Trim(name, "_$")) {
+	normalized := strings.ToLower(strings.Trim(name, "_$"))
+	for _, suffix := range []string{"active", "visible", "enabled", "disabled", "open", "closed", "expanded", "collapsed", "selected", "checked", "pending", "loading"} {
+		if strings.HasSuffix(normalized, suffix) {
+			return true
+		}
+	}
+	switch normalized {
 	case "open", "loading", "active", "pending", "checked", "selected", "expanded", "collapsed":
 		return true
 	default:
@@ -191,7 +197,7 @@ func isResourceIdentifierName(name string) bool {
 func conventionalCardinalityName(name string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
 	switch base {
-	case "answers", "args", "claims", "columns", "contracts", "entries", "files", "ids", "items", "k", "keys", "matters", "messages", "next", "out", "params", "props", "records", "risks", "rows", "searchparams", "sections", "source", "status", "thresholds", "users", "versions", "v", "i", "j", "x", "y":
+	case "all", "answers", "args", "claims", "columns", "contracts", "docs", "entries", "files", "filtered", "ids", "items", "k", "keys", "krs", "matters", "messages", "next", "out", "params", "props", "records", "risks", "rows", "searchparams", "sections", "source", "status", "thresholds", "users", "versions", "v", "i", "j", "x", "y":
 		return true
 	default:
 		return len(name) <= 2 ||

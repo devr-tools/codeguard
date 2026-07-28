@@ -170,6 +170,63 @@ func TestFunctionHiddenMutationAllowsBuilderParserAccumulatorNames(t *testing.T)
 	}
 }
 
+func TestFunctionHiddenMutationAllowsMoreLocalBuilderMutationIdioms(t *testing.T) {
+	cases := []struct {
+		name   string
+		file   string
+		source []string
+	}{
+		{
+			name: "contracts filters set and sort",
+			file: "apps/web/app/contracts/contracts-filters.ts",
+			source: []string{
+				"export function buildContractFilters(rows: Contract[]) {",
+				"  const statuses = new Set<string>();",
+				"  const defs: Array<{ value: string }> = [];",
+				"  for (const row of rows) statuses.add(row.status);",
+				"  for (const status of statuses) defs.push({ value: status });",
+				"  defs.sort((a, b) => a.value.localeCompare(b.value));",
+				"  return defs;",
+				"}",
+				"interface Contract { status: string }",
+			},
+		},
+		{
+			name: "split pop parser",
+			file: "packages/api/src/parse.ts",
+			source: []string{
+				"export function parseFileExtension(name: string) {",
+				"  return name.split('.').pop() ?? '';",
+				"}",
+			},
+		},
+		{
+			name: "cheerio cleanup",
+			file: "packages/api/src/clean-html.ts",
+			source: []string{
+				"import * as cheerio from 'cheerio';",
+				"export function cleanHtml(html: string) {",
+				"  const $ = cheerio.load(html);",
+				"  $('script').remove();",
+				"  $('[style]').removeAttr('style');",
+				"  return $.html();",
+				"}",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), strings.Join(tc.source, "\n"))
+
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+			assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+			assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+		})
+	}
+}
+
 func TestFunctionHiddenMutationStillWarnsForCollaboratorMutationWithLocalPayload(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "mutation.ts"), strings.Join([]string{
