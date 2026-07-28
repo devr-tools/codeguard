@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.7](https://github.com/devr-tools/codeguard/compare/v1.3.6...v1.3.7) (2026-07-28)
+
+
+### Bug Fixes
+
+* narrow defensive precision broadening ([3a237f0](https://github.com/devr-tools/codeguard/commit/3a237f0f3973c12ed9c19a3d194c53bea46661a8))
+* reduce defensive false positives ([81388fd](https://github.com/devr-tools/codeguard/commit/81388fdda06290889dac0e06c61ba6b8fb223aa4))
+* reduce defensive precision false positives ([#85](https://github.com/devr-tools/codeguard/issues/85)) ([4ce5e1d](https://github.com/devr-tools/codeguard/commit/4ce5e1d96f39a90a3a6cda44158d31e046b6be0a))
+
 ## [1.3.6](https://github.com/devr-tools/codeguard/compare/v1.3.5...v1.3.6) (2026-07-28)
 
 
