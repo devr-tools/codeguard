@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.3.0](https://github.com/devr-tools/codeguard/compare/v1.2.2...v1.3.0) (2026-07-27)
+
+
+### Features
+
+* add abstraction quality checks ([fc5a7ec](https://github.com/devr-tools/codeguard/commit/fc5a7ec06b44aa7e4ddb2c637eaf809ca4c7cc00))
+* add change safety diff detectors ([ebc2f80](https://github.com/devr-tools/codeguard/commit/ebc2f801fa180d075f01f3b0939155b70de0d4a8))
+* add change safety PR summary metrics ([5b10ecd](https://github.com/devr-tools/codeguard/commit/5b10ecde5ff47f8e85686c8aa6171d112e66a3bd))
+* add delivery governance checks ([eb1b803](https://github.com/devr-tools/codeguard/commit/eb1b8032e9e2a7320c6abc1eb45dca843bc06dd6))
+* add local quality precision rules ([dd75b79](https://github.com/devr-tools/codeguard/commit/dd75b79149463d4e9e20c41159c9cb1db69ed002))
+* add local quality precision rules ([00c493e](https://github.com/devr-tools/codeguard/commit/00c493e4337d8b2c3c5673d0cc99aeb420ce55b2))
+* add observability and operations checks ([3e8713c](https://github.com/devr-tools/codeguard/commit/3e8713cb6ec754eef3dee33ab86457e19654607e))
+* add operability, design, and delivery governance checks ([#70](https://github.com/devr-tools/codeguard/issues/70)) ([a52199a](https://github.com/devr-tools/codeguard/commit/a52199a4471fdd093385e3f33ca4cc48dc1c5752))
+* add opt-in recommended check defaults ([1680b21](https://github.com/devr-tools/codeguard/commit/1680b21d551c31e86c8f85386c5d5154f95188ad))
+* add opt-in recommended check defaults ([#66](https://github.com/devr-tools/codeguard/issues/66)) ([67510e3](https://github.com/devr-tools/codeguard/commit/67510e3c3cb23ce1e22128d987fb3400e161d600))
+* add production readiness rule families ([d58e8eb](https://github.com/devr-tools/codeguard/commit/d58e8eb61e418bf8f2b1f00f06a05fcb7f18f464))
+* Add production reliability and data-readiness checks across languages ([#67](https://github.com/devr-tools/codeguard/issues/67)) ([c243ead](https://github.com/devr-tools/codeguard/commit/c243ead656a603b1e3bc26896edca6d4da617acb))
+* add refused bequest smell detection ([053cb1a](https://github.com/devr-tools/codeguard/commit/053cb1a3d4cfed9c4fc39f638259efa663d26ed3))
+* add refused bequest smell detection ([#72](https://github.com/devr-tools/codeguard/issues/72)) ([4423aa4](https://github.com/devr-tools/codeguard/commit/4423aa4d1ff53d96b43000afa47206177b5f7a4e))
+* add structural smell quality rules ([eefd8bd](https://github.com/devr-tools/codeguard/commit/eefd8bd2d403f1600e8c2b9fc9bb7ab31e677b78))
+* change safety testability refactors ([#69](https://github.com/devr-tools/codeguard/issues/69)) ([9081ad3](https://github.com/devr-tools/codeguard/commit/9081ad3abf666ae1e44faeec0e9611a8f275e80f))
+* deepen code smell and maintainability precision checks ([#71](https://github.com/devr-tools/codeguard/issues/71)) ([d554347](https://github.com/devr-tools/codeguard/commit/d5543476080cf35926d26508e6377fd6ca4d7999))
+* deepen reliability parity checks ([fc8d769](https://github.com/devr-tools/codeguard/commit/fc8d769fca03a887171cd52ad1c690017d9ef767))
+* expand production readiness language coverage ([588bf19](https://github.com/devr-tools/codeguard/commit/588bf19e73579dc566a3510baecb679c69157ce3))
+* scaffold change safety checks ([0b313d9](https://github.com/devr-tools/codeguard/commit/0b313d9e93497f5d7f1e04496ee9597095218f6c))
+
+
+### Bug Fixes
+
+* dogfood production readiness coverage ([1110f4f](https://github.com/devr-tools/codeguard/commit/1110f4f9b452e306e604624c446fbc158c92b234))
+* restore change testability detectors ([88f6df0](https://github.com/devr-tools/codeguard/commit/88f6df0d1d17a0f39e29da4c2a0222fed90160c8))
+* satisfy strict lint for change safety ([311716c](https://github.com/devr-tools/codeguard/commit/311716c896c01199a45ff2525b92dd0e532c0458))
+* satisfy strict lint for operability governance ([abc9fd1](https://github.com/devr-tools/codeguard/commit/abc9fd1e69b83df81d05cad6bdfab10caaeeed15))
+
 ## [1.2.2](https://github.com/devr-tools/codeguard/compare/v1.2.1...v1.2.2) (2026-07-25)
 
 
