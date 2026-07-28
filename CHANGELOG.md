@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.1](https://github.com/devr-tools/codeguard/compare/v1.3.0...v1.3.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* harden hidden mutation precision ([8f77a74](https://github.com/devr-tools/codeguard/commit/8f77a747d186e43cecfaecd7e9a29f84a57d5978))
+* harden UI false positive precision ([b46dfe7](https://github.com/devr-tools/codeguard/commit/b46dfe77d5fe308e45e8734375b1a6e0bf983bb2))
+* react hook hidden mutation noise ([#73](https://github.com/devr-tools/codeguard/issues/73)) ([3fa1b1c](https://github.com/devr-tools/codeguard/commit/3fa1b1cf9a06994edf18ed72429d5047bafd2c44))
+* reduce hidden mutation noise for React hooks ([c4f61c9](https://github.com/devr-tools/codeguard/commit/c4f61c961f633449daf1ebb251c54058508b1d4b))
+* satisfy lint for false positive hardening ([62643da](https://github.com/devr-tools/codeguard/commit/62643da4d57a6eb7fde0926de0121333e605902f))
+
 ## [1.3.0](https://github.com/devr-tools/codeguard/compare/v1.2.2...v1.3.0) (2026-07-27)
 
 
