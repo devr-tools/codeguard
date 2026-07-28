@@ -45,7 +45,7 @@ var (
 		"misc": {}, "stuff": {}, "value": {}, "values": {},
 	}
 	queryFunctionPrefixPattern = regexp.MustCompile(`^(get|find|list|load|read|lookup|fetch|is|has|can|should|compute|calculate|build|format|parse)`)
-	mutatingCallPattern        = regexp.MustCompile(`(?i)(^|[.>:\-_])(add|append|assign|clear|create|delete|emit|insert|mutate|persist|pop|publish|push|push_back|remove|reverse|save|send|set|sort|splice|store|update|upsert|write)([A-Z_:\-.]|$)`)
+	mutatingCallPattern        = regexp.MustCompile(`(?i)(^|[.>:\-_])(add|allocate|append|assign|clear|create|delete|emit|insert|mutate|persist|pop|publish|push|push_back|remove|reverse|save|send|set|sort|splice|store|update|upsert|write)([A-Z_:\-.]|$)`)
 	lowLevelOperationPattern   = regexp.MustCompile(`(?i)(\bsql\.|\.query\(|\.exec\(|\bhttp\.|\bfetch\(|\baxios\.|\brequests\.|\bjson\.|\bJSON\.|\bos\.Getenv\b|\bprocess\.env\b|\bfs\.|#include\b)`)
 	primitiveTypePattern       = regexp.MustCompile(`(?i)\b(string|str|int|int64|float|float64|double|decimal|number|boolean|bool|char|long|short)\b`)
 	domainPrimitiveNamePattern = regexp.MustCompile(`(?i)(id|status|state|type|kind|currency|amount|price|email|phone|country|role|permission|tenant|account|customer|order)`)

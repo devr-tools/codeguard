@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	commandFunctionPrefixPattern = regexp.MustCompile(`^(add|append|assign|cancel|clear|close|create|delete|disable|emit|enable|insert|mutate|notify|open|persist|publish|record|remove|reset|save|send|set|store|submit|toggle|update|upsert|upload|write)`)
+	commandFunctionPrefixPattern = regexp.MustCompile(`^(add|allocate|append|assign|cancel|clear|close|create|delete|disable|emit|enable|insert|mutate|notify|open|persist|publish|record|remove|reset|save|send|set|store|submit|toggle|update|upsert|upload|write)`)
 	readCallPattern              = regexp.MustCompile(`(?i)(^|[.>:\-_])(count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
 	identifierTokenPattern       = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
 	infraNamePattern             = regexp.MustCompile(`(?i)(sql|http|redis|kafka|grpc|graphql|mongo|s3|dynamo|postgres|mysql|elastic|orm)`)

@@ -53,6 +53,28 @@ func TestDefensiveIntegerOverflowFollowupRetunes(t *testing.T) {
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.sequence-collision-risk", "seed-contracts.ts")
 }
 
+func TestAllocateExternalIDIsCommandStyleReturningValue(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/routers/entity-shared.ts"), strings.Join([]string{
+		"export async function allocateExternalId(db: Db) {",
+		"  return withExternalIdRetry(async () => {",
+		"    const count = await db.entity.count();",
+		"    const externalId = count + 1;",
+		"    return db.entity.create({ data: { externalId } });",
+		"  }, { code: 'P2002', field: 'externalId' });",
+		"}",
+		"declare function withExternalIdRetry<T>(fn: () => Promise<T>, opts: { code: 'P2002'; field: 'externalId' }): Promise<T>;",
+		"interface Db { entity: { count(): Promise<number>; create(input: unknown): Promise<unknown> } }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.sequence-collision-risk", "entity-shared.ts", "architectural debt", "database sequence")
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
+}
+
 func TestDefensiveBoundsAssumptionDistinguishesDictionaryFromSequenceAccess(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/api/src/lib/field-map.ts"), strings.Join([]string{
