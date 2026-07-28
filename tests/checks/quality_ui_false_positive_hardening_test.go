@@ -673,7 +673,8 @@ func TestSmellAndOverflowRulesStillFlagNonUIProductionCode(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/domain/src/account-risk.ts"), strings.Join([]string{
 		"export function scoreCustomer(customer: Customer, count: number) {",
-		"  const score = count * 4096;",
+		"  const totalBytes = count * 4096;",
+		"  const score = new Uint8Array(totalBytes).byteLength;",
 		"  const code = customer.profile.address.country.region.zone.owner.name.toUpperCase();",
 		"  return customer.profile.name + customer.profile.email + customer.account.region + customer.account.plan + customer.account.status + code + score;",
 		"}",

@@ -337,7 +337,7 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 func resourceAllocationArithmeticContext(loweredBody string) bool {
 	return containsAny(loweredBody, []string{
 		"buffer.alloc", "allocunsafe", "new uint8array", "new arraybuffer", "new array(",
-		"make([]", "reserve(", "resize(", "setlength(", "content-length", "contentlength",
+		"make([]", "bytearray(", "vector<", "reserve(", "resize(", "setlength(", "content-length", "contentlength",
 		"readall", "read_all", "readtoend", "read_to_end",
 	})
 }
