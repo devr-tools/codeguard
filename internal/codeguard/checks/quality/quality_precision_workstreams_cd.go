@@ -50,7 +50,7 @@ var (
 
 func additionalPrecisionFunctionFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
 	findings := make([]core.Finding, 0, 8)
-	if behaviorMismatch(fn) {
+	if behaviorMismatch(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, namingBehaviorMismatchRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s name conflicts with observed query/command behavior", fn.Name), core.ConfidenceMedium))
 	}
@@ -153,9 +153,12 @@ func sourceNamingFindings(env support.Context, file string, source string) []cor
 	return findings
 }
 
-func behaviorMismatch(fn precisionFunction) bool {
+func behaviorMismatch(file string, fn precisionFunction) bool {
+	if isFrameworkOrchestrationBoundary(file, fn) {
+		return false
+	}
 	name := strings.ToLower(fn.Name)
-	if hiddenSideEffect(fn) {
+	if hiddenSideEffect(file, fn) {
 		return true
 	}
 	if !commandFunctionPrefixPattern.MatchString(name) || mutatingFunctionEvidence(fn) {
@@ -170,12 +173,12 @@ func behaviorMismatch(fn precisionFunction) bool {
 }
 
 func hiddenMutation(file string, fn precisionFunction) bool {
-	if explicitMutationName(fn.Name) || isFrameworkCommandBoundary(file, fn.Name) || isScriptEntrypoint(file, fn.Name) {
+	if explicitMutationName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) {
 		return false
 	}
 	mutatesParam := mutatesParameter(fn)
 	mutatesState := mutatingFunctionEvidence(fn)
-	if isReactHookStateBoundary(file, fn) && mutatesState && !mutatesParam && onlyReactHookLocalStateMutation(fn) {
+	if isReactLocalStateBoundary(file, fn) && mutatesState && !mutatesParam && onlyReactHookLocalStateMutation(fn) {
 		return false
 	}
 	return mutatesState || mutatesParam
@@ -183,12 +186,12 @@ func hiddenMutation(file string, fn precisionFunction) bool {
 
 func mutatingFunctionEvidence(fn precisionFunction) bool {
 	localTargets := localMutationTargets(fn)
-	for _, call := range fn.Calls {
+	for _, call := range directCalls(fn) {
 		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) {
 			return true
 		}
 	}
-	for _, assignment := range fn.Assignments {
+	for _, assignment := range directAssignments(fn) {
 		if assignment.Augmented && !isLocalMutationTarget(assignment.Name, localTargets) {
 			return true
 		}
@@ -206,7 +209,8 @@ func mutatesParameter(fn precisionFunction) bool {
 	if len(params) == 0 {
 		return false
 	}
-	for _, line := range strings.Split(fn.Body, "\n") {
+	for _, statement := range directStatements(fn) {
+		line := firstNonEmptyString(statement.Raw, statement.Text)
 		if !lineHasAssignmentOperator(line) {
 			continue
 		}
@@ -244,6 +248,7 @@ func explicitMutationName(name string) bool {
 	lowered := strings.ToLower(strings.TrimSpace(name))
 	return commandFunctionPrefixPattern.MatchString(lowered) ||
 		conventionalMutationBoundaryPattern.MatchString(lowered) ||
+		isEventHandlerName(name) ||
 		strings.Contains(lowered, "mutat") ||
 		strings.Contains(lowered, "persist") ||
 		strings.Contains(lowered, "write")

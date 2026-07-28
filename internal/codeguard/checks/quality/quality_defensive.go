@@ -53,7 +53,7 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, defensiveNullAssumptionRuleID, file, line,
 			"nullable boundary value is dereferenced without a nil/null guard", core.ConfidenceMedium))
 	}
-	if line, ok := integerOverflowLine(fn, loweredBody); ok {
+	if line, ok := integerOverflowLine(file, fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveIntegerOverflowRuleID, file, line,
 			"arithmetic on count, size, or length input lacks an overflow bound check", core.ConfidenceMedium))
 	}
@@ -182,7 +182,10 @@ func firstUseLine(fn precisionFunction, name string) int {
 	return fn.StartLine
 }
 
-func integerOverflowLine(fn precisionFunction, loweredBody string) (int, bool) {
+func integerOverflowLine(file string, fn precisionFunction, loweredBody string) (int, bool) {
+	if isUIRenderArithmeticContext(file, fn, loweredBody) {
+		return 0, false
+	}
 	if containsAny(loweredBody, []string{"maxint", "math.max", "checked", "saturating", "overflow", "limits<", "safeint"}) {
 		return 0, false
 	}
@@ -193,6 +196,22 @@ func integerOverflowLine(fn precisionFunction, loweredBody string) (int, bool) {
 		return fn.StartLine, true
 	}
 	return 0, false
+}
+
+func isUIRenderArithmeticContext(file string, fn precisionFunction, loweredBody string) bool {
+	if isUIHelperOrMappingContext(file, fn) {
+		return true
+	}
+	if !isScriptLikeSourcePath(file) || !isLikelyUIFile(file) {
+		return false
+	}
+	if isUIRenderHelperName(fn.Name) || isUIRenderMappingBody(fn.Body) {
+		return true
+	}
+	return containsAny(loweredBody, []string{
+		"stylesheet.", "dimensions.", "pixelratio.", "fontscale", "spacing",
+		"padding", "margin", "width", "height", "opacity", "zindex",
+	})
 }
 
 func boundsAssumptionLine(fn precisionFunction, loweredBody string) (int, bool) {

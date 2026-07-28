@@ -163,3 +163,166 @@ func TestDesignPersistenceModelLeakAllowsGeneratedPrismaEnums(t *testing.T) {
 		}
 	}
 }
+
+func TestDesignPersistenceModelLeakSkipsFrontendUIProps(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps", "web", "app", "contracts", "_components", "contract-card.tsx"), strings.Join([]string{
+		"export type ContractCardProps = {",
+		"  contract: ContractModel;",
+		"};",
+		"type ContractModel = { id: string };",
+		"export function ContractCard(props: ContractCardProps) {",
+		"  return <span>{props.contract.id}</span>;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages", "api", "contracts", "contract.ts"), strings.Join([]string{
+		"export type ContractModel = { id: string };",
+	}, "\n"))
+
+	report := runDesignLocalScan(t, designLocalConfig(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.persistence-model-leak")
+	for _, section := range report.Sections {
+		if section.Name != "Design Patterns" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID == "design.persistence-model-leak" && strings.Contains(finding.Path, "contract-card.tsx") {
+				t.Fatalf("frontend UI props should not leak persistence model: %+v", finding)
+			}
+		}
+	}
+}
+
+func TestDesignPersistenceModelLeakSkipsReactAndReactNativePresentationPaths(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps", "web", "app", "(legal)", "contracts", "[id]", "_components", "contract-detail.tsx"), strings.Join([]string{
+		"import type { ContractStatus } from '@prisma/client';",
+		"type ContractModel = { id: string; status: ContractStatus };",
+		"export type ContractDetailProps = {",
+		"  contract: ContractModel;",
+		"};",
+		"export const contractStatusLabels: Record<ContractStatus, string> = {",
+		"  DRAFT: 'Draft',",
+		"};",
+		"export function ContractDetail(props: ContractDetailProps) {",
+		"  return <span>{props.contract.id}</span>;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "apps", "mobile", "src", "screens", "contracts", "ContractDetailsScreen.tsx"), strings.Join([]string{
+		"import type { ContractStatus } from '@prisma/client';",
+		"type ContractModel = { id: string; status: ContractStatus };",
+		"export type ContractDetailsScreenProps = {",
+		"  contract: ContractModel;",
+		"};",
+		"export const contractStatusOptions: Array<{ value: ContractStatus; label: string }> = [];",
+		"export function ContractDetailsScreen(props: ContractDetailsScreenProps) {",
+		"  return <Text>{props.contract.id}</Text>;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages", "ui", "src", "components", "ContractBadge.tsx"), strings.Join([]string{
+		"type ContractModel = { id: string };",
+		"export type ContractBadgeProps = { contract: ContractModel };",
+		"export function ContractBadge(props: ContractBadgeProps) {",
+		"  return <span>{props.contract.id}</span>;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages", "api", "contracts", "public.ts"), strings.Join([]string{
+		"export type ContractModel = { id: string };",
+	}, "\n"))
+
+	report := runDesignLocalScan(t, designLocalConfig(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.persistence-model-leak")
+	for _, section := range report.Sections {
+		if section.Name != "Design Patterns" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID != "design.persistence-model-leak" {
+				continue
+			}
+			if strings.Contains(finding.Path, "contract-detail.tsx") ||
+				strings.Contains(finding.Path, "ContractDetailsScreen.tsx") ||
+				strings.Contains(finding.Path, "ContractBadge.tsx") {
+				t.Fatalf("React/React Native presentation path should not leak persistence model: %+v", finding)
+			}
+		}
+	}
+}
+
+func TestDesignPersistenceModelLeakSkipsNestJSDTOControllerBoundaries(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps", "api", "src", "users", "users.controller.ts"), strings.Join([]string{
+		"import { Body, Controller, Post } from '@nestjs/common';",
+		"@Controller('users')",
+		"export class UsersController {",
+		"  @Post()",
+		"  async create(@Body() data: CreateUserDto): Promise<UserResponseDto> {",
+		"    return this.usersService.create(data);",
+		"  }",
+		"}",
+		"export interface CreateUserDto { id: string }",
+		"export interface UserResponseDto { id: string }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "apps", "api", "src", "users", "users.route.ts"), strings.Join([]string{
+		"export type UserEntity = { id: string };",
+		"export async function GET(): Promise<UserEntity> {",
+		"  return db.user.findFirst();",
+		"}",
+	}, "\n"))
+
+	report := runDesignLocalScan(t, designLocalConfig(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.persistence-model-leak")
+	for _, section := range report.Sections {
+		if section.Name != "Design Patterns" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID == "design.persistence-model-leak" && strings.Contains(finding.Path, "users.controller.ts") {
+				t.Fatalf("NestJS DTO controller boundary should not leak persistence model: %+v", finding)
+			}
+		}
+	}
+}
+
+func TestDesignPersistenceModelLeakKeepsAPIAndDomainBoundaries(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps", "web", "app", "api", "contracts", "route.ts"), strings.Join([]string{
+		"export type ContractModel = { id: string };",
+		"export async function GET() {",
+		"  return Response.json({ ok: true });",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages", "domain", "contracts", "model.ts"), strings.Join([]string{
+		"export type ContractRecord = { id: string };",
+	}, "\n"))
+
+	report := runDesignLocalScan(t, designLocalConfig(dir, "typescript"))
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.persistence-model-leak")
+	foundAPI := false
+	foundDomain := false
+	for _, section := range report.Sections {
+		if section.Name != "Design Patterns" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID != "design.persistence-model-leak" {
+				continue
+			}
+			if !strings.Contains(finding.Message, "Contract") {
+				t.Fatalf("persistence leak finding should include source context: %+v", finding)
+			}
+			foundAPI = foundAPI || strings.Contains(finding.Path, "route.ts")
+			foundDomain = foundDomain || strings.Contains(finding.Path, "model.ts")
+		}
+	}
+	if !foundAPI {
+		t.Fatal("expected API route persistence model leak")
+	}
+	if !foundDomain {
+		t.Fatal("expected domain persistence record leak")
+	}
+}

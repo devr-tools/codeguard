@@ -376,6 +376,9 @@ func responsibilityBucket(name string) string {
 func featureEnvyFindings(env support.Context, file string, functions []structuralFunction) []core.Finding {
 	findings := make([]core.Finding, 0)
 	for _, fn := range functions {
+		if isStructuralUIRenderingContext(file, fn) {
+			continue
+		}
 		if len(fn.Params) == 0 || fn.Body == "" {
 			continue
 		}
@@ -477,6 +480,9 @@ func delegatedTarget(body string) string {
 }
 
 func messageChainFindings(env support.Context, file string, source string, language string) []core.Finding {
+	if isScriptLikeSourcePath(file) && isLikelyUIFile(file) {
+		return nil
+	}
 	masked := maskForStructuralLanguage(source, language)
 	for idx, line := range strings.Split(masked, "\n") {
 		trimmed := strings.TrimSpace(line)
