@@ -125,6 +125,42 @@ func TestDefensiveResourceLimitCreditsPrismaTakeAndContentLengthHelpers(t *testi
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.missing-resource-limit", "search-tools.ts")
 }
 
+func TestDefensiveBroadeningSkipsUIBoundsAndInternalORMReads(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/components/relationship-tree.tsx"), strings.Join([]string{
+		"export function RelationshipTree({ nodes, columns }: Props) {",
+		"  const firstNode = nodes[0];",
+		"  const selectedColumn = columns[activeIndex];",
+		"  return <div>{firstNode?.id}{selectedColumn?.label}</div>;",
+		"}",
+		"interface Props { nodes: Array<{ id: string }>; columns: Array<{ label: string }>; activeIndex: number }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/legal-roster.ts"), strings.Join([]string{
+		"export async function getLegalRoster(db: Db) {",
+		"  const rows = await db.user.findMany({ where: { active: true } });",
+		"  return rows.map((row) => ({ id: row.id, name: row.name }));",
+		"}",
+		"interface Db { user: { findMany(input: unknown): Promise<Array<{ id: string; name: string }>> } }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/routers/search-tools.ts"), strings.Join([]string{
+		"export async function searchTools(db: Db, query: string) {",
+		"  return db.tool.findMany({ where: { name: { contains: query } } });",
+		"}",
+		"export async function searchToolsLimited(db: Db, query: string) {",
+		"  return db.tool.findMany({ where: { name: { contains: query } }, take: TOOL_SEARCH_LIMIT });",
+		"}",
+		"declare const TOOL_SEARCH_LIMIT: number;",
+		"interface Db { tool: { findMany(input: unknown): Promise<unknown[]> } }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.bounds-assumption", "relationship-tree.tsx")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.missing-resource-limit", "legal-roster.ts")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.missing-resource-limit", "search-tools.ts", "resource limit")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.missing-resource-limit", "search-tools.ts:4")
+}
+
 func TestFunctionReturnContractAllowsNullableParserLookupAndExistsHelpers(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/integrations/src/slack/slack-client.ts"), strings.Join([]string{

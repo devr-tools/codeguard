@@ -25,22 +25,23 @@ const (
 )
 
 var (
-	indexAccessPattern      = regexp.MustCompile(`\b([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)\s*\[\s*([^\]\n]+)\s*\]`)
-	jsonDecodePattern       = regexp.MustCompile(`(?i)(json\.Unmarshal|json\.NewDecoder|JSON\.parse|json\.loads|nlohmann::json::parse|decode_json|parseJson)`)
-	externalCallPattern     = regexp.MustCompile(`(?i)(http\.Get|client\.Do|fetch\s*\(|axios\.|requests\.(get|post|put|delete)|curl_easy_perform|httplib::|http_client)`)
-	resourceReadPattern     = regexp.MustCompile(`(?i)(io\.ReadAll|ReadAll|read_to_string|read_to_end|\.read\s*\(|bodyParser|multer|upload|formData\s*\(|request\.body|r\.Body|findMany\s*\(|findFirst\s*\()`)
-	unsafeDefaultPattern    = regexp.MustCompile(`(?i)(getenv|process\.env|os\.environ|std::getenv|config).*?(default|fallback|\|\||!=|,\s*['"]).*?(true|false|allow|disable|skip|insecure)`)
-	switchLikePattern       = regexp.MustCompile(`(?i)\b(switch|match)\b[^{:\n]*(status|state|kind|type)`)
-	stateAssignmentPattern  = regexp.MustCompile(`(?i)(status|state)\s*(?:=|:=|=>)\s*["']?(paid|active|complete|completed|shipped|deleted|approved)["']?`)
-	authFailOpenPattern     = regexp.MustCompile(`(?is)(except|catch)\b[^{:\n]*(?:\{|:)[^}\n]*return\s+(true|allow|nil|none)`)
-	structStartPattern      = regexp.MustCompile(`(?i)\b(type\s+\w+\s+struct|interface\s+\w+|class\s+\w+|struct\s+\w+)`)
-	boolFieldPattern        = regexp.MustCompile(`(?i)\b(bool|boolean)\b`)
-	stringStateFieldPattern = regexp.MustCompile(`(?i)\b(status|state|kind)\b.*\b(string|str|std::string|String)\b|\b(string|str|std::string|String)\b.*\b(status|state|kind)\b`)
-	resourceCountGuard      = regexp.MustCompile(`(?i)\b(?:count|size|length|len|bytes)\s*(?:<=|<|>|>=)\s*(?:max|limit|quota|cap|[0-9])`)
-	resourceNamedCountLimit = regexp.MustCompile(`(?i)\b(?:max|limit|quota|cap)[A-Za-z0-9_]*(?:count|size|length|len|bytes)\b`)
-	sequenceAllocationLine  = regexp.MustCompile(`(?i)\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b.*(?:count|max)\s*\+\s*1|(?:count|max)\s*\+\s*1.*\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b`)
-	jsonReaderSchemaCall    = regexp.MustCompile(`(?i)\b(?:read|parse|decode)Json[A-Za-z0-9_]*\s*\([^)\n,]+,\s*[A-Za-z_$][\w$]*(?:Schema|Validator|Codec|Parser)\b`)
-	prismaTakePattern       = regexp.MustCompile(`(?is)\b(?:findMany|findFirst|findUnique|query|search)\s*\([^)]*\btake\s*:`)
+	indexAccessPattern       = regexp.MustCompile(`\b([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)\s*\[\s*([^\]\n]+)\s*\]`)
+	jsonDecodePattern        = regexp.MustCompile(`(?i)(json\.Unmarshal|json\.NewDecoder|JSON\.parse|json\.loads|nlohmann::json::parse|decode_json|parseJson)`)
+	externalCallPattern      = regexp.MustCompile(`(?i)(http\.Get|client\.Do|fetch\s*\(|axios\.|requests\.(get|post|put|delete)|curl_easy_perform|httplib::|http_client)`)
+	resourceReadPattern      = regexp.MustCompile(`(?i)(io\.ReadAll|ReadAll|read_to_string|read_to_end|\.read\s*\(|bodyParser|multer|upload|formData\s*\(|request\.body|r\.Body)`)
+	ormCollectionReadPattern = regexp.MustCompile(`(?i)\bfindMany\s*\(`)
+	unsafeDefaultPattern     = regexp.MustCompile(`(?i)(getenv|process\.env|os\.environ|std::getenv|config).*?(default|fallback|\|\||!=|,\s*['"]).*?(true|false|allow|disable|skip|insecure)`)
+	switchLikePattern        = regexp.MustCompile(`(?i)\b(switch|match)\b[^{:\n]*(status|state|kind|type)`)
+	stateAssignmentPattern   = regexp.MustCompile(`(?i)(status|state)\s*(?:=|:=|=>)\s*["']?(paid|active|complete|completed|shipped|deleted|approved)["']?`)
+	authFailOpenPattern      = regexp.MustCompile(`(?is)(except|catch)\b[^{:\n]*(?:\{|:)[^}\n]*return\s+(true|allow|nil|none)`)
+	structStartPattern       = regexp.MustCompile(`(?i)\b(type\s+\w+\s+struct|interface\s+\w+|class\s+\w+|struct\s+\w+)`)
+	boolFieldPattern         = regexp.MustCompile(`(?i)\b(bool|boolean)\b`)
+	stringStateFieldPattern  = regexp.MustCompile(`(?i)\b(status|state|kind)\b.*\b(string|str|std::string|String)\b|\b(string|str|std::string|String)\b.*\b(status|state|kind)\b`)
+	resourceCountGuard       = regexp.MustCompile(`(?i)\b(?:count|size|length|len|bytes)\s*(?:<=|<|>|>=)\s*(?:max|limit|quota|cap|[0-9])`)
+	resourceNamedCountLimit  = regexp.MustCompile(`(?i)\b(?:max|limit|quota|cap)[A-Za-z0-9_]*(?:count|size|length|len|bytes)\b`)
+	sequenceAllocationLine   = regexp.MustCompile(`(?i)\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b.*(?:count|max)\s*\+\s*1|(?:count|max)\s*\+\s*1.*\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b`)
+	jsonReaderSchemaCall     = regexp.MustCompile(`(?i)\b(?:read|parse|decode)Json[A-Za-z0-9_]*\s*\([^)\n,]+,\s*[A-Za-z_$][\w$]*(?:Schema|Validator|Codec|Parser)\b`)
+	prismaTakePattern        = regexp.MustCompile(`(?is)\b(?:findMany|findFirst|findUnique|query|search)\s*\([^)]*\btake\s*:`)
 )
 
 func defensiveBoundaryFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -67,7 +68,7 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, defensiveIntegerOverflowRuleID, file, line,
 			"arithmetic on count, size, or length input lacks an overflow bound check", core.ConfidenceMedium))
 	}
-	if line, ok := boundsAssumptionLine(fn, loweredBody); ok {
+	if line, ok := boundsAssumptionLine(file, fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveBoundsAssumptionRuleID, file, line,
 			"indexed access assumes collection bounds without a nearby length check", core.ConfidenceMedium))
 	}
@@ -351,7 +352,10 @@ func isSeedOrScriptSourcePath(file string) bool {
 		strings.HasPrefix(base, "cleanup")
 }
 
-func boundsAssumptionLine(fn precisionFunction, loweredBody string) (int, bool) {
+func boundsAssumptionLine(file string, fn precisionFunction, loweredBody string) (int, bool) {
+	if isUIHelperOrMappingContext(file, fn) || isReactComponentOrHookBoundary(file, fn) {
+		return 0, false
+	}
 	if containsAny(loweredBody, []string{"len(", ".length", ".size()", "empty()", "bounds", "range", "count >"}) {
 		return 0, false
 	}
@@ -468,6 +472,9 @@ func missingSchemaValidationLine(fn precisionFunction, loweredBody string) (int,
 
 func missingResourceLimitLine(fn precisionFunction, loweredBody string) (int, bool) {
 	if !resourceReadPattern.MatchString(functionRawBody(fn)) {
+		if line, ok := missingORMCollectionLimitLine(fn, loweredBody); ok {
+			return line, true
+		}
 		return 0, false
 	}
 	if uploadValidationHelperPattern(loweredBody) {
@@ -483,6 +490,30 @@ func missingResourceLimitLine(fn precisionFunction, loweredBody string) (int, bo
 		return 0, false
 	}
 	return firstPatternLine(fn, resourceReadPattern), true
+}
+
+func missingORMCollectionLimitLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if !ormCollectionReadPattern.MatchString(functionRawBody(fn)) {
+		return 0, false
+	}
+	if resourceLimitProofPattern(loweredBody) {
+		return 0, false
+	}
+	if !ormCollectionReadRequiresExplicitLimit(fn, loweredBody) {
+		return 0, false
+	}
+	return firstPatternLine(fn, ormCollectionReadPattern), true
+}
+
+func ormCollectionReadRequiresExplicitLimit(fn precisionFunction, loweredBody string) bool {
+	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
+	if containsAny(loweredName, []string{"search", "list", "page", "feed", "autocomplete"}) {
+		return true
+	}
+	if boundaryFunctionName(fn.Name) && containsAny(loweredBody, []string{"request", "query", "params", "cursor", "page", "search"}) {
+		return true
+	}
+	return containsAny(loweredBody, []string{"cursor", "skip:", "offset:", "searchparams", "query."})
 }
 
 func resourceLimitProofPattern(loweredBody string) bool {
