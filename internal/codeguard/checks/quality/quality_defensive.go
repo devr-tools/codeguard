@@ -211,10 +211,10 @@ func nullAssumptionLine(file string, fn precisionFunction, loweredBody string) (
 		if name == "" || !nullableParam(param) {
 			continue
 		}
-		if containsAny(loweredBody, []string{name + " == nil", name + " != nil", name + " is none", name + " is not none", name + " === null", name + " !== null", name + " == nullptr", name + " != nullptr"}) {
+		if nullableParamGuarded(loweredBody, name) {
 			continue
 		}
-		if containsAny(loweredBody, []string{name + ".", name + "->", name + "[", "*" + name}) {
+		if nullableUseLine(fn, name) > 0 {
 			return firstUseLine(fn, name), true
 		}
 	}
@@ -222,18 +222,66 @@ func nullAssumptionLine(file string, fn precisionFunction, loweredBody string) (
 }
 
 func nullableParam(param support.ParsedParam) bool {
-	typ := strings.ToLower(param.Type)
-	return strings.Contains(typ, "*") || strings.Contains(typ, "optional") ||
-		strings.Contains(typ, "null") || strings.Contains(typ, "none") ||
-		strings.Contains(typ, "maybe") || strings.Contains(typ, "?")
+	typ := strings.ToLower(strings.TrimSpace(param.Type))
+	if typ == "" {
+		return false
+	}
+	if strings.Contains(typ, "*") || strings.Contains(typ, "optional") || strings.Contains(typ, "maybe") {
+		return true
+	}
+	if strings.Contains(typ, "{") && strings.Contains(typ, "}") &&
+		!containsAny(typ, []string{"} | null", "}|null", "} | undefined", "}|undefined", "} | none", "}|none"}) {
+		return false
+	}
+	if strings.HasSuffix(strings.TrimSpace(typ), "[]") &&
+		!regexp.MustCompile(`\]\s*\|\s*(null|undefined|none)\b`).MatchString(typ) {
+		return false
+	}
+	return regexp.MustCompile(`(^|\|)\s*(null|undefined|none)\b|\b(null|undefined|none)\s*\|`).MatchString(typ) ||
+		strings.Contains(typ, "?")
 }
 
-func firstUseLine(fn precisionFunction, name string) int {
+func nullableParamGuarded(loweredBody string, name string) bool {
+	guards := []string{
+		name + " == nil",
+		name + " != nil",
+		name + " is none",
+		name + " is not none",
+		name + " === null",
+		name + " !== null",
+		name + " == null",
+		name + " != null",
+		name + " == nullptr",
+		name + " != nullptr",
+		"typeof " + name + " === ",
+		"typeof " + name + " == ",
+	}
+	if containsAny(loweredBody, guards) {
+		return true
+	}
+	return regexp.MustCompile(`if\s*\(\s*!\s*` + regexp.QuoteMeta(name) + `\s*\)\s*(?:return|throw|continue|break)\b`).MatchString(loweredBody)
+}
+
+func nullableUseLine(fn precisionFunction, name string) int {
 	for _, statement := range fn.Statements {
 		lowered := strings.ToLower(firstNonEmptyString(statement.Raw, statement.Text))
+		if nullableStatementUsesOnlyNullSafeOperators(lowered, name) {
+			continue
+		}
 		if containsAny(lowered, []string{name + ".", name + "->", name + "[", "*" + name}) {
 			return statement.Line
 		}
+	}
+	return 0
+}
+
+func nullableStatementUsesOnlyNullSafeOperators(statement string, name string) bool {
+	return containsAny(statement, []string{name + "?.", name + "?.[", name + " ??"})
+}
+
+func firstUseLine(fn precisionFunction, name string) int {
+	if line := nullableUseLine(fn, name); line > 0 {
+		return line
 	}
 	return fn.StartLine
 }

@@ -231,6 +231,37 @@ func TestDefensiveBroadeningSkipsUIBoundsAndInternalORMReads(t *testing.T) {
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.missing-resource-limit", "search-tools.ts:4")
 }
 
+func TestDefensiveNullAssumptionCreditsTypeScriptNarrowing(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/null-narrowing.ts"), strings.Join([]string{
+		"export function fromNullableString(summary: string | null | undefined) {",
+		"  const trimmed = typeof summary === 'string' ? summary.trim() : '';",
+		"  return trimmed;",
+		"}",
+		"export function fromNullableDate(value: Date | null) {",
+		"  if (!value) return null;",
+		"  return value.toISOString();",
+		"}",
+		"export function fromNullableElements(recipientIds: (string | null | undefined)[]) {",
+		"  return recipientIds.filter((id): id is string => !!id).map((id) => id.toUpperCase());",
+		"}",
+		"export function fromNullableField(row: { status: string | null; title: string }) {",
+		"  return row.status === 'ACTIVE' ? row.title : null;",
+		"}",
+		"export function unsafeNullableUser(user: { email: string } | null) {",
+		"  return user.email;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:2")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:7")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:10")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:13")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.null-assumption", "null-narrowing.ts:16", "nullable boundary value")
+}
+
 func TestFunctionReturnContractAllowsNullableParserLookupAndExistsHelpers(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/integrations/src/slack/slack-client.ts"), strings.Join([]string{
