@@ -176,7 +176,7 @@ func TestQualityDuplicatedKnowledgeSkipsDisplayStringsAndIncludesLiteral(t *test
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
-	finding := firstFindingForRule(t, report, "Code Quality", "quality.duplicated-knowledge")
+	finding := firstDuplicatedKnowledgeFinding(t, report)
 	if !strings.Contains(finding.Message, "'invoice_policy_code'") {
 		t.Fatalf("expected duplicated literal in message, got %q", finding.Message)
 	}
@@ -195,7 +195,7 @@ func TestQualityDuplicatedKnowledgeSkipsTrivialRepeatedNumbers(t *testing.T) {
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
-	finding := firstFindingForRule(t, report, "Code Quality", "quality.duplicated-knowledge")
+	finding := firstDuplicatedKnowledgeFinding(t, report)
 	if strings.Contains(finding.Message, " 0 ") || strings.Contains(finding.Message, " 2 ") {
 		t.Fatalf("expected duplicated domain literal instead of trivial number, got %q", finding.Message)
 	}
@@ -221,9 +221,33 @@ func TestQualityDuplicatedKnowledgeSkipsSmallNumbersAndEnumStatusStrings(t *test
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
-	finding := firstFindingForRule(t, report, "Code Quality", "quality.duplicated-knowledge")
+	finding := firstDuplicatedKnowledgeFinding(t, report)
 	if strings.Contains(finding.Message, "CLAIM_APPROVED") || strings.Contains(finding.Message, "25") || strings.Contains(finding.Message, "3") {
 		t.Fatalf("expected strong numeric domain duplicate, got %q", finding.Message)
+	}
+	if !strings.Contains(finding.Message, "1000") {
+		t.Fatalf("expected duplicated money-like numeric literal, got %q", finding.Message)
+	}
+}
+
+func TestQualityDuplicatedKnowledgeSkipsSentinelsStylesAndUnmarkedEnums(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/claims/constants.ts"), strings.Join([]string{
+		"export const teamFilterA = '__team__';",
+		"export const teamFilterB = '__team__';",
+		"export const baseClass = 'rounded-md border-gray-200';",
+		"export const activeClass = 'rounded-md border-gray-200';",
+		"export const firstStatus = 'CLAIM_APPROVED';",
+		"export const secondStatus = 'CLAIM_APPROVED';",
+		"export const premiumAmountCents = 1000;",
+		"export const vipAmountCents = 1000;",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	finding := firstDuplicatedKnowledgeFinding(t, report)
+	if strings.Contains(finding.Message, "__team__") || strings.Contains(finding.Message, "rounded-md") || strings.Contains(finding.Message, "CLAIM_APPROVED") {
+		t.Fatalf("expected only strong domain duplicate, got %q", finding.Message)
 	}
 	if !strings.Contains(finding.Message, "1000") {
 		t.Fatalf("expected duplicated money-like numeric literal, got %q", finding.Message)
@@ -332,8 +356,8 @@ func TestNamingBooleanNotPredicateAllowsHandlersAndResourceIdentifiers(t *testin
 func TestNamingBooleanNotPredicateAllowsConventionalNonBooleanNames(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps/web/app/components/actions.tsx"), strings.Join([]string{
-		"export function ActionButton(opts: boolean, message: boolean, className: boolean, Icon: boolean, submit: boolean, compare: boolean, parser: boolean) {",
-		"  return <button className={String(className)}>{String(message)}{String(Icon)}{String(opts)}{String(submit)}{String(compare)}{String(parser)}</button>;",
+		"export function ActionButton(opts: boolean, message: boolean, className: boolean, Icon: boolean, submit: boolean, compare: boolean, parser: boolean, builder: boolean) {",
+		"  return <button className={String(className)}>{String(message)}{String(Icon)}{String(opts)}{String(submit)}{String(compare)}{String(parser)}{String(builder)}</button>;",
 		"}",
 	}, "\n"))
 
@@ -359,6 +383,212 @@ func TestFunctionCommandQueryMixAllowsLocalBuilderMutation(t *testing.T) {
 
 	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
 	assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
+}
+
+func TestFunctionCommandQueryMixAllowsAPICommandReturningResult(t *testing.T) {
+	cases := []struct {
+		name   string
+		source []string
+	}{
+		{
+			name: "createNewFile",
+			source: []string{
+				"export async function createNewFile(repo: Repo, input: Input) {",
+				"  const file = await repo.create(input);",
+				"  await repo.save(file);",
+				"  return file;",
+				"}",
+			},
+		},
+		{
+			name: "upsertEmbedding",
+			source: []string{
+				"export async function upsertEmbedding(repo: Repo, input: Input) {",
+				"  const embedding = await repo.upsert(input);",
+				"  await repo.record(embedding);",
+				"  return embedding;",
+				"}",
+			},
+		},
+		{
+			name: "notify",
+			source: []string{
+				"export async function notify(channel: Channel, message: Message) {",
+				"  const delivery = await channel.send(message);",
+				"  await channel.record(delivery);",
+				"  return delivery;",
+				"}",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, "packages/api/src/files/actions.ts"), strings.Join(append(tc.source, []string{
+				"interface Repo { create(input: Input): Promise<unknown>; save(input: unknown): Promise<void>; upsert(input: Input): Promise<unknown>; record(input: unknown): Promise<void> }",
+				"interface Channel { send(input: Message): Promise<unknown>; record(input: unknown): Promise<void> }",
+				"interface Input { id: string }",
+				"interface Message { id: string }",
+			}...), "\n"))
+
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+			assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+			assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
+		})
+	}
+}
+
+func TestQualityPrecisionAllowsDomainSideEffectAndAdapterOrchestrationNames(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/connectors/src/abuse.ts"), strings.Join([]string{
+		"export async function loadAbuseConfig(repo: Repo) {",
+		"  const config = await repo.load();",
+		"  await repo.update(config);",
+		"  return config;",
+		"}",
+		"export async function evaluateActionAbuse(evaluator: Evaluator, action: Action) {",
+		"  const result = await evaluator.evaluate(action);",
+		"  await evaluator.record(result);",
+		"  return result;",
+		"}",
+		"export async function maybeAlert(alerts: Alerts, result: Result) {",
+		"  if (result.highRisk) await alerts.send(result);",
+		"  return result;",
+		"}",
+		"export async function saveAbuseConfig(repo: Repo, input: Input) {",
+		"  const parsed = parseInput(input);",
+		"  await repo.save(parsed);",
+		"  await repo.audit(parsed);",
+		"  return parsed;",
+		"}",
+		"export async function postBugReportToSlack(slack: Slack, report: Report) {",
+		"  const body = formatReport(report);",
+		"  await slack.post(body);",
+		"  await slack.record(body);",
+		"  return body;",
+		"}",
+		"interface Repo { load(): Promise<unknown>; update(input: unknown): Promise<void>; save(input: unknown): Promise<void>; audit(input: unknown): Promise<void> }",
+		"interface Evaluator { evaluate(input: unknown): Promise<Result>; record(input: unknown): Promise<void> }",
+		"interface Alerts { send(input: unknown): Promise<void> }",
+		"interface Slack { post(input: unknown): Promise<void>; record(input: unknown): Promise<void> }",
+		"interface Input { id: string }",
+		"interface Action { id: string }",
+		"interface Result { highRisk: boolean }",
+		"interface Report { id: string }",
+		"declare function parseInput(input: Input): unknown;",
+		"declare function formatReport(report: Report): unknown;",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	for _, ruleID := range []string{
+		"function.hidden-mutation",
+		"function.multiple-responsibilities",
+		"function.mixed-abstraction-level",
+		"quality.mixed-abstraction-levels",
+		"smell.feature-envy",
+	} {
+		assertFindingRuleAbsent(t, report, "Code Quality", ruleID)
+	}
+}
+
+func TestQualityNamingAllowsCommonConnectorNames(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/connectors/src/normalizers.ts"), strings.Join([]string{
+		"export function asRecord(value: unknown): Record<string, unknown> {",
+		"  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};",
+		"}",
+		"export function areStickerPlacementsEqual(source: Placement[], keys: string[], thresholds: Record<string, number>, cached: boolean) {",
+		"  const value = source.length === keys.length;",
+		"  return cached && value && Object.keys(thresholds).length > 0;",
+		"}",
+		"interface Placement { id: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.cardinality-mismatch")
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ambiguous-name")
+}
+
+func TestQualityDuplicatedKnowledgeSkipsTableAndEnumValueLiterals(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/connectors/src/constants.ts"), strings.Join([]string{
+		"export const abuseTableName = 'lmp_abuse_config';",
+		"export const auditTableName = 'lmp_abuse_config';",
+		"export const volumeOptions = [{ value: 'high_volume' }, { value: 'high_volume' }];",
+		"export const avatarOptions = [{ value: 'custom_avatar' }, { value: 'custom_avatar' }];",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.duplicated-knowledge")
+}
+
+func TestDefensiveRulesRecognizeValidationAndBoundedReadProofs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/connectors/src/boundary.ts"), strings.Join([]string{
+		"export function handleToolAction(payload: Record<string, unknown>) {",
+		"  const parsed = parseToolActionPayload(payload);",
+		"  return parsed.action;",
+		"}",
+		"export async function POST(request: Request) {",
+		"  const contentLength = Number(request.headers.get('content-length') ?? '0');",
+		"  if (contentLength > MAX_UPLOAD_BYTES) throw new Error('upload too large');",
+		"  const form = await request.formData();",
+		"  return Response.json({ ok: true, form });",
+		"}",
+		"export async function readBounded(response: Response) {",
+		"  const bytes = await response.arrayBuffer();",
+		"  if (bytes.byteLength > MAX_RESPONSE_BYTES) throw new Error('response too large');",
+		"  return bytes;",
+		"}",
+		"export function normalizeWebhookUrl(input: string) {",
+		"  const url = new URL(input);",
+		"  if (url.protocol !== 'https:') throw new Error('invalid protocol');",
+		"  return url;",
+		"}",
+		"function parseToolActionPayload(value: Record<string, unknown>) {",
+		"  const result = ToolActionSchema.safeParse(value);",
+		"  if (!result.success) throw new Error('invalid payload');",
+		"  return result.data;",
+		"}",
+		"declare const ToolActionSchema: { safeParse(value: unknown): { success: boolean; data: { action: string } } };",
+		"declare const MAX_UPLOAD_BYTES: number;",
+		"declare const MAX_RESPONSE_BYTES: number;",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.unvalidated-boundary-input")
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.missing-schema-validation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.missing-resource-limit")
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.unchecked-external-response")
+}
+
+func TestDefensiveIntegerOverflowSkipsGuardedP2002SequenceRetry(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/external-id.ts"), strings.Join([]string{
+		"export async function allocateExternalId(db: Db) {",
+		"  for (let attempt = 0; attempt < 5; attempt++) {",
+		"    const count = await db.file.count();",
+		"    const externalId = count + 1;",
+		"    try {",
+		"      return await db.file.create({ data: { externalId } });",
+		"    } catch (err: any) {",
+		"      if (err.code !== 'P2002') throw err;",
+		"    }",
+		"  }",
+		"  throw new Error('unique external ID collision retry exhausted');",
+		"}",
+		"interface Db { file: { count(): Promise<number>; create(input: unknown): Promise<unknown> } }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
 }
 
 func TestReactNativeScreenAllowsUIBooleanAndLocalCollections(t *testing.T) {
@@ -495,6 +725,71 @@ func TestStructuralSmellsSkipAPIConfigTraversalAndDTOBuilders(t *testing.T) {
 	assertFindingRuleAbsent(t, report, "Code Quality", "smell.message-chain")
 }
 
+func TestStructuralSmellsSkipSerializerPrismaPromptAndAdapterHelpers(t *testing.T) {
+	cases := []struct {
+		name   string
+		file   string
+		source []string
+	}{
+		{
+			name: "url search params",
+			file: "packages/api/src/search/params.ts",
+			source: []string{
+				"export function readSearchParams(request: Request) {",
+				"  const params = new URLSearchParams(request.url);",
+				"  return params.get('team')?.trim()?.toLowerCase()?.replaceAll(' ', '-');",
+				"}",
+			},
+		},
+		{
+			name: "prisma include select",
+			file: "packages/api/src/contracts/query.ts",
+			source: []string{
+				"export const contractQuery = {",
+				"  include: { owner: { select: { profile: { select: { department: { select: { name: true } } } } } } },",
+				"};",
+			},
+		},
+		{
+			name: "csv serializer",
+			file: "packages/api/src/contracts/export.ts",
+			source: []string{
+				"export function serializeContractCsv(row: Row) {",
+				"  return [row.contract.version.current.owner.profile.name, row.contract.version.current.status.code, row.contract.version.current.timestamps.updatedAt].join(',');",
+				"}",
+				"interface Row { contract: any }",
+			},
+		},
+		{
+			name: "prompt adapter",
+			file: "packages/api/src/ai/prompt-adapter.ts",
+			source: []string{
+				"export function buildClaimPrompt(claim: Claim) {",
+				"  return {",
+				"    title: claim.case.owner.profile.name,",
+				"    email: claim.case.owner.profile.email,",
+				"    status: claim.case.status.current.code,",
+				"    due: claim.case.timeline.current.dueAt,",
+				"    team: claim.case.owner.team.name,",
+				"  };",
+				"}",
+				"interface Claim { case: any }",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), strings.Join(tc.source, "\n"))
+
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+			assertFindingRuleAbsent(t, report, "Code Quality", "smell.message-chain")
+			assertFindingRuleAbsent(t, report, "Code Quality", "smell.feature-envy")
+		})
+	}
+}
+
 func TestSmellAndOverflowRulesStillFlagNonUIProductionCode(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/domain/src/account-risk.ts"), strings.Join([]string{
@@ -513,18 +808,18 @@ func TestSmellAndOverflowRulesStillFlagNonUIProductionCode(t *testing.T) {
 	assertStructuralSmellPresent(t, report, "defensive.integer-overflow")
 }
 
-func firstFindingForRule(t *testing.T, report codeguard.Report, sectionName string, ruleID string) codeguard.Finding {
+func firstDuplicatedKnowledgeFinding(t *testing.T, report codeguard.Report) codeguard.Finding {
 	t.Helper()
 	for _, section := range report.Sections {
-		if section.Name != sectionName {
+		if section.Name != "Code Quality" {
 			continue
 		}
 		for _, finding := range section.Findings {
-			if finding.RuleID == ruleID {
+			if finding.RuleID == "quality.duplicated-knowledge" {
 				return finding
 			}
 		}
 	}
-	t.Fatalf("rule %q not found in section %q", ruleID, sectionName)
+	t.Fatalf("rule %q not found in section %q", "quality.duplicated-knowledge", "Code Quality")
 	return codeguard.Finding{}
 }

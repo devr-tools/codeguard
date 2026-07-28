@@ -242,7 +242,7 @@ function analyzeDesign(sourceFile, relPath) {
 
     if (ts.isInterfaceDeclaration(node)) {
       const members = node.members.length;
-      if (members > input.max_interface_members) {
+      if (members > input.max_interface_members && !isAllowedLargeDataShape(node.name.text, relPath)) {
         pushFinding(
           "design",
           sourceFile,
@@ -258,7 +258,7 @@ function analyzeDesign(sourceFile, relPath) {
 
     if (ts.isTypeAliasDeclaration(node) && ts.isTypeLiteralNode(node.type)) {
       const members = node.type.members.length;
-      if (members > input.max_interface_members) {
+      if (members > input.max_interface_members && !isAllowedLargeDataShape(node.name.text, relPath)) {
         pushFinding(
           "design",
           sourceFile,
@@ -272,6 +272,21 @@ function analyzeDesign(sourceFile, relPath) {
       }
     }
   });
+}
+
+function isAllowedLargeDataShape(name, relPath) {
+  const normalizedName = String(name || "").toLowerCase();
+  const normalizedPath = String(relPath || "").replace(/\\/g, "/").toLowerCase();
+  if (/(props|row|rows|config|definition|field|fields|dto|record|input|output|response|payload|schema|theme)$/.test(normalizedName)) {
+    return true;
+  }
+  if (/(^|\/)(__fixtures__|fixtures|testdata|types|schemas|dto|config|db|database|prisma)(\/|$)/.test(normalizedPath)) {
+    return true;
+  }
+  if (/\.(test|spec)\.[tj]sx?$/.test(normalizedPath)) {
+    return true;
+  }
+  return false;
 }
 
 function classLikeName(node) {

@@ -54,8 +54,10 @@ func isStructuralMapperOrBuilderContext(fn structuralFunction) bool {
 	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
 	mapperName := false
 	for _, token := range []string{
+		"adapter",
 		"build", "bucket", "collect", "derive", "format", "group", "map", "normalize",
 		"render", "rows", "serialize", "table", "to", "transform", "writeauditlog",
+		"cell", "csv", "dto", "export", "prompt", "serializer",
 	} {
 		if strings.Contains(loweredName, token) {
 			mapperName = true
@@ -70,11 +72,41 @@ func isStructuralMapperOrBuilderContext(fn structuralFunction) bool {
 		return false
 	}
 	switch strings.ToLower(strings.Trim(dominantName, "_$")) {
-	case "args", "data", "dto", "input", "item", "message", "payload", "record", "response", "result", "row", "rows", "value":
+	case "args", "claim", "contract", "data", "dto", "event", "input", "item", "matter", "message", "payload", "record", "response", "result", "row", "rows", "source", "value":
 		return true
 	default:
 		return mapperReturnsConstructedValue(fn.Body)
 	}
+}
+
+func isStructuralTraversalUtilityPath(file string) bool {
+	if !isScriptLikeSourcePath(file) {
+		return false
+	}
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	for _, token := range []string{
+		"adapter", "csv", "dto", "export", "mapper", "mappers", "prompt", "serializer", "serializers",
+	} {
+		if strings.Contains(normalized, token) {
+			return true
+		}
+	}
+	return false
+}
+
+func isStructuralAdapterOrCrudContext(file string, fn structuralFunction) bool {
+	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
+	if containsAny(loweredName, []string{"abuseconfig", "abuse_config", "abuserules", "abuse_rules", "summarise", "summarize"}) {
+		return true
+	}
+	if strings.HasPrefix(loweredName, "save") || strings.HasPrefix(loweredName, "evaluate") || strings.HasPrefix(loweredName, "summaris") ||
+		strings.HasPrefix(loweredName, "map") || strings.HasPrefix(loweredName, "to") {
+		if mapperReturnsConstructedValue(fn.Body) || strings.Contains(strings.ToLower(fn.Body), "return ") {
+			return true
+		}
+	}
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	return containsAny(normalized, []string{"/adapters/", "/adapter/", "/connectors/", "/connector/", "/serializers/", "/mappers/"})
 }
 
 func mapperReturnsConstructedValue(body string) bool {

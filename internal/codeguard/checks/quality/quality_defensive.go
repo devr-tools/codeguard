@@ -130,13 +130,32 @@ func unvalidatedBoundaryInputLine(fn precisionFunction, loweredBody string) (int
 	if !boundaryFunctionName(fn.Name) && !hasBoundaryParam(fn.Params) {
 		return 0, false
 	}
-	if containsAny(loweredBody, []string{"validate", "schema", "sanitize", "bind", "decodevalid", "zod.", "yup.", "pydantic", "jsonschema"}) {
+	if validatedBoundaryInputPattern(fn, loweredBody) {
+		return 0, false
+	}
+	if formDataHasContentLengthPreflight(loweredBody) {
 		return 0, false
 	}
 	if containsAny(loweredBody, []string{"request", "req.", "event", "payload", "body", "json", "params", "query"}) {
 		return fn.StartLine, true
 	}
 	return 0, false
+}
+
+func formDataHasContentLengthPreflight(loweredBody string) bool {
+	return strings.Contains(loweredBody, "formdata") &&
+		containsAny(loweredBody, []string{"content-length", "contentlength"}) &&
+		containsAny(loweredBody, []string{"> max", "> limit", "max_upload", "upload too large"})
+}
+
+func validatedBoundaryInputPattern(fn precisionFunction, loweredBody string) bool {
+	if containsAny(loweredBody, []string{"validate", "schema", "sanitize", "bind", "decodevalid", "safeparse", "zod.", "yup.", "pydantic", "jsonschema"}) {
+		return true
+	}
+	if regexp.MustCompile(`(?i)\b(parse|assert|guard|ensure|decode)[A-Z_][A-Za-z0-9_]*(?:Input|Payload|Body|Params|Query|Record|Request|Event|Config)?\s*\(`).MatchString(functionRawBody(fn)) {
+		return true
+	}
+	return false
 }
 
 func hasBoundaryParam(params []support.ParsedParam) bool {
@@ -186,6 +205,9 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 	if isUIRenderArithmeticContext(file, fn, loweredBody) {
 		return 0, false
 	}
+	if guardedSequenceCollisionRetry(loweredBody) {
+		return 0, false
+	}
 	if containsAny(loweredBody, []string{"maxint", "math.max", "checked", "saturating", "overflow", "limits<", "safeint"}) {
 		return 0, false
 	}
@@ -196,6 +218,16 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 		return fn.StartLine, true
 	}
 	return 0, false
+}
+
+func guardedSequenceCollisionRetry(loweredBody string) bool {
+	if !containsAny(loweredBody, []string{"p2002", "unique", "collision", "prisma"}) {
+		return false
+	}
+	if !containsAny(loweredBody, []string{"retry", "attempt", "for "}) {
+		return false
+	}
+	return containsAny(loweredBody, []string{"count + 1", "count+1", "externalid", "external_id", "nextid", "next_id"})
 }
 
 func isUIRenderArithmeticContext(file string, fn precisionFunction, loweredBody string) bool {
@@ -278,6 +310,9 @@ func uncheckedExternalResponseLine(fn precisionFunction, loweredBody string) (in
 	if !externalCallPattern.MatchString(functionRawBody(fn)) {
 		return 0, false
 	}
+	if urlProtocolAllowlistPattern(loweredBody) {
+		return 0, false
+	}
 	if containsAny(loweredBody, []string{"status", ".ok", "err != nil", "if err", "error", "catch", "raise_for_status", "response_code"}) {
 		return 0, false
 	}
@@ -287,11 +322,18 @@ func uncheckedExternalResponseLine(fn precisionFunction, loweredBody string) (in
 	return 0, false
 }
 
+func urlProtocolAllowlistPattern(loweredBody string) bool {
+	if !containsAny(loweredBody, []string{"new url(", ".protocol"}) {
+		return false
+	}
+	return containsAny(loweredBody, []string{"https:", "http:", "allowedprotocol", "allowed_protocol", "protocols.includes", "includes(url.protocol)", "protocol !==", "protocol !="})
+}
+
 func missingSchemaValidationLine(fn precisionFunction, loweredBody string) (int, bool) {
 	if !jsonDecodePattern.MatchString(functionRawBody(fn)) {
 		return 0, false
 	}
-	if containsAny(loweredBody, []string{"validate", "schema", "jsonschema", "zod.", "yup.", "pydantic", "isvalid", "required"}) {
+	if validatedBoundaryInputPattern(fn, loweredBody) || containsAny(loweredBody, []string{"jsonschema", "isvalid", "required"}) {
 		return 0, false
 	}
 	return firstPatternLine(fn, jsonDecodePattern), true
@@ -301,10 +343,20 @@ func missingResourceLimitLine(fn precisionFunction, loweredBody string) (int, bo
 	if !resourceReadPattern.MatchString(functionRawBody(fn)) {
 		return 0, false
 	}
-	if containsAny(loweredBody, []string{"limitreader", "maxbytes", "max_bytes", "content-length", "limit(", "take(", "buffer_size", "quota"}) {
+	if containsAny(loweredBody, []string{"limitreader", "maxbytes", "max_bytes", "content-length", "contentlength", "limit(", "take(", "buffer_size", "quota"}) {
+		return 0, false
+	}
+	if boundedReadByteLengthCheck(loweredBody) {
 		return 0, false
 	}
 	return firstPatternLine(fn, resourceReadPattern), true
+}
+
+func boundedReadByteLengthCheck(loweredBody string) bool {
+	if !containsAny(loweredBody, []string{"arraybuffer", ".text", "readall", ".read"}) {
+		return false
+	}
+	return containsAny(loweredBody, []string{"bytelength", "byte_length", ".length > max", ".length > limit", "buffer.length", "bytes.length"})
 }
 
 func invalidStateTransitionLine(fn precisionFunction, loweredBody string) (int, bool) {

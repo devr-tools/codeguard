@@ -66,6 +66,14 @@ func duplicatedKnowledgeLineIsDisplayOnly(line string) bool {
 	if strings.Contains(lowered, "classname") || strings.Contains(lowered, "clasname") || strings.Contains(lowered, "class:") {
 		return true
 	}
+	if strings.Contains(lowered, "class") && strings.Contains(line, "-") {
+		return true
+	}
+	for _, marker := range []string{"css", "style", "styles", "variant", "variants", "tailwind", "stylesheet"} {
+		if strings.Contains(lowered, marker) {
+			return true
+		}
+	}
 	if strings.Contains(line, "<") && strings.Contains(line, ">") {
 		return true
 	}
@@ -90,6 +98,12 @@ func domainKnowledgeLiteralInLine(value string, line string) bool {
 	}
 	if numeric, ok := duplicatedKnowledgeNumber(trimmed); ok {
 		return duplicatedKnowledgeNumericLiteral(numeric, line)
+	}
+	if duplicatedKnowledgeSentinelLiteral(trimmed) {
+		return false
+	}
+	if duplicatedKnowledgeTableOrEnumLiteral(trimmed, line) {
+		return false
 	}
 	if duplicatedKnowledgeEnumStatusLiteral(trimmed, line) {
 		return false
@@ -116,15 +130,18 @@ func duplicatedKnowledgeNumericLiteral(number int, line string) bool {
 }
 
 func duplicatedKnowledgeEnumStatusLiteral(value string, line string) bool {
-	if line == "" {
-		return false
-	}
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return false
 	}
 	enumLike := strings.Contains(trimmed, "_") || strings.ToUpper(trimmed) == trimmed
 	if !enumLike {
+		return false
+	}
+	if looksLikeAllCapsEnumLiteral(trimmed) {
+		return true
+	}
+	if line == "" {
 		return false
 	}
 	loweredLine := strings.ToLower(line)
@@ -134,6 +151,48 @@ func duplicatedKnowledgeEnumStatusLiteral(value string, line string) bool {
 		}
 	}
 	return false
+}
+
+func duplicatedKnowledgeSentinelLiteral(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	return strings.HasPrefix(trimmed, "__") && strings.HasSuffix(trimmed, "__") && len(trimmed) <= 40
+}
+
+func duplicatedKnowledgeTableOrEnumLiteral(value string, line string) bool {
+	if !strings.Contains(value, "_") {
+		return false
+	}
+	if len(value) > 48 {
+		return false
+	}
+	parts := strings.Split(value, "_")
+	if len(parts) > 4 {
+		return false
+	}
+	for _, part := range parts {
+		if part == "" {
+			return false
+		}
+	}
+	loweredLine := strings.ToLower(line)
+	return containsAny(loweredLine, []string{"table", "tablename", "table_name", "enum", "status", "type", "kind", "key:", "value:", "option"})
+}
+
+func looksLikeAllCapsEnumLiteral(value string) bool {
+	hasLetter := false
+	for _, r := range value {
+		switch {
+		case r >= 'A' && r <= 'Z':
+			hasLetter = true
+		case r >= '0' && r <= '9':
+			continue
+		case r == '_' || r == '-' || r == ':':
+			continue
+		default:
+			return false
+		}
+	}
+	return hasLetter && strings.ToUpper(value) == value
 }
 
 func duplicatedKnowledgeNumber(value string) (int, bool) {

@@ -111,6 +111,7 @@ func leakFindings(env support.Context, file string, source string) []core.Findin
 	domainPath := isDomainPath(file)
 	apiPath := isAPIPath(file)
 	handlerPath := isHandlerPath(file)
+	testOrStubPath := isDesignTestOrStubPath(file)
 	persistenceBoundaryPath := domainPath || apiPath || handlerPath || isContractBoundaryPath(file)
 	for idx, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -126,7 +127,7 @@ func leakFindings(env support.Context, file string, source string) []core.Findin
 			findings = append(findings, designFinding(env, ruleInfrastructureLeak, file, lineNo,
 				"infrastructure/framework type leaks into a domain or public boundary", core.ConfidenceHigh))
 		}
-		if persistenceBoundaryPath && !isPackageAPIImplementationPath(file) && (apiPath || handlerPath || isPublicDeclaration(codeLine)) &&
+		if persistenceBoundaryPath && !isPackageAPIImplementationPath(file) && !testOrStubPath && (apiPath || handlerPath || isPublicDeclaration(codeLine)) &&
 			persistenceLeakPattern.MatchString(codeLine) &&
 			!allowedGeneratedPersistenceEnumLine(codeLine) && !allowedTypeScriptRecordUtilityLine(codeLine) &&
 			!allowedUIPropsDerivedTypeLine(file, codeLine) && !allowedFrameworkDTOBoundaryLine(file, codeLine) {
@@ -489,6 +490,21 @@ func isAPIPath(file string) bool {
 func isPackageAPIImplementationPath(file string) bool {
 	normalized := strings.ToLower(filepathSlash(file))
 	return strings.Contains(normalized, "/packages/api/src/") || strings.HasPrefix(normalized, "packages/api/src/")
+}
+
+func isDesignTestOrStubPath(file string) bool {
+	normalized := strings.ToLower(filepathSlash(file))
+	if strings.Contains(normalized, "/test/") || strings.Contains(normalized, "/tests/") ||
+		strings.Contains(normalized, "/testdata/") || strings.Contains(normalized, "/fixtures/") ||
+		strings.Contains(normalized, "/__fixtures__/") || strings.Contains(normalized, "/mocks/") ||
+		strings.Contains(normalized, "/stubs/") {
+		return true
+	}
+	return strings.HasSuffix(normalized, "_test.go") || strings.HasSuffix(normalized, "_test.py") ||
+		strings.HasSuffix(normalized, ".test.ts") || strings.HasSuffix(normalized, ".spec.ts") ||
+		strings.HasSuffix(normalized, ".test.tsx") || strings.HasSuffix(normalized, ".spec.tsx") ||
+		strings.HasSuffix(normalized, ".test.js") || strings.HasSuffix(normalized, ".spec.js") ||
+		strings.HasSuffix(normalized, ".test.jsx") || strings.HasSuffix(normalized, ".spec.jsx")
 }
 
 func isContractBoundaryPath(file string) bool {

@@ -171,7 +171,7 @@ func isAllowedBooleanUIName(file string, fn precisionFunction, name string) bool
 
 func isConventionalNonPredicateName(name string) bool {
 	switch strings.ToLower(strings.Trim(name, "_$")) {
-	case "opts", "options", "message", "classname", "class", "icon", "submit", "compare", "parser", "parse", "renderer", "render":
+	case "asrecord", "cached", "opts", "options", "message", "classname", "class", "icon", "submit", "compare", "parser", "parse", "builder", "build", "renderer", "render":
 		return true
 	default:
 		return false
@@ -191,7 +191,7 @@ func isResourceIdentifierName(name string) bool {
 func conventionalCardinalityName(name string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
 	switch base {
-	case "answers", "args", "columns", "contracts", "entries", "ids", "items", "k", "matters", "next", "out", "params", "props", "risks", "rows", "searchparams", "sections", "status", "v", "i", "j", "x", "y":
+	case "answers", "args", "claims", "columns", "contracts", "entries", "files", "ids", "items", "k", "keys", "matters", "messages", "next", "out", "params", "props", "records", "risks", "rows", "searchparams", "sections", "source", "status", "thresholds", "users", "versions", "v", "i", "j", "x", "y":
 		return true
 	default:
 		return len(name) <= 2 ||

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/pkg/codeguard"
@@ -26,6 +27,83 @@ func TestDesignCheckUsesSemanticTypeScriptAnalyzerForAnonymousDefaultClass(t *te
 
 	assertSectionStatus(t, report, "Design Patterns", "warn")
 	assertFindingRulePresent(t, report, "Design Patterns", "design.typescript.max-methods-per-type")
+}
+
+func TestDesignCheckSkipsLargeTypeScriptDataContractsAndProps(t *testing.T) {
+	requireTypeScriptSemanticRuntime(t)
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "types", "tool.tsx"), strings.Join([]string{
+		"export interface ToolDefinition {",
+		"  id: string;",
+		"  name: string;",
+		"  description: string;",
+		"  version: string;",
+		"  owner: string;",
+		"  fields: ToolField[];",
+		"  enabled: boolean;",
+		"}",
+		"export interface ToolField {",
+		"  key: string;",
+		"  label: string;",
+		"  type: string;",
+		"  required: boolean;",
+		"  options: string[];",
+		"  defaultValue: string;",
+		"}",
+		"export type LmpAbuseConfig = {",
+		"  threshold: number;",
+		"  windowSeconds: number;",
+		"  highVolume: boolean;",
+		"  customAvatar: boolean;",
+		"  alertChannel: string;",
+		"  owner: string;",
+		"};",
+		"export interface ToolPanelProps {",
+		"  tool: ToolDefinition;",
+		"  fields: ToolField[];",
+		"  selected: string[];",
+		"  loading: boolean;",
+		"  onSave(): void;",
+		"  onCancel(): void;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "src", "domain", "wide-policy.ts"), strings.Join([]string{
+		"export interface WidePolicy {",
+		"  one(): void;",
+		"  two(): void;",
+		"  three(): void;",
+		"  four(): void;",
+		"  five(): void;",
+		"  six(): void;",
+		"}",
+	}, "\n"))
+
+	cfg := typeScriptDesignConfig(dir, "typescript")
+	cfg.Checks.DesignRules.MaxInterfaceMethods = 5
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Design Patterns", "design.typescript.max-interface-members")
+	for _, section := range report.Sections {
+		if section.Name != "Design Patterns" {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID != "design.typescript.max-interface-members" {
+				continue
+			}
+			if strings.Contains(finding.Message, "ToolDefinition") ||
+				strings.Contains(finding.Message, "ToolField") ||
+				strings.Contains(finding.Message, "LmpAbuseConfig") ||
+				strings.Contains(finding.Message, "ToolPanelProps") {
+				t.Fatalf("data contracts and prop interfaces should not trip max-interface-members: %+v", finding)
+			}
+		}
+	}
 }
 
 func TestQualityCheckUsesSemanticTypeScriptAnalyzerForClassArrowMethods(t *testing.T) {

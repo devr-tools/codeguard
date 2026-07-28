@@ -173,7 +173,7 @@ func behaviorMismatch(file string, fn precisionFunction) bool {
 }
 
 func hiddenMutation(file string, fn precisionFunction) bool {
-	if explicitMutationName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) {
+	if explicitMutationName(fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) {
 		return false
 	}
 	if isReactComponentOrNamedHookBoundary(file, fn) {
@@ -184,18 +184,65 @@ func hiddenMutation(file string, fn precisionFunction) bool {
 	if isReactLocalStateBoundary(file, fn) && mutatesState && !mutatesParam && onlyReactHookLocalStateMutation(fn) {
 		return false
 	}
+	if isAccumulatorBuilderFunctionName(fn.Name) && !hasLikelyExternalMutationCall(fn) && !hasLikelyParameterAssignment(fn) {
+		return false
+	}
 	return mutatesState || mutatesParam
+}
+
+func hasLikelyExternalMutationCall(fn precisionFunction) bool {
+	localTargets := localMutationTargets(fn)
+	params := paramNames(fn)
+	for _, call := range directCalls(fn) {
+		if !mutatingCallPattern.MatchString(call.Callee) {
+			continue
+		}
+		if isLocalMutationCall(call.Callee, localTargets) || isBuilderAccumulatorMutationCall(fn, call) {
+			continue
+		}
+		target := mutationCallTarget(call.Callee)
+		if target == "" {
+			continue
+		}
+		if _, isParam := params[target]; isParam {
+			return true
+		}
+		if isAccumulatorLikeLocalName(target) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func hasLikelyParameterAssignment(fn precisionFunction) bool {
+	params := paramNames(fn)
+	if len(params) == 0 {
+		return false
+	}
+	for _, statement := range directStatements(fn) {
+		line := firstNonEmptyString(statement.Raw, statement.Text)
+		if !lineHasAssignmentOperator(line) {
+			continue
+		}
+		for _, match := range paramMutationPattern.FindAllStringSubmatch(assignmentLeftHandSide(line), -1) {
+			if _, ok := params[match[1]]; ok {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func mutatingFunctionEvidence(fn precisionFunction) bool {
 	localTargets := localMutationTargets(fn)
 	for _, call := range directCalls(fn) {
-		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call.Callee, localTargets) && !isBuilderAccumulatorMutationCall(fn, call) {
 			return true
 		}
 	}
 	for _, assignment := range directAssignments(fn) {
-		if assignment.Augmented && !isLocalMutationTarget(assignment.Name, localTargets) {
+		if assignment.Augmented && !isLocalMutationTarget(assignment.Name, localTargets) && !isBuilderAccumulatorAssignment(fn, assignment) {
 			return true
 		}
 	}
@@ -217,13 +264,35 @@ func mutatesParameter(fn precisionFunction) bool {
 		if !lineHasAssignmentOperator(line) {
 			continue
 		}
-		for _, match := range paramMutationPattern.FindAllStringSubmatch(line, -1) {
+		lhs := assignmentLeftHandSide(line)
+		for _, match := range paramMutationPattern.FindAllStringSubmatch(lhs, -1) {
 			if _, ok := params[match[1]]; ok {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func assignmentLeftHandSide(line string) string {
+	for idx := 0; idx < len(line); idx++ {
+		if line[idx] != '=' {
+			continue
+		}
+		prev := byte(0)
+		next := byte(0)
+		if idx > 0 {
+			prev = line[idx-1]
+		}
+		if idx+1 < len(line) {
+			next = line[idx+1]
+		}
+		if prev == '=' || prev == '!' || prev == '<' || prev == '>' || next == '=' || next == '>' {
+			continue
+		}
+		return line[:idx]
+	}
+	return line
 }
 
 func lineHasAssignmentOperator(line string) bool {
@@ -255,6 +324,38 @@ func explicitMutationName(name string) bool {
 		strings.Contains(lowered, "mutat") ||
 		strings.Contains(lowered, "persist") ||
 		strings.Contains(lowered, "write")
+}
+
+func isDomainSideEffectBoundaryName(name string) bool {
+	lowered := strings.ToLower(strings.TrimSpace(name))
+	if lowered == "" {
+		return false
+	}
+	if strings.HasPrefix(lowered, "maybe") && containsAny(lowered, []string{"alert", "notify", "record", "track", "emit"}) {
+		return true
+	}
+	if strings.HasPrefix(lowered, "evaluate") && containsAny(lowered, []string{"abuse", "policy", "rule", "risk", "fraud", "quota", "limit"}) {
+		return true
+	}
+	if strings.HasPrefix(lowered, "load") && containsAny(lowered, []string{"config", "defaults", "settings", "policy"}) {
+		return true
+	}
+	return false
+}
+
+func isAdapterOrOrchestrationFunction(file string, fn precisionFunction) bool {
+	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
+	if containsAny(loweredName, []string{"adapter", "bugreport", "bug_report", "slack", "webhook", "sync", "abuseconfig", "abuse_config"}) {
+		return true
+	}
+	if strings.HasPrefix(loweredName, "save") || strings.HasPrefix(loweredName, "insert") || strings.HasPrefix(loweredName, "post") ||
+		strings.HasPrefix(loweredName, "send") || strings.HasPrefix(loweredName, "publish") || strings.HasPrefix(loweredName, "record") {
+		if containsAny(loweredName, []string{"config", "report", "slack", "webhook", "audit", "event", "job"}) {
+			return true
+		}
+	}
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	return containsAny(normalized, []string{"/adapters/", "/adapter/", "/connectors/", "/connector/", "/integrations/", "/webhooks/", "/slack/", "/jobs/"})
 }
 
 func inconsistentReturnContract(fn precisionFunction) bool {
@@ -317,6 +418,9 @@ func partialResult(fn precisionFunction) bool {
 }
 
 func responsibilityCount(fn precisionFunction) (int, []string) {
+	if isAdapterOrchestrationName(fn.Name) {
+		return 0, nil
+	}
 	seen := map[string]struct{}{}
 	record := func(label string) {
 		seen[label] = struct{}{}
@@ -337,6 +441,11 @@ func responsibilityCount(fn precisionFunction) (int, []string) {
 	}
 	sort.Strings(labels)
 	return len(labels), labels
+}
+
+func isAdapterOrchestrationName(name string) bool {
+	loweredName := strings.ToLower(strings.Trim(name, "_$"))
+	return containsAny(loweredName, []string{"abuseconfig", "abuse_config", "bugreport", "bug_report", "slack", "webhook", "adapter"})
 }
 
 func classifyResponsibility(text string, record func(string)) {
@@ -414,7 +523,7 @@ func isBooleanType(typ string) bool {
 
 func isPredicateName(name string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
-	for _, prefix := range []string{"is", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "visible", "ready"} {
+	for _, prefix := range []string{"is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "visible", "ready"} {
 		if strings.HasPrefix(lowered, prefix) {
 			return true
 		}
