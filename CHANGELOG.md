@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.2](https://github.com/devr-tools/codeguard/compare/v1.3.1...v1.3.2) (2026-07-28)
+
+
+### Bug Fixes
+
+* add next and nest framework precision coverage ([220826e](https://github.com/devr-tools/codeguard/commit/220826eb2d9fea116013fb531bdeb88596a93ce5))
+* harden react false positive handling ([2fde7bb](https://github.com/devr-tools/codeguard/commit/2fde7bb41171bf79f7835b462f4ae61cbec00a04))
+* harden React false positive handling ([#75](https://github.com/devr-tools/codeguard/issues/75)) ([752bd41](https://github.com/devr-tools/codeguard/commit/752bd4118b2a7f83924fda016d0651fdbe6da632))
+
 ## [1.3.1](https://github.com/devr-tools/codeguard/compare/v1.3.0...v1.3.1) (2026-07-28)
 
 
