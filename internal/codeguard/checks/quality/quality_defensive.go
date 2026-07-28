@@ -59,9 +59,9 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, defensiveNullAssumptionRuleID, file, line,
 			"nullable boundary value is dereferenced without a nil/null guard", core.ConfidenceMedium))
 	}
-	if line, ok := sequenceCollisionRiskLine(file, fn, loweredBody); ok {
+	if line, message, confidence, ok := sequenceCollisionRiskLine(file, fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveSequenceCollisionRiskRuleID, file, line,
-			"external ID allocation derives the next value from current count without guarded unique-collision retry", core.ConfidenceMedium))
+			message, confidence))
 	}
 	if line, ok := integerOverflowLine(file, fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveIntegerOverflowRuleID, file, line,
@@ -249,11 +249,21 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 	return 0, false
 }
 
-func sequenceCollisionRiskLine(file string, fn precisionFunction, loweredBody string) (int, bool) {
-	if isSeedOrScriptSourcePath(file) || !sequenceAllocationArithmetic(loweredBody) || guardedSequenceCollisionRetry(loweredBody) {
-		return 0, false
+func sequenceCollisionRiskLine(file string, fn precisionFunction, loweredBody string) (int, string, string, bool) {
+	if isSeedOrScriptSourcePath(file) || !sequenceAllocationArithmetic(loweredBody) {
+		return 0, "", core.ConfidenceLow, false
 	}
-	return firstSequenceAllocationLine(fn), true
+	line := firstSequenceAllocationLine(fn)
+	if guardedSequenceCollisionRetry(loweredBody) {
+		return line,
+			"external ID allocation is protected by bounded unique-collision retry, but count-derived IDs remain architectural debt; prefer a database sequence or transactional allocator",
+			core.ConfidenceLow,
+			true
+	}
+	return line,
+		"external ID allocation derives the next value from current count; use a database sequence, UUID, or transactional allocator instead of count-based generation",
+		core.ConfidenceMedium,
+		true
 }
 
 func sequenceAllocationArithmetic(loweredBody string) bool {

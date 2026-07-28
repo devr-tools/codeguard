@@ -49,7 +49,8 @@ func TestDefensiveIntegerOverflowFollowupRetunes(t *testing.T) {
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "external-id-retry.ts")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "seed-contracts.ts")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.integer-overflow", "date-buckets.ts")
-	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.sequence-collision-risk")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.sequence-collision-risk", "external-id-retry.ts", "architectural debt", "database sequence", "transactional allocator")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.sequence-collision-risk", "seed-contracts.ts")
 }
 
 func TestDefensiveBoundsAssumptionDistinguishesDictionaryFromSequenceAccess(t *testing.T) {
@@ -178,6 +179,33 @@ func assertCodeQualityRuleAbsentForPath(t *testing.T, report codeguard.Report, r
 			}
 		}
 		return
+	}
+	t.Fatalf("section %q not found", "Code Quality")
+}
+
+func assertCodeQualityRulePresentForPathWithMessage(t *testing.T, report codeguard.Report, ruleID string, pathFragment string, messageParts ...string) {
+	t.Helper()
+	for _, result := range report.Sections {
+		if result.Name != "Code Quality" {
+			continue
+		}
+		for _, finding := range result.Findings {
+			location := finding.Path
+			if finding.Line > 0 {
+				location = fmt.Sprintf("%s:%d", location, finding.Line)
+			}
+			if finding.RuleID != ruleID || !strings.Contains(location, pathFragment) {
+				continue
+			}
+			loweredMessage := strings.ToLower(finding.Message)
+			for _, part := range messageParts {
+				if !strings.Contains(loweredMessage, strings.ToLower(part)) {
+					t.Fatalf("section %q rule %q at %s message %q does not contain %q", "Code Quality", ruleID, location, finding.Message, part)
+				}
+			}
+			return
+		}
+		t.Fatalf("section %q missing rule %q for path containing %q", "Code Quality", ruleID, pathFragment)
 	}
 	t.Fatalf("section %q not found", "Code Quality")
 }

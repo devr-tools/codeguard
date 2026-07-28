@@ -1186,7 +1186,7 @@ These rules live outside the repository-wide `Change Safety` section in report o
 | Defensive programming | `defensive.invalid-state-representable` | warn | Booleans or raw status strings can represent impossible state combinations. |
 | Defensive programming | `defensive.null-assumption` | warn | Nullable boundary values are dereferenced without a nil/null guard. |
 | Defensive programming | `defensive.integer-overflow` | warn | Arithmetic on count, size, or length input lacks an overflow bound check. |
-| Defensive programming | `defensive.sequence-collision-risk` | warn | External ID allocation derives the next value from current count without guarded unique-collision retry. |
+| Defensive programming | `defensive.sequence-collision-risk` | warn | External ID allocation derives the next value from current count; bounded unique-collision retry is treated as mitigation, not full resolution. |
 | Defensive programming | `defensive.bounds-assumption` | warn | Indexed access assumes collection bounds without a nearby length check. |
 | Defensive programming | `defensive.unsafe-default` | warn | A config/env fallback can fail open or disable a safety control. |
 | Defensive programming | `defensive.non-exhaustive-branch` | warn | Enum-like state/kind/type branching lacks default or exhaustive handling. |
