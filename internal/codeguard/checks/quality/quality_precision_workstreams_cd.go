@@ -330,11 +330,25 @@ func explicitMutationName(name string) bool {
 }
 
 func inconsistentReturnContract(fn precisionFunction) bool {
+	if nextResponseNullableGuardHelper(fn) {
+		return false
+	}
 	returns := returnCategories(fn.Body)
 	if returns.total < 2 {
 		return false
 	}
 	return returns.empty && returns.value
+}
+
+func nextResponseNullableGuardHelper(fn precisionFunction) bool {
+	signature := strings.ToLower(fn.Signature)
+	body := strings.ToLower(fn.Body)
+	hasNullableSignature := strings.Contains(signature, "nextresponse") && strings.Contains(signature, "null")
+	hasNextResponseBody := strings.Contains(body, "nextresponse.") || strings.Contains(body, "return new nextresponse")
+	if !hasNullableSignature && !hasNextResponseBody {
+		return false
+	}
+	return strings.Contains(body, "return null") && hasNextResponseBody
 }
 
 type returnShapeCounts struct {

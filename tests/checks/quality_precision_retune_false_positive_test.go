@@ -262,6 +262,80 @@ func TestDefensiveIntegerArithmeticSplitsSequenceAndMetricContexts(t *testing.T)
 	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
 }
 
+func TestDefensiveSequenceCollisionRecognizesExternalIDRetryHelper(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/external-id-retry.ts"), strings.Join([]string{
+		"export async function allocateExternalId(db: Db) {",
+		"  return withExternalIdRetry(async () => {",
+		"    const count = await db.file.count();",
+		"    const externalId = count + 1;",
+		"    return db.file.create({ data: { externalId } });",
+		"  }, { retryOn: 'P2002', field: 'externalId' });",
+		"}",
+		"declare function withExternalIdRetry<T>(fn: () => Promise<T>, opts: { retryOn: 'P2002'; field: 'externalId' }): Promise<T>;",
+		"interface Db { file: { count(): Promise<number>; create(input: unknown): Promise<unknown> } }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.sequence-collision-risk")
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
+}
+
+func TestFunctionReturnContractAllowsNullableNextResponseGuards(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/api/files/guards.ts"), strings.Join([]string{
+		"import { NextResponse } from 'next/server';",
+		"export function requireWorkspaceGuard(input: Input): NextResponse | null {",
+		"  if (!input.workspaceId) {",
+		"    return NextResponse.json({ error: 'missing workspace' }, { status: 400 });",
+		"  }",
+		"  return null;",
+		"}",
+		"interface Input { workspaceId?: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.inconsistent-return-contract")
+}
+
+func TestDefensiveSchemaValidationRecognizesSchemaArgumentJSONReaders(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/json-reader.ts"), strings.Join([]string{
+		"export function handleToolPayload(payload: string) {",
+		"  const parsed = parseJson(payload, ToolActionSchema);",
+		"  return parsed.action;",
+		"}",
+		"declare function parseJson<T>(payload: string, schema: { parse(value: unknown): T }): T;",
+		"declare const ToolActionSchema: { parse(value: unknown): { action: string } };",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.unvalidated-boundary-input")
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.missing-schema-validation")
+}
+
+func TestDefensiveIntegerOverflowSkipsDateAndCountFormatting(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/lib/date-formatting.ts"), strings.Join([]string{
+		"export function formatDateBucket(dayCount: number) {",
+		"  const displayDay = dayCount + 1;",
+		"  return `Day ${displayDay}`;",
+		"}",
+		"export function formatCountLabel(count: number) {",
+		"  const visibleCount = count + 1;",
+		"  return visibleCount + ' items';",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.integer-overflow")
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.sequence-collision-risk")
+}
+
 func TestDefensiveResourceLimitRecognizesSliceAndCountProofs(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/api/src/uploads.ts"), strings.Join([]string{

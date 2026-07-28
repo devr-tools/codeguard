@@ -39,6 +39,7 @@ var (
 	resourceCountGuard      = regexp.MustCompile(`(?i)\b(?:count|size|length|len|bytes)\s*(?:<=|<|>|>=)\s*(?:max|limit|quota|cap|[0-9])`)
 	resourceNamedCountLimit = regexp.MustCompile(`(?i)\b(?:max|limit|quota|cap)[A-Za-z0-9_]*(?:count|size|length|len|bytes)\b`)
 	sequenceAllocationLine  = regexp.MustCompile(`(?i)\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b.*(?:count|max)\s*\+\s*1|(?:count|max)\s*\+\s*1.*\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b`)
+	jsonReaderSchemaCall    = regexp.MustCompile(`(?i)\b(?:read|parse|decode)Json[A-Za-z0-9_]*\s*\([^)\n,]+,\s*[A-Za-z_$][\w$]*(?:Schema|Validator|Codec|Parser)\b`)
 )
 
 func defensiveBoundaryFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -163,6 +164,9 @@ func validatedBoundaryInputPattern(fn precisionFunction, loweredBody string) boo
 	if containsAny(loweredBody, []string{"validate", "schema", "sanitize", "bind", "decodevalid", "safeparse", "z.safeparse", "zod.", "yup.", "pydantic", "jsonschema"}) {
 		return true
 	}
+	if jsonReaderSchemaCall.MatchString(functionRawBody(fn)) {
+		return true
+	}
 	if strings.Contains(loweredBody, "nextresponse.") && containsAny(loweredBody, []string{"return nextresponse", ".json(", "redirect("}) && containsAny(loweredBody, []string{"if (!", "if (!", "if(", "if "}) {
 		return true
 	}
@@ -229,7 +233,7 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 	if isUIRenderArithmeticContext(file, fn, loweredBody) {
 		return 0, false
 	}
-	if sequenceAllocationArithmetic(loweredBody) || metricStatArithmeticContext(fn, loweredBody) {
+	if sequenceAllocationArithmetic(loweredBody) || metricStatArithmeticContext(fn, loweredBody) || dateCountFormattingContext(fn, loweredBody) {
 		return 0, false
 	}
 	if containsAny(loweredBody, []string{"maxint", "math.max", "checked", "saturating", "overflow", "limits<", "safeint"}) {
@@ -269,6 +273,10 @@ func firstSequenceAllocationLine(fn precisionFunction) int {
 }
 
 func guardedSequenceCollisionRetry(loweredBody string) bool {
+	if containsAny(loweredBody, []string{"withexternalidretry", "with_external_id_retry"}) &&
+		containsAny(loweredBody, []string{"p2002", "unique", "collision", "externalid", "external_id"}) {
+		return true
+	}
 	if !containsAny(loweredBody, []string{"p2002", "unique", "collision", "prisma"}) {
 		return false
 	}
@@ -284,6 +292,17 @@ func metricStatArithmeticContext(fn precisionFunction, loweredBody string) bool 
 		return true
 	}
 	return containsAny(loweredBody, []string{"metric.", "metrics.", "counter.", "histogram", "stat.", "stats.", "telemetry", "prometheus", "datadog"})
+}
+
+func dateCountFormattingContext(fn precisionFunction, loweredBody string) bool {
+	loweredName := strings.ToLower(fn.Name)
+	if !containsAny(loweredName, []string{"format", "display", "label", "render", "summary", "calendar", "date", "time"}) {
+		return false
+	}
+	return containsAny(loweredBody, []string{
+		"date", "time", "calendar", "duration", "intl.", "datetimeformat", "formatdistance",
+		"formatrelative", "plural", "label", "title", "subtitle", "`${", " + \"", " + '",
+	})
 }
 
 func isUIRenderArithmeticContext(file string, fn precisionFunction, loweredBody string) bool {
@@ -389,7 +408,7 @@ func missingSchemaValidationLine(fn precisionFunction, loweredBody string) (int,
 	if !jsonDecodePattern.MatchString(functionRawBody(fn)) {
 		return 0, false
 	}
-	if validatedBoundaryInputPattern(fn, loweredBody) || containsAny(loweredBody, []string{"jsonschema", "isvalid", "required"}) {
+	if validatedBoundaryInputPattern(fn, loweredBody) || jsonReaderSchemaCall.MatchString(functionRawBody(fn)) || containsAny(loweredBody, []string{"jsonschema", "isvalid", "required"}) {
 		return 0, false
 	}
 	return firstPatternLine(fn, jsonDecodePattern), true
