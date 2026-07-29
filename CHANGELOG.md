@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.9](https://github.com/devr-tools/codeguard/compare/v1.3.8...v1.3.9) (2026-07-29)
+
+
+### Bug Fixes
+
+* keep domain structural smell positives ([a8b5a62](https://github.com/devr-tools/codeguard/commit/a8b5a62e50bd543f2a684b9391767d18f8749710))
+* retune precision for monorepo false positives ([7422df9](https://github.com/devr-tools/codeguard/commit/7422df9d20b60d6f796e50bf7a77407994275f32))
+* satisfy precision retune lint checks ([d55e5ec](https://github.com/devr-tools/codeguard/commit/d55e5ec32f835df4b624e5bcab3e65ba661e5d9b))
+
 ## [1.3.8](https://github.com/devr-tools/codeguard/compare/v1.3.7...v1.3.8) (2026-07-28)
 
 
