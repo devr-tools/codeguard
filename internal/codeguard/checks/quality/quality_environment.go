@@ -11,7 +11,7 @@ import (
 
 var (
 	environmentBranchPattern = regexp.MustCompile(`(?i)\b(if|switch|case|when)\b[^\n]*(prod|production|staging|stage|dev|development|test)\b|process\.env\.NODE_ENV|Rails\.env\.(production|staging|development|test)\?|os\.(Getenv|getenv)\([^)]*(ENV|ENVIRONMENT|NODE_ENV)|\b(std::)?getenv\([^)]*(ENV|ENVIRONMENT|NODE_ENV)`)
-	environmentAllowedDirs   = []string{"config/", "configs/", "cmd/", "scripts/", ".github/", "deploy/", "deployment/", "k8s/", "kubernetes/", "bootstrap/"}
+	environmentAllowedDirs   = []string{"config/", "configs/", "cmd/", "scripts/", ".github/", "deploy/", "deployment/", "k8s/", "kubernetes/", "bootstrap/", "infra/"}
 )
 
 func environmentBranchingFindings(env support.Context, target core.TargetConfig) []core.Finding {
@@ -43,6 +43,19 @@ func environmentBranchingFindings(env support.Context, target core.TargetConfig)
 func environmentBranchingEligiblePath(cfg core.DeliveryRulesConfig, rel string) bool {
 	normalized := strings.ToLower(filepath.ToSlash(rel))
 	if isQualityFixturePath(normalized) {
+		return false
+	}
+	if isLikelyUIFile(normalized) ||
+		strings.Contains(normalized, "/app/api/") ||
+		strings.Contains(normalized, "/api/") ||
+		strings.Contains(normalized, "/auth/") ||
+		strings.Contains(normalized, "/scripts/") ||
+		strings.Contains(normalized, "/prisma/") ||
+		strings.Contains(normalized, "/integrations/") ||
+		strings.Contains(normalized, "/packages/db/src/") ||
+		strings.Contains(normalized, "/apps/web/lib/") ||
+		strings.HasPrefix(normalized, "apps/web/lib/") ||
+		strings.HasPrefix(normalized, "packages/db/src/") {
 		return false
 	}
 	for _, pattern := range cfg.BootstrapPathPatterns {

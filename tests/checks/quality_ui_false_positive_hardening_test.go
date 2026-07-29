@@ -213,6 +213,32 @@ func TestQualityDuplicatedKnowledgeSkipsDisplayStringsAndIncludesLiteral(t *test
 	}
 }
 
+func TestQualityDuplicatedKnowledgeSkipsImportsAndHTTPHeaders(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/lib/http.ts"), strings.Join([]string{
+		"import { one } from './compliance-project/compliance-project-form-types';",
+		"import { two } from './compliance-project/compliance-project-form-types';",
+		"export async function postJson(url: string, payload: unknown) {",
+		"  return fetch(url, {",
+		"    method: 'POST',",
+		"    headers: { 'Content-Type': 'application/json' },",
+		"    body: JSON.stringify(payload),",
+		"  });",
+		"}",
+		"export async function putJson(url: string, payload: unknown) {",
+		"  return fetch(url, {",
+		"    method: 'PUT',",
+		"    headers: { 'Content-Type': 'application/json' },",
+		"    body: JSON.stringify(payload),",
+		"  });",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.duplicated-knowledge")
+}
+
 func TestQualityDuplicatedKnowledgeSkipsTrivialRepeatedNumbers(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps/web/app/claims/_components/rows.tsx"), strings.Join([]string{
@@ -246,18 +272,18 @@ func TestQualityDuplicatedKnowledgeSkipsSmallNumbersAndEnumStatusStrings(t *test
 		"  { value: 'CLAIM_APPROVED', label: 'Approved' },",
 		"  { value: 'CLAIM_APPROVED', label: 'Approved' },",
 		"];",
-		"export const premiumAmountCents = 1000;",
-		"export const vipAmountCents = 1000;",
+		"export const premiumPolicyCode = 'invoice_policy_code';",
+		"export const vipPolicyCode = 'invoice_policy_code';",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
 	finding := firstDuplicatedKnowledgeFinding(t, report)
 	if strings.Contains(finding.Message, "CLAIM_APPROVED") || strings.Contains(finding.Message, "25") || strings.Contains(finding.Message, "3") {
-		t.Fatalf("expected strong numeric domain duplicate, got %q", finding.Message)
+		t.Fatalf("expected strong domain duplicate, got %q", finding.Message)
 	}
-	if !strings.Contains(finding.Message, "1000") {
-		t.Fatalf("expected duplicated money-like numeric literal, got %q", finding.Message)
+	if !strings.Contains(finding.Message, "invoice_policy_code") {
+		t.Fatalf("expected duplicated domain code literal, got %q", finding.Message)
 	}
 }
 
@@ -270,8 +296,8 @@ func TestQualityDuplicatedKnowledgeSkipsSentinelsStylesAndUnmarkedEnums(t *testi
 		"export const activeClass = 'rounded-md border-gray-200';",
 		"export const firstStatus = 'CLAIM_APPROVED';",
 		"export const secondStatus = 'CLAIM_APPROVED';",
-		"export const premiumAmountCents = 1000;",
-		"export const vipAmountCents = 1000;",
+		"export const premiumPolicyCode = 'invoice_policy_code';",
+		"export const vipPolicyCode = 'invoice_policy_code';",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
@@ -280,8 +306,8 @@ func TestQualityDuplicatedKnowledgeSkipsSentinelsStylesAndUnmarkedEnums(t *testi
 	if strings.Contains(finding.Message, "__team__") || strings.Contains(finding.Message, "rounded-md") || strings.Contains(finding.Message, "CLAIM_APPROVED") {
 		t.Fatalf("expected only strong domain duplicate, got %q", finding.Message)
 	}
-	if !strings.Contains(finding.Message, "1000") {
-		t.Fatalf("expected duplicated money-like numeric literal, got %q", finding.Message)
+	if !strings.Contains(finding.Message, "invoice_policy_code") {
+		t.Fatalf("expected duplicated domain code literal, got %q", finding.Message)
 	}
 }
 

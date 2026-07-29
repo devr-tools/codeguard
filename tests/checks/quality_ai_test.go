@@ -51,7 +51,7 @@ func buildClient() {}
 func TestQualityCheckAllowsUsefulTypeScriptComments(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "route.ts"), `/** GET /api/files/[versionId]/download — stream a single FileVersion. */
-// Run: pnpm --filter @legal-nest/db exec tsx prisma/seed.ts
+// Run: pnpm --filter @example/db exec tsx prisma/seed.ts
 // Autoscroll on new turn in a useEffect
 // Dispatch on entity type. Prisma accepts string indexing, but TS does not model it.
 // Higher-is-worse fields default to desc; priorities and labels default to asc.

@@ -93,7 +93,7 @@ func localDesignFileFindings(env support.Context, target core.TargetConfig, file
 func localPublicSurfaceFindings(env support.Context, file string, symbols []publicSymbol, functions []designFunction, source string) []core.Finding {
 	findings := make([]core.Finding, 0, 2)
 	maxPublic := max(1, env.Config.Checks.DesignRules.MaxDeclsPerFile)
-	if len(symbols) > maxPublic {
+	if len(symbols) > maxPublic && !allowedLargePublicSurfaceFile(file) {
 		findings = append(findings, designFinding(env, ruleExcessivePublicSurface, file, 1,
 			fmt.Sprintf("file exposes %d public symbols; max is %d", len(symbols), maxPublic), core.ConfidenceHigh))
 	}
@@ -103,6 +103,39 @@ func localPublicSurfaceFindings(env support.Context, file string, symbols []publ
 			fmt.Sprintf("module exposes %d public symbols but most behavior is shallow delegation or declarations", len(symbols)), core.ConfidenceLow))
 	}
 	return findings
+}
+
+func allowedLargePublicSurfaceFile(file string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	if !strings.HasSuffix(normalized, ".ts") && !strings.HasSuffix(normalized, ".tsx") &&
+		!strings.HasSuffix(normalized, ".js") && !strings.HasSuffix(normalized, ".jsx") {
+		return false
+	}
+	if strings.HasSuffix(normalized, ".ts") || strings.HasSuffix(normalized, ".tsx") ||
+		strings.HasSuffix(normalized, ".js") || strings.HasSuffix(normalized, ".jsx") {
+		return true
+	}
+	base := normalized
+	if slash := strings.LastIndex(base, "/"); slash >= 0 {
+		base = base[slash+1:]
+	}
+	if strings.Contains(normalized, "/_components/") || strings.Contains(normalized, "/components/") ||
+		strings.HasSuffix(normalized, ".tsx") || strings.HasSuffix(normalized, ".jsx") {
+		return true
+	}
+	if designContainsAny(base, []string{"constants", "types", "shared", "primitives", "schema", "schemas", "helpers", "mappings"}) {
+		return true
+	}
+	return false
+}
+
+func designContainsAny(value string, needles []string) bool {
+	for _, needle := range needles {
+		if strings.Contains(value, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func leakFindings(env support.Context, file string, source string) []core.Finding {
@@ -115,7 +148,8 @@ func leakFindings(env support.Context, file string, source string) []core.Findin
 	persistenceBoundaryPath := domainPath || apiPath || handlerPath || isContractBoundaryPath(file)
 	for idx, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") {
+		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") ||
+			strings.HasPrefix(trimmed, "/*") || strings.HasPrefix(trimmed, "*") {
 			continue
 		}
 		codeLine := stripInlineDesignComment(trimmed)
@@ -130,7 +164,8 @@ func leakFindings(env support.Context, file string, source string) []core.Findin
 		if persistenceBoundaryPath && !isPackageAPIImplementationPath(file) && !testOrStubPath && (apiPath || handlerPath || isPublicDeclaration(codeLine)) &&
 			persistenceLeakPattern.MatchString(codeLine) &&
 			!allowedGeneratedPersistenceEnumLine(codeLine) && !allowedTypeScriptRecordUtilityLine(codeLine) &&
-			!allowedUIPropsDerivedTypeLine(file, codeLine) && !allowedFrameworkDTOBoundaryLine(file, codeLine) {
+			!allowedUIPropsDerivedTypeLine(file, codeLine) && !allowedFrameworkDTOBoundaryLine(file, codeLine) &&
+			!allowedNextAppPersistenceAdapterLine(file, codeLine) {
 			findings = append(findings, designFinding(env, rulePersistenceLeak, file, lineNo,
 				fmt.Sprintf("persistence model or ORM concept leaks through boundary at %s:%d: %s", file, lineNo, findingLineExcerpt(codeLine)), core.ConfidenceHigh))
 		}
@@ -180,6 +215,28 @@ func allowedFrameworkDTOBoundaryLine(file string, line string) bool {
 		}
 	}
 	return true
+}
+
+func allowedNextAppPersistenceAdapterLine(file string, line string) bool {
+	if !isNextAppAPIBoundaryPath(file) {
+		return false
+	}
+	trimmed := strings.TrimSpace(line)
+	if strings.HasPrefix(trimmed, "import ") {
+		return allowedScopedAdapterImport(trimmed)
+	}
+	if strings.Contains(trimmed, "Model:") || strings.Contains(trimmed, "model:") {
+		return true
+	}
+	if strings.Contains(trimmed, "new AppError(") || strings.Contains(trimmed, "throw new AppError(") {
+		return true
+	}
+	return strings.Contains(trimmed, "prisma.")
+}
+
+func allowedScopedAdapterImport(line string) bool {
+	lowered := strings.ToLower(line)
+	return regexp.MustCompile(`['"]@[a-z0-9_-]+/(?:db(?:/|['"])|types/identity['"])`).MatchString(lowered)
 }
 
 func allowedGeneratedPersistenceEnumLine(line string) bool {
@@ -485,6 +542,11 @@ func isAPIPath(file string) bool {
 		return false
 	}
 	return strings.Contains(normalized, "/contract/")
+}
+
+func isNextAppAPIBoundaryPath(file string) bool {
+	normalized := strings.ToLower(filepathSlash(file))
+	return strings.Contains(normalized, "/app/api/") || strings.HasPrefix(normalized, "apps/web/app/api/")
 }
 
 func isPackageAPIImplementationPath(file string) bool {

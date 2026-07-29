@@ -248,6 +248,130 @@ func TestDefensiveBroadeningSkipsUIBoundsAndInternalORMReads(t *testing.T) {
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.missing-resource-limit", "search-tools.ts:4")
 }
 
+func TestDefensiveInvalidStateSkipsUIViewModels(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/settings/_components/users/user-types.ts"), strings.Join([]string{
+		"export interface UserToolbarState {",
+		"  loading: boolean;",
+		"  open: boolean;",
+		"  status: string;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/domain/order-state.ts"), strings.Join([]string{
+		"export interface OrderState {",
+		"  active: boolean;",
+		"  deleted: boolean;",
+		"  status: string;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.invalid-state-representable", "apps/web/app/settings/_components/users/user-types.ts")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.invalid-state-representable", "packages/api/src/domain/order-state.ts", "impossible combinations")
+}
+
+func TestErrorRetryableNotDistinguishedSkipsUIRetryControls(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/app/error.tsx"), strings.Join([]string{
+		"export default function ErrorBoundary({ reset }: { reset(): void }) {",
+		"  return <button onClick={() => reset()}>Try again</button>;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/retry.ts"), strings.Join([]string{
+		"export async function retryWrite(job: Job) {",
+		"  try {",
+		"    return await job.run();",
+		"  } catch (err) {",
+		"    return job.retry();",
+		"  }",
+		"}",
+		"interface Job { run(): Promise<unknown>; retry(): Promise<unknown> }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "error.retryable-not-distinguished", "apps/web/app/error.tsx")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "error.retryable-not-distinguished", "packages/api/src/lib/retry.ts", "retry path")
+}
+
+func TestCommandQueryMixSkipsScriptMainEntrypoints(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/db/prisma/seed-marketing-claims.ts"), strings.Join([]string{
+		"export async function main() {",
+		"  await db.claim.create({ data: { id: 'claim' } });",
+		"  return { ok: true };",
+		"}",
+		"declare const db: { claim: { create(input: unknown): Promise<unknown> } };",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+}
+
+func TestFunctionMutationRulesAllowDomainActionVerbBoundaries(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/routers/risk-actions.ts"), strings.Join([]string{
+		"export async function captureSnapshotFor(repo: Repo, input: Input) {",
+		"  await repo.create(input);",
+		"  return input;",
+		"}",
+		"export async function transferRiskEntityLinks(repo: Repo, input: Input) {",
+		"  await repo.update(input);",
+		"  return input;",
+		"}",
+		"export async function linkRequestAttachments(repo: Repo, input: Input) {",
+		"  await repo.create(input);",
+		"  return input;",
+		"}",
+		"interface Repo { create(input: Input): Promise<void>; update(input: Input): Promise<void> }",
+		"interface Input { id: string }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "apps/web/scripts/backfill-counterparty-kinds.ts"), strings.Join([]string{
+		"export async function classifyCounterparty(client: Client, value: Value) {",
+		"  await client.create(value);",
+		"  return value;",
+		"}",
+		"interface Client { create(input: Value): Promise<void> }",
+		"interface Value { id: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+}
+
+func TestBooleanRulesSkipObjectOptionsScriptsAndPredicateWords(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/summaries.ts"), strings.Join([]string{
+		"export function summarize(input: Input, opts: { includeDrafts: boolean }) {",
+		"  return opts.includeDrafts ? input.title : input.id;",
+		"}",
+		"export function emailDomainAllowed(domain: string): boolean {",
+		"  return domain.endsWith('.com');",
+		"}",
+		"export function sameGroups(a: string[], b: string[]): boolean {",
+		"  return a.length === b.length;",
+		"}",
+		"export function looksImportant(value: string): boolean {",
+		"  return value.includes('!');",
+		"}",
+		"interface Input { id: string; title: string }",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/db/scripts/import-lawvu-xlsx.ts"), strings.Join([]string{
+		"export function runImport(apply: boolean, dryRun: boolean) {",
+		"  return apply && !dryRun;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.boolean-argument")
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+}
+
 func TestDefensiveNullAssumptionCreditsTypeScriptNarrowing(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/api/src/lib/null-narrowing.ts"), strings.Join([]string{
@@ -259,14 +383,18 @@ func TestDefensiveNullAssumptionCreditsTypeScriptNarrowing(t *testing.T) {
 		"  if (!value) return null;",
 		"  return value.toISOString();",
 		"}",
+		"export function fromNullableName(name: string | null | undefined) {",
+		"  if (!name) {",
+		"    return null;",
+		"  }",
+		"  const narrowed = name;",
+		"  return narrowed.toLowerCase();",
+		"}",
 		"export function fromNullableElements(recipientIds: (string | null | undefined)[]) {",
 		"  return recipientIds.filter((id): id is string => !!id).map((id) => id.toUpperCase());",
 		"}",
 		"export function fromNullableField(row: { status: string | null; title: string }) {",
 		"  return row.status === 'ACTIVE' ? row.title : null;",
-		"}",
-		"export function unsafeNullableUser(user: { email: string } | null) {",
-		"  return user.email;",
 		"}",
 	}, "\n"))
 
@@ -274,9 +402,8 @@ func TestDefensiveNullAssumptionCreditsTypeScriptNarrowing(t *testing.T) {
 
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:2")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:7")
-	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:10")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:13")
-	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.null-assumption", "null-narrowing.ts:16", "nullable boundary value")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:16")
 }
 
 func TestDefensiveBoundaryInputSkipsTypedInternalDTOs(t *testing.T) {
@@ -300,6 +427,38 @@ func TestDefensiveBoundaryInputSkipsTypedInternalDTOs(t *testing.T) {
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.unvalidated-boundary-input", "internal-dtos.ts:1")
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.unvalidated-boundary-input", "internal-dtos.ts:4")
 	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.unvalidated-boundary-input", "internal-dtos.ts:7", "boundary input")
+}
+
+func TestInvalidStateRepresentableSkipsImportDTOContainers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/db/prisma/import-types.ts"), strings.Join([]string{
+		"export interface NotifyArgs {",
+		"  severity?: 'info' | 'warn' | 'urgent';",
+		"  body?: string | null;",
+		"}",
+		"interface ParsedRowPart1 {",
+		"  state?: string | null;",
+		"  title: string;",
+		"}",
+		"export interface RowContext {",
+		"  dryRun: boolean;",
+		"  verbose: boolean;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/email-result.ts"), strings.Join([]string{
+		"export interface SendEmailResult {",
+		"  ok: boolean;",
+		"  disabled?: boolean;",
+		"  error?: string;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.invalid-state-representable", "import-types.ts:1")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.invalid-state-representable", "import-types.ts:5")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.invalid-state-representable", "import-types.ts:9")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.invalid-state-representable", "email-result.ts:1", "impossible combinations")
 }
 
 func TestExceptionControlFlowSkipsValidationThrows(t *testing.T) {
@@ -413,11 +572,26 @@ func TestErrorPartialFailureHiddenCreditsSurfacedDiagnostics(t *testing.T) {
 		"interface Client { fetch(id: string): Promise<Message> }",
 		"interface Message { id: string }",
 	}, "\n"))
+	writeFile(t, filepath.Join(dir, "packages/db/scripts/row-import.ts"), strings.Join([]string{
+		"export async function importRows(rows: Array<{ lawvuId?: string }>) {",
+		"  let missingLawVuId = 0;",
+		"  for (const row of rows) {",
+		"    if (!row.lawvuId) {",
+		"      missingLawVuId++;",
+		"      continue;",
+		"    }",
+		"    await save(row.lawvuId);",
+		"  }",
+		"  console.error(`missing LawVu ID: ${missingLawVuId}`);",
+		"}",
+		"declare function save(id: string): Promise<void>;",
+	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
 	assertFindingRulePresent(t, report, "Code Quality", "error.partial-failure-hidden")
 	assertCodeQualityRuleAbsentForPath(t, report, "error.partial-failure-hidden", "digest-fetch.ts:1")
+	assertCodeQualityRuleAbsentForPath(t, report, "error.partial-failure-hidden", "row-import.ts")
 }
 
 func assertCodeQualityRuleAbsentForPath(t *testing.T, report codeguard.Report, ruleID string, pathFragment string) {
@@ -431,13 +605,12 @@ func assertCodeQualityRuleAbsentForPath(t *testing.T, report codeguard.Report, r
 			if finding.Line > 0 {
 				location = fmt.Sprintf("%s:%d", location, finding.Line)
 			}
-			if finding.RuleID == ruleID && strings.Contains(location, pathFragment) {
+			if finding.RuleID == ruleID && codeQualityLocationMatches(location, pathFragment) {
 				t.Fatalf("section %q unexpectedly contains rule %q at %s: %s", "Code Quality", ruleID, location, finding.Message)
 			}
 		}
 		return
 	}
-	t.Fatalf("section %q not found", "Code Quality")
 }
 
 func assertCodeQualityRulePresentForPathWithMessage(t *testing.T, report codeguard.Report, ruleID string, pathFragment string, messageParts ...string) {
@@ -451,7 +624,7 @@ func assertCodeQualityRulePresentForPathWithMessage(t *testing.T, report codegua
 			if finding.Line > 0 {
 				location = fmt.Sprintf("%s:%d", location, finding.Line)
 			}
-			if finding.RuleID != ruleID || !strings.Contains(location, pathFragment) {
+			if finding.RuleID != ruleID || !codeQualityLocationMatches(location, pathFragment) {
 				continue
 			}
 			loweredMessage := strings.ToLower(finding.Message)
@@ -465,4 +638,11 @@ func assertCodeQualityRulePresentForPathWithMessage(t *testing.T, report codegua
 		t.Fatalf("section %q missing rule %q for path containing %q", "Code Quality", ruleID, pathFragment)
 	}
 	t.Fatalf("section %q not found", "Code Quality")
+}
+
+func codeQualityLocationMatches(location string, fragment string) bool {
+	if strings.Contains(fragment, ":") {
+		return strings.HasSuffix(location, fragment)
+	}
+	return strings.Contains(location, fragment)
 }

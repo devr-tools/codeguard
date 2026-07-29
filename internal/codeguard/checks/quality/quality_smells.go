@@ -385,6 +385,9 @@ func featureEnvyFindings(env support.Context, file string, functions []structura
 		if len(fn.Params) == 0 || fn.Body == "" {
 			continue
 		}
+		if fn.Owner == "" && fn.Receiver == "" && !isDomainSourcePathForMessageChains(file) {
+			continue
+		}
 		dominantName, dominantCount, totalExternal := dominantExternalAccess(fn)
 		if dominantCount < 5 || totalExternal < 5 {
 			continue
@@ -486,6 +489,15 @@ func messageChainFindings(env support.Context, file string, source string, langu
 	if isScriptLikeSourcePath(file) && isLikelyUIFile(file) {
 		return nil
 	}
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	if strings.HasPrefix(normalized, "infra/") || strings.Contains(normalized, "/integrations/") || strings.Contains(normalized, "integrations/") {
+		return nil
+	}
+	if (language == "typescript" || language == "javascript") &&
+		!strings.Contains(maskForStructuralLanguage(source, language), "class ") &&
+		!isDomainSourcePathForMessageChains(file) {
+		return nil
+	}
 	if isStructuralTraversalUtilityPath(file) {
 		return nil
 	}
@@ -502,6 +514,13 @@ func messageChainFindings(env support.Context, file string, source string, langu
 		}
 	}
 	return nil
+}
+
+func isDomainSourcePathForMessageChains(file string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	return strings.HasPrefix(normalized, "packages/domain/") ||
+		strings.Contains(normalized, "/packages/domain/") ||
+		strings.Contains(normalized, "/domain/")
 }
 
 func chainSeparators(line string) int {
@@ -526,7 +545,11 @@ func chainSeparators(line string) int {
 
 func looksLikeAllowedFluentChain(line string) bool {
 	lowered := strings.ToLower(line)
-	return strings.Contains(lowered, "builder") || strings.Contains(lowered, ".with") || strings.Contains(lowered, ".set")
+	return strings.Contains(lowered, "builder") ||
+		strings.Contains(lowered, ".with") ||
+		strings.Contains(lowered, ".set") ||
+		strings.Contains(lowered, "z.") ||
+		containsAny(lowered, []string{".optional", ".nullable", ".default", ".min", ".max", ".regex", ".safeparse", ".parse"})
 }
 
 func looksLikeAllowedTraversalChain(line string) bool {
@@ -538,9 +561,19 @@ func looksLikeAllowedTraversalChain(line string) bool {
 		"response.", "result.", "payload.", "body.", "json.", "config.", "settings.",
 		"process.env", "import.meta.env", "params.", "query.", "headers.",
 		"row.", "record.", "dto.", "args.", "urlsearchparams", "searchparams.",
+		"contract.", "matter.", "risk.", "project.", "policy.", "file.",
+		"metadata.", "currentpatch.", "existing.", "finding.", "input.", "opts.",
+		".split(", ".map(", ".filter(", ".at(",
+		"this.linktreeenvironment.", "this.node.", "construct.",
 		"include:", "select:", "where:", "prisma.", "serialize", "serializer", "json.stringify",
 		"tojson", ".tojson",
 	} {
+		if marker == "file." {
+			if regexp.MustCompile(`\bfile\.`).MatchString(lowered) {
+				return true
+			}
+			continue
+		}
 		if strings.Contains(lowered, marker) {
 			return true
 		}
@@ -602,6 +635,11 @@ func normalizedParamConcept(name string) string {
 }
 
 func switchOnTypeFindings(env support.Context, file string, source string, language string) []core.Finding {
+	if isQualityFixturePath(file) || isSeedOrScriptSourcePath(file) || isLikelyUIFile(file) ||
+		isFrontendLibraryPath(file) || isPackageAPIRouterPath(file) ||
+		strings.Contains(strings.ToLower(file), "/integrations/") || strings.Contains(strings.ToLower(file), "integrations/") {
+		return nil
+	}
 	masked := maskForStructuralLanguage(source, language)
 	if centralizedEnumDispatchContext(file, masked) {
 		return nil
@@ -620,6 +658,9 @@ func switchOnTypeFindings(env support.Context, file string, source string, langu
 	}
 	caseBranches := strings.Count(masked, "case ")
 	total := typeBranches + kindBranches
+	if kindBranches == 0 && caseBranches == 0 {
+		return nil
+	}
 	if total >= 2 || (total >= 1 && caseBranches >= 4) || typeBranches >= 3 {
 		return []core.Finding{precisionWarnFinding(env, smellSwitchOnTypeRuleID, file, firstTypeBranchLine(masked),
 			fmt.Sprintf("type/kind branching appears %d times with %d case-style branches; prefer polymorphism or a dispatch table", total, caseBranches),

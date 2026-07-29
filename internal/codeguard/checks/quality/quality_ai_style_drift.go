@@ -3,6 +3,7 @@ package quality
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -75,6 +76,9 @@ func dominantScriptErrorStyle(env support.Context, target core.TargetConfig, fil
 }
 
 func scriptErrorStyleDriftFinding(env support.Context, file string, source string, dominant string) []core.Finding {
+	if isLikelyUIFile(file) || isSeedOrScriptSourcePath(file) || strings.Contains(strings.ToLower(file), "/integrations/") {
+		return nil
+	}
 	return errorStyleDriftFinding(env, file, dominant, scriptErrorStyleCounts(source), "thrown error")
 }
 

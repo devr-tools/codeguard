@@ -24,6 +24,7 @@ import (
 var defaultAmbiguousBasenameIgnore = []string{
 	"index.ts", "index.tsx", "index.js", "index.jsx", "index.mjs", "index.cjs",
 	"route.ts", "routes.ts", "page.tsx", "layout.tsx",
+	"_shared.ts", "_shared.tsx",
 	"__init__.py", "__main__.py",
 	"mod.rs", "lib.rs", "main.rs",
 	"main.go", "doc.go", "types.go",
