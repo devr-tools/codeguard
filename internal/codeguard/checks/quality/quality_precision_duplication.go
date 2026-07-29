@@ -163,21 +163,6 @@ func duplicatedKnowledgeStyleLiteral(value string) bool {
 		lowered == "application/json"
 }
 
-func duplicatedKnowledgeNumericLiteral(number int, line string) bool {
-	if number < 0 {
-		number = -number
-	}
-	if number < 100 {
-		return false
-	}
-	lowered := strings.ToLower(line)
-	return line == "" ||
-		domainPrimitiveNamePattern.MatchString(lowered) ||
-		durationNamePattern.MatchString(lowered) ||
-		sizeNamePattern.MatchString(lowered) ||
-		moneyNamePattern.MatchString(lowered)
-}
-
 func duplicatedKnowledgeEnumStatusLiteral(value string, line string) bool {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {

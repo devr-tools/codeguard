@@ -93,7 +93,7 @@ func localDesignFileFindings(env support.Context, target core.TargetConfig, file
 func localPublicSurfaceFindings(env support.Context, file string, symbols []publicSymbol, functions []designFunction, source string) []core.Finding {
 	findings := make([]core.Finding, 0, 2)
 	maxPublic := max(1, env.Config.Checks.DesignRules.MaxDeclsPerFile)
-	if len(symbols) > maxPublic && !allowedLargePublicSurfaceFile(file, source) {
+	if len(symbols) > maxPublic && !allowedLargePublicSurfaceFile(file) {
 		findings = append(findings, designFinding(env, ruleExcessivePublicSurface, file, 1,
 			fmt.Sprintf("file exposes %d public symbols; max is %d", len(symbols), maxPublic), core.ConfidenceHigh))
 	}
@@ -105,7 +105,7 @@ func localPublicSurfaceFindings(env support.Context, file string, symbols []publ
 	return findings
 }
 
-func allowedLargePublicSurfaceFile(file string, source string) bool {
+func allowedLargePublicSurfaceFile(file string) bool {
 	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
 	if !strings.HasSuffix(normalized, ".ts") && !strings.HasSuffix(normalized, ".tsx") &&
 		!strings.HasSuffix(normalized, ".js") && !strings.HasSuffix(normalized, ".jsx") {

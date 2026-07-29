@@ -33,7 +33,6 @@ var (
 	commandFunctionPrefixPattern = regexp.MustCompile(`^(add|allocate|append|assign|bulk|cancel|capture|choose|clear|cleanup|close|copy|create|delete|disable|do|emit|enable|exchange|expose|export|fill|flip|flash|handle|hydrate|insert|link|log|move|mutate|note|notify|open|persist|publish|record|recompute|remember|remove|reset|retire|revert|save|send|set|store|submit|toggle|transfer|trigger|update|upsert|upload|walk|write)`)
 	readCallPattern              = regexp.MustCompile(`(?i)(^|[.>:\-_])(count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
 	identifierTokenPattern       = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
-	infraNamePattern             = regexp.MustCompile(`(?i)(sql|http|redis|kafka|grpc|graphql|mongo|s3|dynamo|postgres|mysql|elastic|orm)`)
 	roleSuffixPattern            = regexp.MustCompile(`(?i)(manager|helper|util|utils|service|processor)$`)
 	durationNamePattern          = regexp.MustCompile(`(?i)(timeout|duration|delay|interval|ttl|latency|elapsed|expiry|expiration|retention)`)
 	sizeNamePattern              = regexp.MustCompile(`(?i)(size|limit|length|capacity|bytes?|mb|kb|gb)`)
@@ -724,23 +723,6 @@ func cardinalityMismatch(file string, fn precisionFunction, name string, typ str
 	return !plural && collection && !strings.Contains(base, "map") && !strings.Contains(base, "list") && !strings.Contains(base, "set")
 }
 
-func conventionalUICardinalityName(base string) bool {
-	if strings.HasPrefix(base, "by") {
-		return true
-	}
-	switch base {
-	case "active", "allowed", "display", "form", "result", "scope", "team", "view":
-		return true
-	default:
-		return strings.HasSuffix(base, "bytype") ||
-			strings.HasSuffix(base, "bystatus") ||
-			strings.HasSuffix(base, "bymonth") ||
-			strings.HasSuffix(base, "rows") ||
-			strings.HasSuffix(base, "result") ||
-			strings.HasSuffix(base, "results")
-	}
-}
-
 func isPluralName(name string) bool {
 	if unitSuffixPattern.MatchString(name) {
 		return false
@@ -976,20 +958,6 @@ func containsAnyIdentifierWord(identifier string, words []string) bool {
 		}
 	}
 	return false
-}
-
-func isAllUpper(value string) bool {
-	hasLetter := false
-	for _, r := range value {
-		if !unicode.IsLetter(r) {
-			continue
-		}
-		hasLetter = true
-		if !unicode.IsUpper(r) {
-			return false
-		}
-	}
-	return hasLetter
 }
 
 func firstSeenLine(seen map[string]int) int {

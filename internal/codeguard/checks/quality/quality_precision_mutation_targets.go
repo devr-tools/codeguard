@@ -171,13 +171,13 @@ func assignmentLooksLocalScalarAccumulator(assignment support.ParsedAssignment, 
 	if !regexp.MustCompile(`(?i)\b(?:const|let|var)\s+` + regexp.QuoteMeta(assignment.Name) + `\b`).MatchString(statement) {
 		return false
 	}
-	if !(regexp.MustCompile(`^-?\d+(?:\.\d+)?$`).MatchString(expr) ||
-		regexp.MustCompile(`=\s*-?\d+(?:\.\d+)?\b`).MatchString(statement) ||
-		strings.Contains(lowered, "score") ||
-		strings.Contains(lowered, "total") ||
-		strings.Contains(lowered, "count") ||
-		strings.Contains(lowered, "sum") ||
-		strings.Contains(lowered, "pct")) {
+	if !regexp.MustCompile(`^-?\d+(?:\.\d+)?$`).MatchString(expr) &&
+		!regexp.MustCompile(`=\s*-?\d+(?:\.\d+)?\b`).MatchString(statement) &&
+		!strings.Contains(lowered, "score") &&
+		!strings.Contains(lowered, "total") &&
+		!strings.Contains(lowered, "count") &&
+		!strings.Contains(lowered, "sum") &&
+		!strings.Contains(lowered, "pct") {
 		return false
 	}
 	return len(name) <= 2 ||
