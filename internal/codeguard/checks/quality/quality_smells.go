@@ -385,7 +385,7 @@ func featureEnvyFindings(env support.Context, file string, functions []structura
 		if len(fn.Params) == 0 || fn.Body == "" {
 			continue
 		}
-		if fn.Owner == "" && fn.Receiver == "" {
+		if fn.Owner == "" && fn.Receiver == "" && !isDomainSourcePathForMessageChains(file) {
 			continue
 		}
 		dominantName, dominantCount, totalExternal := dominantExternalAccess(fn)
@@ -494,7 +494,8 @@ func messageChainFindings(env support.Context, file string, source string, langu
 		return nil
 	}
 	if (language == "typescript" || language == "javascript") &&
-		!strings.Contains(maskForStructuralLanguage(source, language), "class ") {
+		!strings.Contains(maskForStructuralLanguage(source, language), "class ") &&
+		!isDomainSourcePathForMessageChains(file) {
 		return nil
 	}
 	if isStructuralTraversalUtilityPath(file) {
@@ -513,6 +514,13 @@ func messageChainFindings(env support.Context, file string, source string, langu
 		}
 	}
 	return nil
+}
+
+func isDomainSourcePathForMessageChains(file string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	return strings.HasPrefix(normalized, "packages/domain/") ||
+		strings.Contains(normalized, "/packages/domain/") ||
+		strings.Contains(normalized, "/domain/")
 }
 
 func chainSeparators(line string) int {
@@ -560,6 +568,12 @@ func looksLikeAllowedTraversalChain(line string) bool {
 		"include:", "select:", "where:", "prisma.", "serialize", "serializer", "json.stringify",
 		"tojson", ".tojson",
 	} {
+		if marker == "file." {
+			if regexp.MustCompile(`\bfile\.`).MatchString(lowered) {
+				return true
+			}
+			continue
+		}
 		if strings.Contains(lowered, marker) {
 			return true
 		}
