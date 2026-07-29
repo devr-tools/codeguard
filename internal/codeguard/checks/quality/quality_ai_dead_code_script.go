@@ -15,6 +15,8 @@ var (
 	scriptTerminatorPattern    = regexp.MustCompile(`^(?:return\b[^;{}]*;|throw\b[^;{}]*;|break\s*;|continue\s*;|return;?$|break$|continue$)`)
 	scriptBlockResumePattern   = regexp.MustCompile(`^(?:\}|case\b|default\s*:|else\b|catch\b|finally\b)`)
 	scriptLocalFunctionPattern = regexp.MustCompile(`(?m)^[ \t]*(?:async[ \t]+)?function[ \t]+([A-Za-z_$][\w$]*)[ \t]*\(`)
+	scriptLocalConstPattern    = regexp.MustCompile(`(?m)^[ \t]*(?:const|let)[ \t]+([A-Za-z_$][\w$]*)[ \t]*(?::[^=\n]+)?=[ \t]*(?:async[ \t]+)?(?:\([^\n]*\)|[A-Za-z_$][\w$]*)[ \t]*=>`)
+	scriptControlHeaderPattern = regexp.MustCompile(`^(?:if|while|for|with)\b.*\)[ \t]*$`)
 )
 
 // unreachableStatementFinding builds the shared dead-code finding emitted when
@@ -29,6 +31,7 @@ func scriptUnreachableFindings(env support.Context, file string, source string) 
 	sanitized := sanitizeScriptSource(source)
 	depth := 0
 	pendingDepth := -1
+	previousWasUnbracedControlHeader := false
 	for idx, line := range strings.Split(sanitized, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
@@ -42,9 +45,10 @@ func scriptUnreachableFindings(env support.Context, file string, source string) 
 			}
 			pendingDepth = -1
 		}
-		if scriptTerminatorPattern.MatchString(trimmed) && balancedParens(trimmed) {
+		if scriptTerminatorPattern.MatchString(trimmed) && balancedParens(trimmed) && !previousWasUnbracedControlHeader {
 			pendingDepth = depth
 		}
+		previousWasUnbracedControlHeader = scriptControlHeaderPattern.MatchString(trimmed) && !strings.Contains(trimmed, "{")
 	}
 	return findings
 }
@@ -56,16 +60,20 @@ func balancedParens(line string) bool {
 // --- TypeScript/JavaScript: unused file-local function declarations ---
 
 func scriptUnusedFunctionFindings(env support.Context, file string, source string) []core.Finding {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	if strings.Contains(normalized, "/integrations/") || strings.Contains(normalized, "/app/api/") {
+		return nil
+	}
 	sanitized := sanitizeScriptSource(source)
 	findings := make([]core.Finding, 0)
-	for _, match := range scriptLocalFunctionPattern.FindAllStringSubmatchIndex(sanitized, -1) {
+	for _, match := range scriptLocalDeclarationMatches(sanitized) {
 		name := sanitized[match[2]:match[3]]
 		lineStart := strings.LastIndexByte(sanitized[:match[0]], '\n') + 1
 		declLine := sanitized[lineStart:lineEnd(sanitized, match[0])]
 		if strings.Contains(declLine, "export") {
 			continue
 		}
-		if countWordOccurrences(sanitized, name) > 1 {
+		if scriptLocalDeclarationIsReferenced(sanitized, name) || scriptLocalDeclarationIsReferenced(source, name) {
 			continue
 		}
 		line := 1 + strings.Count(sanitized[:match[2]], "\n")
@@ -73,6 +81,18 @@ func scriptUnusedFunctionFindings(env support.Context, file string, source strin
 			fmt.Sprintf("file-local function %q is declared but never referenced in this file", name)))
 	}
 	return findings
+}
+
+func scriptLocalDeclarationIsReferenced(source string, name string) bool {
+	// JSX identifiers are references, not opaque markup. Check them directly
+	// before falling back to ordinary expression references.
+	jsxReference := regexp.MustCompile(`<\s*` + regexp.QuoteMeta(name) + `(?:\s|/|>)`)
+	return jsxReference.MatchString(source) || countWordOccurrences(source, name) > 1
+}
+
+func scriptLocalDeclarationMatches(source string) [][]int {
+	matches := append(scriptLocalFunctionPattern.FindAllStringSubmatchIndex(source, -1), scriptLocalConstPattern.FindAllStringSubmatchIndex(source, -1)...)
+	return matches
 }
 
 func lineEnd(source string, from int) int {

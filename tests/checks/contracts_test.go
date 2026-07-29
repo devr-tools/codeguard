@@ -262,12 +262,16 @@ func TestContractsMigrationDestructiveFlagsNewMigrationsOnly(t *testing.T) {
 	runGit(t, dir, "add", ".")
 
 	report := runContractsDiff(t, contractsTestConfig(dir))
-	assertSectionStatus(t, report, "API Contracts", "warn")
-	findings := contractsRuleFindings(report, "contracts.migration-destructive")
-	if len(findings) != 4 {
-		t.Fatalf("migration findings = %d, want 4: %+v", len(findings), findings)
+	assertSectionStatus(t, report, "API Contracts", "fail")
+	legacyFindings := contractsRuleFindings(report, "contracts.migration-destructive")
+	if len(legacyFindings) != 4 {
+		t.Fatalf("legacy migration findings = %d, want 4: %+v", len(legacyFindings), legacyFindings)
 	}
-	for _, finding := range findings {
+	nonExpandFindings := contractsRuleFindings(report, "contracts.non-expand-contract-migration")
+	if len(nonExpandFindings) != 4 {
+		t.Fatalf("non-expand migration findings = %d, want 4: %+v", len(nonExpandFindings), nonExpandFindings)
+	}
+	for _, finding := range append(legacyFindings, nonExpandFindings...) {
 		if finding.Path != "migrations/0002_cleanup.sql" {
 			t.Fatalf("unexpected finding path %q (only the new migration should be flagged)", finding.Path)
 		}
@@ -293,13 +297,16 @@ func TestContractsFullScanRunsOnlyMigrationRule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("full scan: %v", err)
 	}
-	assertSectionStatus(t, report, "API Contracts", "warn")
+	assertSectionStatus(t, report, "API Contracts", "fail")
 	if findings := contractsRuleFindings(report, "contracts.migration-destructive"); len(findings) != 1 {
-		t.Fatalf("migration findings = %d, want 1", len(findings))
+		t.Fatalf("legacy migration findings = %d, want 1", len(findings))
+	}
+	if findings := contractsRuleFindings(report, "contracts.non-expand-contract-migration"); len(findings) != 1 {
+		t.Fatalf("non-expand migration findings = %d, want 1", len(findings))
 	}
 	for _, section := range report.Sections {
 		for _, finding := range section.Findings {
-			if finding.RuleID != "contracts.migration-destructive" {
+			if finding.RuleID != "contracts.migration-destructive" && finding.RuleID != "contracts.non-expand-contract-migration" {
 				t.Fatalf("unexpected non-migration finding in full scan: %s", finding.RuleID)
 			}
 		}

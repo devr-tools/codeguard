@@ -8,6 +8,8 @@ This page lists the current `codeguard` feature surface and the main config entr
   - maintainability thresholds
   - clone detection
   - language-native quality heuristics for Go, Python, TypeScript, JavaScript, Rust, Java, C++, C#, and Ruby
+  - local-quality precision heuristics for naming, function shape, error handling, defensive programming, and maintainability deltas where the active build includes them
+  - structural smell heuristics such as god object, feature envy, middle man, message chains, data clumps, and switch-on-type
   - AI-quality heuristics such as swallowed errors, narrative comments, hallucinated imports, dead code, over-mocked tests, idiom drift, semantic review, provenance policy, and change-risk rollups
   - changed-line coverage gating in diff mode
   - opt-in `clang-format` and sanitized `clang++ -fsyntax-only` validation backed by safe `compile_commands.json` metadata
@@ -49,9 +51,29 @@ This page lists the current `codeguard` feature surface and the main config entr
   - Rust and C++ loop-smell coverage for regex construction, non-preallocated string growth, and polling sleeps
   - C++ loop-driven unbounded thread/task launch detection
   - build regression, benchmark regression, artifact-size budgets, and clang `-ftime-trace` budgets
+- `reliability`
+  - production-readiness checks for Go, Python, TypeScript, JavaScript, and C++
+  - missing outbound timeouts, retry policy gaps, non-idempotent retries, cancellation gaps, unbounded work, resource cleanup, swallowed/lost errors, recoverable panics, and graceful-shutdown evidence
+- `data`
+  - distributed-system and data-correctness checks for Go, Python, TypeScript, JavaScript, and C++
+  - read-modify-write race patterns, missing transaction boundaries, side effects in transactions, consumer idempotency/deduplication gaps, unsafe dual writes, missing outbox strategy, unstable pagination, unbounded reads, exactly-once assumptions, and cache policy gaps
+- `observability`
+  - production operability checks for Go, Python, TypeScript, JavaScript, and C++
+  - unstructured logs, errors without operation/request context, sensitive log data, high-cardinality metric labels, missing critical-path instrumentation, log-and-ignore failures, and shallow health checks
+- `operations`
+  - ownership and runbook-readiness checks for critical production paths
+  - enterprise profile coverage for service ownership and operational handoff metadata
+- `delivery`
+  - rollout-safety checks for workflows, deployment files, migrations, and high-risk source changes
+  - missing rollback strategies, unsafe migration ordering, high-risk behavior without feature flags or kill switches, and missing post-deploy verification
+- `change`
+  - diff-mode change-safety, testability, and refactor-confidence checks for PR review
+  - implemented signals for oversized and mixed-concern diffs, too many concerns, mixed refactor/behavior diffs, broad public-surface edits, one-use abstractions, duplicate helpers, cleanup regressions, complexity increases, moves without verification, behavior changes without tests, failure-path coverage gaps, legacy hotspots without characterization coverage, and hardwired or nondeterministic domain dependencies
+  - implemented direct `refactor.*` IDs for behavior preservation checks, public-contract checks, error-path checks, side-effect ordering, visibility expansion, dependency direction, duplicate implementations left behind, and dead paths left behind
+  - PR-summary signals for `change_safety`, `refactor_confidence`, and `maintainability_delta` when the change-summary postprocessor is available
 - `contracts`
   - exported Go and public C++ API compatibility against a diff base
-  - OpenAPI, protobuf, and destructive migration checks
+  - OpenAPI, protobuf, destructive migration checks, and non-expand/contract migration risk
 
 ## Agent-native features
 
@@ -105,6 +127,14 @@ Imported reports are never passed to AI triage.
 - Diff-mode file risk and PR hotspots
   - emits `file_risk` and `pr_hotspots` artifacts that rank every changed file without changing finding severity
   - explains each score with stable, configurable contributions from findings, security and supply-chain signals, changed-line coverage, AI provenance, and slop-score artifacts where available
+- Diff-mode production risk
+  - emits `pr_summary.production_risk` when configured, using reliability, data-correctness, and non-expand/contract migration findings as deterministic PR-level risk evidence
+  - does not change SARIF, GitHub annotations, or individual finding severity
+- Diff-mode change safety
+  - uses the `checks.change` family to report implemented change-safety, cleanup, testability, and safe-refactor findings
+  - emits PR-summary fields such as `change_safety`, `refactor_confidence`, and `maintainability_delta` only as artifact evidence; they do not create extra annotations or change per-rule severities
+  - the local-quality precision rollout supports the same review goal through the exact `naming.*`, `function.*`, `error.*`, `defensive.*`, selected `maintainability.*`, and structural/history-aware `smell.*` IDs listed by `codeguard rules` on the active build
+  - structural smell rules such as `smell.refused-bequest` are reported as change-quality evidence: they explain when a design shape makes future changes less safe or harder to isolate, not just whether an individual line is syntactically suspicious
 
 ## Parsers
 
@@ -242,6 +272,40 @@ JSON:
           "command": "./scripts/resolve-npm-licenses.sh"
         }
       }
+    }
+  }
+}
+```
+
+### Enable change safety in diff scans
+
+YAML:
+
+```yaml
+checks:
+  change: true
+  change_rules:
+    max_changed_files: 25
+    max_changed_directories: 8
+    max_changed_lines: 800
+    max_public_interfaces_changed: 3
+    max_concern_families: 3
+    min_test_to_production_ratio_percent: 20
+```
+
+JSON:
+
+```json
+{
+  "checks": {
+    "change": true,
+    "change_rules": {
+      "max_changed_files": 25,
+      "max_changed_directories": 8,
+      "max_changed_lines": 800,
+      "max_public_interfaces_changed": 3,
+      "max_concern_families": 3,
+      "min_test_to_production_ratio_percent": 20
     }
   }
 }

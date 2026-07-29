@@ -13,6 +13,18 @@ type QualityRulesConfig struct {
 	AIChecks                AIChecksConfig                  `json:"ai_checks,omitempty" yaml:"ai_checks,omitempty"`
 	CoverageDelta           CoverageDeltaConfig             `json:"coverage_delta,omitempty" yaml:"coverage_delta,omitempty"`
 	CPPTooling              CPPToolingConfig                `json:"cpp_tooling,omitempty" yaml:"cpp_tooling,omitempty"`
+	LocalPrecision          *bool                           `json:"local_precision,omitempty" yaml:"local_precision,omitempty"`
+	Naming                  QualityNamingConfig             `json:"naming,omitempty" yaml:"naming,omitempty"`
+}
+
+type QualityNamingConfig struct {
+	Glossary                map[string]QualityNamingGlossaryEntry `json:"glossary,omitempty" yaml:"glossary,omitempty"`
+	AllowedAbbreviations    []string                              `json:"allowed_abbreviations,omitempty" yaml:"allowed_abbreviations,omitempty"`
+	RoleSuffixWarnThreshold int                                   `json:"role_suffix_warn_threshold,omitempty" yaml:"role_suffix_warn_threshold,omitempty"`
+}
+
+type QualityNamingGlossaryEntry struct {
+	Avoid []string `json:"avoid,omitempty" yaml:"avoid,omitempty"`
 }
 
 // PerformanceRulesConfig tunes the performance section (checks.performance).
@@ -172,6 +184,7 @@ type PromptRulesConfig struct {
 type CIRulesConfig struct {
 	RequireWorkflowDir      *bool                  `json:"require_workflow_dir,omitempty" yaml:"require_workflow_dir,omitempty"`
 	RequiredWorkflowFiles   []string               `json:"required_workflow_files,omitempty" yaml:"required_workflow_files,omitempty"`
+	RequiredGates           []string               `json:"required_gates,omitempty" yaml:"required_gates,omitempty"`
 	WorkflowContentRules    []WorkflowRuleConfig   `json:"workflow_content_rules,omitempty" yaml:"workflow_content_rules,omitempty"`
 	RequiredReleaseFiles    []string               `json:"required_release_files,omitempty" yaml:"required_release_files,omitempty"`
 	RequiredAutomationPaths []string               `json:"required_automation_paths,omitempty" yaml:"required_automation_paths,omitempty"`
@@ -206,6 +219,7 @@ type SupplyChainRulesConfig struct {
 	RequireLockfile     *bool `json:"require_lockfile,omitempty" yaml:"require_lockfile,omitempty"`
 	DetectLockfileDrift *bool `json:"detect_lockfile_drift,omitempty" yaml:"detect_lockfile_drift,omitempty"`
 	DetectUnpinned      *bool `json:"detect_unpinned,omitempty" yaml:"detect_unpinned,omitempty"`
+	DetectProvenance    *bool `json:"detect_provenance,omitempty" yaml:"detect_provenance,omitempty"`
 	// DetectVulnerabilities enables matching normalized dependencies against the
 	// local advisory cache. It never contacts an advisory service during a scan.
 	DetectVulnerabilities *bool `json:"detect_vulnerabilities,omitempty" yaml:"detect_vulnerabilities,omitempty"`
@@ -215,4 +229,136 @@ type SupplyChainRulesConfig struct {
 	AllowedLicenses   []string                      `json:"allowed_licenses,omitempty" yaml:"allowed_licenses,omitempty"`
 	DeniedLicenses    []string                      `json:"denied_licenses,omitempty" yaml:"denied_licenses,omitempty"`
 	LicenseCommands   map[string]CommandCheckConfig `json:"license_commands,omitempty" yaml:"license_commands,omitempty"`
+}
+
+// ObservabilityRulesConfig tunes the observability section. Nil rule toggles
+// default to enabled when the section itself is enabled by configuration or a
+// profile.
+type ObservabilityRulesConfig struct {
+	DetectUnstructuredLog            *bool    `json:"detect_unstructured_log,omitempty" yaml:"detect_unstructured_log,omitempty"`
+	DetectErrorWithoutContext        *bool    `json:"detect_error_without_context,omitempty" yaml:"detect_error_without_context,omitempty"`
+	DetectSensitiveLogData           *bool    `json:"detect_sensitive_log_data,omitempty" yaml:"detect_sensitive_log_data,omitempty"`
+	DetectHighCardinalityLabel       *bool    `json:"detect_high_cardinality_label,omitempty" yaml:"detect_high_cardinality_label,omitempty"`
+	DetectCriticalPathUninstrumented *bool    `json:"detect_critical_path_uninstrumented,omitempty" yaml:"detect_critical_path_uninstrumented,omitempty"`
+	DetectLogAndIgnore               *bool    `json:"detect_log_and_ignore,omitempty" yaml:"detect_log_and_ignore,omitempty"`
+	DetectShallowHealthCheck         *bool    `json:"detect_shallow_health_check,omitempty" yaml:"detect_shallow_health_check,omitempty"`
+	StructuredLoggerPatterns         []string `json:"structured_logger_patterns,omitempty" yaml:"structured_logger_patterns,omitempty"`
+	SensitiveNamePatterns            []string `json:"sensitive_name_patterns,omitempty" yaml:"sensitive_name_patterns,omitempty"`
+	HighCardinalityLabelPatterns     []string `json:"high_cardinality_label_patterns,omitempty" yaml:"high_cardinality_label_patterns,omitempty"`
+	CriticalPathPatterns             []string `json:"critical_path_patterns,omitempty" yaml:"critical_path_patterns,omitempty"`
+	HealthcheckPathPatterns          []string `json:"healthcheck_path_patterns,omitempty" yaml:"healthcheck_path_patterns,omitempty"`
+	InstrumentationEvidencePatterns  []string `json:"instrumentation_evidence_patterns,omitempty" yaml:"instrumentation_evidence_patterns,omitempty"`
+}
+
+// OperationsRulesConfig tunes repository operations-readiness checks. Nil rule
+// toggles default to enabled when the section itself is enabled by
+// configuration or a profile.
+type OperationsRulesConfig struct {
+	DetectMissingOwner   *bool    `json:"detect_missing_owner,omitempty" yaml:"detect_missing_owner,omitempty"`
+	DetectMissingRunbook *bool    `json:"detect_missing_runbook,omitempty" yaml:"detect_missing_runbook,omitempty"`
+	OwnerFilePatterns    []string `json:"owner_file_patterns,omitempty" yaml:"owner_file_patterns,omitempty"`
+	RunbookPathPatterns  []string `json:"runbook_path_patterns,omitempty" yaml:"runbook_path_patterns,omitempty"`
+	CriticalPathPatterns []string `json:"critical_path_patterns,omitempty" yaml:"critical_path_patterns,omitempty"`
+}
+
+// DeliveryRulesConfig tunes rollout-governance checks. Nil rule toggles
+// default to enabled when the delivery section itself is enabled.
+type DeliveryRulesConfig struct {
+	DetectMissingRollbackStrategy         *bool    `json:"detect_missing_rollback_strategy,omitempty" yaml:"detect_missing_rollback_strategy,omitempty"`
+	DetectUnsafeMigrationOrder            *bool    `json:"detect_unsafe_migration_order,omitempty" yaml:"detect_unsafe_migration_order,omitempty"`
+	DetectHighRiskChangeWithoutKillSwitch *bool    `json:"detect_high_risk_change_without_kill_switch,omitempty" yaml:"detect_high_risk_change_without_kill_switch,omitempty"`
+	DetectMissingPostDeployVerification   *bool    `json:"detect_missing_post_deploy_verification,omitempty" yaml:"detect_missing_post_deploy_verification,omitempty"`
+	RollbackEvidencePatterns              []string `json:"rollback_evidence_patterns,omitempty" yaml:"rollback_evidence_patterns,omitempty"`
+	KillSwitchPatterns                    []string `json:"kill_switch_patterns,omitempty" yaml:"kill_switch_patterns,omitempty"`
+	PostDeployVerificationPatterns        []string `json:"post_deploy_verification_patterns,omitempty" yaml:"post_deploy_verification_patterns,omitempty"`
+	MigrationPathPatterns                 []string `json:"migration_path_patterns,omitempty" yaml:"migration_path_patterns,omitempty"`
+	HighRiskPathPatterns                  []string `json:"high_risk_path_patterns,omitempty" yaml:"high_risk_path_patterns,omitempty"`
+	BootstrapPathPatterns                 []string `json:"bootstrap_path_patterns,omitempty" yaml:"bootstrap_path_patterns,omitempty"`
+}
+
+// ReliabilityRulesConfig tunes the reliability section. Nil rule toggles
+// default to enabled when the section itself is enabled by configuration or a
+// profile.
+type ReliabilityRulesConfig struct {
+	DetectMissingTimeout           *bool `json:"detect_missing_timeout,omitempty" yaml:"detect_missing_timeout,omitempty"`
+	DetectUnboundedRetry           *bool `json:"detect_unbounded_retry,omitempty" yaml:"detect_unbounded_retry,omitempty"`
+	DetectRetryWithoutBackoff      *bool `json:"detect_retry_without_backoff,omitempty" yaml:"detect_retry_without_backoff,omitempty"`
+	DetectNonIdempotentRetry       *bool `json:"detect_non_idempotent_retry,omitempty" yaml:"detect_non_idempotent_retry,omitempty"`
+	DetectMissingCancellation      *bool `json:"detect_missing_cancellation,omitempty" yaml:"detect_missing_cancellation,omitempty"`
+	DetectUnboundedWork            *bool `json:"detect_unbounded_work,omitempty" yaml:"detect_unbounded_work,omitempty"`
+	DetectMissingConcurrencyLimit  *bool `json:"detect_missing_concurrency_limit,omitempty" yaml:"detect_missing_concurrency_limit,omitempty"`
+	DetectResourceLeak             *bool `json:"detect_resource_leak,omitempty" yaml:"detect_resource_leak,omitempty"`
+	DetectPartialFailureHidden     *bool `json:"detect_partial_failure_hidden,omitempty" yaml:"detect_partial_failure_hidden,omitempty"`
+	DetectMissingGracefulShutdown  *bool `json:"detect_missing_graceful_shutdown,omitempty" yaml:"detect_missing_graceful_shutdown,omitempty"`
+	DetectSwallowedError           *bool `json:"detect_swallowed_error,omitempty" yaml:"detect_swallowed_error,omitempty"`
+	DetectLostErrorContext         *bool `json:"detect_lost_error_context,omitempty" yaml:"detect_lost_error_context,omitempty"`
+	DetectRecoverablePanic         *bool `json:"detect_recoverable_panic,omitempty" yaml:"detect_recoverable_panic,omitempty"`
+	MaxRetryAttempts               int   `json:"max_retry_attempts,omitempty" yaml:"max_retry_attempts,omitempty"`
+	MaxInlineGoroutinesPerFunction int   `json:"max_inline_goroutines_per_function,omitempty" yaml:"max_inline_goroutines_per_function,omitempty"`
+}
+
+// DataRulesConfig tunes the data-correctness section. Nil rule toggles default
+// to enabled when the section itself is enabled by configuration or a profile.
+type DataRulesConfig struct {
+	DetectReadModifyWriteRace     *bool `json:"detect_read_modify_write_race,omitempty" yaml:"detect_read_modify_write_race,omitempty"`
+	DetectMissingTransaction      *bool `json:"detect_missing_transaction,omitempty" yaml:"detect_missing_transaction,omitempty"`
+	DetectSideEffectInTransaction *bool `json:"detect_side_effect_in_transaction,omitempty" yaml:"detect_side_effect_in_transaction,omitempty"`
+	DetectNonIdempotentConsumer   *bool `json:"detect_non_idempotent_consumer,omitempty" yaml:"detect_non_idempotent_consumer,omitempty"`
+	DetectMissingDeduplication    *bool `json:"detect_missing_deduplication,omitempty" yaml:"detect_missing_deduplication,omitempty"`
+	DetectUnsafeDualWrite         *bool `json:"detect_unsafe_dual_write,omitempty" yaml:"detect_unsafe_dual_write,omitempty"`
+	DetectMissingOutboxStrategy   *bool `json:"detect_missing_outbox_strategy,omitempty" yaml:"detect_missing_outbox_strategy,omitempty"`
+	DetectUnstablePagination      *bool `json:"detect_unstable_pagination,omitempty" yaml:"detect_unstable_pagination,omitempty"`
+	DetectUnboundedRead           *bool `json:"detect_unbounded_read,omitempty" yaml:"detect_unbounded_read,omitempty"`
+	DetectExactlyOnceAssumption   *bool `json:"detect_exactly_once_assumption,omitempty" yaml:"detect_exactly_once_assumption,omitempty"`
+	DetectCacheWithoutPolicy      *bool `json:"detect_cache_without_policy,omitempty" yaml:"detect_cache_without_policy,omitempty"`
+	MaxUnboundedReadRows          int   `json:"max_unbounded_read_rows,omitempty" yaml:"max_unbounded_read_rows,omitempty"`
+	MaxWritesWithoutTransaction   int   `json:"max_writes_without_transaction,omitempty" yaml:"max_writes_without_transaction,omitempty"`
+}
+
+// ChangeRulesConfig tunes the change-safety, testability, and refactor
+// confidence section. Nil rule toggles default to enabled when the section is
+// enabled by configuration or a profile.
+type ChangeRulesConfig struct {
+	DetectBehaviorChangeWithoutTest   *bool `json:"detect_behavior_change_without_test,omitempty" yaml:"detect_behavior_change_without_test,omitempty"`
+	DetectFailurePathMissing          *bool `json:"detect_failure_path_missing,omitempty" yaml:"detect_failure_path_missing,omitempty"`
+	DetectHardwiredDependency         *bool `json:"detect_hardwired_dependency,omitempty" yaml:"detect_hardwired_dependency,omitempty"`
+	DetectNondeterministicDomain      *bool `json:"detect_nondeterministic_domain,omitempty" yaml:"detect_nondeterministic_domain,omitempty"`
+	DetectLegacyHotspotUncovered      *bool `json:"detect_legacy_hotspot_uncovered,omitempty" yaml:"detect_legacy_hotspot_uncovered,omitempty"`
+	DetectMixedConcerns               *bool `json:"detect_mixed_concerns,omitempty" yaml:"detect_mixed_concerns,omitempty"`
+	DetectOversizedDiff               *bool `json:"detect_oversized_diff,omitempty" yaml:"detect_oversized_diff,omitempty"`
+	DetectMixedRefactorAndBehavior    *bool `json:"detect_mixed_refactor_and_behavior,omitempty" yaml:"detect_mixed_refactor_and_behavior,omitempty"`
+	DetectTooManyConcerns             *bool `json:"detect_too_many_concerns,omitempty" yaml:"detect_too_many_concerns,omitempty"`
+	DetectUnnecessarySurfaceArea      *bool `json:"detect_unnecessary_surface_area,omitempty" yaml:"detect_unnecessary_surface_area,omitempty"`
+	DetectOneUseAbstraction           *bool `json:"detect_one_use_abstraction,omitempty" yaml:"detect_one_use_abstraction,omitempty"`
+	DetectDuplicateHelper             *bool `json:"detect_duplicate_helper,omitempty" yaml:"detect_duplicate_helper,omitempty"`
+	DetectCleanupRegression           *bool `json:"detect_cleanup_regression,omitempty" yaml:"detect_cleanup_regression,omitempty"`
+	DetectComplexityIncreased         *bool `json:"detect_complexity_increased,omitempty" yaml:"detect_complexity_increased,omitempty"`
+	DetectMoveWithoutVerification     *bool `json:"detect_move_without_verification,omitempty" yaml:"detect_move_without_verification,omitempty"`
+	DetectRefactorBehaviorChange      *bool `json:"detect_refactor_behavior_change,omitempty" yaml:"detect_refactor_behavior_change,omitempty"`
+	DetectRefactorPublicContract      *bool `json:"detect_refactor_public_contract,omitempty" yaml:"detect_refactor_public_contract,omitempty"`
+	DetectRefactorTestCoverageDrop    *bool `json:"detect_refactor_test_coverage_drop,omitempty" yaml:"detect_refactor_test_coverage_drop,omitempty"`
+	DetectRefactorErrorPathChange     *bool `json:"detect_refactor_error_path_change,omitempty" yaml:"detect_refactor_error_path_change,omitempty"`
+	DetectRefactorSideEffectReorder   *bool `json:"detect_refactor_side_effect_reorder,omitempty" yaml:"detect_refactor_side_effect_reorder,omitempty"`
+	DetectRefactorVisibilityExpand    *bool `json:"detect_refactor_visibility_expand,omitempty" yaml:"detect_refactor_visibility_expand,omitempty"`
+	DetectRefactorDependencyWorsened  *bool `json:"detect_refactor_dependency_worsened,omitempty" yaml:"detect_refactor_dependency_worsened,omitempty"`
+	DetectRefactorDuplicateLeftBehind *bool `json:"detect_refactor_duplicate_left_behind,omitempty" yaml:"detect_refactor_duplicate_left_behind,omitempty"`
+	DetectRefactorDeadPathLeftBehind  *bool `json:"detect_refactor_dead_path_left_behind,omitempty" yaml:"detect_refactor_dead_path_left_behind,omitempty"`
+	MaxChangedFiles                   int   `json:"max_changed_files,omitempty" yaml:"max_changed_files,omitempty"`
+	MaxChangedDirectories             int   `json:"max_changed_directories,omitempty" yaml:"max_changed_directories,omitempty"`
+	MaxChangedLines                   int   `json:"max_changed_lines,omitempty" yaml:"max_changed_lines,omitempty"`
+	MaxPublicInterfacesChanged        int   `json:"max_public_interfaces_changed,omitempty" yaml:"max_public_interfaces_changed,omitempty"`
+	MaxConcernFamilies                int   `json:"max_concern_families,omitempty" yaml:"max_concern_families,omitempty"`
+	MinTestToProductionRatioPercent   int   `json:"min_test_to_production_ratio_percent,omitempty" yaml:"min_test_to_production_ratio_percent,omitempty"`
+}
+
+// ProductionRiskConfig controls the additive PR-summary production-risk
+// artifact. It never changes individual rule severities.
+type ProductionRiskConfig struct {
+	Enabled           *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	WarnThreshold     int   `json:"warn_threshold,omitempty" yaml:"warn_threshold,omitempty"`
+	FailThreshold     int   `json:"fail_threshold,omitempty" yaml:"fail_threshold,omitempty"`
+	ReliabilityWeight int   `json:"reliability_weight,omitempty" yaml:"reliability_weight,omitempty"`
+	DataWeight        int   `json:"data_weight,omitempty" yaml:"data_weight,omitempty"`
+	FailWeight        int   `json:"fail_weight,omitempty" yaml:"fail_weight,omitempty"`
+	WarnWeight        int   `json:"warn_weight,omitempty" yaml:"warn_weight,omitempty"`
 }

@@ -45,6 +45,45 @@ export const value = missing;
 	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.hallucinated-import")
 }
 
+func TestQualityCheckResolvesTypeScriptPNPMMonorepoImports(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "package.json"), `{"name":"repo","private":true}`)
+	writeFile(t, filepath.Join(dir, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+	writeFile(t, filepath.Join(dir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n\npackages:\n\n  lock-only-package@1.0.0:\n    resolution: {integrity: sha512-example}\n")
+	writeFile(t, filepath.Join(dir, "packages", "app", "package.json"), `{
+  "name":"@example/app",
+  "dependencies":{"react":"18.0.0","next":"15.0.0","@prisma/client":"6.0.0"}
+}`)
+	writeFile(t, filepath.Join(dir, "packages", "shared", "package.json"), `{"name":"@example/shared"}`)
+	writeFile(t, filepath.Join(dir, "packages", "app", "tsconfig.json"), `{
+  // aliases are valid JSONC in tsconfig files
+  "compilerOptions": {"baseUrl":".", "paths":{"app/*":["src/*"]}}
+}`)
+	writeFile(t, filepath.Join(dir, "packages", "app", "src", "config.ts"), "export const config = {};\n")
+	writeFile(t, filepath.Join(dir, "packages", "app", "src", "lib", "value.ts"), "export const value = 1;\n")
+	writeFile(t, filepath.Join(dir, "node_modules", ".pnpm", "installed-package@1.0.0", "node_modules", "installed-package", "package.json"), `{"name":"installed-package"}`)
+	writeFile(t, filepath.Join(dir, "packages", "app", "src", "app.ts"), `
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { prisma } from "@prisma/client";
+import { config } from "./config.js";
+import { value } from "app/lib/value";
+import { shared } from "@example/shared";
+import installed from "installed-package";
+import lockOnly from "lock-only-package";
+void useState; void useRouter; void prisma; void config; void value; void shared; void installed; void lockOnly;
+`)
+
+	cfg := qualityAITestConfig(dir, "quality-ai-ts-pnpm-monorepo")
+	cfg.Targets[0].Language = "typescript"
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ai.hallucinated-import")
+}
+
 func TestQualityCheckWarnsForDeadCode(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "dead.go"), `package sample

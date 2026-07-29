@@ -17,12 +17,35 @@ type Artifact struct {
 	RepoLegibility   *RepoLegibilityArtifact   `json:"repo_legibility,omitempty"`
 	FileRisk         *FileRiskArtifact         `json:"file_risk,omitempty"`
 	PRHotspots       *PRHotspotsArtifact       `json:"pr_hotspots,omitempty"`
+	PRSummary        *PRSummaryArtifact        `json:"pr_summary,omitempty"`
 }
 
 const (
 	ReportArtifactKindFileRisk   = "file_risk"
 	ReportArtifactKindPRHotspots = "pr_hotspots"
+	ReportArtifactKindPRSummary  = "pr_summary"
 )
+
+type PRSummaryArtifact struct {
+	ProductionRisk       *PRSummaryMetric `json:"production_risk,omitempty"`
+	ChangeSafety         *PRSummaryMetric `json:"change_safety,omitempty"`
+	MaintainabilityDelta *PRSummaryMetric `json:"maintainability_delta,omitempty"`
+	RefactorConfidence   *PRSummaryMetric `json:"refactor_confidence,omitempty"`
+}
+
+type PRSummaryMetric struct {
+	Score      int                  `json:"score"`
+	Level      string               `json:"level,omitempty"`
+	Components []PRSummaryComponent `json:"components,omitempty"`
+}
+
+type PRSummaryComponent struct {
+	Label        string `json:"label"`
+	Weight       int    `json:"weight"`
+	Count        int    `json:"count"`
+	Contribution int    `json:"contribution"`
+	Detail       string `json:"detail,omitempty"`
+}
 
 // FileRiskArtifact ranks every changed file in a diff scan. Components make
 // every score auditable instead of changing the severity of underlying findings.

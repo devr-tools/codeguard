@@ -21,6 +21,14 @@ func typeScriptTargetFindings(ctx context.Context, env support.Context, target c
 		findings = append(findings, env.ScanTargetFiles(target, "quality-typescript-ai", isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
 			return typeScriptAIOnlyFindingsForFile(env, file, data)
 		})...)
+		if localPrecisionEnabled(env) {
+			findings = append(findings, env.ScanTargetFiles(target, "quality-typescript-local-precision", isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
+				parsed := support.ParseCLike(string(data), support.CLikeTypeScript)
+				localFindings := parsedPrecisionFindings(env, file, parsed)
+				localFindings = append(localFindings, parsedStructuralSmellFindings(env, file, parsed)...)
+				return localFindings
+			})...)
+		}
 		return findings
 	}
 	return support.TypeScriptTargetFindings(ctx, env, target, support.TypeScriptTargetScan{

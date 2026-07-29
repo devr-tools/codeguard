@@ -1,5 +1,140 @@
 # Changelog
 
+## [1.3.9](https://github.com/devr-tools/codeguard/compare/v1.3.8...v1.3.9) (2026-07-29)
+
+
+### Bug Fixes
+
+* keep domain structural smell positives ([a8b5a62](https://github.com/devr-tools/codeguard/commit/a8b5a62e50bd543f2a684b9391767d18f8749710))
+* retune precision for monorepo false positives ([7422df9](https://github.com/devr-tools/codeguard/commit/7422df9d20b60d6f796e50bf7a77407994275f32))
+* satisfy precision retune lint checks ([d55e5ec](https://github.com/devr-tools/codeguard/commit/d55e5ec32f835df4b624e5bcab3e65ba661e5d9b))
+
+## [1.3.8](https://github.com/devr-tools/codeguard/compare/v1.3.7...v1.3.8) (2026-07-28)
+
+
+### Bug Fixes
+
+* credit typescript null narrowing ([be628a4](https://github.com/devr-tools/codeguard/commit/be628a4296d9031e6e5941a128dd599470633f5c))
+* focus integer overflow on allocation risk ([712ac16](https://github.com/devr-tools/codeguard/commit/712ac162b66984e002f9f558c4065eab7e95ae6c))
+* make boolean naming precision contract based ([b1da7ca](https://github.com/devr-tools/codeguard/commit/b1da7ca565ce2a29b48c76cb02544ad49a30a44d))
+* narrow boundary input detection ([31c1bc4](https://github.com/devr-tools/codeguard/commit/31c1bc4481023b9a2cd221efcae2a4a3c2655573))
+* remove unused boolean expression parameter ([8f0b1af](https://github.com/devr-tools/codeguard/commit/8f0b1af4d48f9bfa812c300cfce49fc188d8c7c5))
+* retune naming and return precision ([43813e4](https://github.com/devr-tools/codeguard/commit/43813e45f378e33a8c0777893fa74ac4218820cc))
+* retune quality precision false positives ([c61b831](https://github.com/devr-tools/codeguard/commit/c61b831ce4e3d97e0f001b18f67a4d492b2bd5cc))
+* skip validation throws in control-flow rule ([280ccdd](https://github.com/devr-tools/codeguard/commit/280ccdd0546a5035ae9a2573ced291d1c107956c))
+
+## [1.3.7](https://github.com/devr-tools/codeguard/compare/v1.3.6...v1.3.7) (2026-07-28)
+
+
+### Bug Fixes
+
+* narrow defensive precision broadening ([3a237f0](https://github.com/devr-tools/codeguard/commit/3a237f0f3973c12ed9c19a3d194c53bea46661a8))
+* reduce defensive false positives ([81388fd](https://github.com/devr-tools/codeguard/commit/81388fdda06290889dac0e06c61ba6b8fb223aa4))
+* reduce defensive precision false positives ([#85](https://github.com/devr-tools/codeguard/issues/85)) ([4ce5e1d](https://github.com/devr-tools/codeguard/commit/4ce5e1d96f39a90a3a6cda44158d31e046b6be0a))
+
+## [1.3.6](https://github.com/devr-tools/codeguard/compare/v1.3.5...v1.3.6) (2026-07-28)
+
+
+### Bug Fixes
+
+* report retry-mitigated sequence debt ([8c7a6d5](https://github.com/devr-tools/codeguard/commit/8c7a6d54a190a6ed2c7c899088466e28ed58422a))
+* retune defensive precision followups ([a9367ae](https://github.com/devr-tools/codeguard/commit/a9367ae38197ee4d1a23fdfaeafa56267a8d2cbf))
+* retune defensive precision followups ([#83](https://github.com/devr-tools/codeguard/issues/83)) ([ef6111a](https://github.com/devr-tools/codeguard/commit/ef6111a29c2102a32789e41870b625fbe69ca8a4))
+* treat allocators as command style ([4d7dfa9](https://github.com/devr-tools/codeguard/commit/4d7dfa955d381f7a680e2a293ee7123c1484fca4))
+
+## [1.3.5](https://github.com/devr-tools/codeguard/compare/v1.3.4...v1.3.5) (2026-07-28)
+
+
+### Bug Fixes
+
+* cover remaining precision retunes ([1fd6f2b](https://github.com/devr-tools/codeguard/commit/1fd6f2b55a0e6a1f68b9dbfb475d3c55ee0d3277))
+* retune precision false positives ([6a09863](https://github.com/devr-tools/codeguard/commit/6a09863f48212492e7ce87f4d1f70f260499988b))
+* retune precision false positives ([#81](https://github.com/devr-tools/codeguard/issues/81)) ([a63ff23](https://github.com/devr-tools/codeguard/commit/a63ff236d7ca77a14b15a369241fb14583cecb2c))
+* split defensive sequence collision signal ([c734e9a](https://github.com/devr-tools/codeguard/commit/c734e9ab4e26bb6122a88835aab57972237d1c27))
+
+## [1.3.4](https://github.com/devr-tools/codeguard/compare/v1.3.3...v1.3.4) (2026-07-28)
+
+
+### Bug Fixes
+
+* reduce precision false positives ([7c52ee1](https://github.com/devr-tools/codeguard/commit/7c52ee115fc0d78bc4ffa38abb93962bcf08bed0))
+* reduce precision false positives ([#79](https://github.com/devr-tools/codeguard/issues/79)) ([7a42827](https://github.com/devr-tools/codeguard/commit/7a42827d6548dbf5d82778b027400338b796463d))
+
+## [1.3.3](https://github.com/devr-tools/codeguard/compare/v1.3.2...v1.3.3) (2026-07-28)
+
+
+### Bug Fixes
+
+* reduce high-volume precision false positives ([cb19b29](https://github.com/devr-tools/codeguard/commit/cb19b295fcc2de870f660be0f98ce62c39e3945d))
+* reduce high-volume precision false positives ([#77](https://github.com/devr-tools/codeguard/issues/77)) ([4cdd646](https://github.com/devr-tools/codeguard/commit/4cdd64697e3f605c9e6fb244e1d9a78d84296acf))
+
+## [1.3.2](https://github.com/devr-tools/codeguard/compare/v1.3.1...v1.3.2) (2026-07-28)
+
+
+### Bug Fixes
+
+* add next and nest framework precision coverage ([220826e](https://github.com/devr-tools/codeguard/commit/220826eb2d9fea116013fb531bdeb88596a93ce5))
+* harden react false positive handling ([2fde7bb](https://github.com/devr-tools/codeguard/commit/2fde7bb41171bf79f7835b462f4ae61cbec00a04))
+* harden React false positive handling ([#75](https://github.com/devr-tools/codeguard/issues/75)) ([752bd41](https://github.com/devr-tools/codeguard/commit/752bd4118b2a7f83924fda016d0651fdbe6da632))
+
+## [1.3.1](https://github.com/devr-tools/codeguard/compare/v1.3.0...v1.3.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* harden hidden mutation precision ([8f77a74](https://github.com/devr-tools/codeguard/commit/8f77a747d186e43cecfaecd7e9a29f84a57d5978))
+* harden UI false positive precision ([b46dfe7](https://github.com/devr-tools/codeguard/commit/b46dfe77d5fe308e45e8734375b1a6e0bf983bb2))
+* react hook hidden mutation noise ([#73](https://github.com/devr-tools/codeguard/issues/73)) ([3fa1b1c](https://github.com/devr-tools/codeguard/commit/3fa1b1cf9a06994edf18ed72429d5047bafd2c44))
+* reduce hidden mutation noise for React hooks ([c4f61c9](https://github.com/devr-tools/codeguard/commit/c4f61c961f633449daf1ebb251c54058508b1d4b))
+* satisfy lint for false positive hardening ([62643da](https://github.com/devr-tools/codeguard/commit/62643da4d57a6eb7fde0926de0121333e605902f))
+
+## [1.3.0](https://github.com/devr-tools/codeguard/compare/v1.2.2...v1.3.0) (2026-07-27)
+
+
+### Features
+
+* add abstraction quality checks ([fc5a7ec](https://github.com/devr-tools/codeguard/commit/fc5a7ec06b44aa7e4ddb2c637eaf809ca4c7cc00))
+* add change safety diff detectors ([ebc2f80](https://github.com/devr-tools/codeguard/commit/ebc2f801fa180d075f01f3b0939155b70de0d4a8))
+* add change safety PR summary metrics ([5b10ecd](https://github.com/devr-tools/codeguard/commit/5b10ecde5ff47f8e85686c8aa6171d112e66a3bd))
+* add delivery governance checks ([eb1b803](https://github.com/devr-tools/codeguard/commit/eb1b8032e9e2a7320c6abc1eb45dca843bc06dd6))
+* add local quality precision rules ([dd75b79](https://github.com/devr-tools/codeguard/commit/dd75b79149463d4e9e20c41159c9cb1db69ed002))
+* add local quality precision rules ([00c493e](https://github.com/devr-tools/codeguard/commit/00c493e4337d8b2c3c5673d0cc99aeb420ce55b2))
+* add observability and operations checks ([3e8713c](https://github.com/devr-tools/codeguard/commit/3e8713cb6ec754eef3dee33ab86457e19654607e))
+* add operability, design, and delivery governance checks ([#70](https://github.com/devr-tools/codeguard/issues/70)) ([a52199a](https://github.com/devr-tools/codeguard/commit/a52199a4471fdd093385e3f33ca4cc48dc1c5752))
+* add opt-in recommended check defaults ([1680b21](https://github.com/devr-tools/codeguard/commit/1680b21d551c31e86c8f85386c5d5154f95188ad))
+* add opt-in recommended check defaults ([#66](https://github.com/devr-tools/codeguard/issues/66)) ([67510e3](https://github.com/devr-tools/codeguard/commit/67510e3c3cb23ce1e22128d987fb3400e161d600))
+* add production readiness rule families ([d58e8eb](https://github.com/devr-tools/codeguard/commit/d58e8eb61e418bf8f2b1f00f06a05fcb7f18f464))
+* Add production reliability and data-readiness checks across languages ([#67](https://github.com/devr-tools/codeguard/issues/67)) ([c243ead](https://github.com/devr-tools/codeguard/commit/c243ead656a603b1e3bc26896edca6d4da617acb))
+* add refused bequest smell detection ([053cb1a](https://github.com/devr-tools/codeguard/commit/053cb1a3d4cfed9c4fc39f638259efa663d26ed3))
+* add refused bequest smell detection ([#72](https://github.com/devr-tools/codeguard/issues/72)) ([4423aa4](https://github.com/devr-tools/codeguard/commit/4423aa4d1ff53d96b43000afa47206177b5f7a4e))
+* add structural smell quality rules ([eefd8bd](https://github.com/devr-tools/codeguard/commit/eefd8bd2d403f1600e8c2b9fc9bb7ab31e677b78))
+* change safety testability refactors ([#69](https://github.com/devr-tools/codeguard/issues/69)) ([9081ad3](https://github.com/devr-tools/codeguard/commit/9081ad3abf666ae1e44faeec0e9611a8f275e80f))
+* deepen code smell and maintainability precision checks ([#71](https://github.com/devr-tools/codeguard/issues/71)) ([d554347](https://github.com/devr-tools/codeguard/commit/d5543476080cf35926d26508e6377fd6ca4d7999))
+* deepen reliability parity checks ([fc8d769](https://github.com/devr-tools/codeguard/commit/fc8d769fca03a887171cd52ad1c690017d9ef767))
+* expand production readiness language coverage ([588bf19](https://github.com/devr-tools/codeguard/commit/588bf19e73579dc566a3510baecb679c69157ce3))
+* scaffold change safety checks ([0b313d9](https://github.com/devr-tools/codeguard/commit/0b313d9e93497f5d7f1e04496ee9597095218f6c))
+
+
+### Bug Fixes
+
+* dogfood production readiness coverage ([1110f4f](https://github.com/devr-tools/codeguard/commit/1110f4f9b452e306e604624c446fbc158c92b234))
+* restore change testability detectors ([88f6df0](https://github.com/devr-tools/codeguard/commit/88f6df0d1d17a0f39e29da4c2a0222fed90160c8))
+* satisfy strict lint for change safety ([311716c](https://github.com/devr-tools/codeguard/commit/311716c896c01199a45ff2525b92dd0e532c0458))
+* satisfy strict lint for operability governance ([abc9fd1](https://github.com/devr-tools/codeguard/commit/abc9fd1e69b83df81d05cad6bdfab10caaeeed15))
+
+## [1.2.2](https://github.com/devr-tools/codeguard/compare/v1.2.1...v1.2.2) (2026-07-25)
+
+
+### Bug Fixes
+
+* parse pnpm lockfile package entries ([11acbd6](https://github.com/devr-tools/codeguard/commit/11acbd635c1446b8a7237a6cd3403c758c0deb49))
+* reduce AI quality false positives ([fd5d103](https://github.com/devr-tools/codeguard/commit/fd5d10319ce0d8cd22705856351936bedcae5662))
+* reduce AI quality false positives ([dc61f7e](https://github.com/devr-tools/codeguard/commit/dc61f7e840b5c5b010de864e4cc04c789f6613cf))
+* reduce AI quality false positives ([#64](https://github.com/devr-tools/codeguard/issues/64)) ([b80b5c3](https://github.com/devr-tools/codeguard/commit/b80b5c3285a66e596b622cf297538b91e867620a))
+* resolve TypeScript pnpm imports ([154adc3](https://github.com/devr-tools/codeguard/commit/154adc3dfd9c2eadf3356b6a1e900486d0300289))
+* resolve TypeScript pnpm imports ([#63](https://github.com/devr-tools/codeguard/issues/63)) ([4d3cc59](https://github.com/devr-tools/codeguard/commit/4d3cc597eff62062a1637a04c1dc6b7e4f6f4228))
+* satisfy import resolver lint ([fcec2dc](https://github.com/devr-tools/codeguard/commit/fcec2dc2d14420b9ed23df1ab5cd297e3865ce21))
+
 ## [1.2.1](https://github.com/devr-tools/codeguard/compare/v1.2.0...v1.2.1) (2026-07-23)
 
 

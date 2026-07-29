@@ -51,6 +51,8 @@ In production, `codeguard` should do three things well:
    A practical order is:
 
    - `security`
+   - `reliability`
+   - `data`
    - `quality`
    - `ci`
    - `design`
@@ -59,6 +61,13 @@ In production, `codeguard` should do three things well:
    - `supply_chain`
 
    That ordering usually gives the fastest signal-to-noise improvement.
+
+   `reliability` and `data` are production-readiness families. Enable them first
+   in PR diff scans, review the confidence/noise profile, then decide which
+   fail-level findings should block in your profile. `checks.production_risk`
+   can add a diff-mode `pr_summary.production_risk` artifact that rolls these
+   findings up into PR-level evidence without changing SARIF or GitHub
+   annotations.
 
 ## How to read a failed scan
 
@@ -94,8 +103,11 @@ team or agent needs the meaning of one specific failure.
 Use blocking failures for:
 
 - credential leaks
+- missing timeouts, non-idempotent retries, resource leaks, or unbounded retry/work patterns with high-confidence evidence
+- unsafe dual writes, missing transaction boundaries, missing outbox strategy, non-idempotent consumers, or non-expand/contract migrations
 - contract breaks
 - architecture violations with clear ownership boundaries
+- sensitive data in logs
 - unsafe prompt or MCP config patterns
 - CI policy requirements
 
@@ -103,6 +115,8 @@ Use warnings for:
 
 - maintainability drift
 - cleanup-oriented design heuristics
+- confidence-based retry, concurrency, pagination, unbounded-read, cache-policy, or exactly-once-delivery signals that need repository-specific review
+- missing structured logging, contextual error logging, critical-path instrumentation, ownership, runbook, rollback, kill-switch, or post-deploy verification evidence
 - stability and reachability nudges
 - performance smells that still need human review
 
@@ -131,7 +145,7 @@ For most teams:
 
 - pull requests: `codeguard scan -mode diff`
 - nightly or scheduled: `codeguard scan`
-- release branches: `codeguard scan` plus contracts and supply-chain enforcement
+- release branches: `codeguard scan` plus reliability, data, observability, delivery, contracts, and supply-chain enforcement
 
 Prefer SARIF or GitHub output when you want code-host annotations, and JSON when
 another system or agent will consume the report programmatically.

@@ -39,11 +39,14 @@ func doThing() error {
 `)
 	writeAPITestFile(t, filepath.Join(dir, "service_test.go"), `package fixverify
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRunReturnsUnderlyingError(t *testing.T) {
-	if err := run(); err == nil || err.Error() != "boom" {
-		t.Fatalf("run() = %v, want boom", err)
+	if err := run(); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("run() = %v, want error containing boom", err)
 	}
 }
 `)
@@ -55,14 +58,21 @@ func TestRunReturnsUnderlyingError(t *testing.T) {
 		"diff --git a/service.go b/service.go",
 		"--- a/service.go",
 		"+++ b/service.go",
-		"@@ -3,9 +3,10 @@ import \"errors\"",
+		"@@ -1,11 +1,15 @@",
+		" package fixverify",
+		" ",
+		"-import \"errors\"",
+		"+import (",
+		"+\t\"errors\"",
+		"+\t\"fmt\"",
+		"+)",
 		" ",
 		" func run() error {",
 		"-\terr := doThing()",
 		"-\t_ = err",
 		"-\treturn nil",
 		"+\tif err := doThing(); err != nil {",
-		"+\t\treturn err",
+		"+\t\treturn fmt.Errorf(\"run doThing: %w\", err)",
 		"+\t}",
 		"+\treturn nil",
 		" }",
@@ -87,7 +97,7 @@ func TestRunReturnsUnderlyingError(t *testing.T) {
 	if result.TestResults[0].CheckName != "go test ." {
 		t.Fatalf("unexpected inferred test command: %#v", result.TestResults[0])
 	}
-	if !strings.Contains(result.Diff, "return err") {
+	if !strings.Contains(result.Diff, "fmt.Errorf") {
 		t.Fatalf("expected verified diff in result, got %q", result.Diff)
 	}
 }
@@ -155,11 +165,14 @@ func doThing() error {
 `)
 	writeAPITestFile(t, filepath.Join(dir, "service_test.go"), `package fixverify
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRunReturnsUnderlyingError(t *testing.T) {
-	if err := run(); err == nil || err.Error() != "boom" {
-		t.Fatalf("run() = %v, want boom", err)
+	if err := run(); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("run() = %v, want error containing boom", err)
 	}
 }
 `)
@@ -254,11 +267,14 @@ func doThing() error {
 `)
 	writeAPITestFile(t, filepath.Join(dir, "service_test.go"), `package fixverify
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRunReturnsUnderlyingError(t *testing.T) {
-	if err := run(); err == nil || err.Error() != "boom" {
-		t.Fatalf("run() = %v, want boom", err)
+	if err := run(); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("run() = %v, want error containing boom", err)
 	}
 }
 `)
@@ -269,14 +285,21 @@ func TestRunReturnsUnderlyingError(t *testing.T) {
 		"diff --git a/service.go b/service.go",
 		"--- a/service.go",
 		"+++ b/service.go",
-		"@@ -3,9 +3,10 @@ import \"errors\"",
+		"@@ -1,11 +1,15 @@",
+		" package fixverify",
+		" ",
+		"-import \"errors\"",
+		"+import (",
+		"+\t\"errors\"",
+		"+\t\"fmt\"",
+		"+)",
 		" ",
 		" func run() error {",
 		"-\terr := doThing()",
 		"-\t_ = err",
 		"-\treturn nil",
 		"+\tif err := doThing(); err != nil {",
-		"+\t\treturn err",
+		"+\t\treturn fmt.Errorf(\"run doThing: %w\", err)",
 		"+\t}",
 		"+\treturn nil",
 		" }",

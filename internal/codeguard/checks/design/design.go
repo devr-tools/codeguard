@@ -22,6 +22,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 			graphs = append(graphs, targetModuleGraph{target: target, graph: graph})
 		}
 		findings = append(findings, commandFindings(ctx, env, target)...)
+		findings = append(findings, localAbstractionFindings(env, target)...)
 	}
 	findings = append(findings, changeImpactFindings(env, graphs)...)
 	return env.FinalizeSection("design", "Design Patterns", findings)

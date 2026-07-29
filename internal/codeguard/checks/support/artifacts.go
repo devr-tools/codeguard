@@ -7,6 +7,7 @@ const ArtifactKindSlopScore = "slop_score"
 const ArtifactKindPerformanceScore = "performance_score"
 const ArtifactKindChangeRisk = "change_risk"
 const ArtifactKindRepoLegibility = "repo_legibility"
+const ArtifactKindPRSummary = "pr_summary"
 
 func NewDependencyGraphArtifact(id string, language string, target string, graph DependencyGraph) core.Artifact {
 	nodes := make([]core.DependencyGraphNode, 0, len(graph.Order))
@@ -103,5 +104,34 @@ func NewChangeRiskArtifact(id string, language string, target string, risk core.
 			SemanticFindingCount: risk.SemanticFindingCount,
 			Components:           components,
 		},
+	}
+}
+
+func NewPRSummaryArtifact(summary core.PRSummaryArtifact) core.Artifact {
+	return core.Artifact{
+		ID:        "pr_summary",
+		Kind:      ArtifactKindPRSummary,
+		PRSummary: clonePRSummary(summary),
+	}
+}
+
+func clonePRSummary(summary core.PRSummaryArtifact) *core.PRSummaryArtifact {
+	out := core.PRSummaryArtifact{}
+	out.ProductionRisk = clonePRSummaryMetric(summary.ProductionRisk)
+	out.ChangeSafety = clonePRSummaryMetric(summary.ChangeSafety)
+	out.MaintainabilityDelta = clonePRSummaryMetric(summary.MaintainabilityDelta)
+	out.RefactorConfidence = clonePRSummaryMetric(summary.RefactorConfidence)
+	return &out
+}
+
+func clonePRSummaryMetric(metric *core.PRSummaryMetric) *core.PRSummaryMetric {
+	if metric == nil {
+		return nil
+	}
+	components := append([]core.PRSummaryComponent(nil), metric.Components...)
+	return &core.PRSummaryMetric{
+		Score:      metric.Score,
+		Level:      metric.Level,
+		Components: components,
 	}
 }

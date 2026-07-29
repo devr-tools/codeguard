@@ -13,6 +13,7 @@ import (
 func Validate(cfg core.Config) error {
 	return firstError(
 		validateNameAndProfile(cfg),
+		validateDisabledChecks(cfg.Checks.Disabled),
 		validateTargets(cfg.Targets),
 		validateOutput(cfg.Output),
 		validateWaivers(cfg.Waivers),
@@ -22,11 +23,20 @@ func Validate(cfg core.Config) error {
 		validateAIChangeRisk(cfg.Checks.QualityRules.AIChangeRisk),
 		validateRiskScoring(cfg.Checks.QualityRules.RiskScoring),
 		validateAIChecks(cfg.Checks.QualityRules.AIChecks),
+		validateQualityNaming(cfg.Checks.QualityRules.Naming),
 		validateSupplyChainRules(cfg.Checks.SupplyChainRules),
+		validateDeliveryRules(cfg.Checks.DeliveryRules),
+		validateReliabilityRules(cfg.Checks.ReliabilityRules),
+		validateDataRules(cfg.Checks.DataRules),
+		validateObservabilityRules(cfg.Checks.ObservabilityRules),
+		validateOperationsRules(cfg.Checks.OperationsRules),
+		validateChangeRules(cfg.Checks.ChangeRules),
+		validateProductionRisk(cfg.Checks.ProductionRisk),
 		validateContractRules(cfg.Checks.ContractRules),
 		validateContextRules(cfg.Checks.ContextRules),
 		validateCoverageDelta(cfg.Checks.QualityRules.CoverageDelta),
 		validateCPPTooling(cfg.Checks.QualityRules.CPPTooling),
+		validateBasicThresholds(cfg.Checks),
 		validateGraphThresholds(cfg.Checks.DesignRules),
 		validateDesignArchitectureRules(cfg.Checks.DesignRules),
 		validatePerformanceRules(cfg.Checks.PerformanceRules),
@@ -35,6 +45,28 @@ func Validate(cfg core.Config) error {
 		validateRulePacks(cfg.RulePacks),
 		validateExternalReports(cfg.ExternalReports),
 	)
+}
+
+func validateQualityNaming(cfg core.QualityNamingConfig) error {
+	if cfg.RoleSuffixWarnThreshold < 0 {
+		return fmt.Errorf("quality_rules.naming.role_suffix_warn_threshold must not be negative, got %d", cfg.RoleSuffixWarnThreshold)
+	}
+	for concept, entry := range cfg.Glossary {
+		if strings.TrimSpace(concept) == "" {
+			return errors.New("quality_rules.naming.glossary contains a blank concept")
+		}
+		for idx, avoided := range entry.Avoid {
+			if strings.TrimSpace(avoided) == "" {
+				return fmt.Errorf("quality_rules.naming.glossary.%s.avoid[%d] must not be blank", concept, idx)
+			}
+		}
+	}
+	for idx, abbreviation := range cfg.AllowedAbbreviations {
+		if strings.TrimSpace(abbreviation) == "" {
+			return fmt.Errorf("quality_rules.naming.allowed_abbreviations[%d] must not be blank", idx)
+		}
+	}
+	return nil
 }
 
 func validateExternalReports(reports []core.ExternalReportConfig) error {

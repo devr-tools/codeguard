@@ -4,12 +4,15 @@ import (
 	"context"
 
 	agentContextCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/agentcontext"
+	changeCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/change"
 	ciCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/ci"
 	contractsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/contracts"
+	dataCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/data"
 	designCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/design"
 	performanceCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/performance"
 	promptsCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/prompts"
 	qualityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/quality"
+	reliabilityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/reliability"
 	securityCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/security"
 	supplyChainCheck "github.com/devr-tools/codeguard/internal/codeguard/checks/supplychain"
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -39,6 +42,16 @@ type sectionDef struct {
 // through the safeRun panic-recovery wrapper.
 var sectionRegistry = []sectionDef{
 	{
+		id:   "change",
+		name: "Change Safety",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Change != nil && *sc.Cfg.Checks.Change
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return changeCheck.Run(ctx, checkEnv)
+		},
+	},
+	{
 		id:      "quality",
 		name:    "Quality",
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.Quality },
@@ -56,6 +69,46 @@ var sectionRegistry = []sectionDef{
 		},
 		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return performanceCheck.Run(ctx, checkEnv)
+		},
+	},
+	{
+		id:   "reliability",
+		name: "Reliability",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Reliability != nil && *sc.Cfg.Checks.Reliability
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return reliabilityCheck.Run(ctx, checkEnv)
+		},
+	},
+	{
+		id:   "data",
+		name: "Data Correctness",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Data != nil && *sc.Cfg.Checks.Data
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return dataCheck.Run(ctx, checkEnv)
+		},
+	},
+	{
+		id:   "observability",
+		name: "Observability",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Observability != nil && *sc.Cfg.Checks.Observability
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return qualityCheck.RunObservability(ctx, checkEnv)
+		},
+	},
+	{
+		id:   "operations",
+		name: "Operations",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Operations != nil && *sc.Cfg.Checks.Operations
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return qualityCheck.RunOperations(ctx, checkEnv)
 		},
 	},
 	{
@@ -88,6 +141,16 @@ var sectionRegistry = []sectionDef{
 		enabled: func(sc runnersupport.Context) bool { return sc.Cfg.Checks.CI },
 		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
 			return ciCheck.Run(ctx, checkEnv)
+		},
+	},
+	{
+		id:   "delivery",
+		name: "Delivery",
+		enabled: func(sc runnersupport.Context) bool {
+			return sc.Cfg.Checks.Delivery != nil && *sc.Cfg.Checks.Delivery
+		},
+		run: func(ctx context.Context, _ runnersupport.Context, checkEnv checkSupport.Context) core.SectionResult {
+			return ciCheck.RunDelivery(ctx, checkEnv)
 		},
 	},
 	{

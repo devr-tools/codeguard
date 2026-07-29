@@ -18,6 +18,7 @@ func targetFindings(_ context.Context, env support.Context, target core.TargetCo
 		findings = append(findings, vulnerableDependencyFindings(env, target, manifest)...)
 		findings = append(findings, cargoManifestFindings(env, manifest)...)
 	}
+	findings = append(findings, missingProvenanceFindings(env, target, manifests)...)
 	return findings
 }
 

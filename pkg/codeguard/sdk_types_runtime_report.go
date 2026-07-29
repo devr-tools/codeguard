@@ -17,6 +17,9 @@ type (
 	FileRiskEntry               = core.FileRiskEntry
 	FileRiskComponent           = core.FileRiskComponent
 	PRHotspotsArtifact          = core.PRHotspotsArtifact
+	PRSummaryArtifact           = core.PRSummaryArtifact
+	PRSummaryMetric             = core.PRSummaryMetric
+	PRSummaryComponent          = core.PRSummaryComponent
 	SlopHistoryEntry            = core.SlopHistoryEntry
 	PerformanceScoreArtifact    = core.PerformanceScoreArtifact
 	PerformanceHistoryEntry     = core.PerformanceHistoryEntry

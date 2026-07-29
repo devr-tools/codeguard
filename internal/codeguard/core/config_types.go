@@ -59,11 +59,13 @@ type TargetConfig struct {
 }
 
 type CheckConfig struct {
-	Quality  bool `json:"quality" yaml:"quality"`
-	Design   bool `json:"design" yaml:"design"`
-	Security bool `json:"security" yaml:"security"`
-	Prompts  bool `json:"prompts" yaml:"prompts"`
-	CI       bool `json:"ci" yaml:"ci"`
+	UseRecommendedDefaults bool     `json:"use_recommended_defaults,omitempty" yaml:"use_recommended_defaults,omitempty"`
+	Disabled               []string `json:"disabled,omitempty" yaml:"disabled,omitempty"`
+	Quality                bool     `json:"quality" yaml:"quality"`
+	Design                 bool     `json:"design" yaml:"design"`
+	Security               bool     `json:"security" yaml:"security"`
+	Prompts                bool     `json:"prompts" yaml:"prompts"`
+	CI                     bool     `json:"ci" yaml:"ci"`
 	// Performance toggles the performance section (N+1 queries, alloc-heavy
 	// loops, blocking I/O in request paths, unbounded concurrency). Off by
 	// default while the rules settle into their new section; the rules
@@ -75,6 +77,27 @@ type CheckConfig struct {
 	// SupplyChain toggles dependency-policy checks such as manifest hygiene,
 	// lockfile drift, license policy, and SBOM-oriented validation.
 	SupplyChain bool `json:"supply_chain,omitempty" yaml:"supply_chain,omitempty"`
+	// Delivery toggles rollout-governance checks such as rollback evidence,
+	// migration sequencing, kill switches, and post-deploy verification.
+	Delivery *bool `json:"delivery,omitempty" yaml:"delivery,omitempty"`
+	// Reliability toggles production reliability checks such as missing
+	// timeouts, unbounded retries, cancellation propagation, concurrency bounds,
+	// cleanup handling, and graceful shutdown.
+	Reliability *bool `json:"reliability,omitempty" yaml:"reliability,omitempty"`
+	// Data toggles distributed-system and data-correctness checks such as
+	// missing transaction boundaries, unsafe dual writes, unbounded reads,
+	// unstable pagination, and cache policy gaps.
+	Data *bool `json:"data,omitempty" yaml:"data,omitempty"`
+	// Observability toggles production operability checks such as structured
+	// logging, contextual errors, metric cardinality, critical-path
+	// instrumentation, and health-check depth.
+	Observability *bool `json:"observability,omitempty" yaml:"observability,omitempty"`
+	// Operations toggles service ownership and runbook metadata checks.
+	Operations *bool `json:"operations,omitempty" yaml:"operations,omitempty"`
+	// Change toggles change-safety, testability, and refactor-confidence checks
+	// such as oversized diffs, mixed concerns, behavior changes without tests,
+	// and refactor-only changes that alter observable behavior.
+	Change *bool `json:"change,omitempty" yaml:"change,omitempty"`
 	// Contracts toggles the API contract drift family. When nil it defaults
 	// to enabled in diff scans and disabled in full scans; the strict and
 	// enterprise profiles enable it unconditionally.
@@ -85,17 +108,24 @@ type CheckConfig struct {
 	// basename ambiguity). When nil it defaults to enabled in full scans and
 	// disabled in diff scans, whose repo-level findings would repeat on every
 	// PR regardless of the change under review.
-	Context          *bool                  `json:"context,omitempty" yaml:"context,omitempty"`
-	QualityRules     QualityRulesConfig     `json:"quality_rules" yaml:"quality_rules"`
-	PerformanceRules PerformanceRulesConfig `json:"performance_rules,omitempty" yaml:"performance_rules,omitempty"`
-	DesignRulesFile  string                 `json:"design_rules_file,omitempty" yaml:"design_rules_file,omitempty"`
-	DesignRules      DesignRulesConfig      `json:"design_rules" yaml:"design_rules"`
-	PromptRules      PromptRulesConfig      `json:"prompt_rules" yaml:"prompt_rules"`
-	CIRules          CIRulesConfig          `json:"ci_rules" yaml:"ci_rules"`
-	SecurityRules    SecurityRulesConfig    `json:"security_rules" yaml:"security_rules"`
-	SupplyChainRules SupplyChainRulesConfig `json:"supply_chain_rules" yaml:"supply_chain_rules"`
-	ContractRules    ContractRulesConfig    `json:"contract_rules" yaml:"contract_rules"`
-	ContextRules     ContextRulesConfig     `json:"context_rules" yaml:"context_rules"`
+	Context            *bool                    `json:"context,omitempty" yaml:"context,omitempty"`
+	QualityRules       QualityRulesConfig       `json:"quality_rules" yaml:"quality_rules"`
+	PerformanceRules   PerformanceRulesConfig   `json:"performance_rules,omitempty" yaml:"performance_rules,omitempty"`
+	DesignRulesFile    string                   `json:"design_rules_file,omitempty" yaml:"design_rules_file,omitempty"`
+	DesignRules        DesignRulesConfig        `json:"design_rules" yaml:"design_rules"`
+	PromptRules        PromptRulesConfig        `json:"prompt_rules" yaml:"prompt_rules"`
+	CIRules            CIRulesConfig            `json:"ci_rules" yaml:"ci_rules"`
+	DeliveryRules      DeliveryRulesConfig      `json:"delivery_rules,omitempty" yaml:"delivery_rules,omitempty"`
+	SecurityRules      SecurityRulesConfig      `json:"security_rules" yaml:"security_rules"`
+	SupplyChainRules   SupplyChainRulesConfig   `json:"supply_chain_rules" yaml:"supply_chain_rules"`
+	ReliabilityRules   ReliabilityRulesConfig   `json:"reliability_rules,omitempty" yaml:"reliability_rules,omitempty"`
+	DataRules          DataRulesConfig          `json:"data_rules,omitempty" yaml:"data_rules,omitempty"`
+	ObservabilityRules ObservabilityRulesConfig `json:"observability_rules,omitempty" yaml:"observability_rules,omitempty"`
+	OperationsRules    OperationsRulesConfig    `json:"operations_rules,omitempty" yaml:"operations_rules,omitempty"`
+	ChangeRules        ChangeRulesConfig        `json:"change_rules,omitempty" yaml:"change_rules,omitempty"`
+	ContractRules      ContractRulesConfig      `json:"contract_rules" yaml:"contract_rules"`
+	ContextRules       ContextRulesConfig       `json:"context_rules" yaml:"context_rules"`
+	ProductionRisk     ProductionRiskConfig     `json:"production_risk,omitempty" yaml:"production_risk,omitempty"`
 }
 
 type OutputConfig struct {

@@ -17,6 +17,19 @@ func applyQualityDefaults(dst *core.QualityRulesConfig, def core.QualityRulesCon
 	applyRiskScoringDefaults(&dst.RiskScoring)
 	applyCoverageDeltaDefaults(&dst.CoverageDelta)
 	applyCPPToolingDefaults(&dst.CPPTooling)
+	defaultBoolPtr(&dst.LocalPrecision, boolValueOrTrue(def.LocalPrecision))
+	applyQualityNamingDefaults(&dst.Naming, def.Naming)
+}
+
+func applyQualityNamingDefaults(dst *core.QualityNamingConfig, def core.QualityNamingConfig) {
+	defaultStringSlice(&dst.AllowedAbbreviations, def.AllowedAbbreviations)
+	if dst.RoleSuffixWarnThreshold == 0 {
+		if def.RoleSuffixWarnThreshold != 0 {
+			dst.RoleSuffixWarnThreshold = def.RoleSuffixWarnThreshold
+		} else {
+			dst.RoleSuffixWarnThreshold = 4
+		}
+	}
 }
 
 func applyRiskScoringDefaults(dst *core.RiskScoringConfig) {
@@ -78,7 +91,7 @@ func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig
 	defaultInt(&dst.MaxInterfaceMethods, def.MaxInterfaceMethods)
 	defaultInt(&dst.GodModuleThreshold, def.GodModuleThreshold)
 	defaultInt(&dst.HighImpactChangeThreshold, def.HighImpactChangeThreshold)
-	defaultStringSlice(&dst.ForbiddenPackageNames, def.ForbiddenPackageNames, false)
+	defaultStringSlice(&dst.ForbiddenPackageNames, def.ForbiddenPackageNames)
 	applyDefaultBoolPtrs(
 		&dst.DetectImportCycles,
 		&dst.DetectGodModules,
@@ -113,6 +126,9 @@ func applyCIDefaults(dst *core.CIRulesConfig, def core.CIRulesConfig) {
 	}
 	if dst.RequiredWorkflowFiles == nil {
 		dst.RequiredWorkflowFiles = append([]string(nil), def.RequiredWorkflowFiles...)
+	}
+	if dst.RequiredGates == nil {
+		dst.RequiredGates = append([]string(nil), def.RequiredGates...)
 	}
 	if dst.WorkflowContentRules == nil {
 		dst.WorkflowContentRules = append([]core.WorkflowRuleConfig(nil), def.WorkflowContentRules...)
@@ -190,10 +206,134 @@ func applySupplyChainDefaults(dst *core.SupplyChainRulesConfig, def core.SupplyC
 	defaultBoolPtr(&dst.RequireLockfile, boolValueOrTrue(def.RequireLockfile))
 	defaultBoolPtr(&dst.DetectLockfileDrift, boolValueOrTrue(def.DetectLockfileDrift))
 	defaultBoolPtr(&dst.DetectUnpinned, boolValueOrTrue(def.DetectUnpinned))
+	defaultBoolPtr(&dst.DetectProvenance, boolValueOrTrue(def.DetectProvenance))
 	// Vulnerability matching is opt-in: a repository must choose and maintain
 	// the advisory cache it trusts.
 	defaultBoolPtr(&dst.DetectVulnerabilities, false)
-	defaultStringSlice(&dst.AllowedLicenses, def.AllowedLicenses, false)
-	defaultStringSlice(&dst.DeniedLicenses, def.DeniedLicenses, false)
+	defaultStringSlice(&dst.AllowedLicenses, def.AllowedLicenses)
+	defaultStringSlice(&dst.DeniedLicenses, def.DeniedLicenses)
 	defaultSingleCommandMap(&dst.LicenseCommands, def.LicenseCommands)
+}
+
+func applyDeliveryDefaults(dst *core.DeliveryRulesConfig, def core.DeliveryRulesConfig) {
+	applyDefaultBoolPtrs(
+		&dst.DetectMissingRollbackStrategy,
+		&dst.DetectUnsafeMigrationOrder,
+		&dst.DetectHighRiskChangeWithoutKillSwitch,
+		&dst.DetectMissingPostDeployVerification,
+	)
+	defaultStringSlice(&dst.RollbackEvidencePatterns, def.RollbackEvidencePatterns)
+	defaultStringSlice(&dst.KillSwitchPatterns, def.KillSwitchPatterns)
+	defaultStringSlice(&dst.PostDeployVerificationPatterns, def.PostDeployVerificationPatterns)
+	defaultStringSlice(&dst.MigrationPathPatterns, def.MigrationPathPatterns)
+	defaultStringSlice(&dst.HighRiskPathPatterns, def.HighRiskPathPatterns)
+	defaultStringSlice(&dst.BootstrapPathPatterns, def.BootstrapPathPatterns)
+}
+
+func applyReliabilityDefaults(dst *core.ReliabilityRulesConfig, def core.ReliabilityRulesConfig) {
+	applyDefaultBoolPtrs(
+		&dst.DetectMissingTimeout,
+		&dst.DetectUnboundedRetry,
+		&dst.DetectRetryWithoutBackoff,
+		&dst.DetectNonIdempotentRetry,
+		&dst.DetectMissingCancellation,
+		&dst.DetectUnboundedWork,
+		&dst.DetectMissingConcurrencyLimit,
+		&dst.DetectResourceLeak,
+		&dst.DetectPartialFailureHidden,
+		&dst.DetectMissingGracefulShutdown,
+		&dst.DetectSwallowedError,
+		&dst.DetectLostErrorContext,
+		&dst.DetectRecoverablePanic,
+	)
+	defaultInt(&dst.MaxRetryAttempts, def.MaxRetryAttempts)
+	defaultInt(&dst.MaxInlineGoroutinesPerFunction, def.MaxInlineGoroutinesPerFunction)
+}
+
+func applyDataDefaults(dst *core.DataRulesConfig, def core.DataRulesConfig) {
+	applyDefaultBoolPtrs(
+		&dst.DetectReadModifyWriteRace,
+		&dst.DetectMissingTransaction,
+		&dst.DetectSideEffectInTransaction,
+		&dst.DetectNonIdempotentConsumer,
+		&dst.DetectMissingDeduplication,
+		&dst.DetectUnsafeDualWrite,
+		&dst.DetectMissingOutboxStrategy,
+		&dst.DetectUnstablePagination,
+		&dst.DetectUnboundedRead,
+		&dst.DetectExactlyOnceAssumption,
+		&dst.DetectCacheWithoutPolicy,
+	)
+	defaultInt(&dst.MaxUnboundedReadRows, def.MaxUnboundedReadRows)
+	defaultInt(&dst.MaxWritesWithoutTransaction, def.MaxWritesWithoutTransaction)
+}
+
+func applyObservabilityDefaults(dst *core.ObservabilityRulesConfig, def core.ObservabilityRulesConfig) {
+	applyDefaultBoolPtrs(
+		&dst.DetectUnstructuredLog,
+		&dst.DetectErrorWithoutContext,
+		&dst.DetectSensitiveLogData,
+		&dst.DetectHighCardinalityLabel,
+		&dst.DetectCriticalPathUninstrumented,
+		&dst.DetectLogAndIgnore,
+		&dst.DetectShallowHealthCheck,
+	)
+	defaultStringSlice(&dst.StructuredLoggerPatterns, def.StructuredLoggerPatterns)
+	defaultStringSlice(&dst.SensitiveNamePatterns, def.SensitiveNamePatterns)
+	defaultStringSlice(&dst.HighCardinalityLabelPatterns, def.HighCardinalityLabelPatterns)
+	defaultStringSlice(&dst.CriticalPathPatterns, def.CriticalPathPatterns)
+	defaultStringSlice(&dst.HealthcheckPathPatterns, def.HealthcheckPathPatterns)
+	defaultStringSlice(&dst.InstrumentationEvidencePatterns, def.InstrumentationEvidencePatterns)
+}
+
+func applyOperationsDefaults(dst *core.OperationsRulesConfig, def core.OperationsRulesConfig) {
+	applyDefaultBoolPtrs(&dst.DetectMissingOwner, &dst.DetectMissingRunbook)
+	defaultStringSlice(&dst.OwnerFilePatterns, def.OwnerFilePatterns)
+	defaultStringSlice(&dst.RunbookPathPatterns, def.RunbookPathPatterns)
+	defaultStringSlice(&dst.CriticalPathPatterns, def.CriticalPathPatterns)
+}
+
+func applyChangeDefaults(dst *core.ChangeRulesConfig, def core.ChangeRulesConfig) {
+	applyDefaultBoolPtrs(
+		&dst.DetectBehaviorChangeWithoutTest,
+		&dst.DetectFailurePathMissing,
+		&dst.DetectHardwiredDependency,
+		&dst.DetectNondeterministicDomain,
+		&dst.DetectLegacyHotspotUncovered,
+		&dst.DetectMixedConcerns,
+		&dst.DetectOversizedDiff,
+		&dst.DetectMixedRefactorAndBehavior,
+		&dst.DetectTooManyConcerns,
+		&dst.DetectUnnecessarySurfaceArea,
+		&dst.DetectOneUseAbstraction,
+		&dst.DetectDuplicateHelper,
+		&dst.DetectCleanupRegression,
+		&dst.DetectComplexityIncreased,
+		&dst.DetectMoveWithoutVerification,
+		&dst.DetectRefactorBehaviorChange,
+		&dst.DetectRefactorPublicContract,
+		&dst.DetectRefactorTestCoverageDrop,
+		&dst.DetectRefactorErrorPathChange,
+		&dst.DetectRefactorSideEffectReorder,
+		&dst.DetectRefactorVisibilityExpand,
+		&dst.DetectRefactorDependencyWorsened,
+		&dst.DetectRefactorDuplicateLeftBehind,
+		&dst.DetectRefactorDeadPathLeftBehind,
+	)
+	defaultInt(&dst.MaxChangedFiles, def.MaxChangedFiles)
+	defaultInt(&dst.MaxChangedDirectories, def.MaxChangedDirectories)
+	defaultInt(&dst.MaxChangedLines, def.MaxChangedLines)
+	defaultInt(&dst.MaxPublicInterfacesChanged, def.MaxPublicInterfacesChanged)
+	defaultInt(&dst.MaxConcernFamilies, def.MaxConcernFamilies)
+	defaultInt(&dst.MinTestToProductionRatioPercent, def.MinTestToProductionRatioPercent)
+}
+
+func applyProductionRiskDefaults(dst *core.ProductionRiskConfig, def core.ProductionRiskConfig) {
+	defaultBoolPtr(&dst.Enabled, boolValueOrTrue(def.Enabled))
+	defaultInt(&dst.WarnThreshold, def.WarnThreshold)
+	defaultInt(&dst.FailThreshold, def.FailThreshold)
+	defaultInt(&dst.ReliabilityWeight, def.ReliabilityWeight)
+	defaultInt(&dst.DataWeight, def.DataWeight)
+	defaultInt(&dst.FailWeight, def.FailWeight)
+	defaultInt(&dst.WarnWeight, def.WarnWeight)
 }

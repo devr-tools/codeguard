@@ -8,7 +8,7 @@ func exampleQualityRules() core.QualityRulesConfig {
 		MaxFunctionLines:        80,
 		MaxParameters:           5,
 		MaxCyclomaticComplexity: 10,
-		CloneTokenThreshold:     60,
+		CloneTokenThreshold:     90,
 		AIProvenance: core.AIProvenanceConfig{
 			Enabled:                boolPtr(true),
 			EnvVars:                []string{"CODEGUARD_AI_ASSISTED"},
@@ -26,6 +26,10 @@ func exampleQualityRules() core.QualityRulesConfig {
 			ClangFormatCommand: "clang-format",
 			CompilerMode:       core.ExternalToolModeOff,
 			CompilerCommand:    "clang++",
+		},
+		Naming: core.QualityNamingConfig{
+			AllowedAbbreviations:    []string{"api", "cli", "cpp", "db", "html", "http", "https", "id", "io", "ip", "js", "json", "orm", "rpc", "sdk", "sql", "tcp", "ts", "ui", "url", "uuid", "xml", "yaml"},
+			RoleSuffixWarnThreshold: 4,
 		},
 	}
 }
@@ -66,6 +70,7 @@ func exampleCIRules() core.CIRulesConfig {
 		RequiredWorkflowFiles: []string{
 			".github/workflows/ci.yml",
 		},
+		RequiredGates: []string{"test"},
 		WorkflowContentRules: []core.WorkflowRuleConfig{{
 			Path:             ".github/workflows/ci.yml",
 			RequiredContains: []string{"actions/checkout", "go test ./..."},

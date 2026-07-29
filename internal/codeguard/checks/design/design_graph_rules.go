@@ -41,6 +41,9 @@ func importCycleFindings(env support.Context, graph *moduleGraph) []core.Finding
 		}
 		sort.Strings(component)
 		node := graph.modules[component[0]]
+		if strings.Contains(strings.ToLower(node.file), "/integrations/") {
+			continue
+		}
 		ruleID := graphCycleRuleID(graph.language, node.file)
 		if ruleID == "" {
 			continue
@@ -84,6 +87,9 @@ func godModuleFindings(env support.Context, graph *moduleGraph) []core.Finding {
 			continue
 		}
 		node := graph.modules[module]
+		if allowedCentralDataClientModule(node.file) {
+			continue
+		}
 		findings = append(findings, env.NewFinding(support.FindingInput{
 			RuleID:  "design.god-module",
 			Level:   "warn",
@@ -94,4 +100,16 @@ func godModuleFindings(env support.Context, graph *moduleGraph) []core.Finding {
 		}))
 	}
 	return findings
+}
+
+func allowedCentralDataClientModule(file string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	return normalized == "packages/db/src/client.ts" ||
+		normalized == "packages/database/src/client.ts" ||
+		normalized == "src/db/client.ts" ||
+		normalized == "src/database/client.ts" ||
+		strings.HasSuffix(normalized, "/packages/db/src/client.ts") ||
+		strings.HasSuffix(normalized, "/packages/database/src/client.ts") ||
+		strings.HasSuffix(normalized, "/src/db/client.ts") ||
+		strings.HasSuffix(normalized, "/src/database/client.ts")
 }

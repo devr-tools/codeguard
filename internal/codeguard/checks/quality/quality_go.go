@@ -52,6 +52,10 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 	}
 	findings = append(findings, importFindings(env, file, fset, parsed)...)
 	findings = append(findings, goFunctionFindings(env, file, fset, parsed)...)
+	if localPrecisionEnabled(env) {
+		findings = append(findings, goPrecisionFindings(env, file, fset, parsed, data)...)
+		findings = append(findings, goStructuralSmellFindings(env, file, fset, parsed, data)...)
+	}
 	findings = append(findings, goAIQualityFindings(env, file, fset, parsed, data)...)
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
