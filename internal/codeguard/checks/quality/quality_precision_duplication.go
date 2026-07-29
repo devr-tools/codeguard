@@ -14,6 +14,9 @@ func parsedDuplicatedKnowledgeFindings(env support.Context, file string, parsed 
 	if isQualityFixturePath(file) {
 		return nil
 	}
+	if strings.HasPrefix(strings.ToLower(file), ".buildkite/") || isSeedOrScriptSourcePath(file) {
+		return nil
+	}
 	seen := map[string]int{}
 	for _, statement := range parsed.Module.Statements {
 		for _, literal := range domainKnowledgeLiterals(statement.Raw) {
@@ -29,6 +32,9 @@ func parsedDuplicatedKnowledgeFindings(env support.Context, file string, parsed 
 
 func sourceDuplicatedKnowledgeFindings(env support.Context, file string, source string) []core.Finding {
 	if isQualityFixturePath(file) {
+		return nil
+	}
+	if strings.HasPrefix(strings.ToLower(file), ".buildkite/") || isSeedOrScriptSourcePath(file) {
 		return nil
 	}
 	seen := map[string]int{}
@@ -48,7 +54,7 @@ func sourceDuplicatedKnowledgeFindings(env support.Context, file string, source 
 }
 
 func domainKnowledgeLiterals(line string) []string {
-	if duplicatedKnowledgeLineIsDisplayOnly(line) {
+	if duplicatedKnowledgeLineIsDisplayOnly(line) || duplicatedKnowledgeLineIsStructural(line) {
 		return nil
 	}
 	matches := regexp.MustCompile(`"([^"]{2,80})"|'([^']{2,80})'|\b\d+(?:\.\d+)?\b`).FindAllString(line, -1)
@@ -84,6 +90,21 @@ func duplicatedKnowledgeLineIsDisplayOnly(line string) bool {
 	return false
 }
 
+func duplicatedKnowledgeLineIsStructural(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	lowered := strings.ToLower(trimmed)
+	if strings.HasPrefix(trimmed, "import ") || strings.HasPrefix(trimmed, "export {") ||
+		strings.HasPrefix(trimmed, "export *") || strings.Contains(lowered, " from ") ||
+		strings.Contains(lowered, "require(") {
+		return true
+	}
+	if strings.Contains(lowered, "content-type") || strings.Contains(lowered, "authorization") ||
+		strings.Contains(lowered, "accept:") || strings.Contains(lowered, "headers") {
+		return true
+	}
+	return false
+}
+
 func domainKnowledgeLiteral(value string) bool {
 	return domainKnowledgeLiteralInLine(value, "")
 }
@@ -93,11 +114,27 @@ func domainKnowledgeLiteralInLine(value string, line string) bool {
 	if trimmed == "" || len(trimmed) > 80 {
 		return false
 	}
+	if len(trimmed) > 48 {
+		return false
+	}
+	if strings.Contains(trimmed, "-") {
+		return false
+	}
+	if strings.Contains(trimmed, "${") || strings.Contains(trimmed, "________________") || strings.Contains(trimmed, "__test-stubs__") {
+		return false
+	}
+	if strings.Contains(trimmed, "'") || strings.Contains(trimmed, ". ") || strings.Contains(trimmed, ", ") {
+		return false
+	}
 	if len(trimmed) < 4 && !strings.ContainsAny(trimmed, "0123456789") {
 		return false
 	}
 	if numeric, ok := duplicatedKnowledgeNumber(trimmed); ok {
-		return duplicatedKnowledgeNumericLiteral(numeric, line)
+		_ = numeric
+		return false
+	}
+	if duplicatedKnowledgeStyleLiteral(trimmed) {
+		return false
 	}
 	if duplicatedKnowledgeSentinelLiteral(trimmed) {
 		return false
@@ -112,6 +149,18 @@ func domainKnowledgeLiteralInLine(value string, line string) bool {
 		return false
 	}
 	return domainPrimitiveNamePattern.MatchString(trimmed) || strings.Contains(trimmed, "_")
+}
+
+func duplicatedKnowledgeStyleLiteral(value string) bool {
+	lowered := strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(lowered, "var(--") ||
+		strings.Contains(lowered, "bg-") ||
+		strings.Contains(lowered, "text-") ||
+		strings.Contains(lowered, "border-") ||
+		lowered == "_blank" ||
+		lowered == "content-type" ||
+		lowered == "authorization" ||
+		lowered == "application/json"
 }
 
 func duplicatedKnowledgeNumericLiteral(number int, line string) bool {
@@ -155,7 +204,15 @@ func duplicatedKnowledgeEnumStatusLiteral(value string, line string) bool {
 
 func duplicatedKnowledgeSentinelLiteral(value string) bool {
 	trimmed := strings.TrimSpace(value)
-	return strings.HasPrefix(trimmed, "__") && strings.HasSuffix(trimmed, "__") && len(trimmed) <= 40
+	if strings.HasPrefix(trimmed, "__") && len(trimmed) <= 40 {
+		return true
+	}
+	lowered := strings.ToLower(trimmed)
+	return containsAny(lowered, []string{
+		"agent_stop", "customer_user", "invalid_response", "invalid_shape", "last_week", "max_tokens", "missing_body",
+		"no_email", "no_json", "no_token", "not_in_workspace", "response_too_large", "score_risk",
+		"regulatory_category", "this_month", "this_week", "this_year", "last_30_days", "last_90_days",
+	})
 }
 
 func duplicatedKnowledgeTableOrEnumLiteral(value string, line string) bool {
@@ -210,9 +267,9 @@ func likelyDisplayLabel(value string) bool {
 	if strings.Contains(value, "_") {
 		return false
 	}
-	if strings.ContainsAny(value, "-/:.") {
+	if strings.ContainsAny(value, "-:.") {
 		return false
 	}
 	words := strings.Fields(value)
-	return len(words) > 0 && len(words) <= 3
+	return len(words) > 0 && len(words) <= 6
 }

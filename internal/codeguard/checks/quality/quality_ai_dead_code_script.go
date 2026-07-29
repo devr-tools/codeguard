@@ -60,6 +60,10 @@ func balancedParens(line string) bool {
 // --- TypeScript/JavaScript: unused file-local function declarations ---
 
 func scriptUnusedFunctionFindings(env support.Context, file string, source string) []core.Finding {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	if strings.Contains(normalized, "/integrations/") || strings.Contains(normalized, "/app/api/") {
+		return nil
+	}
 	sanitized := sanitizeScriptSource(source)
 	findings := make([]core.Finding, 0)
 	for _, match := range scriptLocalDeclarationMatches(sanitized) {
@@ -69,7 +73,7 @@ func scriptUnusedFunctionFindings(env support.Context, file string, source strin
 		if strings.Contains(declLine, "export") {
 			continue
 		}
-		if scriptLocalDeclarationIsReferenced(sanitized, name) {
+		if scriptLocalDeclarationIsReferenced(sanitized, name) || scriptLocalDeclarationIsReferenced(source, name) {
 			continue
 		}
 		line := 1 + strings.Count(sanitized[:match[2]], "\n")

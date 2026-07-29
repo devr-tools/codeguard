@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	commandFunctionPrefixPattern = regexp.MustCompile(`^(add|allocate|append|assign|cancel|clear|close|create|delete|disable|emit|enable|insert|mutate|notify|open|persist|publish|record|remove|reset|save|send|set|store|submit|toggle|update|upsert|upload|write)`)
+	commandFunctionPrefixPattern = regexp.MustCompile(`^(add|allocate|append|assign|bulk|cancel|capture|choose|clear|cleanup|close|copy|create|delete|disable|do|emit|enable|exchange|expose|export|fill|flip|flash|handle|hydrate|insert|link|log|move|mutate|note|notify|open|persist|publish|record|recompute|remember|remove|reset|retire|revert|save|send|set|store|submit|toggle|transfer|trigger|update|upsert|upload|walk|write)`)
 	readCallPattern              = regexp.MustCompile(`(?i)(^|[.>:\-_])(count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
 	identifierTokenPattern       = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
 	infraNamePattern             = regexp.MustCompile(`(?i)(sql|http|redis|kafka|grpc|graphql|mongo|s3|dynamo|postgres|mysql|elastic|orm)`)
@@ -57,19 +57,21 @@ func additionalPrecisionFunctionFindings(env support.Context, file string, fn pr
 		findings = append(findings, precisionWarnFinding(env, functionHiddenMutationRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mutates state without an explicit command-style name", fn.Name), core.ConfidenceMedium))
 	}
-	if !isReactComponentOrHookBoundary(file, fn) && !isScriptEntrypoint(file, fn.Name) && inconsistentReturnContract(fn) {
+	if !isReactComponentOrHookBoundary(file, fn) && !isUIHelperOrMappingContext(file, fn) &&
+		!isSeedOrScriptSourcePath(file) && !isScriptEntrypoint(file, fn.Name) &&
+		!isSecurityOrConfigUtilityFunction(file, fn) && inconsistentReturnContract(fn) {
 		findings = append(findings, precisionWarnFinding(env, functionInconsistentReturnContractRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mixes empty and value return shapes; make the success/error contract explicit", fn.Name), core.ConfidenceMedium))
 	}
-	if partialResult(fn) {
+	if !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) && partialResult(fn) {
 		findings = append(findings, precisionWarnFinding(env, functionPartialResultRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s can return a value alongside an error without an explicit partial-result contract", fn.Name), core.ConfidenceMedium))
 	}
-	if count, labels := responsibilityCount(fn); count >= responsibilityThreshold(file, fn) {
+	if count, labels := responsibilityCount(fn); !isSeedOrScriptSourcePath(file) && !isAdapterOrOrchestrationFunction(file, fn) && count >= responsibilityThreshold(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, functionMultipleResponsibilitiesRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s combines %d responsibilities (%s); split orchestration from focused work", fn.Name, count, strings.Join(labels, ", ")), core.ConfidenceMedium))
 	}
-	if orchestrationDomainMix(fn) {
+	if orchestrationDomainMix(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, functionOrchestrationDomainMixRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mixes request/job orchestration with domain decisions", fn.Name), core.ConfidenceMedium))
 	}
@@ -114,6 +116,12 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 		if item.name == fn.Name && isReactComponentOrHookBoundary(file, fn) {
 			continue
 		}
+		if isSeedOrScriptSourcePath(file) && isBooleanNameCandidate(item.name, item.typ, fn) {
+			continue
+		}
+		if isBooleanNameCandidate(item.name, item.typ, fn) && isUIHelperOrMappingContext(file, fn) {
+			continue
+		}
 		if isBooleanNameCandidate(item.name, item.typ, fn) &&
 			!isInferredUIBooleanAssignment(file, fn, item.typ, item.expr, item.line) &&
 			!isPredicateName(item.name) &&
@@ -129,7 +137,7 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 			findings = append(findings, precisionWarnFinding(env, namingImplementationLeakRuleID, file, item.line,
 				fmt.Sprintf("identifier %q exposes infrastructure vocabulary in domain-facing naming", item.name), core.ConfidenceMedium))
 		}
-		if missingUnit(item.name, item.typ, item.expr) {
+		if !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) && missingUnit(item.name, item.typ, item.expr) {
 			findings = append(findings, precisionWarnFinding(env, namingMissingUnitRuleID, file, item.line,
 				fmt.Sprintf("numeric identifier %q names a duration, size, or money value without a unit suffix", item.name), core.ConfidenceMedium))
 		}
@@ -159,7 +167,16 @@ func sourceNamingFindings(env support.Context, file string, source string) []cor
 }
 
 func behaviorMismatch(file string, fn precisionFunction) bool {
+	if isQualityFixturePath(file) {
+		return false
+	}
 	if isFrameworkOrchestrationBoundary(file, fn) {
+		return false
+	}
+	if isReactComponentOrNamedHookBoundary(file, fn) || isReactComponentOrHookBoundary(file, fn) {
+		return false
+	}
+	if explicitMutationName(fn.Name) || isUIHelperOrMappingContext(file, fn) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFactoryHelperName(fn.Name) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) {
 		return false
 	}
 	name := strings.ToLower(fn.Name)
@@ -178,7 +195,16 @@ func behaviorMismatch(file string, fn precisionFunction) bool {
 }
 
 func hiddenMutation(file string, fn precisionFunction) bool {
-	if explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) {
+	if isQualityFixturePath(file) {
+		return false
+	}
+	if explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) || isSecurityOrConfigUtilityFunction(file, fn) {
+		return false
+	}
+	if isUIActionAssemblyFunction(file, fn) {
+		return false
+	}
+	if isFactoryHelperName(fn.Name) {
 		return false
 	}
 	if isReactComponentOrNamedHookBoundary(file, fn) {
@@ -186,13 +212,84 @@ func hiddenMutation(file string, fn precisionFunction) bool {
 	}
 	mutatesParam := mutatesParameter(fn)
 	mutatesState := mutatingFunctionEvidence(fn)
+	if isUIHelperOrMappingContext(file, fn) && !hasPersistentCollaboratorSideEffect(fn) {
+		return false
+	}
+	if isPureComputationHelperName(fn.Name) && !mutatesParam && !hasPersistentCollaboratorSideEffect(fn) {
+		return false
+	}
 	if isReactLocalStateBoundary(file, fn) && mutatesState && !mutatesParam && onlyReactHookLocalStateMutation(fn) {
+		return false
+	}
+	if isPredicateName(fn.Name) && !mutatesParam && !predicateHasObviousSideEffect(fn) {
 		return false
 	}
 	if isAccumulatorBuilderFunctionName(fn.Name) && !hasLikelyExternalMutationCall(fn) && !hasLikelyParameterAssignment(fn) {
 		return false
 	}
 	return mutatesState || mutatesParam
+}
+
+func predicateHasObviousSideEffect(fn precisionFunction) bool {
+	body := strings.ToLower(fn.Body)
+	return containsAny(body, []string{
+		"await ", "fetch(", "prisma.", "db.", "client.", "repo.",
+		".create(", ".delete(", ".insert(", ".remove(", ".save(", ".send(", ".set(", ".update(", ".upsert(",
+		".push(", ".pop(", ".splice(", ".sort(", ".reverse(",
+	})
+}
+
+func isUIActionAssemblyFunction(file string, fn precisionFunction) bool {
+	if !isUIHelperOrMappingContext(file, fn) {
+		return false
+	}
+	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
+	if !strings.HasPrefix(loweredName, "build") || !strings.Contains(loweredName, "actions") {
+		return false
+	}
+	body := strings.ToLower(fn.Body)
+	return strings.Contains(body, "return {") &&
+		containsAny(body, []string{"onchange", "onclick", "ondiscard", "onsave", "ontoggle", "onadd", "onremove", "onselect"})
+}
+
+func isFactoryHelperName(name string) bool {
+	lowered := strings.ToLower(strings.Trim(name, "_$"))
+	return strings.HasPrefix(lowered, "make") ||
+		strings.HasPrefix(lowered, "factory") ||
+		strings.HasPrefix(lowered, "create") && strings.Contains(lowered, "factory")
+}
+
+func isPureComputationHelperName(name string) bool {
+	lowered := strings.ToLower(strings.Trim(name, "_$"))
+	for _, prefix := range []string{
+		"as", "arrivals", "build", "calculate", "classify", "collect", "compute", "derive",
+		"deep", "esc", "extract", "find", "focus", "format", "formvalues", "movement", "normalize",
+		"overdue", "parse", "pick", "quick", "rank", "rme", "score", "stats", "to",
+	} {
+		if strings.HasPrefix(lowered, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasIOOrPersistenceSideEffect(fn precisionFunction) bool {
+	body := strings.ToLower(fn.Body)
+	return containsAny(body, []string{
+		"await ", "fetch(", "axios.", "prisma.", "db.", "client.", "repo.", "repository.",
+		"localstorage.", "sessionstorage.", "document.cookie",
+		".create(", ".delete(", ".insert(", ".remove(", ".save(", ".send(", ".update(", ".upsert(",
+		"writefile", "writefilesync", "fs.write", "console.error(",
+	})
+}
+
+func hasPersistentCollaboratorSideEffect(fn precisionFunction) bool {
+	body := strings.ToLower(fn.Body)
+	return containsAny(body, []string{
+		"await ", "fetch(", "axios.", "prisma.", "db.", "repo.", "repository.",
+		"localstorage.", "sessionstorage.", "document.cookie",
+		".save(", ".send(", ".upsert(", ".delete(",
+	})
 }
 
 func hasLikelyExternalMutationCall(fn precisionFunction) bool {
@@ -247,7 +344,10 @@ func mutatingFunctionEvidence(fn precisionFunction) bool {
 		}
 	}
 	for _, assignment := range directAssignments(fn) {
-		if assignment.Augmented && !isLocalMutationTarget(assignment.Name, localTargets) && !isBuilderAccumulatorAssignment(fn, assignment) {
+		if assignment.Augmented &&
+			!isLocalMutationTarget(assignment.Name, localTargets) &&
+			!isBuilderAccumulatorAssignment(fn, assignment) &&
+			!isLocalScalarAccumulatorAssignment(fn, assignment.Name) {
 			return true
 		}
 	}
@@ -295,9 +395,21 @@ func assignmentLeftHandSide(line string) string {
 		if prev == '=' || prev == '!' || prev == '<' || prev == '>' || next == '=' || next == '>' {
 			continue
 		}
-		return line[:idx]
+		return trimControlFlowConditionFromAssignmentLHS(line[:idx])
 	}
 	return line
+}
+
+func trimControlFlowConditionFromAssignmentLHS(lhs string) string {
+	trimmed := strings.TrimSpace(lhs)
+	lowered := strings.ToLower(trimmed)
+	if !strings.HasPrefix(lowered, "if ") && !strings.HasPrefix(lowered, "else if ") && !strings.HasPrefix(lowered, "while ") {
+		return lhs
+	}
+	if idx := strings.LastIndex(trimmed, ")"); idx >= 0 && idx+1 < len(trimmed) {
+		return trimmed[idx+1:]
+	}
+	return lhs
 }
 
 func lineHasAssignmentOperator(line string) bool {
@@ -464,9 +576,9 @@ func responsibilityCount(fn precisionFunction) (int, []string) {
 
 func responsibilityThreshold(file string, fn precisionFunction) int {
 	if isReactComponentOrHookBoundary(file, fn) {
-		return 6
+		return 7
 	}
-	return 4
+	return 6
 }
 
 func classifyResponsibility(text string, record func(string)) {
@@ -490,9 +602,16 @@ func classifyResponsibility(text string, record func(string)) {
 	}
 }
 
-func orchestrationDomainMix(fn precisionFunction) bool {
+func orchestrationDomainMix(file string, fn precisionFunction) bool {
+	if isFrameworkOrchestrationBoundary(file, fn) || isUIHelperOrMappingContext(file, fn) ||
+		isAdapterOrOrchestrationFunction(file, fn) || isSeedOrScriptSourcePath(file) {
+		return false
+	}
 	name := strings.ToLower(fn.Name)
 	body := strings.ToLower(fn.Body)
+	if isReactHookName(fn.Name) || containsAny(body, []string{"return <", "jsx", "classname", "onclick", "onchange"}) {
+		return false
+	}
 	orchestrator := strings.Contains(name, "handler") || strings.Contains(name, "controller") || strings.Contains(name, "job") ||
 		strings.Contains(name, "worker") || strings.Contains(fn.Signature, "Request") || strings.Contains(fn.Signature, "Response") ||
 		strings.Contains(body, "request") || strings.Contains(body, "response")
@@ -561,17 +680,20 @@ func isInferredUIBooleanAssignment(file string, fn precisionFunction, typ string
 
 func isBooleanType(typ string) bool {
 	typ = strings.ToLower(strings.TrimSpace(typ))
+	if strings.Contains(typ, "{") || strings.Contains(typ, "}") {
+		return false
+	}
 	return typ == "bool" || typ == "boolean" || strings.Contains(typ, " bool") || strings.Contains(typ, ": boolean")
 }
 
 func isPredicateName(name string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
-	for _, prefix := range []string{"is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "verify", "visible", "ready", "show", "matches", "pass", "passes"} {
+	for _, prefix := range []string{"arrivals", "deep", "is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "verify", "visible", "ready", "show", "looks", "matches", "same", "pass", "passes"} {
 		if strings.HasPrefix(lowered, prefix) {
 			return true
 		}
 	}
-	for _, suffix := range []string{"equal", "equals", "differs", "matches"} {
+	for _, suffix := range []string{"allowed", "equal", "equals", "differs", "matches"} {
 		if strings.HasSuffix(lowered, suffix) {
 			return true
 		}
@@ -584,7 +706,7 @@ func cardinalityMismatch(file string, fn precisionFunction, name string, typ str
 	if base == "" || conventionalCardinalityName(base) || configuredPluralDomainAbbreviation(base) || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
 		return false
 	}
-	if isUIHelperOrMappingContext(file, fn) && conventionalUICardinalityName(base) {
+	if isUIHelperOrMappingContext(file, fn) {
 		return false
 	}
 	if strings.Contains(typ, "{") || strings.Contains(typ, "}") {
@@ -593,6 +715,9 @@ func cardinalityMismatch(file string, fn precisionFunction, name string, typ str
 	plural := isPluralName(base)
 	collection := collectionTypePattern.MatchString(typ) || strings.Contains(typ, "[") || strings.Contains(typ, "]")
 	scalar := !collection && scalarTypePattern.MatchString(typ)
+	if collection && (strings.HasSuffix(base, "s") || strings.HasSuffix(base, "list") || strings.HasSuffix(base, "set") || strings.HasSuffix(base, "map")) {
+		return false
+	}
 	if plural && scalar && !collection {
 		return true
 	}
@@ -628,8 +753,12 @@ func implementationLeakName(name string) bool {
 	if len(words) <= 1 {
 		return false
 	}
+	infraWords := map[string]struct{}{
+		"sql": {}, "http": {}, "redis": {}, "kafka": {}, "grpc": {}, "graphql": {},
+		"mongo": {}, "s3": {}, "dynamo": {}, "postgres": {}, "mysql": {}, "elastic": {}, "orm": {},
+	}
 	for _, word := range words {
-		if infraNamePattern.MatchString(word) {
+		if _, ok := infraWords[strings.ToLower(strings.Trim(word, "_$"))]; ok {
 			return true
 		}
 	}
@@ -638,7 +767,10 @@ func implementationLeakName(name string) bool {
 
 func missingUnit(name string, typ string, expr string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
-	if unitSuffixPattern.MatchString(lowered) || strings.HasSuffix(lowered, "count") || strings.HasSuffix(lowered, "total") {
+	if unitSuffixPattern.MatchString(lowered) || strings.HasSuffix(lowered, "count") || strings.HasSuffix(lowered, "total") ||
+		strings.HasPrefix(lowered, "total") ||
+		lowered == "limit" || lowered == "defaultlimit" || lowered == "pagesize" || lowered == "page_size" ||
+		lowered == "size" || strings.Contains(lowered, "key") {
 		return false
 	}
 	looksMeasured := durationNamePattern.MatchString(lowered) || sizeNamePattern.MatchString(lowered) || moneyNamePattern.MatchString(lowered)
@@ -666,9 +798,6 @@ func unknownAbbreviation(env support.Context, name string) string {
 		if _, ok := allowed[candidate]; ok {
 			continue
 		}
-		if isAllUpper(word) && len(candidate) <= 6 {
-			return word
-		}
 		if isSuspiciousShortening(candidate) {
 			return word
 		}
@@ -677,7 +806,7 @@ func unknownAbbreviation(env support.Context, name string) string {
 }
 
 func allowedAbbreviations(env support.Context) map[string]struct{} {
-	defaults := []string{"api", "ast", "aws", "ci", "cli", "cpu", "cpp", "css", "db", "dns", "dto", "env", "grpc", "html", "http", "https", "id", "io", "ip", "js", "json", "mcp", "os", "pr", "rpc", "sdk", "sql", "ssh", "tcp", "tls", "ts", "tsx", "ui", "uri", "url", "uuid", "xml", "yaml", "yml"}
+	defaults := []string{"api", "ast", "aws", "ce", "ci", "cli", "cpu", "cpp", "css", "cfg", "db", "dns", "ds", "dto", "env", "grpc", "html", "http", "https", "id", "io", "ip", "js", "json", "mcp", "num", "os", "pr", "rpc", "sdk", "sql", "ssh", "tcp", "tls", "ts", "tsx", "ui", "uri", "url", "uuid", "xml", "yaml", "yml"}
 	allowed := make(map[string]struct{}, len(defaults)+len(env.Config.Checks.QualityRules.Naming.AllowedAbbreviations))
 	for _, value := range defaults {
 		allowed[value] = struct{}{}
@@ -690,7 +819,7 @@ func allowedAbbreviations(env support.Context) map[string]struct{} {
 
 func isSuspiciousShortening(word string) bool {
 	switch word {
-	case "acct", "addr", "amt", "cfg", "cust", "msg", "num", "qty", "usr":
+	case "acct", "addr", "cust", "qty", "usr":
 		return true
 	default:
 		return false
@@ -723,6 +852,17 @@ func glossaryDriftFinding(env support.Context, file string, source string) (core
 }
 
 func roleSuffixOveruseFinding(env support.Context, file string, source string) (core.Finding, bool) {
+	normalizedFile := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	if isSeedOrScriptSourcePath(file) || isPackageAPIRouterPath(file) ||
+		strings.Contains(normalizedFile, "/infra/") || strings.HasPrefix(normalizedFile, "infra/") {
+		return core.Finding{}, false
+	}
+	if isScriptLikeSourcePath(file) {
+		fn := precisionFunction{Name: "source"}
+		if isUIHelperOrMappingContext(file, fn) {
+			return core.Finding{}, false
+		}
+	}
 	threshold := env.Config.Checks.QualityRules.Naming.RoleSuffixWarnThreshold
 	if threshold <= 0 {
 		threshold = 4

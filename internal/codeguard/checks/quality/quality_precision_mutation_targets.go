@@ -8,7 +8,7 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 )
 
-var conventionalMutationBoundaryPattern = regexp.MustCompile(`^(accept|apply|approve|archive|clear|close|commit|deliver|download|drop|ensure|exists|fetch|import|list|notify|open|process|read|reconcile|record|run|seed|submit|sync|toggle|upload)`)
+var conventionalMutationBoundaryPattern = regexp.MustCompile(`^(accept|apply|approve|archive|bulk|capture|clear|close|commit|copy|deliver|download|drop|ensure|exists|expose|fetch|fill|import|link|list|log|notify|open|process|read|reconcile|record|recompute|retire|run|seed|submit|sync|toggle|transfer|upload)`)
 
 var localAccumulatorExprPattern = regexp.MustCompile(`(?i)^(?:new\s+)?(?:array|date|filereader|formdata|image|map|object|set|url|urlsearchparams|weakmap|weakset)\b|^\[|^\{|^make\s*\(|^array\.from\b|\.map\s*\(|\.filter\s*\(|\.reduce\s*\(|\.split\s*\(|cheerio\.load\s*\(|document\.createelement\s*\(|^(?:bytes|strings)\.buffer\b|^strings\.builder\b`)
 
@@ -24,6 +24,10 @@ func localMutationTargets(fn precisionFunction) map[string]struct{} {
 			continue
 		}
 		if assignmentLooksLocalAccumulator(fn, assignment) {
+			targets[name] = struct{}{}
+			continue
+		}
+		if assignmentLooksLocalScalarAccumulator(assignment, assignmentStatement(fn, assignment.Line)) {
 			targets[name] = struct{}{}
 			continue
 		}
@@ -108,11 +112,13 @@ func assignmentLooksLocalAccumulator(fn precisionFunction, assignment support.Pa
 		return false
 	}
 	name := regexp.QuoteMeta(assignment.Name)
-	return regexp.MustCompile(`(?i)\b(?:const|let|var)\s+`+name+`\b.*=\s*(?:new\s+)?(?:array|formdata|map|object|set|urlsearchparams|weakmap|weakset)\b`).MatchString(statement) ||
+	return regexp.MustCompile(`(?i)\b(?:const|let|var)\s+`+name+`\b.*=\s*(?:new\s+)?(?:array|date|filereader|formdata|image|map|object|set|url|urlsearchparams|weakmap|weakset)\b`).MatchString(statement) ||
 		regexp.MustCompile(`(?i)\bvar\s+`+name+`\s+(?:bytes\.buffer|strings\.builder)\b`).MatchString(statement) ||
 		regexp.MustCompile(`(?i)\bstd::(?:vector|map|set|unordered_map|unordered_set|stringstream)\b[^;\n]*\b`+name+`\b`).MatchString(statement) ||
 		regexp.MustCompile(`\b`+name+`\s*:=\s*(?:\[\]|\{\}|make\s*\(|(?:bytes|strings)\.Buffer\b|strings\.Builder\b)`).MatchString(statement) ||
-		regexp.MustCompile(`(?i)\b(?:const|let|var)\s+`+name+`\b.*=\s*(?:\[|\{|array\.from\b|[^;\n]+\.map\s*\(|[^;\n]+\.filter\s*\(|new\s+urlsearchparams\b)`).MatchString(statement)
+		regexp.MustCompile(`(?i)\b(?:const|let|var)\s+`+name+`\b.*=\s*(?:\[|\{|array\.from\b|[^;\n]+\.map\s*\(|[^;\n]+\.filter\s*\(|new\s+urlsearchparams\b)`).MatchString(statement) ||
+		assignmentContinuationLooksLocalCollection(fn, assignment) ||
+		assignmentLooksDateCloneOrHelper(assignment, statement)
 }
 
 func assignmentLooksLocalBuilder(fn precisionFunction, assignment support.ParsedAssignment) bool {
@@ -129,6 +135,57 @@ func assignmentLooksLocalBuilder(fn precisionFunction, assignment support.Parsed
 		strings.Contains(expr, "create") ||
 		strings.Contains(expr, "build") ||
 		strings.Contains(expr, "make")
+}
+
+func assignmentContinuationLooksLocalCollection(fn precisionFunction, assignment support.ParsedAssignment) bool {
+	window := strings.ToLower(assignmentStatementWindow(fn, assignment.Line, 5))
+	if window == "" {
+		return false
+	}
+	name := strings.ToLower(regexp.QuoteMeta(assignment.Name))
+	return regexp.MustCompile(`\b(?:const|let|var)\s+`+name+`\b`).MatchString(window) &&
+		containsAny(window, []string{".map(", ".filter(", ".reduce(", "array.from(", "[...", ".slice("})
+}
+
+func assignmentLooksDateCloneOrHelper(assignment support.ParsedAssignment, statement string) bool {
+	name := strings.ToLower(strings.Trim(assignment.Name, "_$"))
+	if name == "" {
+		return false
+	}
+	lowered := strings.ToLower(statement + " " + assignment.Expr)
+	if !containsAny(lowered, []string{"date", "day", "week", "month", "time"}) {
+		return false
+	}
+	return strings.Contains(lowered, "new date(") ||
+		regexp.MustCompile(`=\s*(?:startof|endof|datefrom|today|yesterday)[A-Za-z0-9_$]*\s*\(`).MatchString(lowered) ||
+		name == "x" && regexp.MustCompile(`=\s*[A-Za-z0-9_$]*day\s*\(`).MatchString(lowered)
+}
+
+func assignmentLooksLocalScalarAccumulator(assignment support.ParsedAssignment, statement string) bool {
+	name := strings.ToLower(strings.Trim(assignment.Name, "_$"))
+	if name == "" {
+		return false
+	}
+	expr := strings.TrimSpace(assignment.Expr)
+	lowered := strings.ToLower(statement + " " + expr)
+	if !regexp.MustCompile(`(?i)\b(?:const|let|var)\s+` + regexp.QuoteMeta(assignment.Name) + `\b`).MatchString(statement) {
+		return false
+	}
+	if !(regexp.MustCompile(`^-?\d+(?:\.\d+)?$`).MatchString(expr) ||
+		regexp.MustCompile(`=\s*-?\d+(?:\.\d+)?\b`).MatchString(statement) ||
+		strings.Contains(lowered, "score") ||
+		strings.Contains(lowered, "total") ||
+		strings.Contains(lowered, "count") ||
+		strings.Contains(lowered, "sum") ||
+		strings.Contains(lowered, "pct")) {
+		return false
+	}
+	return len(name) <= 2 ||
+		strings.Contains(name, "score") ||
+		strings.Contains(name, "total") ||
+		strings.Contains(name, "count") ||
+		strings.Contains(name, "sum") ||
+		strings.Contains(name, "pct")
 }
 
 func assignmentDerivedFromLocalMutationTarget(assignment support.ParsedAssignment, localTargets map[string]struct{}) bool {
@@ -187,6 +244,34 @@ func assignmentStatement(fn precisionFunction, line int) string {
 	return ""
 }
 
+func assignmentStatementWindow(fn precisionFunction, line int, lookahead int) string {
+	parts := make([]string, 0, lookahead+1)
+	for _, statement := range fn.Statements {
+		if statement.Line < line || statement.Line > line+lookahead {
+			continue
+		}
+		text := firstNonEmptyString(statement.Raw, statement.Text)
+		if strings.TrimSpace(text) != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func callStatementWindow(fn precisionFunction, line int, lookbehind int, lookahead int) string {
+	parts := make([]string, 0, lookbehind+lookahead+1)
+	for _, statement := range fn.Statements {
+		if statement.Line < line-lookbehind || statement.Line > line+lookahead {
+			continue
+		}
+		text := firstNonEmptyString(statement.Raw, statement.Text)
+		if strings.TrimSpace(text) != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
 func paramNames(fn precisionFunction) map[string]struct{} {
 	params := make(map[string]struct{}, len(fn.Params))
 	for _, param := range fn.Params {
@@ -206,14 +291,45 @@ func isLocalMutationCall(call support.ParsedCall, localTargets map[string]struct
 
 func isLocalBuilderMutationCall(fn precisionFunction, call support.ParsedCall) bool {
 	loweredCallee := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(call.Callee), " ", ""))
+	if localDerivedCollectionMutationStatement(fn, call, loweredCallee) {
+		return true
+	}
+	if strings.HasSuffix(loweredCallee, ".createelement") {
+		statement := strings.ToLower(assignmentStatement(fn, call.Line))
+		return strings.Contains(statement, "document.createelement(")
+	}
 	if loweredCallee == "createhmac" || loweredCallee == "createhash" {
 		return true
+	}
+	if strings.Contains(loweredCallee, "createhmac") || strings.Contains(loweredCallee, "createhash") {
+		statement := strings.ToLower(assignmentStatement(fn, call.Line))
+		return strings.Contains(statement, "createhmac(") || strings.Contains(statement, "createhash(")
+	}
+	if loweredCallee == "replace" || strings.HasSuffix(loweredCallee, ".replace") {
+		statement := strings.ToLower(assignmentStatement(fn, call.Line))
+		if containsAny(statement, []string{"string(", ".replace(", ".trim(", ".tolowercase(", ".touppercase("}) {
+			return true
+		}
 	}
 	if loweredCallee != "update" && !strings.HasSuffix(loweredCallee, ".update") {
 		return false
 	}
 	statement := strings.ToLower(assignmentStatement(fn, call.Line))
 	return strings.Contains(statement, "createhmac(") || strings.Contains(statement, "createhash(")
+}
+
+func localDerivedCollectionMutationStatement(fn precisionFunction, call support.ParsedCall, loweredCallee string) bool {
+	switch loweredCallee {
+	case "pop", "sort", "reverse":
+	default:
+		if !strings.HasSuffix(loweredCallee, ".pop") && !strings.HasSuffix(loweredCallee, ".sort") && !strings.HasSuffix(loweredCallee, ".reverse") {
+			return false
+		}
+	}
+	statement := strings.ToLower(assignmentStatement(fn, call.Line))
+	window := strings.ToLower(callStatementWindow(fn, call.Line, 4, 2))
+	return containsAny(statement, []string{".split(", ".map(", ".filter(", ".reduce(", "array.from(", "[...", ".slice("}) ||
+		containsAny(window, []string{".split(", ".map(", ".filter(", ".reduce(", "array.from(", "[...", ".slice("})
 }
 
 func isLocalMutationCallee(callee string, localTargets map[string]struct{}) bool {
@@ -321,6 +437,24 @@ func isBuilderAccumulatorAssignment(fn precisionFunction, assignment support.Par
 		return false
 	}
 	return isAccumulatorLikeLocalName(assignment.Name)
+}
+
+func isLocalScalarAccumulatorAssignment(fn precisionFunction, name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
+	if _, isParam := paramNames(fn)[name]; isParam {
+		return false
+	}
+	quoted := regexp.QuoteMeta(name)
+	declaration := regexp.MustCompile(`(?i)\b(?:const|let|var)\s+` + quoted + `\b[^;\n]*=\s*-?\d+(?:\.\d+)?\b`)
+	for _, statement := range directStatements(fn) {
+		if declaration.MatchString(firstNonEmptyString(statement.Raw, statement.Text)) {
+			return true
+		}
+	}
+	return false
 }
 
 func isFrameworkCommandBoundary(file string, name string) bool {

@@ -51,10 +51,10 @@ func TestQualityCheckResolvesTypeScriptPNPMMonorepoImports(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
 	writeFile(t, filepath.Join(dir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n\npackages:\n\n  lock-only-package@1.0.0:\n    resolution: {integrity: sha512-example}\n")
 	writeFile(t, filepath.Join(dir, "packages", "app", "package.json"), `{
-  "name":"@legal-nest/app",
+  "name":"@example/app",
   "dependencies":{"react":"18.0.0","next":"15.0.0","@prisma/client":"6.0.0"}
 }`)
-	writeFile(t, filepath.Join(dir, "packages", "shared", "package.json"), `{"name":"@legal-nest/shared"}`)
+	writeFile(t, filepath.Join(dir, "packages", "shared", "package.json"), `{"name":"@example/shared"}`)
 	writeFile(t, filepath.Join(dir, "packages", "app", "tsconfig.json"), `{
   // aliases are valid JSONC in tsconfig files
   "compilerOptions": {"baseUrl":".", "paths":{"app/*":["src/*"]}}
@@ -68,7 +68,7 @@ import { useRouter } from "next/navigation";
 import { prisma } from "@prisma/client";
 import { config } from "./config.js";
 import { value } from "app/lib/value";
-import { shared } from "@legal-nest/shared";
+import { shared } from "@example/shared";
 import installed from "installed-package";
 import lockOnly from "lock-only-package";
 void useState; void useRouter; void prisma; void config; void value; void shared; void installed; void lockOnly;

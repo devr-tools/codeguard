@@ -40,7 +40,7 @@ func errorContractFindings(env support.Context, file string, fn precisionFunctio
 	loweredBody := strings.ToLower(body)
 	findings := make([]core.Finding, 0)
 
-	if line, ok := loggedAndReturnedLine(fn.Statements); ok {
+	if line, ok := loggedAndReturnedLine(fn.Statements); ok && !isLikelyUIFile(file) && !isFrontendLibraryPath(file) {
 		findings = append(findings, precisionWarnFinding(env, errorLoggedAndReturnedRuleID, file, line,
 			"error is logged and returned from the same boundary, risking duplicate logs", core.ConfidenceHigh))
 	}
@@ -64,7 +64,7 @@ func errorContractFindings(env support.Context, file string, fn precisionFunctio
 		findings = append(findings, precisionWarnFinding(env, errorFallbackHidesCorruptionRuleID, file, line,
 			"fallback success after parse, corruption, or validation failure can hide bad data", core.ConfidenceMedium))
 	}
-	if line, ok := retryableUndistinguishedLine(fn, loweredBody); ok {
+	if line, ok := retryableUndistinguishedLine(fn, loweredBody); ok && !isLikelyUIFile(file) && !isFrontendLibraryPath(file) {
 		findings = append(findings, precisionWarnFinding(env, errorRetryableNotDistinguishedRuleID, file, line,
 			"retry path does not distinguish transient from permanent failures", core.ConfidenceMedium))
 	}
@@ -199,13 +199,40 @@ func partialFailureHiddenLine(fn precisionFunction, loweredBody string) (int, bo
 	if containsAny(loweredBody, []string{"return err", "return error", "throw", "raise"}) {
 		return 0, false
 	}
-	for _, statement := range fn.Statements {
+	for idx, statement := range fn.Statements {
 		lowered := strings.ToLower(firstNonEmptyString(statement.Raw, statement.Text))
 		if strings.Contains(lowered, "continue") || strings.TrimSpace(lowered) == "pass" {
+			if partialFailureContinueAccounted(fn.Statements, idx) {
+				continue
+			}
 			return statement.Line, true
 		}
 	}
 	return 0, false
+}
+
+func partialFailureContinueAccounted(statements []support.ParsedStatement, idx int) bool {
+	if idx < 0 || idx >= len(statements) {
+		return false
+	}
+	windowStart := idx - 10
+	if windowStart < 0 {
+		windowStart = 0
+	}
+	lines := make([]string, 0, idx-windowStart+1)
+	for lookback := windowStart; lookback <= idx; lookback++ {
+		lines = append(lines, strings.ToLower(firstNonEmptyString(statements[lookback].Raw, statements[lookback].Text)))
+	}
+	window := strings.Join(lines, "\n")
+	if !strings.Contains(window, "continue") {
+		return false
+	}
+	return containsAny(window, []string{
+		"++", "+=", "report.push", "diagnostics.push", "warnings.push", "failures.push",
+		"append(report", "append(diagnostics", "append(warnings", "append(failures",
+		"report", "diagnostic", "warning", "failure", "failures",
+		"missing", "skipped", "already", "notfound", "not found", "unmatched", "unresolved",
+	})
 }
 
 func partialFailureSurfacedInResult(loweredBody string) bool {
@@ -243,6 +270,9 @@ func fallbackHidesCorruptionLine(fn precisionFunction, loweredBody string) (int,
 }
 
 func retryableUndistinguishedLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if isUIRetryControl(fn, loweredBody) {
+		return 0, false
+	}
 	if !containsAny(loweredBody, []string{"retry", "backoff", "again", "attempt"}) ||
 		!containsAny(loweredBody, []string{"err", "error", "catch", "except", "failure"}) {
 		return 0, false
@@ -251,6 +281,15 @@ func retryableUndistinguishedLine(fn precisionFunction, loweredBody string) (int
 		return 0, false
 	}
 	return fn.StartLine, true
+}
+
+func isUIRetryControl(fn precisionFunction, loweredBody string) bool {
+	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
+	if containsAny(loweredName, []string{"error", "reset", "retry", "bulk", "dialog", "action"}) &&
+		containsAny(loweredBody, []string{"onclick", "button", "toast", "mutate", "setstate", "reset()", "router.refresh", "starttransition"}) {
+		return true
+	}
+	return containsAny(loweredBody, []string{"<button", "try again", "retry</", "reset()"})
 }
 
 func wrongAbstractionLevelLine(fn precisionFunction, body string) (int, bool) {

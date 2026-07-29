@@ -181,12 +181,16 @@ func dependencySet(language string, rel string, source string) map[string]struct
 
 func isQualityFixturePath(path string) bool {
 	normalized := strings.ToLower(filepath.ToSlash(path))
-	if strings.Contains(normalized, "/testdata/") || strings.Contains(normalized, "/fixtures/") || strings.Contains(normalized, "/__fixtures__/") {
+	if strings.Contains(normalized, "/testdata/") || strings.Contains(normalized, "/fixtures/") ||
+		strings.Contains(normalized, "/__fixtures__/") || strings.Contains(normalized, "/__tests__/") ||
+		strings.Contains(normalized, "/tests/") {
 		return true
 	}
 	return strings.HasSuffix(normalized, "_test.go") || strings.HasSuffix(normalized, "_test.py") ||
 		strings.HasSuffix(normalized, ".test.ts") || strings.HasSuffix(normalized, ".spec.ts") ||
-		strings.HasSuffix(normalized, ".test.js") || strings.HasSuffix(normalized, ".spec.js")
+		strings.HasSuffix(normalized, ".test.tsx") || strings.HasSuffix(normalized, ".spec.tsx") ||
+		strings.HasSuffix(normalized, ".test.js") || strings.HasSuffix(normalized, ".spec.js") ||
+		strings.HasSuffix(normalized, ".test.jsx") || strings.HasSuffix(normalized, ".spec.jsx")
 }
 
 func firstNonEmptyString(values ...string) string {

@@ -45,6 +45,11 @@ func isTSXLikeSourcePath(file string) bool {
 	return strings.HasSuffix(lowered, ".tsx") || strings.HasSuffix(lowered, ".jsx")
 }
 
+func isFrontendLibraryPath(file string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	return strings.HasPrefix(normalized, "apps/web/lib/")
+}
+
 func isReactComponentName(name string) bool {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -177,7 +182,7 @@ func isAllowedBooleanUIName(file string, fn precisionFunction, name string) bool
 
 func isConventionalNonPredicateName(name string) bool {
 	switch strings.ToLower(strings.Trim(name, "_$")) {
-	case "asrecord", "cached", "opts", "options", "message", "classname", "class", "icon", "submit", "compare", "parser", "parse", "builder", "build", "renderer", "render":
+	case "asrecord", "cached", "inline", "opts", "options", "message", "classname", "class", "icon", "submit", "compare", "parser", "parse", "builder", "build", "renderer", "render":
 		return true
 	default:
 		return false
@@ -197,7 +202,7 @@ func isResourceIdentifierName(name string) bool {
 func conventionalCardinalityName(name string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
 	switch base {
-	case "accept", "activity", "adjacency", "aliases", "all", "answers", "apply", "args", "arr", "body", "changes", "claims", "claimed", "columns", "comments", "content", "contracts", "counts", "currentpatch", "data", "docs", "entries", "expectedkeys", "files", "filtered", "fixes", "grid", "grouped", "groups", "header", "history", "ids", "input", "inputs", "items", "jobs", "k", "keys", "kindcounts", "known", "krs", "matters", "messages", "model", "newrisks", "next", "nodes", "objectives", "obligations", "openrequests", "out", "params", "parsed", "patch", "policy", "prev", "prisma", "projects", "props", "quarter", "quarters", "records", "requests", "resources", "results", "risks", "roledefaults", "roles", "rows", "schemas", "searchparams", "sections", "skipreasons", "source", "state", "status", "tags", "team", "thresholds", "threads", "tools", "users", "values", "vec", "versions", "where", "window", "v", "i", "j", "x", "y":
+	case "accept", "activity", "adjacency", "aliases", "all", "aliveatend", "allowed", "answers", "apply", "args", "arr", "atrisk", "awaitingsig", "body", "changes", "claims", "claimed", "columns", "comments", "content", "contract", "contracts", "contractsbytype", "counts", "cur", "currentpatch", "data", "docs", "entries", "expectedkeys", "files", "filtered", "fixes", "grid", "grouped", "groups", "header", "history", "ids", "input", "inputs", "items", "jobs", "k", "keys", "kindcounts", "known", "krs", "latestquarter", "matter", "matters", "messages", "model", "newrisks", "next", "nodes", "objectives", "obj", "obligations", "openrequests", "out", "overdue", "params", "parsed", "patch", "policy", "prev", "prisma", "projects", "props", "quarter", "quarters", "raw", "records", "requests", "requestsbypillar", "resources", "restrict", "rest", "result", "results", "risks", "roledefaults", "roles", "row", "rows", "schemas", "searchparams", "sections", "seenactivepillar", "size", "skipreasons", "snap", "source", "src", "state", "status", "stream", "tags", "team", "thresholds", "threads", "tools", "users", "values", "vec", "versions", "where", "window", "v", "i", "j", "x", "y":
 		return true
 	default:
 		return len(name) <= 2 ||
@@ -264,7 +269,7 @@ func isUICommandHelperName(file string, name string) bool {
 		return false
 	}
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
-	for _, prefix := range []string{"click", "confirm", "disarm", "finish", "mark", "pick", "prefill", "select", "start"} {
+	for _, prefix := range []string{"click", "confirm", "disarm", "finish", "flash", "mark", "move", "pick", "prefill", "remember", "select", "start", "trigger"} {
 		if strings.HasPrefix(lowered, prefix) {
 			return true
 		}

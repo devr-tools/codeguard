@@ -77,21 +77,27 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, defensiveUnsafeDefaultRuleID, file, line,
 			"configuration default can fail open or disable a safety control", core.ConfidenceHigh))
 	}
-	if line, ok := nonExhaustiveBranchLine(fn, loweredBody); ok {
-		findings = append(findings, precisionWarnFinding(env, defensiveNonExhaustiveBranchRuleID, file, line,
-			"enum-like branch over state, status, kind, or type lacks default/exhaustive handling", core.ConfidenceMedium))
+	if !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) {
+		if line, ok := nonExhaustiveBranchLine(fn, loweredBody); ok {
+			findings = append(findings, precisionWarnFinding(env, defensiveNonExhaustiveBranchRuleID, file, line,
+				"enum-like branch over state, status, kind, or type lacks default/exhaustive handling", core.ConfidenceMedium))
+		}
 	}
 	if line, ok := uncheckedExternalResponseLine(fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveUncheckedExternalResponseRuleID, file, line,
 			"external response is consumed without checking status, ok, or transport error", core.ConfidenceMedium))
 	}
-	if line, ok := missingSchemaValidationLine(fn, loweredBody); ok {
-		findings = append(findings, precisionWarnFinding(env, defensiveMissingSchemaValidationRuleID, file, line,
-			"decoded JSON or event payload is used without schema or invariant validation", core.ConfidenceMedium))
+	if !isUIHelperOrMappingContext(file, fn) && !isReactComponentOrHookBoundary(file, fn) {
+		if line, ok := missingSchemaValidationLine(fn, loweredBody); ok {
+			findings = append(findings, precisionWarnFinding(env, defensiveMissingSchemaValidationRuleID, file, line,
+				"decoded JSON or event payload is used without schema or invariant validation", core.ConfidenceMedium))
+		}
 	}
-	if line, ok := missingResourceLimitLine(fn, loweredBody); ok {
-		findings = append(findings, precisionWarnFinding(env, defensiveMissingResourceLimitRuleID, file, line,
-			"boundary read or upload lacks an explicit size/count/time resource limit", core.ConfidenceMedium))
+	if !isUIHelperOrMappingContext(file, fn) && !isReactComponentOrHookBoundary(file, fn) {
+		if line, ok := missingResourceLimitLine(fn, loweredBody); ok {
+			findings = append(findings, precisionWarnFinding(env, defensiveMissingResourceLimitRuleID, file, line,
+				"boundary read or upload lacks an explicit size/count/time resource limit", core.ConfidenceMedium))
+		}
 	}
 	if line, ok := invalidStateTransitionLine(fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveInvalidStateTransitionRuleID, file, line,
@@ -108,9 +114,15 @@ func sourceDefensiveInvariantFindings(env support.Context, file string, source s
 	if isQualityFixturePath(file) {
 		return nil
 	}
+	if isScriptLikeSourcePath(file) && isLikelyUIFile(file) {
+		return nil
+	}
 	lines := strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
 	for idx := 0; idx < len(lines); idx++ {
 		if !structStartPattern.MatchString(lines[idx]) || !structuralStateContainerLine(lines[idx]) {
+			continue
+		}
+		if structuralDataTransferContainerLine(lines[idx]) {
 			continue
 		}
 		boolFields := 0
@@ -138,14 +150,44 @@ func structuralStateContainerLine(line string) bool {
 	return strings.Contains(lowered, "struct") || strings.Contains(lowered, "interface") || strings.Contains(lowered, "class")
 }
 
+func structuralDataTransferContainerLine(line string) bool {
+	fields := strings.Fields(strings.NewReplacer("{", " ", "<", " ", "(", " ").Replace(line))
+	for idx, field := range fields {
+		lowered := strings.ToLower(strings.Trim(field, "_$"))
+		if lowered != "interface" && lowered != "type" && lowered != "class" && lowered != "struct" {
+			continue
+		}
+		if idx+1 >= len(fields) {
+			return false
+		}
+		name := strings.ToLower(strings.Trim(fields[idx+1], "_$"))
+		return strings.HasSuffix(name, "args") ||
+			strings.HasSuffix(name, "input") ||
+			strings.HasSuffix(name, "options") ||
+			strings.HasSuffix(name, "opts") ||
+			strings.HasSuffix(name, "row") ||
+			strings.Contains(name, "rowpart") ||
+			strings.HasSuffix(name, "part") ||
+			regexp.MustCompile(`part\d+$`).MatchString(name) ||
+			strings.HasSuffix(name, "context") ||
+			strings.HasSuffix(name, "ctx") ||
+			strings.Contains(name, "dto") ||
+			strings.Contains(name, "seed")
+	}
+	return false
+}
+
 func unvalidatedBoundaryInputLine(file string, fn precisionFunction, loweredBody string) (int, bool) {
-	if isUIHelperOrMappingContext(file, fn) || isReactComponentOrHookBoundary(file, fn) {
+	if isUIHelperOrMappingContext(file, fn) || isReactComponentOrHookBoundary(file, fn) || isLikelyUIFile(file) || isFrontendLibraryPath(file) {
 		return 0, false
 	}
 	if !boundaryFunctionName(fn.Name) && !hasBoundaryParam(fn.Params) {
 		return 0, false
 	}
 	if isValidationOrExtractionHelperName(fn.Name) {
+		return 0, false
+	}
+	if containsAny(strings.ToLower(fn.Name), []string{"oauth", "origin", "url"}) {
 		return 0, false
 	}
 	if validatedBoundaryInputPattern(fn, loweredBody) {
@@ -186,7 +228,7 @@ func isValidationOrExtractionHelperName(name string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
 	if strings.HasPrefix(lowered, "parse") || strings.HasPrefix(lowered, "assert") ||
 		strings.HasPrefix(lowered, "guard") || strings.HasPrefix(lowered, "ensure") ||
-		strings.HasPrefix(lowered, "decode") {
+		strings.HasPrefix(lowered, "decode") || strings.HasPrefix(lowered, "validate") {
 		return true
 	}
 	return containsAny(lowered, []string{"bearertokenfrom", "tokenfrom", "headerfrom", "requestbodyfrom"})
@@ -282,7 +324,22 @@ func nullableParamGuarded(loweredBody string, name string) bool {
 	if containsAny(loweredBody, guards) {
 		return true
 	}
-	return regexp.MustCompile(`if\s*\(\s*!\s*` + regexp.QuoteMeta(name) + `\s*\)\s*(?:return|throw|continue|break)\b`).MatchString(loweredBody)
+	quotedName := regexp.QuoteMeta(name)
+	return regexp.MustCompile(`if\s*\(\s*!\s*`+quotedName+`\s*\)\s*(?:return|throw|continue|break)\b`).MatchString(loweredBody) ||
+		nullableParamHasBlockExitGuard(loweredBody, quotedName)
+}
+
+func nullableParamHasBlockExitGuard(loweredBody string, quotedName string) bool {
+	guardStart := regexp.MustCompile(`if\s*\(\s*!\s*` + quotedName + `\s*\)\s*\{`).FindStringIndex(loweredBody)
+	if guardStart == nil {
+		return false
+	}
+	windowStart := guardStart[1]
+	windowEnd := windowStart + 3000
+	if windowEnd > len(loweredBody) {
+		windowEnd = len(loweredBody)
+	}
+	return regexp.MustCompile(`\b(?:return|throw|continue|break)\b`).MatchString(loweredBody[windowStart:windowEnd])
 }
 
 func nullableUseLine(fn precisionFunction, name string) int {
@@ -343,7 +400,7 @@ func resourceAllocationArithmeticContext(loweredBody string) bool {
 }
 
 func sequenceCollisionRiskLine(file string, fn precisionFunction, loweredBody string) (int, string, string, bool) {
-	if isSeedOrScriptSourcePath(file) || !sequenceAllocationArithmetic(loweredBody) {
+	if isSeedOrScriptSourcePath(file) || isLikelyUIFile(file) || !sequenceAllocationArithmetic(loweredBody) {
 		return 0, "", core.ConfidenceLow, false
 	}
 	line := firstSequenceAllocationLine(fn)
@@ -434,6 +491,7 @@ func isSeedOrScriptSourcePath(file string) bool {
 	}
 	return strings.Contains(normalized, "/scripts/") ||
 		strings.Contains(normalized, "/script/") ||
+		strings.Contains(normalized, "/prisma/") && strings.HasSuffix(normalized, ".ts") ||
 		strings.Contains(normalized, "/seed") ||
 		strings.Contains(normalized, "/seeds/") ||
 		strings.Contains(normalized, "/backfill") ||

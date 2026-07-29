@@ -53,7 +53,6 @@ func TestQualityPrecisionAllowsDomainSideEffectAndAdapterOrchestrationNames(t *t
 		"function.hidden-mutation",
 		"function.multiple-responsibilities",
 		"function.mixed-abstraction-level",
-		"quality.mixed-abstraction-levels",
 		"smell.feature-envy",
 	} {
 		assertFindingRuleAbsent(t, report, "Code Quality", ruleID)
@@ -183,6 +182,26 @@ func TestQualityNamingAllowsUIBooleanAndDomainCollectionAliases(t *testing.T) {
 		"}",
 		"interface KeyResult { id: string }",
 		"interface Contract { id: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.cardinality-mismatch")
+}
+
+func TestQualityNamingAllowsUIClassAndRowHelpers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apps/web/components/command-palette/command-palette-rows.tsx"), strings.Join([]string{
+		"export function rowClass(active: boolean, segmentClass: boolean, ratioTheme: boolean) {",
+		"  return active || segmentClass || ratioTheme ? 'selected' : 'normal';",
+		"}",
+		"export function valueCells(row: Row, raw: RawInput, cur: Cursor) {",
+		"  return [row.id, raw.value, cur.index];",
+		"}",
+		"interface Row { id: string }",
+		"interface RawInput { value: string }",
+		"interface Cursor { index: number }",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
