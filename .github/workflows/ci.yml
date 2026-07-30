@@ -85,7 +85,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # make codeguard-ci: CI intentionally runs the stable Marketplace action instead of the in-repo binary.
-      - uses: devr-tools/codeguard@v1.2.0
+      - uses: devr-tools/codeguard@v1.3.9
         with:
           config: .codeguard/codeguard.yaml
 
