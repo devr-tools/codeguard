@@ -43,7 +43,7 @@ codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 
 `codeguard init` writes `codeguard.yaml` by default.
 
-Use `codeguard scan -folder <path>` when you want to scan only one folder. `-path <path>` is accepted as an alias.
+Use `codeguard scan -folder <path>` when you want to scan only one folder. `-path <path>` is accepted as an alias. If no config file exists and you did not pass `-config`, folder scans use CodeGuard's built-in default config; add `-profile startup`, `-profile strict`, `-profile enterprise`, or `-profile ai-safe` to choose a default profile.
 
 If you prefer a JSON example, start from [examples/codeguard.json](/Users/alex/Documents/GitHub/codeguard/examples/codeguard.json:1).
 

@@ -2,8 +2,10 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
@@ -44,6 +46,29 @@ func loadConfigWithProfile(path string, profile string) (service.Config, error) 
 	if err != nil {
 		return service.Config{}, err
 	}
+	return applyProfileOverride(cfg, profile)
+}
+
+func loadScanConfigWithFallback(path string, profile string, targetPath string, defaultConfigRequested bool) (service.Config, error) {
+	cfg, err := service.LoadConfigFile(path)
+	if err == nil {
+		return applyProfileOverride(cfg, profile)
+	}
+	if !defaultConfigRequested || strings.TrimSpace(targetPath) == "" || !errors.Is(err, os.ErrNotExist) {
+		return service.Config{}, err
+	}
+
+	cfg, err = exampleConfigForProfile(profile)
+	if err != nil {
+		return service.Config{}, err
+	}
+	disable := false
+	cfg.Cache.Enabled = &disable
+	cfg.Cache.Path = ""
+	return cfg, nil
+}
+
+func applyProfileOverride(cfg service.Config, profile string) (service.Config, error) {
 	if strings.TrimSpace(profile) != "" {
 		cfg.Profile = strings.TrimSpace(profile)
 		service.ApplyDefaults(&cfg)

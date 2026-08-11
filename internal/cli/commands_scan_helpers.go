@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"strings"
@@ -90,6 +91,16 @@ func scanTargetPath(folderPath string, pathAlias string) (string, error) {
 		return folderPath, nil
 	}
 	return pathAlias, nil
+}
+
+func flagWasSet(fs *flag.FlagSet, name string) bool {
+	wasSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			wasSet = true
+		}
+	})
+	return wasSet
 }
 
 func writePerformanceUpgradeHint(stdout io.Writer, cfg service.Config) {

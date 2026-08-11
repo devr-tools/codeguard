@@ -102,7 +102,7 @@ By default, `codeguard` looks for `codeguard.yaml`, `codeguard.yml`, or `codegua
 
 If you point `-config` at a directory such as `.codeguard`, `codeguard` will look inside it for `codeguard.*` or `config.*` files.
 
-Use `codeguard scan -folder <path>` to scan only one folder. `-path <path>` is accepted as an alias.
+Use `codeguard scan -folder <path>` to scan only one folder. `-path <path>` is accepted as an alias. If no config file exists and you did not pass `-config`, folder scans use CodeGuard's built-in default config; add `-profile startup`, `-profile strict`, `-profile enterprise`, or `-profile ai-safe` to choose a default profile.
 
 Text output includes ANSI color and emoji markers by default. Set `NO_COLOR=1` if you want plain terminal output.
 

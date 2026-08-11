@@ -159,6 +159,62 @@ func TestRunScanPathFlagScopesFolder(t *testing.T) {
 	}
 }
 
+func TestRunScanFolderWithoutConfigUsesDefaultProfile(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	dir := t.TempDir()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir tempdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(cwd)
+	})
+
+	writeScanTestFile(t, filepath.Join(dir, "sub", "go.mod"), "module example.com/configless\n\ngo 1.23.0\n")
+	writeScanTestFile(t, filepath.Join(dir, "sub", "main.go"), "package main\n\nfunc main() {}\n")
+	writeScanTestFile(t, filepath.Join(dir, "sub", "Makefile"), "test:\n\tgo test ./...\n")
+	writeScanTestFile(t, filepath.Join(dir, "sub", "README.md"), "# Configless scan\n\nRun `make test`.\n")
+	writeScanTestFile(t, filepath.Join(dir, "sub", "AGENTS.md"), "# Agent Notes\n\n## Build & test\n- `make test` runs the unit suite.\n")
+	writeScanTestFile(t, filepath.Join(dir, "sub", ".github", "workflows", "ci.yml"), "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: go test ./...\n")
+
+	var stdout, stderr bytes.Buffer
+	code := cli.Run([]string{"scan", "-folder", "sub", "-profile", "startup"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("scan exit code = %d, stderr = %s\nstdout = %s", code, stderr.String(), stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".codeguard")); !os.IsNotExist(err) {
+		t.Fatalf("expected configless scan not to create .codeguard cache directory, stat err = %v", err)
+	}
+}
+
+func TestRunScanFolderWithExplicitMissingConfigStillFails(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o755); err != nil {
+		t.Fatalf("mkdir sub: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := cli.Run([]string{"scan", "-config", filepath.Join(dir, "missing.yaml"), "-folder", filepath.Join(dir, "sub")}, strings.NewReader(""), &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d; stdout = %s", code, stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "load config:") {
+		t.Fatalf("expected load config error, got %s", stderr.String())
+	}
+}
+
+func writeScanTestFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func stripANSI(value string) string {
