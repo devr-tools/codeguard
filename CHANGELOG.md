@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/devr-tools/codeguard/compare/v1.4.0...v1.4.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* allow configless folder scans ([6d6e6ca](https://github.com/devr-tools/codeguard/commit/6d6e6cacdaf276381aed09e940aa1e8af7325e3b))
+* allow configless repo scans ([5405103](https://github.com/devr-tools/codeguard/commit/5405103ed53cf17dcd9b29fc5c9e1c908095cede))
+
 ## [1.4.0](https://github.com/devr-tools/codeguard/compare/v1.3.9...v1.4.0) (2026-08-11)
 
 
