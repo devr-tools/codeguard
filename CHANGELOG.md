@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/devr-tools/codeguard/compare/v1.3.9...v1.4.0) (2026-08-11)
+
+
+### Features
+
+* support folder scans ([721026d](https://github.com/devr-tools/codeguard/commit/721026d40d6e14684187dc5c2fed59664a32151d))
+
 ## [1.3.9](https://github.com/devr-tools/codeguard/compare/v1.3.8...v1.3.9) (2026-07-29)
 
 
