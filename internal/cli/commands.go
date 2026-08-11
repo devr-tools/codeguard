@@ -96,7 +96,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	}
 
 	defaultConfigRequested := !configFlagSet && strings.TrimSpace(*inputs.configPath) == service.DefaultConfigPath()
-	cfg, err := loadScanConfigWithFallback(*inputs.configPath, *flags.profile, targetPath, defaultConfigRequested)
+	cfg, err := loadScanConfigWithFallback(*inputs.configPath, *flags.profile, defaultConfigRequested)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return exitError

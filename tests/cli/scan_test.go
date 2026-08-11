@@ -189,6 +189,36 @@ func TestRunScanFolderWithoutConfigUsesDefaultProfile(t *testing.T) {
 	}
 }
 
+func TestRunScanWithoutConfigUsesDefaultProfileForCurrentDirectory(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	dir := t.TempDir()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir tempdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(cwd)
+	})
+
+	writeScanTestFile(t, filepath.Join(dir, "go.mod"), "module example.com/configlessrepo\n\ngo 1.23.0\n")
+	writeScanTestFile(t, filepath.Join(dir, "main.go"), "package main\n\nfunc main() {}\n")
+	writeScanTestFile(t, filepath.Join(dir, "Makefile"), "test:\n\tgo test ./...\n")
+	writeScanTestFile(t, filepath.Join(dir, "README.md"), "# Configless repo scan\n\nRun `make test`.\n")
+	writeScanTestFile(t, filepath.Join(dir, "AGENTS.md"), "# Agent Notes\n\n## Build & test\n- `make test` runs the unit suite.\n")
+	writeScanTestFile(t, filepath.Join(dir, ".github", "workflows", "ci.yml"), "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: go test ./...\n")
+
+	var stdout, stderr bytes.Buffer
+	code := cli.Run([]string{"scan", "-profile", "startup"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("scan exit code = %d, stderr = %s\nstdout = %s", code, stderr.String(), stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".codeguard")); !os.IsNotExist(err) {
+		t.Fatalf("expected configless scan not to create .codeguard cache directory, stat err = %v", err)
+	}
+}
+
 func TestRunScanFolderWithExplicitMissingConfigStillFails(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o755); err != nil {
