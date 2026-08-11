@@ -23,6 +23,7 @@ func (s *mcpToolService) callScan(ctx context.Context, raw json.RawMessage) (map
 		Profile    string `json:"profile"`
 		Mode       string `json:"mode"`
 		BaseRef    string `json:"base_ref"`
+		TargetPath string `json:"target_path"`
 	}
 	if err := json.Unmarshal(raw, &args); err != nil {
 		return nil, fmt.Errorf("invalid scan arguments")
@@ -53,8 +54,15 @@ func (s *mcpToolService) callScan(ctx context.Context, raw json.RawMessage) (map
 	if err = runnersupport.ValidateBaseRef(baseRef); err != nil {
 		return toolErrorResult(err.Error()), nil
 	}
+	targetPath := strings.TrimSpace(args.TargetPath)
+	if targetPath != "" {
+		targetPath, err = confinePath(allowedRoots(ctx, s), targetPath)
+		if err != nil {
+			return toolErrorResult(err.Error()), nil
+		}
+	}
 
-	opts := service.ScanOptions{Mode: mode, BaseRef: baseRef}
+	opts := service.ScanOptions{Mode: mode, BaseRef: baseRef, TargetPath: targetPath}
 	if emit := progressFrom(ctx); emit != nil {
 		total := countEnabledSections(cfg, mode)
 		var mu sync.Mutex

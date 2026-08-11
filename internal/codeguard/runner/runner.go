@@ -31,11 +31,15 @@ func Run(ctx context.Context, cfg core.Config) (core.Report, error) {
 
 func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions) (core.Report, error) {
 	config.ApplyDefaults(&cfg)
+	opts = runnersupport.NormalizeScanOptions(opts)
+	if err := runnersupport.ApplyTargetPath(&cfg, opts.TargetPath); err != nil {
+		return core.Report{}, err
+	}
 	if err := config.Validate(cfg); err != nil {
 		return core.Report{}, err
 	}
 
-	sc, err := runnersupport.NewContext(ctx, cfg, runnersupport.NormalizeScanOptions(opts))
+	sc, err := runnersupport.NewContext(ctx, cfg, opts)
 	if err != nil {
 		return core.Report{}, err
 	}

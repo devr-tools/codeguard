@@ -57,11 +57,12 @@ func parseScanMode(mode string) (service.ScanMode, error) {
 	return scanMode, nil
 }
 
-func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string, enableAI bool) error {
+func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string, targetPath string, enableAI bool) error {
 	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
-		Mode:     scanMode,
-		BaseRef:  baseRef,
-		EnableAI: enableAI,
+		Mode:       scanMode,
+		BaseRef:    baseRef,
+		TargetPath: targetPath,
+		EnableAI:   enableAI,
 	})
 	if err != nil {
 		return err
@@ -77,6 +78,18 @@ func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode
 		return fmt.Errorf("one or more sections failed")
 	}
 	return nil
+}
+
+func scanTargetPath(folderPath string, pathAlias string) (string, error) {
+	folderPath = strings.TrimSpace(folderPath)
+	pathAlias = strings.TrimSpace(pathAlias)
+	if folderPath != "" && pathAlias != "" && folderPath != pathAlias {
+		return "", fmt.Errorf("-folder and -path must refer to the same folder when both are set")
+	}
+	if folderPath != "" {
+		return folderPath, nil
+	}
+	return pathAlias, nil
 }
 
 func writePerformanceUpgradeHint(stdout io.Writer, cfg service.Config) {

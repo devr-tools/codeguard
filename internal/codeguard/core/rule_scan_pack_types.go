@@ -8,11 +8,12 @@ const (
 )
 
 type ScanOptions struct {
-	Mode      ScanMode
-	BaseRef   string
-	DiffText  string
-	EnableAI  bool
-	EnableFix bool
+	Mode       ScanMode
+	BaseRef    string
+	DiffText   string
+	TargetPath string
+	EnableAI   bool
+	EnableFix  bool
 	// OnSectionComplete, when set, is invoked once per section as soon as that
 	// section finishes, enabling callers (e.g. the MCP server) to stream
 	// partial results. It is never serialized — json.Marshal errors on a

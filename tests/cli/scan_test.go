@@ -123,6 +123,42 @@ func TestRunScanStaysSilentWhenPerformanceKeyExplicit(t *testing.T) {
 	}
 }
 
+func TestRunScanPathFlagScopesFolder(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/folderscan\n\ngo 1.23.0\n"), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o755); err != nil {
+		t.Fatalf("mkdir sub: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "outside"), 0o755); err != nil {
+		t.Fatalf("mkdir outside: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sub", "good.go"), []byte("package main\n\nfunc good() {}\n"), 0o644); err != nil {
+		t.Fatalf("write good.go: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "outside", "bad.go"), []byte("package main\nfunc bad(){println(\"hi\")}\n"), 0o644); err != nil {
+		t.Fatalf("write bad.go: %v", err)
+	}
+
+	configPath := filepath.Join(dir, "codeguard.json")
+	config := `{
+  "name": "folder-scan",
+  "targets": [{"name": "repo", "path": ".", "language": "go"}],
+  "checks": {"quality": true, "design": false, "security": false, "prompts": false, "ci": false, "performance": false, "context": false},
+  "output": {"format": "text"}
+}`
+	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := cli.Run([]string{"scan", "-config", configPath, "-path", filepath.Join(dir, "sub")}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("scan exit code = %d, stderr = %s\nstdout = %s", code, stderr.String(), stdout.String())
+	}
+}
+
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func stripANSI(value string) string {

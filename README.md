@@ -88,6 +88,7 @@ codeguard init
 codeguard validate -config codeguard.yaml
 codeguard doctor -config codeguard.yaml
 codeguard scan -config codeguard.yaml
+codeguard scan -config codeguard.yaml -folder ./service/api
 codeguard scan-history
 codeguard rules
 codeguard profiles
@@ -100,6 +101,8 @@ codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 By default, `codeguard` looks for `codeguard.yaml`, `codeguard.yml`, or `codeguard.json` in the repository root. If those are missing, it also checks for the same file names inside a `.codeguard/` directory.
 
 If you point `-config` at a directory such as `.codeguard`, `codeguard` will look inside it for `codeguard.*` or `config.*` files.
+
+Use `codeguard scan -folder <path>` to scan only one folder. `-path <path>` is accepted as an alias.
 
 Text output includes ANSI color and emoji markers by default. Set `NO_COLOR=1` if you want plain terminal output.
 

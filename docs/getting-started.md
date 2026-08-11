@@ -34,6 +34,7 @@ codeguard init
 codeguard validate -config codeguard.yaml
 codeguard doctor -config codeguard.yaml
 codeguard scan -config codeguard.yaml
+codeguard scan -config codeguard.yaml -folder ./service/api
 codeguard rules
 codeguard profiles
 codeguard explain prompts.secret-interpolation
@@ -41,6 +42,8 @@ codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 ```
 
 `codeguard init` writes `codeguard.yaml` by default.
+
+Use `codeguard scan -folder <path>` when you want to scan only one folder. `-path <path>` is accepted as an alias.
 
 If you prefer a JSON example, start from [examples/codeguard.json](/Users/alex/Documents/GitHub/codeguard/examples/codeguard.json:1).
 

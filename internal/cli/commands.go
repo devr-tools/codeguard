@@ -69,6 +69,8 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	flags := registerScanRunFlags(fs)
 	inputs := scanInputs{configPath: flags.configPath, mode: flags.mode, baseRef: flags.baseRef}
 	format := fs.String("format", "", "optional output format override: text, json, sarif, github, cyclonedx")
+	folderPath := fs.String("folder", "", "folder path to scan instead of all configured targets")
+	pathAlias := fs.String("path", "", "alias for -folder")
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	interactive := fs.Bool("interactive", false, "prompt for scan inputs in the terminal")
 	if ok, code := parseFlags(fs, args, stderr); !ok {
@@ -86,6 +88,11 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		_, _ = fmt.Fprintln(stderr, err)
 		return exitError
 	}
+	targetPath, err := scanTargetPath(*folderPath, *pathAlias)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return exitError
+	}
 
 	cfg, ok := loadConfigOrFail(*inputs.configPath, *flags.profile, stderr)
 	if !ok {
@@ -95,7 +102,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		cfg.Output.Format = trimmedFormat
 	}
 
-	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef), *enableAI); err != nil {
+	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef), targetPath, *enableAI); err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
 		return exitError
 	}

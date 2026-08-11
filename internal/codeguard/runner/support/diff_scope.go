@@ -3,6 +3,7 @@ package support
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -39,19 +40,36 @@ func gitChangedLines(ctx context.Context, dir string, baseRef string) (map[strin
 	if err := ValidateBaseRef(baseRef); err != nil {
 		return nil, err
 	}
+	prefix := DiffPrefixForTarget(ctx, dir)
 	argsVariants := [][]string{
-		{"-C", dir, "diff", "--unified=0", "--no-color", "--end-of-options", baseRef, "--"},
-		{"-C", dir, "diff", "--unified=0", "--no-color", "--end-of-options", baseRef + "...HEAD", "--"},
+		{"-C", dir, "diff", "--unified=0", "--no-color", "--end-of-options", baseRef, "--", "."},
+		{"-C", dir, "diff", "--unified=0", "--no-color", "--end-of-options", baseRef + "...HEAD", "--", "."},
 	}
 	var output []byte
 	var err error
 	for _, args := range argsVariants {
 		output, err = runGitCapture(ctx, args...)
 		if err == nil {
-			return parseUnifiedDiff(string(output)), nil
+			return trimLineRangePaths(parseUnifiedDiff(string(output)), prefix), nil
 		}
 	}
 	return nil, fmt.Errorf("diff mode requires git diff against %q: %w", baseRef, err)
+}
+
+func trimLineRangePaths(scope map[string]LineRanges, prefix string) map[string]LineRanges {
+	prefix = strings.Trim(strings.TrimSpace(filepath.ToSlash(prefix)), "/")
+	if prefix == "" {
+		return scope
+	}
+	out := make(map[string]LineRanges, len(scope))
+	for path, ranges := range scope {
+		rel, ok := stripDiffPathPrefix(path, prefix)
+		if !ok {
+			continue
+		}
+		out[rel] = ranges
+	}
+	return out
 }
 
 func parseUnifiedDiff(diff string) map[string]LineRanges {

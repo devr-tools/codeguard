@@ -145,6 +145,44 @@ func TestDiffScanScopesFileBasedChecks(t *testing.T) {
 	t.Fatal("Code Quality section not found")
 }
 
+func TestFullScanTargetPathScopesFileBasedChecks(t *testing.T) {
+	dir := t.TempDir()
+	writeRepoFile(t, filepath.Join(dir, "go.mod"), "module example.com/folderscan\n\ngo 1.23.0\n")
+	writeRepoFile(t, filepath.Join(dir, "sub", "good.go"), "package main\n\nfunc good() {}\n")
+	writeRepoFile(t, filepath.Join(dir, "outside", "bad.go"), "package main\nfunc bad(){println(\"hi\")}\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Security = false
+	cfg.Checks.Design = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.Checks.Context = contextOff()
+
+	report, err := codeguard.RunWithOptions(context.Background(), cfg, codeguard.ScanOptions{
+		Mode:       codeguard.ScanModeFull,
+		TargetPath: filepath.Join(dir, "sub"),
+	})
+	if err != nil {
+		t.Fatalf("folder scan: %v", err)
+	}
+	assertSectionDidNotFail(t, report, "Code Quality")
+}
+
+func assertSectionDidNotFail(t *testing.T, report codeguard.Report, name string) {
+	t.Helper()
+	for _, section := range report.Sections {
+		if section.Name != name {
+			continue
+		}
+		if string(section.Status) == "fail" {
+			t.Fatalf("expected %s not to fail, findings: %+v", name, section.Findings)
+		}
+		return
+	}
+	t.Fatalf("%s section not found", name)
+}
+
 func writeRepoFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

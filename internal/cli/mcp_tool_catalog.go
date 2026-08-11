@@ -31,6 +31,7 @@ func scanTool() mcpTool {
 				"profile":     map[string]any{"type": "string"},
 				"mode":        map[string]any{"type": "string", "enum": []string{"full", "diff"}},
 				"base_ref":    map[string]any{"type": "string"},
+				"target_path": map[string]any{"type": "string", "description": "Optional folder path to scan instead of all configured targets."},
 			},
 		},
 		OutputSchema: reportOutputSchema(),

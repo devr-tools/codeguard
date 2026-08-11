@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -103,6 +104,34 @@ func TestLoadDiffScopeHonoursCallerCancellation(t *testing.T) {
 	}
 }
 
+func TestLoadDiffScopeScopesSubdirectoryTarget(t *testing.T) {
+	dir := t.TempDir()
+	writeScanFile(t, dir, "sub/a.go", "package main\n\nfunc a() {}\n")
+	writeScanFile(t, dir, "other/b.go", "package main\n\nfunc b() {}\n")
+	runGit(t, dir, "init", "-b", "main")
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test User")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "initial")
+
+	writeScanFile(t, dir, "sub/a.go", "package main\n\nfunc a() {\n\tprintln(\"changed\")\n}\n")
+	writeScanFile(t, dir, "other/b.go", "package main\n\nfunc b() {\n\tprintln(\"also changed\")\n}\n")
+
+	scope, err := runnersupport.LoadDiffScope(context.Background(), []core.TargetConfig{{Name: "sub", Path: filepath.Join(dir, "sub")}}, "main")
+	if err != nil {
+		t.Fatalf("load diff scope: %v", err)
+	}
+	if _, ok := scope["a.go"]; !ok {
+		t.Fatalf("expected target-relative subdir file in scope, got %+v", scope)
+	}
+	if _, ok := scope["sub/a.go"]; ok {
+		t.Fatalf("expected repo-root subdir path to be rebased, got %+v", scope)
+	}
+	if _, ok := scope["other/b.go"]; ok {
+		t.Fatalf("expected outside file to be excluded, got %+v", scope)
+	}
+}
+
 func benchmarkScanTargetFiles(b *testing.B, scan func(runnersupport.Context, core.TargetConfig, string, func(string) bool, func(string, []byte) []core.Finding) []core.Finding) {
 	dir := b.TempDir()
 	line := strings.Repeat("some scanned line of file content\n", 32)
@@ -132,4 +161,14 @@ func BenchmarkScanTargetFiles(b *testing.B) {
 
 func BenchmarkScanTargetFilesSequential(b *testing.B) {
 	benchmarkScanTargetFiles(b, runnersupport.ScanTargetFilesSequential)
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, string(out))
+	}
 }

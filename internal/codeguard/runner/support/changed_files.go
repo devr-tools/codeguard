@@ -19,27 +19,33 @@ func ListChangedFiles(ctx context.Context, sc Context, target core.TargetConfig)
 	if err := ValidateBaseRef(sc.Opts.BaseRef); err != nil {
 		return nil, err
 	}
+	prefix := DiffPrefixForTarget(ctx, target.Path)
 	var lastErr error
 	for _, ref := range []string{sc.Opts.BaseRef, sc.Opts.BaseRef + "...HEAD"} {
-		output, err := runGitCapture(ctx, "-C", target.Path, "diff", "--name-status", "--no-renames", "--no-color", "--end-of-options", ref, "--")
+		output, err := runGitCapture(ctx, "-C", target.Path, "diff", "--name-status", "--no-renames", "--no-color", "--end-of-options", ref, "--", ".")
 		if err == nil {
-			return parseNameStatus(string(output)), nil
+			return parseNameStatus(string(output), prefix), nil
 		}
 		lastErr = err
 	}
 	return nil, fmt.Errorf("diff mode requires git diff --name-status against %q: %w", sc.Opts.BaseRef, lastErr)
 }
 
-func parseNameStatus(output string) []core.ChangedFile {
+func parseNameStatus(output string, prefix string) []core.ChangedFile {
+	prefix = strings.Trim(strings.TrimSpace(filepath.ToSlash(prefix)), "/")
 	changed := make([]core.ChangedFile, 0)
 	for _, line := range strings.Split(output, "\n") {
 		parts := strings.SplitN(strings.TrimRight(line, "\r"), "\t", 2)
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 			continue
 		}
+		path, ok := stripDiffPathPrefix(parts[1], prefix)
+		if !ok {
+			continue
+		}
 		changed = append(changed, core.ChangedFile{
 			Status: core.ChangedFileStatus(parts[0][:1]),
-			Path:   filepath.ToSlash(parts[1]),
+			Path:   filepath.ToSlash(path),
 		})
 	}
 	return changed
