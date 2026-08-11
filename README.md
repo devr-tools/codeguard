@@ -89,6 +89,8 @@ codeguard validate -config codeguard.yaml
 codeguard doctor -config codeguard.yaml
 codeguard scan -config codeguard.yaml
 codeguard scan -config codeguard.yaml -folder ./service/api
+codeguard scan -profile startup
+codeguard scan -folder ./service/api -profile startup
 codeguard scan-history
 codeguard rules
 codeguard profiles
@@ -102,7 +104,14 @@ By default, `codeguard` looks for `codeguard.yaml`, `codeguard.yml`, or `codegua
 
 If you point `-config` at a directory such as `.codeguard`, `codeguard` will look inside it for `codeguard.*` or `config.*` files.
 
-Use `codeguard scan -folder <path>` to scan only one folder. `-path <path>` is accepted as an alias.
+Use `codeguard scan -folder <path>` to scan only one folder. `-path <path>` is accepted as an alias. If no config file exists and you did not pass `-config`, scans use CodeGuard's built-in default config; add `-profile startup`, `-profile strict`, `-profile enterprise`, or `-profile ai-safe` to choose a default profile.
+
+For agent bootstrap flows, the shortest useful commands are:
+
+```bash
+codeguard scan -profile startup
+codeguard scan -folder ./service/api -profile startup
+```
 
 Text output includes ANSI color and emoji markers by default. Set `NO_COLOR=1` if you want plain terminal output.
 

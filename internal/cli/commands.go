@@ -76,6 +76,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	if ok, code := parseFlags(fs, args, stderr); !ok {
 		return code
 	}
+	configFlagSet := flagWasSet(fs, "config")
 	flags.applyTrustPolicy()
 
 	if err := promptScanInputs(*interactive, stdin, stdout, &inputs); err != nil {
@@ -94,8 +95,10 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		return exitError
 	}
 
-	cfg, ok := loadConfigOrFail(*inputs.configPath, *flags.profile, stderr)
-	if !ok {
+	defaultConfigRequested := !configFlagSet && strings.TrimSpace(*inputs.configPath) == service.DefaultConfigPath()
+	cfg, err := loadScanConfigWithFallback(*inputs.configPath, *flags.profile, defaultConfigRequested)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return exitError
 	}
 	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
