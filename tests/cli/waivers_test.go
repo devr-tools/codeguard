@@ -211,7 +211,7 @@ func writeWaiversAuditSecret(t *testing.T, path string) {
 	if err := os.WriteFile(path, []byte(`package main
 
 func main() {
-	api_key := "Zx9Qw3Rt7Yu1Io5P"
+	var api_key = "Zx9Qw3Rt7Yu1Io5P"
 	_ = api_key
 }
 `), 0o644); err != nil {

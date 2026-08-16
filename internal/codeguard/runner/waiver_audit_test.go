@@ -187,23 +187,23 @@ func waiverAuditHistoryConfig(dir string) core.Config {
 
 func writeWaiverAuditSecret(t *testing.T, path string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(`package main
 
 func main() {
-	api_key := "Zx9Qw3Rt7Yu1Io5P"
+	var api_key = "Zx9Qw3Rt7Yu1Io5P"
 	_ = api_key
 }
-`), 0o644); err != nil {
+	`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func writeWaiverAuditCleanFile(t *testing.T, path string) {
 	t.Helper()
-	if err := os.WriteFile(path, []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("package main\n\nfunc main() {}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }
