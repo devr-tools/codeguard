@@ -18,6 +18,7 @@ type Artifact struct {
 	FileRisk         *FileRiskArtifact         `json:"file_risk,omitempty"`
 	PRHotspots       *PRHotspotsArtifact       `json:"pr_hotspots,omitempty"`
 	PRSummary        *PRSummaryArtifact        `json:"pr_summary,omitempty"`
+	WaiverAudit      *WaiverAuditArtifact      `json:"waiver_audit,omitempty"`
 }
 
 const (

@@ -26,6 +26,9 @@ type (
 	RuleStatsArtifact           = core.RuleStatsArtifact
 	RuleStatsEntry              = core.RuleStatsEntry
 	RuleStatsHistoryEntry       = core.RuleStatsHistoryEntry
+	WaiverAuditArtifact         = core.WaiverAuditArtifact
+	WaiverAuditEntry            = core.WaiverAuditEntry
+	WaiverAuditHistoryEntry     = core.WaiverAuditHistoryEntry
 	AIAnalysisArtifact          = core.AIAnalysisArtifact
 	AIAnalysisVerdict           = core.AIAnalysisVerdict
 	AIFixArtifact               = core.AIFixArtifact

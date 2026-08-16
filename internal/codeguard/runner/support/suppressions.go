@@ -45,7 +45,7 @@ func IsSuppressed(sc Context, finding core.Finding) (bool, string) {
 			}
 		}
 	}
-	if waiverMatches(sc, finding) {
+	if len(MatchingWaivers(sc, finding)) > 0 {
 		return true, SuppressionReasonWaiver
 	}
 	fullPath := findingFullPath(sc, finding.Path)
@@ -62,8 +62,14 @@ func IsSuppressed(sc Context, finding core.Finding) (bool, string) {
 	return false, ""
 }
 
-func waiverMatches(sc Context, finding core.Finding) bool {
-	for _, waiver := range sc.Cfg.Waivers {
+type WaiverMatch struct {
+	Index  int
+	Waiver core.WaiverConfig
+}
+
+func MatchingWaivers(sc Context, finding core.Finding) []WaiverMatch {
+	matches := make([]WaiverMatch, 0, 1)
+	for idx, waiver := range sc.Cfg.Waivers {
 		if waiver.Rule != "*" && waiver.Rule != finding.RuleID {
 			continue
 		}
@@ -73,9 +79,9 @@ func waiverMatches(sc Context, finding core.Finding) bool {
 		if suppressionExpired(waiver.ExpiresOn, sc.Today) {
 			continue
 		}
-		return true
+		matches = append(matches, WaiverMatch{Index: idx, Waiver: waiver})
 	}
-	return false
+	return matches
 }
 
 func findingFullPath(sc Context, rel string) string {

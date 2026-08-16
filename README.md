@@ -92,6 +92,7 @@ codeguard scan -config codeguard.yaml -folder ./service/api
 codeguard scan -profile startup
 codeguard scan -folder ./service/api -profile startup
 codeguard scan-history
+codeguard waivers audit -config codeguard.yaml
 codeguard rules
 codeguard profiles
 codeguard explain security.hardcoded-credential
@@ -114,6 +115,8 @@ codeguard scan -folder ./service/api -profile startup
 ```
 
 Text output includes ANSI color and emoji markers by default. Set `NO_COLOR=1` if you want plain terminal output.
+
+Run `codeguard waivers audit -config codeguard.yaml` after upgrading CodeGuard to find waiver cleanup candidates. The audit scans with waiver instrumentation enabled and reports waivers that still match findings, are unused in the current scan, are expired, or point at unknown rules. When a previous audit snapshot exists from a different CodeGuard version, the output only marks a waiver as stale after upgrade if the same waiver matched findings before and now matches none under a comparable config and scan scope.
 
 If you want a JSON starting point instead, use [examples/codeguard.json](examples/codeguard.json).
 

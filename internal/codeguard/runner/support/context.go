@@ -21,6 +21,7 @@ type Context struct {
 	Diff        map[string]LineRanges
 	Artifacts   *ArtifactStore
 	RuleStats   *RuleStatsCollector
+	WaiverAudit *WaiverAuditCollector
 	Today       time.Time
 	RuleCatalog map[string]core.RuleMetadata
 	CustomRules []CompiledCustomRule
@@ -73,6 +74,9 @@ func NewContext(ctx context.Context, cfg core.Config, opts core.ScanOptions) (Co
 		DiffCommand:       map[string]diffCommandEnv{},
 		corpus:            newFileCorpus(),
 		cleanup:           func() {},
+	}
+	if opts.EnableWaiverAudit {
+		sc.WaiverAudit = NewWaiverAuditCollector(cfg.Waivers)
 	}
 	if strings.TrimSpace(opts.DiffText) != "" {
 		patchedCfg, diffCommand, cleanup, err := MaterializePatchedTargets(ctx, cfg, opts.DiffText)
