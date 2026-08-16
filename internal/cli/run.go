@@ -25,6 +25,7 @@ var commandCatalog = map[string]commandRunner{
 	"serve":          runServe,
 	"validate":       withoutStdin(runValidate),
 	"validate-patch": runValidatePatch,
+	"waivers":        withoutStdin(runWaivers),
 }
 
 func Run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {

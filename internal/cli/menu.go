@@ -52,6 +52,7 @@ var menuGroups = []menuGroup{
 		items: []menuItem{
 			{"rules", "List all rules and their metadata"},
 			{"explain", "Explain a rule by id"},
+			{"waivers", "Audit waiver health and cleanup candidates"},
 			{"owasp", "Show OWASP category coverage"},
 		},
 	},

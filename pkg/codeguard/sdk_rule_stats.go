@@ -12,3 +12,13 @@ func RuleStatsHistoryPath(cfg Config) string {
 func LoadRuleStatsHistory(path string) []RuleStatsHistoryEntry {
 	return runner.LoadRuleStatsHistory(path)
 }
+
+// WaiverAuditHistoryPath derives the waiver-audit history file path for a config.
+func WaiverAuditHistoryPath(cfg Config) string {
+	return runner.WaiverAuditHistoryPath(cfg)
+}
+
+// LoadWaiverAuditHistory reads persisted waiver-audit observations, oldest first.
+func LoadWaiverAuditHistory(path string) []WaiverAuditHistoryEntry {
+	return runner.LoadWaiverAuditHistory(path)
+}

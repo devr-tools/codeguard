@@ -70,6 +70,10 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 		sc.Artifacts.Put(core.NewRuleStatsArtifact(ruleStats))
 		runnersupport.RecordRuleStatsHistory(sc, ruleStats)
 	}
+	if waiverAudit := sc.WaiverAudit.Snapshot(sc.RuleCatalog, sc.Today); len(waiverAudit) > 0 {
+		waiverAudit = runnersupport.RecordWaiverAuditHistory(sc, waiverAudit)
+		sc.Artifacts.Put(core.NewWaiverAuditArtifact(waiverAudit))
+	}
 	report.Artifacts = sc.Artifacts.List()
 	report.Summary = runnersupport.SummarizeSections(report.Sections)
 	if sc.Cache != nil {

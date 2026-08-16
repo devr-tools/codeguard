@@ -37,6 +37,15 @@ func LoadRuleStatsHistory(path string) []core.RuleStatsHistoryEntry {
 	return runnersupport.LoadRuleStatsHistory(path)
 }
 
+func WaiverAuditHistoryPath(cfg core.Config) string {
+	config.ApplyDefaults(&cfg)
+	return runnersupport.WaiverAuditHistoryPathForBase(cfg.Cache.Path)
+}
+
+func LoadWaiverAuditHistory(path string) []core.WaiverAuditHistoryEntry {
+	return runnersupport.LoadWaiverAuditHistory(path)
+}
+
 func BaselineEntriesFromReport(report core.Report) []core.BaselineEntry {
 	return runnersupport.BaselineEntriesFromReport(report)
 }

@@ -14,6 +14,9 @@ type ScanOptions struct {
 	TargetPath string
 	EnableAI   bool
 	EnableFix  bool
+	// EnableWaiverAudit records which configured waivers matched findings
+	// before waiver suppression removes them from the report.
+	EnableWaiverAudit bool
 	// OnSectionComplete, when set, is invoked once per section as soon as that
 	// section finishes, enabling callers (e.g. the MCP server) to stream
 	// partial results. It is never serialized — json.Marshal errors on a

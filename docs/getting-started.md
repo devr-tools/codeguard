@@ -37,6 +37,7 @@ codeguard scan -config codeguard.yaml
 codeguard scan -config codeguard.yaml -folder ./service/api
 codeguard scan -profile startup
 codeguard scan -folder ./service/api -profile startup
+codeguard waivers audit -config codeguard.yaml
 codeguard rules
 codeguard profiles
 codeguard explain prompts.secret-interpolation
@@ -46,6 +47,8 @@ codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 `codeguard init` writes `codeguard.yaml` by default.
 
 Use `codeguard scan -folder <path>` when you want to scan only one folder. `-path <path>` is accepted as an alias. If no config file exists and you did not pass `-config`, scans use CodeGuard's built-in default config; add `-profile startup`, `-profile strict`, `-profile enterprise`, or `-profile ai-safe` to choose a default profile.
+
+After upgrading CodeGuard, run `codeguard waivers audit -config codeguard.yaml` to identify waiver cleanup candidates. CodeGuard stores audit snapshots with version, config fingerprint, scan scope, and matched finding fingerprints; it only marks a waiver as stale after upgrade when prior comparable evidence shows the waiver matched findings before and matches none now. JSON output is available with `-format json`.
 
 If you prefer a JSON example, start from [examples/codeguard.json](/Users/alex/Documents/GitHub/codeguard/examples/codeguard.json:1).
 
@@ -57,7 +60,8 @@ Use this sequence for a real repository:
 2. `codeguard validate -config codeguard.yaml`
 3. `codeguard doctor -config codeguard.yaml`
 4. `codeguard scan -mode diff -config codeguard.yaml`
-5. `codeguard baseline -config codeguard.yaml -output codeguard-baseline.json` if the repo has pre-existing debt
+5. `codeguard waivers audit -config codeguard.yaml` after CodeGuard upgrades
+6. `codeguard baseline -config codeguard.yaml -output codeguard-baseline.json` if the repo has pre-existing debt
 
 After that, add a full scan in scheduled CI and tighten check families
 incrementally. The detailed rollout guidance lives in [Production rollout](production.md).

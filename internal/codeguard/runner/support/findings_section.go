@@ -81,6 +81,7 @@ func FinalizeSection(sc Context, id string, name string, findings []core.Finding
 		if sc.Opts.Mode == core.ScanModeDiff && finding.Path != "" && !matchesDiff(sc, finding) {
 			continue
 		}
+		sc.WaiverAudit.RecordMatches(MatchingWaivers(sc, finding), finding)
 		if suppressed, reason := IsSuppressed(sc, finding); suppressed {
 			section.SuppressedCount++
 			sc.RuleStats.RecordSuppressed(finding.RuleID, reason)
