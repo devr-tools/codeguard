@@ -25,10 +25,10 @@ func initMaintainabilityHistoryRepo(t *testing.T) string {
 		partners []string
 	}{
 		{message: "fix api bug in risky flow", partners: []string{"partner_a.go", "partner_b.go", "partner_c.go", "partner_d.go"}},
-		{message: "refactor risky flow", partners: []string{"partner_a.go", "partner_b.go", "partner_c.go"}},
-		{message: "db cache update for risky flow", partners: []string{"partner_a.go", "partner_b.go", "partner_c.go"}},
-		{message: "perf speed up risky flow", partners: []string{"partner_a.go", "partner_b.go", "partner_c.go"}},
-		{message: "fix regression in risky flow", partners: []string{"partner_a.go", "partner_b.go", "partner_c.go"}},
+		{message: "refactor risky flow", partners: []string{"partner_a.go", "partner_b.go", "partner_c.go", "partner_d.go"}},
+		{message: "db cache update for risky flow", partners: []string{"partner_a.go", "partner_b.go", "partner_c.go", "partner_d.go"}},
+		{message: "perf speed up risky flow", partners: []string{"partner_a.go", "partner_b.go", "partner_c.go", "partner_d.go"}},
+		{message: "fix regression in risky flow", partners: []string{"partner_a.go", "partner_b.go", "partner_c.go", "partner_d.go"}},
 	}
 	for idx, commit := range commits {
 		writeFile(t, filepath.Join(dir, "risky.go"), maintainabilityHistorySource(idx+1, commit.message))

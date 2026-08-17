@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/devr-tools/codeguard/compare/v1.4.1...v1.5.0) (2026-08-16)
+
+
+### Features
+
+* add waiver audit cleanup command ([a1895f7](https://github.com/devr-tools/codeguard/commit/a1895f74c5a1eab87887adafed171beb8c6435e6))
+
 ## [1.4.1](https://github.com/devr-tools/codeguard/compare/v1.4.0...v1.4.1) (2026-08-11)
 
 
