@@ -45,6 +45,9 @@ func TestCheckSyntaxRebuildsSafeArgumentsAndNeverRunsDatabaseCompiler(t *testing
 		t.Skip("shell fixture")
 	}
 	root := t.TempDir()
+	previous := trust.Current()
+	trust.Set(trust.Policy{AllowConfigCommands: true})
+	t.Cleanup(func() { trust.Set(previous) })
 	bin := t.TempDir()
 	argsFile := filepath.Join(root, "args.txt")
 	pwned := filepath.Join(root, "pwned")
@@ -72,6 +75,17 @@ func TestCheckSyntaxRebuildsSafeArgumentsAndNeverRunsDatabaseCompiler(t *testing
 	text := string(args)
 	assertCPPToolArguments(t, root, text)
 	assertCPPToolArgumentsExcluded(t, text)
+}
+
+func TestCheckSyntaxRequiresConfigCommandTrustForBuiltInCompiler(t *testing.T) {
+	previous := trust.Current()
+	trust.Set(trust.Policy{})
+	t.Cleanup(func() { trust.Set(previous) })
+
+	_, err := cpptooling.CheckSyntax(context.Background(), t.TempDir(), core.CPPToolingConfig{})
+	if err == nil || !strings.Contains(err.Error(), "quality_rules.cpp_tooling.compiler_mode: refusing to run config-supplied command \"clang++\"") {
+		t.Fatalf("error = %v", err)
+	}
 }
 
 func assertCPPToolArguments(t *testing.T, root, arguments string) {

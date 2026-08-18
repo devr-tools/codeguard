@@ -16,7 +16,7 @@ process environment or a CLI flag — never from the repo config itself):
 
 | Capability | Default | Opt-in env | Opt-in flag |
 | --- | --- | --- | --- |
-| Run commands defined in config (`*_rules.language_commands`, `license_commands`, `ai.autofix.test_commands`, the `command` AI provider, nlrule/semantic command runtimes) | refused | `CODEGUARD_ALLOW_CONFIG_COMMANDS=1` | `--allow-config-commands` |
+| Run commands defined or enabled in config (`*_rules.language_commands`, `license_commands`, C++ compiler validation, `ai.autofix.test_commands`, the `command` AI provider, nlrule/semantic command runtimes) | refused | `CODEGUARD_ALLOW_CONFIG_COMMANDS=1` | `--allow-config-commands` |
 | Use an AI provider `baseURL` outside the built-in allowlist, and reach non-public addresses | refused | `CODEGUARD_ALLOW_CONFIG_AI_ENDPOINTS=1` | `--allow-config-ai-endpoints` |
 
 For a repository you control end-to-end, enable the capabilities you need:
