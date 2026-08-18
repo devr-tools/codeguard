@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/cachefile"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -87,6 +88,12 @@ func containConfigArtifactPaths(cfg *core.Config, baseDir string) error {
 			return fmt.Errorf("%s: %w", a.label, err)
 		}
 		*a.path = resolved
+	}
+	// History files are separate write targets and must be checked independently:
+	// validating the cache path does not detect a symlink at a derived filename.
+	legibilityHistoryPath := cachefile.DerivedPath(cfg.Cache.Path, ".legibility-history")
+	if _, err := containedPath(baseDir, legibilityHistoryPath); err != nil {
+		return fmt.Errorf("context_rules.legibility_history: %w", err)
 	}
 	for i := range cfg.ExternalReports {
 		resolved, err := containedPath(baseDir, cfg.ExternalReports[i].Path)

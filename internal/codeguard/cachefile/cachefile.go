@@ -65,3 +65,17 @@ func LoadEntries[V any](path string, version int) map[string]V {
 func WriteEntries[V any](path string, version int, entries map[string]V) error {
 	return Write(path, entriesEnvelope[V]{Version: version, Entries: entries})
 }
+
+// DerivedPath returns the path for a cache-adjacent artifact identified by
+// suffix, preserving the base cache's extension.
+func DerivedPath(base, suffix string) string {
+	trimmed := strings.TrimSpace(base)
+	if trimmed == "" {
+		return ""
+	}
+	ext := filepath.Ext(trimmed)
+	if ext == "" {
+		return trimmed + suffix
+	}
+	return strings.TrimSuffix(trimmed, ext) + suffix + ext
+}
