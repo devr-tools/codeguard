@@ -258,3 +258,13 @@ func shouldSearchDefaultConfigs(path string) bool {
 
 func findConfigInDirs(dirs []string, names []string) (string, bool) {
 	for _, dir := range dirs {
+		for _, name := range names {
+			candidate := filepath.Join(dir, name)
+			info, err := os.Stat(candidate)
+			if err == nil && !info.IsDir() {
+				return candidate, true
+			}
+		}
+	}
+	return "", false
+}
