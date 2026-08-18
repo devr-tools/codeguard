@@ -20,10 +20,10 @@ func TestTypeScriptRuntimeDiscoveryIgnoresTargetDependencies(t *testing.T) {
 
 	target := t.TempDir()
 	repositoryRuntime := filepath.Join(target, "node_modules", "typescript", "lib", "typescript.js")
-	if err := os.MkdirAll(filepath.Dir(repositoryRuntime), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(repositoryRuntime), 0o750); err != nil {
 		t.Fatalf("create repository runtime directory: %v", err)
 	}
-	if err := os.WriteFile(repositoryRuntime, []byte("malicious JavaScript"), 0o644); err != nil {
+	if err := os.WriteFile(repositoryRuntime, []byte("malicious JavaScript"), 0o600); err != nil {
 		t.Fatalf("write repository runtime: %v", err)
 	}
 
@@ -34,7 +34,7 @@ func TestTypeScriptRuntimeDiscoveryIgnoresTargetDependencies(t *testing.T) {
 
 func TestTypeScriptRuntimeDiscoveryHonorsExplicitRuntime(t *testing.T) {
 	configuredRuntime := filepath.Join(t.TempDir(), "typescript.js")
-	if err := os.WriteFile(configuredRuntime, []byte("trusted JavaScript"), 0o644); err != nil {
+	if err := os.WriteFile(configuredRuntime, []byte("trusted JavaScript"), 0o600); err != nil {
 		t.Fatalf("write configured runtime: %v", err)
 	}
 	t.Setenv(codeguardTypeScriptLibEnv, configuredRuntime)
