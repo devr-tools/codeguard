@@ -1,8 +1,10 @@
 package externalreports
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -29,6 +31,27 @@ func TestImportSARIFCodeQL(t *testing.T) {
 	}
 	if finding.Metadata["external_rule_id"] != "go/sql-injection" {
 		t.Fatalf("missing source rule metadata: %#v", finding.Metadata)
+	}
+}
+
+func TestImportSARIFDoesNotRetainScannerNarrative(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "secret.sarif")
+	data := `{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"Scanner","rules":[{"id":"hardcoded-secret","shortDescription":{"text":"description CG_SECRET_DESCRIPTION"},"help":{"text":"help CG_SECRET_HELP"}}]}},"results":[{"ruleId":"hardcoded-secret","level":"error","message":{"text":"match CG_SECRET_MESSAGE"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"config.go"},"region":{"startLine":12}}}]}]}]}`
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	sections, err := Import([]core.ExternalReportConfig{{Path: path, Format: "sarif"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(sections)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "CG_SECRET_") {
+		t.Fatalf("scanner narrative was retained: %s", encoded)
 	}
 }
 
