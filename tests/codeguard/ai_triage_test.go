@@ -54,8 +54,8 @@ func TestHybridTriageOpenAIWrappedVerdicts(t *testing.T) {
 		wrap        func(string) string
 		wantDismiss bool
 	}{
-		{name: "fenced JSON", wrap: func(text string) string { return "```json\n" + text + "\n```" }, wantDismiss: true},
-		{name: "prose wrapped JSON", wrap: func(text string) string { return "Here are the verdicts:\n" + text + "\nI kept the response concise." }, wantDismiss: true},
+		{name: "fenced JSON", wrap: func(text string) string { return "```json\n" + text + "\n```" }, wantDismiss: false},
+		{name: "prose wrapped JSON", wrap: func(text string) string { return "Here are the verdicts:\n" + text + "\nI kept the response concise." }, wantDismiss: false},
 		{name: "invalid body", wrap: func(string) string { return "not JSON" }},
 		{name: "empty body", wrap: func(string) string { return "   " }},
 	}

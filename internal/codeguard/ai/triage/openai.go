@@ -81,52 +81,7 @@ func parseVerdictText(text string) (map[string]providerVerdict, error) {
 }
 
 func unmarshalVerdictPayload(text string, payload *openAIVerdictPayload) error {
-	if err := json.Unmarshal([]byte(text), payload); err == nil {
-		return nil
-	}
-
-	trimmed := strings.TrimSpace(text)
-	if trimmed != text {
-		if err := json.Unmarshal([]byte(trimmed), payload); err == nil {
-			return nil
-		}
-	}
-
-	if body, ok := fencedVerdictBody(trimmed); ok {
-		if err := json.Unmarshal([]byte(body), payload); err == nil {
-			return nil
-		}
-		trimmed = body
-	}
-
-	if object, ok := wrappedVerdictObject(trimmed); ok {
-		if err := json.Unmarshal([]byte(object), payload); err == nil {
-			return nil
-		}
-	}
-
-	return json.Unmarshal([]byte(trimmed), payload)
-}
-
-func fencedVerdictBody(text string) (string, bool) {
-	if !strings.HasPrefix(text, "```") || !strings.HasSuffix(text, "```") {
-		return "", false
-	}
-	openingEnd := strings.IndexByte(text, '\n')
-	if openingEnd < 0 {
-		return "", false
-	}
-	body := strings.TrimSpace(text[openingEnd+1 : len(text)-3])
-	return body, true
-}
-
-func wrappedVerdictObject(text string) (string, bool) {
-	start := strings.IndexByte(text, '{')
-	end := strings.LastIndexByte(text, '}')
-	if start < 0 || end < start || (start == 0 && end == len(text)-1) {
-		return "", false
-	}
-	return text[start : end+1], true
+	return json.Unmarshal([]byte(text), payload)
 }
 
 func buildPrompt(candidates []candidate) (string, error) {
