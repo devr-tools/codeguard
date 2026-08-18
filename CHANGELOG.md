@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/devr-tools/codeguard/compare/v1.5.0...v1.5.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **ai:** accept fenced JSON in triage verdicts ([93325b6](https://github.com/devr-tools/codeguard/commit/93325b6063e4eee0a13f6eb62e4e86e1aadb8cfa))
+* **ai:** accept fenced JSON in triage verdicts ([#98](https://github.com/devr-tools/codeguard/issues/98)) ([8d8e31e](https://github.com/devr-tools/codeguard/commit/8d8e31e442f0a05cbf117de3161b0d8943886e16))
+
 ## [1.5.0](https://github.com/devr-tools/codeguard/compare/v1.4.1...v1.5.0) (2026-08-16)
 
 
