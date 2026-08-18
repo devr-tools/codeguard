@@ -2,6 +2,7 @@ package security
 
 import (
 	"regexp"
+	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -17,8 +18,6 @@ var (
 
 func appendCPPLineFindings(env support.Context, file string, lineNo int, line string) []core.Finding {
 	switch {
-	case cppCurlTLSPattern.MatchString(line), cppOpenSSLTLSPattern.MatchString(line), cppVerifyNonePattern.MatchString(line):
-		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.cpp.insecure-tls", Level: "fail", Path: file, Line: lineNo, Column: 1, Message: "C++ TLS certificate or hostname verification is disabled"})}
 	case cppShellPattern.MatchString(line):
 		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.cpp.shell-execution", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "C++ shell execution primitive should be reviewed"})}
 	case cppUnsafeCAPIPattern.MatchString(line):
@@ -26,6 +25,17 @@ func appendCPPLineFindings(env support.Context, file string, lineNo int, line st
 	default:
 		return nil
 	}
+}
+
+func appendCPPFileFindings(env support.Context, file string, source string) []core.Finding {
+	findings := make([]core.Finding, 0)
+	for _, pattern := range []*regexp.Regexp{cppCurlTLSPattern, cppOpenSSLTLSPattern, cppVerifyNonePattern} {
+		for _, match := range pattern.FindAllStringIndex(source, -1) {
+			lineNo := strings.Count(source[:match[0]], "\n") + 1
+			findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.cpp.insecure-tls", Level: "fail", Path: file, Line: lineNo, Column: 1, Message: "C++ TLS certificate or hostname verification is disabled"}))
+		}
+	}
+	return findings
 }
 
 func isCPPFile(path string) bool {

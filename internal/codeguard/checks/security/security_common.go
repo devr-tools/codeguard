@@ -49,6 +49,9 @@ func findingsForFile(env support.Context, file string, data []byte) []core.Findi
 		findings = append(findings, appendLanguageLineFindings(env, file, lineNo, line, maskedLines[idx])...)
 		findings = append(findings, appendOWASPExtraLineFindings(env, file, lineNo, line, maskedLines[idx])...)
 	}
+	if isCPPFile(file) {
+		findings = append(findings, appendCPPFileFindings(env, file, strings.Join(maskedLines, "\n"))...)
+	}
 	if isTypeScriptFile(file) {
 		findings = append(findings, typeScriptFindingsForFile(env, file, source)...)
 	}
