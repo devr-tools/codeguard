@@ -898,11 +898,15 @@ type identifierAtLine struct {
 func identifiersInSource(source string) []identifierAtLine {
 	matches := identifierTokenPattern.FindAllStringIndex(source, -1)
 	out := make([]identifierAtLine, 0, len(matches))
+	line := 1
+	previousMatchStart := 0
 	for _, match := range matches {
+		line += strings.Count(source[previousMatchStart:match[0]], "\n")
 		out = append(out, identifierAtLine{
 			name: source[match[0]:match[1]],
-			line: 1 + strings.Count(source[:match[0]], "\n"),
+			line: line,
 		})
+		previousMatchStart = match[0]
 	}
 	return out
 }
