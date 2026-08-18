@@ -88,6 +88,16 @@ const cloneWindowMultiplier uint64 = 6364136223846793005
 // candidates are identical to the old per-window byte hashing.
 func cloneWindowIndex(docs []cloneDocument, threshold int) cloneIndex {
 	index := make(cloneIndex)
+	hasWindow := false
+	for _, doc := range docs {
+		if len(doc.Tokens) >= threshold {
+			hasWindow = true
+			break
+		}
+	}
+	if !hasWindow {
+		return index
+	}
 	// top = multiplier^(threshold-1), the weight of the token leaving the
 	// window on each slide.
 	top := uint64(1)
