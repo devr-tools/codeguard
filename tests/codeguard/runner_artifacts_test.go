@@ -12,6 +12,9 @@ import (
 )
 
 func TestRunPublishesPythonDependencyGraphArtifact(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("OPENAI_API_KEY", "")
+
 	root := t.TempDir()
 	writeArtifactFile(t, filepath.Join(root, "main.py"), "from app import service\n")
 	writeArtifactFile(t, filepath.Join(root, "app", "__init__.py"), "")

@@ -21,11 +21,36 @@ type runtimeConfig struct {
 	MockSummary    string
 }
 
+const (
+	// Non-streaming reasoning requests do not return headers until generation
+	// completes. Give every request a realistic base budget, then add time for
+	// each verdict the provider must generate while bounding the total cost.
+	triageTimeoutBase         = 60 * time.Second
+	triageTimeoutPerCandidate = 3 * time.Second
+	triageTimeoutCap          = 180 * time.Second
+)
+
+// EffectiveTimeout resolves an explicit timeout or derives a bounded timeout
+// from the number of candidates sent in one provider request.
+func EffectiveTimeout(candidateCount int, explicit time.Duration) time.Duration {
+	if explicit > 0 {
+		return explicit
+	}
+	if candidateCount < 1 {
+		candidateCount = 1
+	}
+	timeout := triageTimeoutBase + time.Duration(candidateCount-1)*triageTimeoutPerCandidate
+	if timeout > triageTimeoutCap {
+		return triageTimeoutCap
+	}
+	return timeout
+}
+
 func discoverRuntime(cfg core.AIConfig, opts core.ScanOptions) runtimeConfig {
 	if !aiEnabled(cfg, opts) || (cfg.HybridTriage.Enabled != nil && !*cfg.HybridTriage.Enabled) {
 		return runtimeConfig{}
 	}
-	timeout := 20 * time.Second
+	var timeout time.Duration
 	if raw := strings.TrimSpace(os.Getenv("CODEGUARD_AI_TRIAGE_TIMEOUT")); raw != "" {
 		if parsed, err := time.ParseDuration(raw); err == nil && parsed > 0 {
 			timeout = parsed

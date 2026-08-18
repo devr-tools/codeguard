@@ -5,8 +5,10 @@ package httpretry
 
 import (
 	"context"
+	"errors"
 	"io"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -94,6 +96,9 @@ func Do(ctx context.Context, client *http.Client, cfg Config, build func() (*htt
 		if err == nil && !retryableStatus(resp.StatusCode) {
 			return resp, nil
 		}
+		if isTimeout(err) {
+			return nil, err
+		}
 		if attempt >= cfg.MaxRetries {
 			// Out of retries: surface the final outcome unchanged.
 			return resp, err
@@ -115,6 +120,17 @@ func Do(ctx context.Context, client *http.Client, cfg Config, build func() (*htt
 			return nil, waitErr
 		}
 	}
+}
+
+func isTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 func retryableStatus(status int) bool {

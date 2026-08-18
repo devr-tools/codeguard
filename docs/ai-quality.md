@@ -64,7 +64,7 @@ Hybrid triage is environment-driven so it does not add new CLI flags or shared c
 - `CODEGUARD_AI_TRIAGE_MODEL=<model-name>` (defaults to `claude-sonnet-4-6` for `anthropic`)
 - `CODEGUARD_AI_TRIAGE_BASE_URL=<optional provider base URL>`
 - `CODEGUARD_AI_TRIAGE_API_KEY=<optional credential>` (for `anthropic`, falls back to `ANTHROPIC_API_KEY`)
-- `CODEGUARD_AI_TRIAGE_TIMEOUT=20s`
+- `CODEGUARD_AI_TRIAGE_TIMEOUT=<duration>` (optional absolute override; otherwise each request gets 60s plus 3s per additional candidate, capped at 180s)
 
 When enabled, `codeguard` packages each active finding with rule metadata and a local source excerpt, asks the provider to return `keep` or `dismiss`, and emits an `ai_analysis` artifact in `triage` mode with the resulting verdicts. The response contract accepts raw JSON as well as JSON wrapped in a markdown fence or surrounding prose; invalid or empty responses remain provider errors.
 
@@ -77,7 +77,7 @@ All HTTP providers (OpenAI-compatible and Anthropic, in triage and the shared ru
 - `CODEGUARD_AI_MAX_RETRIES=3` — retries after the first failed attempt
 - `CODEGUARD_AI_RETRY_BASE_DELAY=250ms` — first backoff delay; subsequent delays double up to an 8s cap
 - `CODEGUARD_AI_TIMEOUT=30s` — per-request timeout for the shared AI runtime providers
-- `CODEGUARD_AI_TRIAGE_TIMEOUT=20s` — per-request timeout for triage providers
+- `CODEGUARD_AI_TRIAGE_TIMEOUT=<duration>` — absolute per-provider-request override; when unset, the timeout is 60s plus 3s per additional candidate, capped at 180s (one scan may make multiple requests in future chunked implementations)
 
 ## Current scope
 

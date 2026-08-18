@@ -214,6 +214,33 @@ func TestHybridTriageAnthropicProviderRetriesRateLimit(t *testing.T) {
 	}
 }
 
+func TestHybridTriageAnthropicReportsTruncatedResponse(t *testing.T) {
+	root := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"stop_reason":"max_tokens","content":[{"type":"text","text":"{\"verdicts\":["}]}`))
+	}))
+	defer server.Close()
+
+	t.Setenv("CODEGUARD_AI_TRIAGE_PROVIDER", "anthropic")
+	t.Setenv("CODEGUARD_AI_TRIAGE_MODEL", "claude-sonnet-4-6")
+	t.Setenv("CODEGUARD_AI_TRIAGE_BASE_URL", server.URL)
+	t.Setenv("CODEGUARD_AI_TRIAGE_API_KEY", "triage-key")
+
+	report, err := codeguard.Run(context.Background(), triageFixtureConfig(t, root))
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	artifact := findAIAnalysisArtifact(report)
+	if artifact == nil || artifact.AIAnalysis == nil || len(artifact.AIAnalysis.Verdicts) != 1 {
+		t.Fatalf("expected one provider error verdict, got %#v", artifact)
+	}
+	summary := artifact.AIAnalysis.Verdicts[0].Summary
+	if !strings.Contains(summary, "response truncated at max_tokens") || strings.Contains(summary, "invalid JSON") {
+		t.Fatalf("expected explicit truncation error, got %q", summary)
+	}
+}
+
 func TestHybridTriageProviderFailureKeepsFindings(t *testing.T) {
 	root := t.TempDir()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

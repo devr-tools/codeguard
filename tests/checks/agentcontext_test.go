@@ -232,6 +232,9 @@ func TestAgentContextSkippedInDiffScansByDefault(t *testing.T) {
 }
 
 func TestAgentContextSectionCanBeDisabled(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("OPENAI_API_KEY", "")
+
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "main.go"), "package main\n\nfunc main() {}\n")
 

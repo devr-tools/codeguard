@@ -4,13 +4,19 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/internal/cli"
+	"github.com/devr-tools/codeguard/internal/version"
 )
 
 func TestRunVersion(t *testing.T) {
+	originalVersion := version.Number
+	version.Number = version.Resolve("0.1.0", &debug.BuildInfo{Main: debug.Module{Version: "v1.5.1"}})
+	t.Cleanup(func() { version.Number = originalVersion })
+
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
@@ -20,6 +26,9 @@ func TestRunVersion(t *testing.T) {
 	}
 	if strings.TrimSpace(stdout.String()) == "" {
 		t.Fatal("expected version output")
+	}
+	if got := strings.TrimSpace(stdout.String()); got == "0.1.0" || got != "v1.5.1" {
+		t.Fatalf("version output = %q, resolved package version = %q", got, version.Number)
 	}
 }
 

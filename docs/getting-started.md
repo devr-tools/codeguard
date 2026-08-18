@@ -14,6 +14,11 @@ Or from this repository:
 make build
 ```
 
+`codeguard version` reports the embedded module version for binaries installed
+with `go install module@version`. Local source builds report
+`0.1.0-dev+<revision>` (with a `.dirty` marker for modified worktrees) when Go
+embeds VCS metadata.
+
 Or in GitHub Actions from GitHub Marketplace:
 
 ```yaml
