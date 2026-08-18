@@ -30,10 +30,18 @@ func LoadDiffScope(ctx context.Context, targets []core.TargetConfig, baseRef str
 			return nil, err
 		}
 		for path, ranges := range scope {
-			out[path] = ranges
+			out[path] = mergeLineRanges(out[path], ranges)
 		}
 	}
 	return out, nil
+}
+
+func mergeLineRanges(left LineRanges, right LineRanges) LineRanges {
+	if left.allChanged || right.allChanged {
+		return LineRanges{allChanged: true}
+	}
+	left.ranges = append(left.ranges, right.ranges...)
+	return left
 }
 
 func gitChangedLines(ctx context.Context, dir string, baseRef string) (map[string]LineRanges, error) {

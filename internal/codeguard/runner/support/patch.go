@@ -16,7 +16,7 @@ func LoadDiffScopeFromUnifiedDiff(ctx context.Context, targets []core.TargetConf
 	for _, target := range targets {
 		scope := parseUnifiedDiff(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(ctx, target.Path)))
 		for path, ranges := range scope {
-			out[path] = ranges
+			out[path] = mergeLineRanges(out[path], ranges)
 		}
 	}
 	return out
