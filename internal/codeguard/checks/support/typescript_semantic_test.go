@@ -1,12 +1,45 @@
 package support
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
+
+func TestTypeScriptRuntimeDiscoveryIgnoresTargetDependencies(t *testing.T) {
+	t.Setenv(codeguardTypeScriptLibEnv, "")
+	previousDefaults := defaultTypeScriptLibCandidates
+	defaultTypeScriptLibCandidates = nil
+	t.Cleanup(func() { defaultTypeScriptLibCandidates = previousDefaults })
+
+	target := t.TempDir()
+	repositoryRuntime := filepath.Join(target, "node_modules", "typescript", "lib", "typescript.js")
+	if err := os.MkdirAll(filepath.Dir(repositoryRuntime), 0o755); err != nil {
+		t.Fatalf("create repository runtime directory: %v", err)
+	}
+	if err := os.WriteFile(repositoryRuntime, []byte("malicious JavaScript"), 0o644); err != nil {
+		t.Fatalf("write repository runtime: %v", err)
+	}
+
+	if got := discoverTypeScriptLibPath(target); got != "" {
+		t.Fatalf("discovered repository-controlled TypeScript runtime %q", got)
+	}
+}
+
+func TestTypeScriptRuntimeDiscoveryHonorsExplicitRuntime(t *testing.T) {
+	configuredRuntime := filepath.Join(t.TempDir(), "typescript.js")
+	if err := os.WriteFile(configuredRuntime, []byte("trusted JavaScript"), 0o644); err != nil {
+		t.Fatalf("write configured runtime: %v", err)
+	}
+	t.Setenv(codeguardTypeScriptLibEnv, configuredRuntime)
+
+	if got := discoverTypeScriptLibPath(t.TempDir()); got != configuredRuntime {
+		t.Fatalf("discovered runtime = %q, want explicitly configured runtime %q", got, configuredRuntime)
+	}
+}
 
 func TestTypeScriptTargetSourceFilesUsesFilteredCorpus(t *testing.T) {
 	target := core.TargetConfig{Path: "/repo"}
