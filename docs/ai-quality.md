@@ -66,7 +66,7 @@ Hybrid triage is environment-driven so it does not add new CLI flags or shared c
 - `CODEGUARD_AI_TRIAGE_API_KEY=<optional credential>` (for `anthropic`, falls back to `ANTHROPIC_API_KEY`)
 - `CODEGUARD_AI_TRIAGE_TIMEOUT=20s`
 
-When enabled, `codeguard` packages each active finding with rule metadata and a local source excerpt, asks the provider to return `keep` or `dismiss`, and emits an `ai_analysis` artifact in `triage` mode with the resulting verdicts.
+When enabled, `codeguard` packages each active finding with rule metadata and a local source excerpt, asks the provider to return `keep` or `dismiss`, and emits an `ai_analysis` artifact in `triage` mode with the resulting verdicts. The response contract accepts raw JSON as well as JSON wrapped in a markdown fence or surrounding prose; invalid or empty responses remain provider errors.
 
 The `anthropic` provider posts to the Anthropic Messages API (`POST {base_url}/messages` with `x-api-key` and `anthropic-version: 2023-06-01` headers). The same provider is available to the shared AI runtime (auto-fix and natural-language rules) through `ai.provider.type: "anthropic"` in config; `ai.provider.api_key_env` defaults to `ANTHROPIC_API_KEY` and `ai.provider.model` defaults to `claude-sonnet-4-6`.
 
