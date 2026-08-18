@@ -101,6 +101,9 @@ func TestHybridTriageOpenAIWrappedVerdicts(t *testing.T) {
 }
 
 func TestHybridTriageStaysOfflineWithoutProvider(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("OPENAI_API_KEY", "")
+
 	root := t.TempDir()
 	writeArtifactFile(t, filepath.Join(root, "service.go"), `package sample
 
