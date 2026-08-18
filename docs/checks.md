@@ -408,7 +408,7 @@ Current inference behavior:
 
 TypeScript semantic runtime:
 - native TypeScript and JavaScript built-ins use the TypeScript compiler API when `typescript.js` is available
-- discovery order is `CODEGUARD_TYPESCRIPT_LIB_PATH`, then `node_modules/typescript/lib/typescript.js` from the target path upward, then the bundled VS Code TypeScript runtime
+- discovery uses an explicitly trusted `CODEGUARD_TYPESCRIPT_LIB_PATH`, then the bundled VS Code TypeScript runtime; repository-local `node_modules` runtimes are never executed automatically
 - if no runtime is available, codeguard falls back to the lightweight parser-based checks for TypeScript and JavaScript
 
 Tree-sitter parsing (opt-in):
