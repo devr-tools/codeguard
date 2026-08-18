@@ -50,6 +50,13 @@ func CheckFormat(ctx context.Context, root string, cfg core.CPPToolingConfig, fi
 }
 
 func CheckSyntax(ctx context.Context, root string, cfg core.CPPToolingConfig) ([]Issue, error) {
+	compiler := strings.TrimSpace(cfg.CompilerCommand)
+	if compiler == "" {
+		compiler = defaultCompiler
+	}
+	if err := trust.GuardConfigCommand("quality_rules.cpp_tooling.compiler_mode", compiler); err != nil {
+		return nil, err
+	}
 	command, err := resolveCommand(root, cfg.CompilerCommand, defaultCompiler, "quality_rules.cpp_tooling.compiler_command")
 	if err != nil {
 		return nil, err
