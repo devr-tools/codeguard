@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
@@ -54,7 +53,7 @@ func loadScanConfigWithFallback(path string, profile string, defaultConfigReques
 	if err == nil {
 		return applyProfileOverride(cfg, profile)
 	}
-	if !defaultConfigRequested || !errors.Is(err, os.ErrNotExist) {
+	if !defaultConfigRequested || !errors.Is(err, service.ErrConfigNotFound) {
 		return service.Config{}, err
 	}
 

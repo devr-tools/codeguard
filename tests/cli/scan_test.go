@@ -235,6 +235,34 @@ func TestRunScanFolderWithExplicitMissingConfigStillFails(t *testing.T) {
 	}
 }
 
+func TestRunScanFolderWithMissingDesignRulesDoesNotFallBack(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	dir := t.TempDir()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir tempdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	writeScanTestFile(t, filepath.Join(dir, "codeguard.yml"), `
+name: repository-policy
+checks:
+  design_rules_file: .codeguard/missing-design-rules.yml
+`)
+	writeScanTestFile(t, filepath.Join(dir, "sub", "main.go"), "package main\n")
+
+	var stdout, stderr bytes.Buffer
+	code := cli.Run([]string{"scan", "-folder", "sub"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d; stdout = %s", code, stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "checks.design_rules_file") {
+		t.Fatalf("expected missing design rules error, got %s", stderr.String())
+	}
+}
+
 func writeScanTestFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
