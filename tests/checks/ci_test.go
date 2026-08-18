@@ -111,11 +111,26 @@ func TestCIMutableDeploymentReference(t *testing.T) {
 	assertFindingRulePresent(t, report, "CI/CD", "ci.mutable-deployment-reference")
 }
 
-func TestCIMutableDeploymentReferenceAllowsVersionedRefs(t *testing.T) {
+func TestCIMutableDeploymentReferenceRejectsVersionedRefs(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, ".github", "workflows", "deploy.yml"), "name: deploy\njobs:\n  prod:\n    steps:\n      - uses: actions/checkout@v4\n      - run: docker run ghcr.io/acme/service:v1.2.3\n")
 
 	cfg := ciSafetyTestConfig(dir, "ci-pinned-ref")
+	cfg.Checks.CIRules.RequiredWorkflowFiles = []string{".github/workflows/deploy.yml"}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "CI/CD", "ci.mutable-deployment-reference")
+}
+
+func TestCIMutableDeploymentReferenceAllowsCommitSHA(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "deploy.yml"), "name: deploy\njobs:\n  prod:\n    steps:\n      - uses: actions/checkout@8f3c2b1a4d5e6f7890abc1234567890abc123456\n")
+
+	cfg := ciSafetyTestConfig(dir, "ci-immutable-ref")
 	cfg.Checks.CIRules.RequiredWorkflowFiles = []string{".github/workflows/deploy.yml"}
 
 	report, err := codeguard.Run(context.Background(), cfg)
