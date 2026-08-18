@@ -281,17 +281,17 @@ func clikeStructuralClasses(source string, masked string) []structuralClass {
 
 func clikeClassFields(body string) []string {
 	fields := make([]string, 0)
+	depth := 0
 	for _, line := range strings.Split(body, "\n") {
-		if braceDepthBeforeLine(body, line) > 0 {
-			continue
+		if depth == 0 {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" && !strings.Contains(trimmed, "(") && !strings.HasSuffix(trimmed, ":") {
+				if match := clikeFieldLinePattern.FindStringSubmatch(line); match != nil && !isCLikeAccessLabel(match[1]) {
+					fields = append(fields, match[1])
+				}
+			}
 		}
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.Contains(trimmed, "(") || strings.HasSuffix(trimmed, ":") {
-			continue
-		}
-		if match := clikeFieldLinePattern.FindStringSubmatch(line); match != nil && !isCLikeAccessLabel(match[1]) {
-			fields = append(fields, match[1])
-		}
+		depth = advanceBraceDepth(line, depth)
 	}
 	return fields
 }
@@ -299,13 +299,15 @@ func clikeClassFields(body string) []string {
 func clikeClassMethods(sourceBody string, maskedBody string, classStartLine int, owner string) []structuralFunction {
 	methods := make([]structuralFunction, 0)
 	offset := 0
+	depth := 0
+	lineNumber := classStartLine
 	for offset < len(maskedBody) {
 		lineEnd := strings.IndexByte(maskedBody[offset:], '\n')
 		if lineEnd < 0 {
 			lineEnd = len(maskedBody) - offset
 		}
 		line := maskedBody[offset : offset+lineEnd]
-		if braceDepthAtOffset(maskedBody, offset) == 0 {
+		if depth == 0 {
 			if match := clikeMethodLinePattern.FindStringSubmatchIndex(line); match != nil {
 				openInLine := strings.LastIndexByte(line[:match[1]], '{')
 				if openInLine >= 0 {
@@ -315,22 +317,42 @@ func clikeClassMethods(sourceBody string, maskedBody string, classStartLine int,
 						params := simpleParams(line[match[4]:match[5]], "clike")
 						methods = append(methods, structuralFunction{
 							Name:      line[match[2]:match[3]],
-							StartLine: classStartLine + strings.Count(maskedBody[:offset], "\n"),
-							EndLine:   classStartLine + strings.Count(maskedBody[:bodyEnd], "\n"),
+							StartLine: lineNumber,
+							EndLine:   lineNumber + strings.Count(maskedBody[offset:bodyEnd], "\n"),
 							Owner:     owner,
 							Receiver:  "this",
 							Params:    params,
 							Body:      sourceBody[bodyOpen+1 : bodyEnd],
 						})
-						offset = bodyEnd + 1
+						nextOffset := bodyEnd + 1
+						lineNumber += strings.Count(maskedBody[offset:nextOffset], "\n")
+						offset = nextOffset
 						continue
 					}
 				}
 			}
 		}
+		depth = advanceBraceDepth(line, depth)
 		offset += lineEnd + 1
+		if offset <= len(maskedBody) {
+			lineNumber++
+		}
 	}
 	return methods
+}
+
+func advanceBraceDepth(text string, depth int) int {
+	for idx := 0; idx < len(text); idx++ {
+		switch text[idx] {
+		case '{':
+			depth++
+		case '}':
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+	return depth
 }
 
 func godObjectFindings(env support.Context, file string, classes []structuralClass) []core.Finding {
@@ -808,29 +830,6 @@ func matchBraceLocal(text string, open int) int {
 		}
 	}
 	return -1
-}
-
-func braceDepthAtOffset(text string, offset int) int {
-	depth := 0
-	for idx := 0; idx < offset && idx < len(text); idx++ {
-		switch text[idx] {
-		case '{':
-			depth++
-		case '}':
-			if depth > 0 {
-				depth--
-			}
-		}
-	}
-	return depth
-}
-
-func braceDepthBeforeLine(body string, line string) int {
-	idx := strings.Index(body, line)
-	if idx < 0 {
-		return 0
-	}
-	return braceDepthAtOffset(body, idx)
 }
 
 func isCLikeAccessLabel(name string) bool {
