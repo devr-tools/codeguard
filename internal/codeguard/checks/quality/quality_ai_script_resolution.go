@@ -31,7 +31,7 @@ func newScriptImportCatalog(env support.Context, target core.TargetConfig, rootM
 		deps:             packageManifestDeps(rootManifest),
 		workspacePackage: map[string]struct{}{},
 		packageManifests: map[string]packageManifest{},
-		lockPackages:     readPNPMLockPackages(target.Path),
+		lockPackages:     readPNPMLockPackages(env, target),
 	}
 	if _, ok := readPackageManifest(target.Path); ok {
 		catalog.hasManifest = true
@@ -77,8 +77,17 @@ func newScriptImportCatalog(env support.Context, target core.TargetConfig, rootM
 // depending on a YAML parser. Both the current name@version format and the
 // older /name/version format are supported. A lockfile is installation
 // evidence, so it is a useful fallback when node_modules is absent in CI.
-func readPNPMLockPackages(root string) map[string]struct{} {
-	data, err := os.ReadFile(filepath.Join(root, "pnpm-lock.yaml")) //nolint:gosec // fixed filename under scan target
+func readPNPMLockPackages(env support.Context, target core.TargetConfig) map[string]struct{} {
+	const lockfile = "pnpm-lock.yaml"
+	files := listAITargetFiles(env, target, func(rel string) bool { return rel == lockfile })
+	if len(files) == 0 {
+		return map[string]struct{}{}
+	}
+	info, err := os.Lstat(filepath.Join(target.Path, lockfile)) //nolint:gosec // fixed filename under scan target
+	if err != nil || !info.Mode().IsRegular() {
+		return map[string]struct{}{}
+	}
+	data, err := readAITargetFile(env, target, lockfile)
 	if err != nil {
 		return map[string]struct{}{}
 	}
