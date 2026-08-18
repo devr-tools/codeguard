@@ -93,26 +93,15 @@ type sarifLog struct {
 type sarifRun struct {
 	Tool struct {
 		Driver struct {
-			Name  string                `json:"name"`
-			Rules []sarifRuleDefinition `json:"rules"`
+			Name string `json:"name"`
 		} `json:"driver"`
 	} `json:"tool"`
 	Results []sarifResult `json:"results"`
 }
-type sarifRuleDefinition struct {
-	ID               string       `json:"id"`
-	ShortDescription sarifMessage `json:"shortDescription"`
-	Help             sarifMessage `json:"help"`
-}
 type sarifResult struct {
 	RuleID    string          `json:"ruleId"`
 	Level     string          `json:"level"`
-	Message   sarifMessage    `json:"message"`
 	Locations []sarifLocation `json:"locations"`
-}
-type sarifMessage struct {
-	Text     string `json:"text"`
-	Markdown string `json:"markdown"`
 }
 type sarifLocation struct {
 	PhysicalLocation struct {
@@ -136,10 +125,6 @@ func importSARIF(data []byte, source core.ExternalReportConfig) (core.SectionRes
 	}
 	findings := make([]core.Finding, 0)
 	for _, run := range log.Runs {
-		rules := make(map[string]sarifRuleDefinition, len(run.Tool.Driver.Rules))
-		for _, rule := range run.Tool.Driver.Rules {
-			rules[rule.ID] = rule
-		}
 		tool := namespace(firstNonEmpty(source.Source, run.Tool.Driver.Name, "sarif"))
 		if tool == "" {
 			tool = "sarif"
@@ -150,8 +135,6 @@ func importSARIF(data []byte, source core.ExternalReportConfig) (core.SectionRes
 				ruleID = "unknown"
 			}
 			path, line, column := resultLocation(result)
-			rule := rules[result.RuleID]
-			message := truncate(firstNonEmpty(result.Message.Text, result.Message.Markdown, rule.ShortDescription.Text, "External scanner finding"), 4096)
 			level := sarifLevel(result.Level)
 			namespacedRuleID := namespace(ruleID)
 			if namespacedRuleID == "" {
@@ -159,8 +142,13 @@ func importSARIF(data []byte, source core.ExternalReportConfig) (core.SectionRes
 			}
 			finding := core.Finding{
 				RuleID: "external." + tool + "." + namespacedRuleID, Level: level, Severity: level,
-				Title: truncate(firstNonEmpty(rule.ShortDescription.Text, ruleID), 512), Section: "External Reports",
-				Message: message, Why: message, HowToFix: truncate(firstNonEmpty(rule.Help.Text, rule.Help.Markdown), 2048),
+				// SARIF narrative fields are scanner-controlled and can contain matched
+				// source or secrets. Keep only identity, severity, and location data.
+				Title: "External SARIF finding: " + truncate(ruleID, 512), Section: "External Reports",
+				Message: "An external SARIF scanner reported a finding.",
+				Why:     "An external scanner detected a potential issue at this location.",
+				HowToFix: "Review the finding in the original scanner report and follow its guidance without " +
+					"exposing sensitive evidence.",
 				Path: path, Line: line, Column: column,
 				Metadata: map[string]string{"external_source": tool, "external_rule_id": ruleID, "external_format": "sarif"},
 			}
