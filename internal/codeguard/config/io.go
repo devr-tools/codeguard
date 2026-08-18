@@ -163,6 +163,23 @@ func canonicalizeExistingPrefix(path string) (string, error) {
 		if !errors.Is(err, os.ErrNotExist) {
 			return "", err
 		}
+		// EvalSymlinks reports ErrNotExist for a symlink whose target does not
+		// exist. Lstat the current component so a dangling symlink is still
+		// resolved instead of being mistaken for an ordinary missing path.
+		if info, lstatErr := os.Lstat(current); lstatErr == nil && info.Mode()&os.ModeSymlink != 0 {
+			target, readlinkErr := os.Readlink(current)
+			if readlinkErr != nil {
+				return "", readlinkErr
+			}
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(filepath.Dir(current), target)
+			}
+			resolvedTarget, resolveErr := canonicalizeExistingPrefix(target)
+			if resolveErr != nil {
+				return "", resolveErr
+			}
+			return filepath.Join(resolvedTarget, remainder), nil
+		}
 		parent := filepath.Dir(current)
 		if parent == current {
 			// Reached the filesystem root without an existing ancestor.
@@ -241,13 +258,3 @@ func shouldSearchDefaultConfigs(path string) bool {
 
 func findConfigInDirs(dirs []string, names []string) (string, bool) {
 	for _, dir := range dirs {
-		for _, name := range names {
-			candidate := filepath.Join(dir, name)
-			info, err := os.Stat(candidate)
-			if err == nil && !info.IsDir() {
-				return candidate, true
-			}
-		}
-	}
-	return "", false
-}
