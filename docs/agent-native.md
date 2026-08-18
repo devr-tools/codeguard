@@ -7,9 +7,8 @@ This document is a short status brief for `codeguard` features aimed at AI agent
 ### Implemented
 
 - Fast configless scans for agents
-  - after installing the CLI, an agent can run `codeguard scan -profile startup` in a repository without creating a config file first
   - an agent can scope work to a subfolder with `codeguard scan -folder ./path -profile startup`; `-path ./path` is accepted as an alias
-  - when no config file exists and `-config` was not passed, scans use the built-in default config plus any requested `-profile`
+  - when no config file exists and `-config` was not passed, folder scans use the built-in default config plus any requested `-profile`
   - explicit `-config` paths still fail if the file is missing, preserving deterministic configured runs
   - configless scans disable the scan cache so a quick read-only assessment does not create `.codeguard/cache.json`
 

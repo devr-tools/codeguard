@@ -1,9 +1,12 @@
 package support
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -38,6 +41,54 @@ func TestTypeScriptRuntimeDiscoveryHonorsExplicitRuntime(t *testing.T) {
 
 	if got := discoverTypeScriptLibPath(t.TempDir()); got != configuredRuntime {
 		t.Fatalf("discovered runtime = %q, want explicitly configured runtime %q", got, configuredRuntime)
+	}
+}
+
+func TestTypeScriptSemanticRunnerIntersectsCorpusWithConfiguredFiles(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is required for the embedded semantic runner test")
+	}
+
+	root := t.TempDir()
+	libPath := filepath.Join(root, "fake-typescript.js")
+	fakeTypeScript := `
+const path = require("path");
+module.exports = {
+  ScriptTarget: { Latest: 99 }, ModuleKind: { ESNext: 99 }, JsxEmit: { Preserve: 99 },
+  sys: { readFile() {}, fileExists() { return true; }, readDirectory() { return []; } },
+  findConfigFile(root) { return path.join(root, "tsconfig.json"); },
+  readConfigFile() { return { config: {} }; },
+  parseJsonConfigFileContent(config, sys, root) {
+    return { fileNames: [path.join(root, "src/app.ts")], options: {} };
+  },
+  createProgram({ rootNames }) { throw new Error("ROOTS=" + JSON.stringify(rootNames)); },
+  flattenDiagnosticMessageText(value) { return String(value); },
+};`
+	if err := os.WriteFile(libPath, []byte(fakeTypeScript), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	input := typeScriptSemanticInput{
+		TypeScriptLibPath: libPath,
+		TargetPath:        root,
+		SourceFiles: []string{
+			filepath.Join(root, "src/app.ts"),
+			filepath.Join(root, "vendor/excluded.ts"),
+			filepath.Join(root, "node_modules/pkg/index.ts"),
+		},
+	}
+	_, err := runTypeScriptSemanticRunner(context.Background(), input)
+	if err == nil {
+		t.Fatal("semantic runner succeeded; want fake compiler root report")
+	}
+	message := err.Error()
+	if !strings.Contains(message, filepath.Join(root, "src/app.ts")) {
+		t.Fatalf("configured corpus root missing from compiler roots: %s", message)
+	}
+	for _, excluded := range []string{"vendor/excluded.ts", "node_modules/pkg/index.ts"} {
+		if strings.Contains(message, excluded) {
+			t.Fatalf("tsconfig-excluded corpus file %q reached compiler roots: %s", excluded, message)
+		}
 	}
 }
 

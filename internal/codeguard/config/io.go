@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/cachefile"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -88,6 +89,16 @@ func containConfigArtifactPaths(cfg *core.Config, baseDir string) error {
 		}
 		*a.path = resolved
 	}
+	// History files are separate write targets and must be checked independently:
+	// validating the cache path does not detect a symlink at a derived filename.
+	legibilityHistoryPath := cachefile.DerivedPath(cfg.Cache.Path, ".legibility-history")
+	if _, err := containedPath(baseDir, legibilityHistoryPath); err != nil {
+		return fmt.Errorf("context_rules.legibility_history: %w", err)
+	}
+	performanceHistoryPath := cachefile.DerivedPath(cfg.Cache.Path, ".perf-history")
+	if _, err := containedPath(baseDir, performanceHistoryPath); err != nil {
+		return fmt.Errorf("performance_rules.score_history: %w", err)
+	}
 	for i := range cfg.ExternalReports {
 		resolved, err := containedPath(baseDir, cfg.ExternalReports[i].Path)
 		if err != nil {
@@ -155,6 +166,23 @@ func canonicalizeExistingPrefix(path string) (string, error) {
 		}
 		if !errors.Is(err, os.ErrNotExist) {
 			return "", err
+		}
+		// EvalSymlinks reports ErrNotExist for a symlink whose target does not
+		// exist. Lstat the current component so a dangling symlink is still
+		// resolved instead of being mistaken for an ordinary missing path.
+		if info, lstatErr := os.Lstat(current); lstatErr == nil && info.Mode()&os.ModeSymlink != 0 {
+			target, readlinkErr := os.Readlink(current)
+			if readlinkErr != nil {
+				return "", readlinkErr
+			}
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(filepath.Dir(current), target)
+			}
+			resolvedTarget, resolveErr := canonicalizeExistingPrefix(target)
+			if resolveErr != nil {
+				return "", resolveErr
+			}
+			return filepath.Join(resolvedTarget, remainder), nil
 		}
 		parent := filepath.Dir(current)
 		if parent == current {

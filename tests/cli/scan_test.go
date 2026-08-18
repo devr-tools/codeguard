@@ -189,7 +189,7 @@ func TestRunScanFolderWithoutConfigUsesDefaultProfile(t *testing.T) {
 	}
 }
 
-func TestRunScanWithoutConfigUsesDefaultProfileForCurrentDirectory(t *testing.T) {
+func TestRunScanWithoutConfigForCurrentDirectoryFails(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
@@ -211,11 +211,11 @@ func TestRunScanWithoutConfigUsesDefaultProfileForCurrentDirectory(t *testing.T)
 
 	var stdout, stderr bytes.Buffer
 	code := cli.Run([]string{"scan", "-profile", "startup"}, strings.NewReader(""), &stdout, &stderr)
-	if code != 0 {
-		t.Fatalf("scan exit code = %d, stderr = %s\nstdout = %s", code, stderr.String(), stdout.String())
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d; stdout = %s", code, stdout.String())
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".codeguard")); !os.IsNotExist(err) {
-		t.Fatalf("expected configless scan not to create .codeguard cache directory, stat err = %v", err)
+	if !strings.Contains(stderr.String(), "load config:") {
+		t.Fatalf("expected load config error, got %s", stderr.String())
 	}
 }
 

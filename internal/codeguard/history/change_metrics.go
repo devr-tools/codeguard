@@ -13,7 +13,12 @@ import (
 	"strings"
 )
 
-const changeCommitMarker = "@@CG-CHANGE@@"
+const (
+	changeCommitMarker         = "@@CG-CHANGE@@"
+	maxChangeLogBytes          = 16 << 20
+	maxFilesPerChangeCommit    = 200
+	maxStoredCoChangeRelations = 100_000
+)
 
 var defectSubjectPattern = regexp.MustCompile(`(?i)\b(fix|bug|bugfix|hotfix|regression|revert|incident|defect|broken|failure)\b`)
 
@@ -76,7 +81,14 @@ func CollectChangeMetrics(ctx context.Context, opts ChangeMetricsOptions) (Chang
 	if err := cmd.Start(); err != nil {
 		return ChangeMetricsReport{Files: map[string]FileChangeMetrics{}}, nil
 	}
-	report := parseChangeMetrics(stdout)
+	limitedStdout := &io.LimitedReader{R: stdout, N: maxChangeLogBytes + 1}
+	report := parseChangeMetricsContext(ctx, limitedStdout)
+	if limitedStdout.N == 0 {
+		// Do not leave git blocked while writing the remainder of an oversized log.
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return ChangeMetricsReport{Files: map[string]FileChangeMetrics{}}, nil
+	}
 	if err := cmd.Wait(); err != nil {
 		return ChangeMetricsReport{Files: map[string]FileChangeMetrics{}}, nil
 	}
@@ -88,10 +100,17 @@ func CollectChangeMetrics(ctx context.Context, opts ChangeMetricsOptions) (Chang
 }
 
 func parseChangeMetrics(reader io.Reader) ChangeMetricsReport {
-	parser := &changeMetricsParser{report: ChangeMetricsReport{Files: map[string]FileChangeMetrics{}}}
+	return parseChangeMetricsContext(context.Background(), reader)
+}
+
+func parseChangeMetricsContext(ctx context.Context, reader io.Reader) ChangeMetricsReport {
+	parser := &changeMetricsParser{ctx: ctx, report: ChangeMetricsReport{Files: map[string]FileChangeMetrics{}}}
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 	for scanner.Scan() {
+		if ctx.Err() != nil {
+			break
+		}
 		parser.handleLine(strings.TrimRight(scanner.Text(), "\r"))
 	}
 	parser.flush()
@@ -99,9 +118,12 @@ func parseChangeMetrics(reader io.Reader) ChangeMetricsReport {
 }
 
 type changeMetricsParser struct {
-	report  ChangeMetricsReport
-	current changeCommit
-	active  bool
+	ctx                     context.Context
+	report                  ChangeMetricsReport
+	current                 changeCommit
+	active                  bool
+	oversizedCommit         bool
+	storedCoChangeRelations int
 }
 
 func (p *changeMetricsParser) handleLine(line string) {
@@ -115,6 +137,7 @@ func (p *changeMetricsParser) handleLine(line string) {
 		}
 		p.current = changeCommit{subject: strings.TrimSpace(subject), files: map[string]fileDelta{}}
 		p.active = true
+		p.oversizedCommit = false
 		return
 	}
 	if !p.active {
@@ -124,6 +147,16 @@ func (p *changeMetricsParser) handleLine(line string) {
 	if !ok {
 		return
 	}
+	if p.oversizedCommit {
+		return
+	}
+	if _, exists := p.current.files[path]; !exists && len(p.current.files) >= maxFilesPerChangeCommit {
+		// Discard the whole commit rather than retain a path-dependent sample.
+		// This also bounds the quadratic co-change work performed by flush.
+		p.current.files = nil
+		p.oversizedCommit = true
+		return
+	}
 	p.current.files[path] = fileDelta{additions: added, deletions: deleted}
 }
 
@@ -131,7 +164,7 @@ func (p *changeMetricsParser) flush() {
 	if !p.active {
 		return
 	}
-	if len(p.current.files) == 0 {
+	if p.oversizedCommit || len(p.current.files) == 0 {
 		p.active = false
 		return
 	}
@@ -143,6 +176,10 @@ func (p *changeMetricsParser) flush() {
 	sort.Strings(paths)
 	defect := defectSubjectPattern.MatchString(p.current.subject)
 	for _, path := range paths {
+		if p.ctx.Err() != nil {
+			p.active = false
+			return
+		}
 		delta := p.current.files[path]
 		metric := p.report.Files[path]
 		if metric.Path == "" {
@@ -163,7 +200,12 @@ func (p *changeMetricsParser) flush() {
 		}
 		for _, partner := range paths {
 			if partner != path {
-				metric.CoChangePartners[partner]++
+				if _, exists := metric.CoChangePartners[partner]; exists {
+					metric.CoChangePartners[partner]++
+				} else if p.storedCoChangeRelations < maxStoredCoChangeRelations {
+					metric.CoChangePartners[partner] = 1
+					p.storedCoChangeRelations++
+				}
 			}
 		}
 		p.report.Files[path] = metric

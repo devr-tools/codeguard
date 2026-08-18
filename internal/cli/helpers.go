@@ -49,12 +49,12 @@ func loadConfigWithProfile(path string, profile string) (service.Config, error) 
 	return applyProfileOverride(cfg, profile)
 }
 
-func loadScanConfigWithFallback(path string, profile string, defaultConfigRequested bool) (service.Config, error) {
+func loadScanConfigWithFallback(path string, profile string, targetPath string, defaultConfigRequested bool) (service.Config, error) {
 	cfg, err := service.LoadConfigFile(path)
 	if err == nil {
 		return applyProfileOverride(cfg, profile)
 	}
-	if !defaultConfigRequested || !errors.Is(err, os.ErrNotExist) {
+	if !defaultConfigRequested || strings.TrimSpace(targetPath) == "" || !errors.Is(err, os.ErrNotExist) {
 		return service.Config{}, err
 	}
 

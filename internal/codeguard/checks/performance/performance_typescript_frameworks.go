@@ -96,7 +96,7 @@ func (f *tsFrameworkScan) checkReactRender(s *tsPerformanceScan, lineNo int, lin
 	if len(f.hookRegions) > 0 || startsHook {
 		return
 	}
-	if len(tsArrayChainCall.FindAllString(line, -1)) >= 2 {
+	if len(tsArrayChainCall.FindAllString(line, 2)) >= 2 {
 		s.addFinding("performance.typescript.react-expensive-render", "performance.javascript.react-expensive-render", lineNo,
 			"array method chain in the component body reruns on every render; memoize it with useMemo or compute it outside the component")
 		return

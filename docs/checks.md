@@ -556,7 +556,7 @@ Both modes accept `off`, `auto`, or `required` and default to `off`:
 - `auto` runs when the binary and, for compiler validation, a compilation database are available; absence is skipped.
 - `required` reports an actionable failure when the tool or database is unavailable.
 
-`compile_commands.json` is searched at the target root, `build/`, `cmake-build-debug/`, and `cmake-build-release/` unless a target-relative path is configured. The database is treated as untrusted metadata: CodeGuard never runs its compiler, wrapper, response files, plugins, or arbitrary flags. It rebuilds a fixed `clang++ -fsyntax-only` invocation from the target-local source plus an allowlist of `-std`, target-contained include directories, and `-D`/`-U` metadata. Configured command overrides still require the normal config-command trust opt-in.
+`compile_commands.json` is searched at the target root, `build/`, `cmake-build-debug/`, and `cmake-build-release/` unless a target-relative path is configured. The database is treated as untrusted metadata: CodeGuard never runs its compiler, wrapper, response files, plugins, or arbitrary flags. It rebuilds a fixed `clang++ -fsyntax-only` invocation from the target-local source plus an allowlist of `-std`, target-contained include directories, and `-D`/`-U` metadata. Compiler validation, including use of the built-in `clang++` command, requires the normal config-command trust opt-in because preprocessing repository-controlled source can read local files. Formatter validation only requires that opt-in when its command is overridden.
 
 Target-contained include roots from the database also improve C++ include-graph resolution. Ambiguous or external include paths are ignored.
 
