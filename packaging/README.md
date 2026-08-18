@@ -112,7 +112,7 @@ registries use OIDC trusted publishing — no long-lived tokens live in CI.
       - Organization/user: `devr-tools`
       - Repository: `codeguard`
       - Workflow filename: `cd.yml`  ← the caller, not release.yml
-      - Environment: *(leave blank)*
+      - Environment: `release-publish`
       - Allowed actions: `npm publish`
 
       Packages: `@devr-tools/codeguard` plus
@@ -127,7 +127,10 @@ registries use OIDC trusted publishing — no long-lived tokens live in CI.
    command is still `codeguard`):
    - Owner / repo: `devr-tools/codeguard`
    - Workflow filename: `cd.yml`  ← the publish job lives in cd.yml (same as npm)
-   - Environment: *(leave blank — the job sets none)*
+   - Environment: `release-publish`
+
+   Configure the GitHub `release-publish` environment with deployment branch
+   protection for the default branch and require reviewers before deployment.
 
    This lets the `publish-pypi` job authenticate via `id-token: write` with no
    long-lived token. (Alternatively, set a `PYPI_API_TOKEN` secret and pass it
