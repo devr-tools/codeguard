@@ -2,6 +2,9 @@ package codeguard_test
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +12,93 @@ import (
 
 	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
+
+func openAITriageHandler(t *testing.T, wrap func(string) string) http.HandlerFunc {
+	t.Helper()
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode triage request: %v", err)
+		}
+		var items []map[string]any
+		if len(req.Messages) > 0 {
+			if err := json.Unmarshal([]byte(req.Messages[len(req.Messages)-1].Content), &items); err != nil {
+				t.Errorf("decode candidate payload: %v", err)
+			}
+		}
+		verdicts := make([]map[string]string, 0, len(items))
+		for _, item := range items {
+			hash, _ := item["content_hash"].(string)
+			verdicts = append(verdicts, map[string]string{
+				"content_hash": hash,
+				"decision":     "dismiss",
+				"summary":      "intentional fixture suppression",
+			})
+		}
+		text, _ := json.Marshal(map[string]any{"verdicts": verdicts})
+		payload, _ := json.Marshal(map[string]any{
+			"choices": []map[string]any{{"message": map[string]string{"content": wrap(string(text))}}},
+		})
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}
+}
+
+func TestHybridTriageOpenAIWrappedVerdicts(t *testing.T) {
+	tests := []struct {
+		name        string
+		wrap        func(string) string
+		wantDismiss bool
+	}{
+		{name: "fenced JSON", wrap: func(text string) string { return "```json\n" + text + "\n```" }, wantDismiss: true},
+		{name: "prose wrapped JSON", wrap: func(text string) string { return "Here are the verdicts:\n" + text + "\nI kept the response concise." }, wantDismiss: true},
+		{name: "invalid body", wrap: func(string) string { return "not JSON" }},
+		{name: "empty body", wrap: func(string) string { return "   " }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			server := httptest.NewServer(openAITriageHandler(t, tt.wrap))
+			defer server.Close()
+
+			t.Setenv("CODEGUARD_AI_TRIAGE_PROVIDER", "openai")
+			t.Setenv("CODEGUARD_AI_TRIAGE_MODEL", "test-model")
+			t.Setenv("CODEGUARD_AI_TRIAGE_BASE_URL", server.URL)
+			t.Setenv("CODEGUARD_AI_TRIAGE_API_KEY", "triage-key")
+
+			report, err := codeguard.Run(context.Background(), triageFixtureConfig(t, root))
+			if err != nil {
+				t.Fatalf("Run returned error: %v", err)
+			}
+			artifact := findAIAnalysisArtifact(report)
+			if artifact == nil || artifact.AIAnalysis == nil {
+				t.Fatalf("expected ai_analysis artifact, got %#v", report.Artifacts)
+			}
+			if tt.wantDismiss {
+				if findings := findSection(t, report, "Code Quality").Findings; len(findings) != 0 {
+					t.Fatalf("expected wrapped verdict to dismiss findings, got %+v", findings)
+				}
+				if verdicts := artifact.AIAnalysis.Verdicts; len(verdicts) != 1 || verdicts[0].Status != "dismissed" {
+					t.Fatalf("expected one dismissed verdict, got %#v", verdicts)
+				}
+				return
+			}
+			if findings := findSection(t, report, "Code Quality").Findings; len(findings) == 0 {
+				t.Fatal("expected invalid provider response to preserve findings")
+			}
+			if verdicts := artifact.AIAnalysis.Verdicts; len(verdicts) != 1 || verdicts[0].Status != "error" {
+				t.Fatalf("expected one error verdict, got %#v", verdicts)
+			} else if !strings.Contains(verdicts[0].Summary, "ai triage provider returned invalid JSON verdicts") {
+				t.Fatalf("expected invalid JSON error summary, got %#v", verdicts[0])
+			}
+		})
+	}
+}
 
 func TestHybridTriageStaysOfflineWithoutProvider(t *testing.T) {
 	root := t.TempDir()

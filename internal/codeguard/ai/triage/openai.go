@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const triageSystemPrompt = "You adversarially verify static-analysis findings. Dismiss only when the finding is clearly a false positive from the provided local evidence. If uncertain, keep it. Respond with JSON only: {\"verdicts\":[{\"content_hash\":\"...\",\"decision\":\"keep|dismiss\",\"summary\":\"...\"}]}"
+const triageSystemPrompt = "You adversarially verify static-analysis findings. Dismiss only when the finding is clearly a false positive from the provided local evidence. If uncertain, keep it. Respond with raw JSON only, with no markdown fences or surrounding prose: {\"verdicts\":[{\"content_hash\":\"...\",\"decision\":\"keep|dismiss\",\"summary\":\"...\"}]}"
 
 type openAIProvider struct {
 	cfg runtimeConfig
@@ -61,9 +61,8 @@ func decodeVerdicts(resp *http.Response) (map[string]providerVerdict, error) {
 }
 
 func parseVerdictText(text string) (map[string]providerVerdict, error) {
-	text = strings.TrimSpace(text)
 	var verdictPayload openAIVerdictPayload
-	if err := json.Unmarshal([]byte(text), &verdictPayload); err != nil {
+	if err := unmarshalVerdictPayload(text, &verdictPayload); err != nil {
 		return nil, fmt.Errorf("ai triage provider returned invalid JSON verdicts: %w", err)
 	}
 
@@ -75,6 +74,55 @@ func parseVerdictText(text string) (map[string]providerVerdict, error) {
 		}
 	}
 	return verdicts, nil
+}
+
+func unmarshalVerdictPayload(text string, payload *openAIVerdictPayload) error {
+	if err := json.Unmarshal([]byte(text), payload); err == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(text)
+	if trimmed != text {
+		if err := json.Unmarshal([]byte(trimmed), payload); err == nil {
+			return nil
+		}
+	}
+
+	if body, ok := fencedVerdictBody(trimmed); ok {
+		if err := json.Unmarshal([]byte(body), payload); err == nil {
+			return nil
+		}
+		trimmed = body
+	}
+
+	if object, ok := wrappedVerdictObject(trimmed); ok {
+		if err := json.Unmarshal([]byte(object), payload); err == nil {
+			return nil
+		}
+	}
+
+	return json.Unmarshal([]byte(trimmed), payload)
+}
+
+func fencedVerdictBody(text string) (string, bool) {
+	if !strings.HasPrefix(text, "```") || !strings.HasSuffix(text, "```") {
+		return "", false
+	}
+	openingEnd := strings.IndexByte(text, '\n')
+	if openingEnd < 0 {
+		return "", false
+	}
+	body := strings.TrimSpace(text[openingEnd+1 : len(text)-3])
+	return body, true
+}
+
+func wrappedVerdictObject(text string) (string, bool) {
+	start := strings.IndexByte(text, '{')
+	end := strings.LastIndexByte(text, '}')
+	if start < 0 || end < start || (start == 0 && end == len(text)-1) {
+		return "", false
+	}
+	return text[start : end+1], true
 }
 
 func buildPrompt(candidates []candidate) (string, error) {
