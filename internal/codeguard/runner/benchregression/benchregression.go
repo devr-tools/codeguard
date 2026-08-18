@@ -6,12 +6,9 @@
 // runner/govulncheck, and keeping ParseOutput/Compare as pure functions in a
 // leaf package lets tests exercise them without ever executing a benchmark.
 //
-// The `go` binary here is codeguard's own fixed tool invocation (like git):
-// the command name is never config-supplied, so it does not pass through
-// trust.GuardConfigCommand. Only the package patterns come from configuration,
-// and those are charset-validated (config/validate_performance.go) plus
-// re-checked here so a pattern can never smuggle a flag or a path outside the
-// target.
+// Although the `go` binary is fixed, `go test` compiles and executes code from
+// the scanned repository. RunBenchmarks therefore applies the same explicit
+// operator trust gate as commands whose binary name comes from configuration.
 package benchregression
 
 import (
@@ -21,6 +18,7 @@ import (
 	"time"
 
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
+	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
 
 // maxOutputBytes caps how much benchmark output is buffered so a runaway or
@@ -38,6 +36,9 @@ const runTimeout = 10 * time.Minute
 // lines were produced (a failing unrelated package still yields usable
 // results); callers get both the output and the error and decide.
 func RunBenchmarks(ctx context.Context, dir string, packages []string) (string, error) {
+	if err := trust.GuardConfigCommand("performance benchmark regression", "go test -bench"); err != nil {
+		return "", err
+	}
 	if len(packages) == 0 {
 		return "", fmt.Errorf("no benchmark packages configured")
 	}
