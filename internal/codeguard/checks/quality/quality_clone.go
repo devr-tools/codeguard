@@ -78,6 +78,15 @@ func detectCloneCandidates(docs []cloneDocument, threshold int) []cloneCandidate
 // when the window slides by one token.
 const cloneWindowMultiplier uint64 = 6364136223846793005
 
+// Clone detection runs on untrusted repository contents. Keep both the work
+// spent comparing hash-bucket occurrences and the resulting report size
+// bounded so a repository containing many identical windows cannot make the
+// pairwise scan consume unbounded CPU or memory.
+const (
+	maxClonePairComparisons = 100_000
+	maxCloneCandidates      = 1_000
+)
+
 // cloneWindowIndex groups every threshold-token window by a rolling polynomial
 // hash over the per-token hashes computed at tokenize time. Compared with the
 // previous implementation (a fresh FNV over every token's bytes per window)
@@ -117,23 +126,44 @@ func collectCloneCandidates(index cloneIndex, docs []cloneDocument, threshold in
 	// pair turns the merge from a linear scan of every candidate found so far
 	// into a scan of just the (usually tiny) bucket for that file pair.
 	byPair := make(map[[2]int][]cloneCandidate)
+	comparisons := 0
 	for _, occurrences := range index {
-		addClonePairs(byPair, occurrences, docs, threshold)
+		if addClonePairs(byPair, occurrences, docs, threshold, &comparisons) {
+			break
+		}
 	}
 	return flattenCloneCandidates(byPair)
 }
 
-func addClonePairs(byPair map[[2]int][]cloneCandidate, occurrences []cloneOccurrence, docs []cloneDocument, threshold int) {
+// addClonePairs reports whether candidate collection has reached a safety
+// limit and should stop.
+func addClonePairs(byPair map[[2]int][]cloneCandidate, occurrences []cloneOccurrence, docs []cloneDocument, threshold int, comparisons *int) bool {
 	if len(occurrences) < 2 {
-		return
+		return false
 	}
 	for i := 0; i < len(occurrences); i++ {
 		for j := i + 1; j < len(occurrences); j++ {
+			if *comparisons >= maxClonePairComparisons {
+				return true
+			}
+			*comparisons++
 			if next, ok := cloneCandidateForPair(occurrences[i], occurrences[j], docs, threshold); ok {
 				addOrMergeCloneCandidate(byPair, next)
+				if cloneCandidateCount(byPair) >= maxCloneCandidates {
+					return true
+				}
 			}
 		}
 	}
+	return false
+}
+
+func cloneCandidateCount(byPair map[[2]int][]cloneCandidate) int {
+	total := 0
+	for _, bucket := range byPair {
+		total += len(bucket)
+	}
+	return total
 }
 
 func flattenCloneCandidates(byPair map[[2]int][]cloneCandidate) []cloneCandidate {
