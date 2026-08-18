@@ -15,6 +15,7 @@ type openAIProvider struct {
 }
 
 func (provider openAIProvider) Triage(ctx context.Context, candidates []candidate) (map[string]providerVerdict, error) {
+	provider.cfg.Timeout = EffectiveTimeout(len(candidates), provider.cfg.Timeout)
 	return triageViaHTTP(ctx, candidates, provider.requestBody, provider.doRequest, decodeVerdicts)
 }
 
@@ -55,6 +56,9 @@ func decodeVerdicts(resp *http.Response) (map[string]providerVerdict, error) {
 	}, func(decoded openAIResponse) (string, error) {
 		if len(decoded.Choices) == 0 {
 			return "", errNoChoices
+		}
+		if decoded.Choices[0].FinishReason == "length" {
+			return "", fmt.Errorf("ai triage response truncated at max_tokens; reduce scan scope or chunk triage")
 		}
 		return decoded.Choices[0].Message.Content, nil
 	})

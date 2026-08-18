@@ -3,6 +3,7 @@ package triage
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 )
 
@@ -18,6 +19,7 @@ type anthropicProvider struct {
 }
 
 func (provider anthropicProvider) Triage(ctx context.Context, candidates []candidate) (map[string]providerVerdict, error) {
+	provider.cfg.Timeout = EffectiveTimeout(len(candidates), provider.cfg.Timeout)
 	return triageViaHTTP(ctx, candidates, provider.requestBody, provider.doRequest, decodeAnthropicVerdicts)
 }
 
@@ -51,6 +53,9 @@ func decodeAnthropicVerdicts(resp *http.Response) (map[string]providerVerdict, e
 		err := decoder.Decode(&decoded)
 		return decoded, err
 	}, func(decoded anthropicResponse) (string, error) {
+		if decoded.StopReason == "max_tokens" {
+			return "", fmt.Errorf("ai triage response truncated at max_tokens; reduce scan scope or chunk triage")
+		}
 		if len(decoded.Content) == 0 {
 			return "", errNoContentBlocks
 		}
@@ -71,7 +76,8 @@ type anthropicMessage struct {
 }
 
 type anthropicResponse struct {
-	Content []struct {
+	StopReason string `json:"stop_reason"`
+	Content    []struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"content"`

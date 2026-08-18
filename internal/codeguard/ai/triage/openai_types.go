@@ -12,7 +12,8 @@ type openAIMessage struct {
 
 type openAIResponse struct {
 	Choices []struct {
-		Message openAIMessage `json:"message"`
+		Message      openAIMessage `json:"message"`
+		FinishReason string        `json:"finish_reason"`
 	} `json:"choices"`
 }
 

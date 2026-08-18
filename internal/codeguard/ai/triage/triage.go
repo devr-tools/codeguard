@@ -2,6 +2,10 @@ package triage
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net"
+	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
@@ -81,7 +85,7 @@ func Apply(ctx context.Context, cfg core.Config, opts core.ScanOptions, sections
 				ID:      "ai-triage-provider",
 				Kind:    "triage",
 				Status:  "error",
-				Summary: err.Error(),
+				Summary: providerErrorSummary(err, EffectiveTimeout(len(pending), runtime.Timeout)),
 			})
 			return sections, artifact
 		}
@@ -104,4 +108,12 @@ func Apply(ctx context.Context, cfg core.Config, opts core.ScanOptions, sections
 	artifact.AIAnalysis.Verdicts = verdicts
 	filtered := filterSections(sections, candidates, outcomes)
 	return filtered, artifact
+}
+
+func providerErrorSummary(err error, timeout time.Duration) string {
+	var netErr net.Error
+	if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout()) {
+		return fmt.Sprintf("%v (timed out after %s; raise CODEGUARD_AI_TRIAGE_TIMEOUT)", err, timeout)
+	}
+	return err.Error()
 }
