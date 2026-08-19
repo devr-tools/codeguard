@@ -2,6 +2,7 @@ package support_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -26,6 +27,25 @@ func TestRuleStatsHistoryPathForBase(t *testing.T) {
 				t.Fatalf("RuleStatsHistoryPathForBase(%q) = %q, want %q", tc.base, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestLoadRuleStatsHistoryRejectsOversizedFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cache.rule-stats-history.json")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate((32 << 20) + 1); err != nil {
+		_ = f.Close()
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := runnersupport.LoadRuleStatsHistory(path); len(got) != 0 {
+		t.Fatalf("expected empty history for oversized file, got %#v", got)
 	}
 }
 

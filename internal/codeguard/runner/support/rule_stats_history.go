@@ -1,11 +1,10 @@
 package support
 
 import (
-	"encoding/json"
-	"os"
 	"strings"
 	"time"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/cachefile"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -32,12 +31,8 @@ func LoadRuleStatsHistory(path string) []core.RuleStatsHistoryEntry {
 	if strings.TrimSpace(path) == "" {
 		return nil
 	}
-	data, err := os.ReadFile(path) //nolint:gosec // config-supplied rule-stats history cache path
-	if err != nil {
-		return nil
-	}
 	var file ruleStatsHistoryFile
-	if err := json.Unmarshal(data, &file); err != nil || file.Version != ruleStatsHistoryVersion {
+	if !cachefile.Load(path, &file) || file.Version != ruleStatsHistoryVersion {
 		return nil
 	}
 	return file.Entries
