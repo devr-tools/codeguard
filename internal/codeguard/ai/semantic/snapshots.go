@@ -34,7 +34,11 @@ func collectSnapshots(root string, changedFiles []string) ([]FileSnapshot, []Fil
 func snapshotsForPaths(root string, paths []string, maxBytes int) []FileSnapshot {
 	snapshots := make([]FileSnapshot, 0, len(paths))
 	for _, rel := range paths {
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) //nolint:gosec // rel path joined under the scan-target root
+		path, err := snapshotPath(root, rel)
+		if err != nil {
+			continue
+		}
+		data, err := os.ReadFile(path) //nolint:gosec // snapshotPath verifies the resolved path is within the scan root
 		if err != nil {
 			continue
 		}
@@ -48,6 +52,31 @@ func snapshotsForPaths(root string, paths []string, maxBytes int) []FileSnapshot
 		})
 	}
 	return snapshots
+}
+
+func snapshotPath(root string, rel string) (string, error) {
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	resolvedRoot, err = filepath.Abs(resolvedRoot)
+	if err != nil {
+		return "", err
+	}
+
+	resolvedPath, err := filepath.EvalSymlinks(filepath.Join(resolvedRoot, filepath.FromSlash(rel)))
+	if err != nil {
+		return "", err
+	}
+	resolvedPath, err = filepath.Abs(resolvedPath)
+	if err != nil {
+		return "", err
+	}
+	withinRoot, err := filepath.Rel(resolvedRoot, resolvedPath)
+	if err != nil || withinRoot == ".." || strings.HasPrefix(withinRoot, ".."+string(filepath.Separator)) {
+		return "", os.ErrPermission
+	}
+	return resolvedPath, nil
 }
 
 func relatedTestCandidates(rel string) []string {

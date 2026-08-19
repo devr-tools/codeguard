@@ -17,6 +17,9 @@ import (
 const maxConfigFileBytes = 32 << 20
 
 var (
+	// ErrConfigNotFound identifies a missing top-level configuration file. It is
+	// distinct from missing artifacts referenced by an existing configuration.
+	ErrConfigNotFound    = errors.New("config file not found")
 	defaultConfigNames   = []string{"codeguard.yaml", "codeguard.yml", "codeguard.json"}
 	directoryConfigNames = []string{"codeguard.yaml", "codeguard.yml", "codeguard.json", "config.yaml", "config.yml", "config.json"}
 	defaultConfigDirs    = []string{".", ".codeguard"}
@@ -30,6 +33,9 @@ func LoadFile(path string) (core.Config, error) {
 
 	f, err := os.Open(resolvedPath) //nolint:gosec // operator-supplied config path; read is size-capped by LimitReader below
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return core.Config{}, fmt.Errorf("%w: %w", ErrConfigNotFound, err)
+		}
 		return core.Config{}, err
 	}
 	defer func() { _ = f.Close() }()
@@ -91,17 +97,17 @@ func containConfigArtifactPaths(cfg *core.Config, baseDir string) error {
 	}
 	// History files are separate write targets and must be checked independently:
 	// validating the cache path does not detect a symlink at a derived filename.
-	for _, history := range []struct {
-		label  string
-		suffix string
-	}{
-		{"context_rules.legibility_history", ".legibility-history"},
-		{"quality_rules.ai_checks.slop_history", ".slop-history"},
-	} {
-		historyPath := cachefile.DerivedPath(cfg.Cache.Path, history.suffix)
-		if _, err := containedPath(baseDir, historyPath); err != nil {
-			return fmt.Errorf("%s: %w", history.label, err)
-		}
+	legibilityHistoryPath := cachefile.DerivedPath(cfg.Cache.Path, ".legibility-history")
+	if _, err := containedPath(baseDir, legibilityHistoryPath); err != nil {
+		return fmt.Errorf("context_rules.legibility_history: %w", err)
+	}
+	performanceHistoryPath := cachefile.DerivedPath(cfg.Cache.Path, ".perf-history")
+	if _, err := containedPath(baseDir, performanceHistoryPath); err != nil {
+		return fmt.Errorf("performance_rules.score_history: %w", err)
+	}
+	slopHistoryPath := cachefile.DerivedPath(cfg.Cache.Path, ".slop-history")
+	if _, err := containedPath(baseDir, slopHistoryPath); err != nil {
+		return fmt.Errorf("quality_rules.ai_checks.slop_history: %w", err)
 	}
 	for i := range cfg.ExternalReports {
 		resolved, err := containedPath(baseDir, cfg.ExternalReports[i].Path)

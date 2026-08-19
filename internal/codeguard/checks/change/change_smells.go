@@ -38,6 +38,10 @@ var (
 	}
 )
 
+// maxOneUseAbstractionDecls bounds both analysis and finding output derived
+// from declarations in an untrusted diff.
+const maxOneUseAbstractionDecls = 1000
+
 type changedFileContent struct {
 	path    string
 	status  core.ChangedFileStatus
@@ -142,16 +146,19 @@ func readBaseFile(env support.Context, target core.TargetConfig, rel string) ([]
 func oneUseAbstractionFindings(env support.Context, files []changedFileContent) []core.Finding {
 	decls := make([]abstractionDecl, 0, len(files)*2)
 	for _, file := range files {
-		decls = append(decls, newAbstractionDecls(file)...)
+		decls = append(decls, newAbstractionDecls(file, maxOneUseAbstractionDecls-len(decls))...)
+		if len(decls) >= maxOneUseAbstractionDecls {
+			break
+		}
 	}
 	if len(decls) == 0 {
 		return nil
 	}
 
-	repoText := productionSourceText(env)
+	usesByName := abstractionUseCounts(env, decls)
 	findings := make([]core.Finding, 0, len(decls))
 	for _, decl := range decls {
-		uses := countWord(repoText, decl.name)
+		uses := usesByName[decl.name]
 		if uses > 2 {
 			continue
 		}
@@ -171,11 +178,15 @@ func oneUseAbstractionFindings(env support.Context, files []changedFileContent) 
 	return findings
 }
 
-func newAbstractionDecls(file changedFileContent) []abstractionDecl {
-	lines := strings.Split(string(file.head), "\n")
+func newAbstractionDecls(file changedFileContent, limit int) []abstractionDecl {
+	if limit <= 0 {
+		return nil
+	}
+	source := string(file.head)
 	out := make([]abstractionDecl, 0)
-	for idx, raw := range lines {
-		lineNo := idx + 1
+	for lineNo := 1; len(source) > 0; lineNo++ {
+		raw, rest, _ := strings.Cut(source, "\n")
+		source = rest
 		if !lineIsChanged(file.ranges, lineNo) {
 			continue
 		}
@@ -188,6 +199,9 @@ func newAbstractionDecls(file changedFileContent) []abstractionDecl {
 			continue
 		}
 		out = append(out, abstractionDecl{name: name, path: file.path, line: lineNo})
+		if len(out) >= limit {
+			break
+		}
 	}
 	return out
 }
@@ -593,16 +607,19 @@ func changeClaimsCleanup(env support.Context) bool {
 	return false
 }
 
-func productionSourceText(env support.Context) string {
-	var b strings.Builder
+func abstractionUseCounts(env support.Context, decls []abstractionDecl) map[string]int {
+	counts := make(map[string]int, len(decls))
+	for _, decl := range decls {
+		counts[decl.name] = 0
+	}
+	countUses := func(_ string, data []byte) {
+		countAbstractionUses(data, counts)
+	}
 	for _, target := range env.Config.Targets {
 		if env.VisitTargetFiles != nil {
 			env.VisitTargetFiles(target, func(rel string) bool {
 				return isProductionFile(rel) && isSourceFile(rel) && !isGeneratedPath(rel) && !isAdapterPath(rel)
-			}, func(_ string, data []byte) {
-				b.Write(data)
-				b.WriteByte('\n')
-			})
+			}, countUses)
 			continue
 		}
 		if env.ListTargetFiles == nil || env.ReadTargetFile == nil {
@@ -618,12 +635,37 @@ func productionSourceText(env support.Context) string {
 				continue
 			}
 			if data, err := env.ReadTargetFile(target, rel); err == nil {
-				b.Write(data)
-				b.WriteByte('\n')
+				countUses(rel, data)
 			}
 		}
 	}
-	return b.String()
+	return counts
+}
+
+func countAbstractionUses(data []byte, counts map[string]int) {
+	for start := 0; start < len(data); {
+		if !isIdentifierStart(data[start]) {
+			start++
+			continue
+		}
+		end := start + 1
+		for end < len(data) && isIdentifierContinue(data[end]) {
+			end++
+		}
+		name := string(data[start:end])
+		if count, ok := counts[name]; ok && count <= 2 {
+			counts[name] = count + 1
+		}
+		start = end
+	}
+}
+
+func isIdentifierStart(ch byte) bool {
+	return ch == '_' || ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z'
+}
+
+func isIdentifierContinue(ch byte) bool {
+	return isIdentifierStart(ch) || ch >= '0' && ch <= '9'
 }
 
 func normalizedTokenText(source string) (string, int) {
@@ -701,13 +743,6 @@ func firstChangedLine(ranges core.ChangedLineRanges) int {
 		return 1
 	}
 	return best
-}
-
-func countWord(text string, word string) int {
-	if text == "" || word == "" {
-		return 0
-	}
-	return len(regexp.MustCompile(`\b`+regexp.QuoteMeta(word)+`\b`).FindAllStringIndex(text, -1))
 }
 
 func isAdapterPath(rel string) bool {

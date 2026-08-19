@@ -46,9 +46,8 @@ func indexTypeScriptTSConfig(resolver *typeScriptImportResolver, rel string, dat
 	}
 	rel = normalizeTypeScriptPath(rel)
 	resolver.tsconfigs[rel] = doc
-	dir := normalizeTypeScriptPath(path.Dir(rel))
-	primary, ok := resolver.tsconfigPrimary[dir]
-	if !ok || path.Base(rel) == "tsconfig.json" || path.Base(primary) != "tsconfig.json" {
+	if path.Base(rel) == "tsconfig.json" {
+		dir := normalizeTypeScriptPath(path.Dir(rel))
 		resolver.tsconfigPrimary[dir] = rel
 	}
 }

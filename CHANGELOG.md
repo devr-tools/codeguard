@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.5.2](https://github.com/devr-tools/codeguard/compare/v1.5.1...v1.5.2) (2026-08-18)
+
+
+### Bug Fixes
+
+* **ai:** reject wrapped triage verdicts ([c1b24a5](https://github.com/devr-tools/codeguard/commit/c1b24a5792b556fce9a73f348ca9c53c302025e5))
+* **ai:** reject wrapped triage verdicts ([#113](https://github.com/devr-tools/codeguard/issues/113)) ([170844d](https://github.com/devr-tools/codeguard/commit/170844db8cb263181c9ac9842c448b42433f99d6))
+* **ai:** scale triage request timeout ([a8a6308](https://github.com/devr-tools/codeguard/commit/a8a6308fd07ee6b11bf124fd54d3c8b19f244e10))
+* **ai:** scale triage timeout and report build versions ([#101](https://github.com/devr-tools/codeguard/issues/101)) ([8434c22](https://github.com/devr-tools/codeguard/commit/8434c22b4365f1def03c718f52d58d6b4a088b30))
+* bound one-use abstraction analysis ([328f345](https://github.com/devr-tools/codeguard/commit/328f3455d2328e8b8539dc051a3de802a2ab138a))
+* **ci:** restore Homebrew version extraction ([ed71e23](https://github.com/devr-tools/codeguard/commit/ed71e235bfe5a53b16787bc338cbc89e4bb1555a))
+* **config:** contain legibility history path ([94cb937](https://github.com/devr-tools/codeguard/commit/94cb937a2a5ce039ab5e7a172e6a0987e707ca6e))
+* **config:** resolve dangling symlinks in artifact paths ([fb5734d](https://github.com/devr-tools/codeguard/commit/fb5734d009e7764094e43f2f2e706ac78f56647e))
+* **config:** restore complete config loader ([7ca5d02](https://github.com/devr-tools/codeguard/commit/7ca5d0211acaac4f69a7e0a11ee34f9d24cf62e5))
+* **config:** validate derived legibility-history path ([#106](https://github.com/devr-tools/codeguard/issues/106)) ([59b0ba7](https://github.com/devr-tools/codeguard/commit/59b0ba7b7fcb4905c2b4dd38e62ee6b03af4b3cc))
+* **cpp:** gate compiler validation behind trust opt-in ([aee079d](https://github.com/devr-tools/codeguard/commit/aee079d151d7af662154f18a3e54162708bfd830))
+* **cpp:** gate compiler validation behind trust opt-in ([#105](https://github.com/devr-tools/codeguard/issues/105)) ([1970289](https://github.com/devr-tools/codeguard/commit/1970289207597f2682ae3556d3ec006aba6a37fa))
+* **diff:** merge colliding diff scopes for overlapping targets ([#115](https://github.com/devr-tools/codeguard/issues/115)) ([90744cb](https://github.com/devr-tools/codeguard/commit/90744cb2e06a34351b07f6b9f0dc1bb3a0a26c41))
+* **diff:** merge scopes for overlapping targets ([1ca3fe1](https://github.com/devr-tools/codeguard/commit/1ca3fe1827e105c06aa2995511a1b1dad5a8a858))
+* fail closed when default scan config is missing ([07bb894](https://github.com/devr-tools/codeguard/commit/07bb8949145322dd0c407a4bc9dc0e2fc955c538))
+* make C-like class smell scans linear ([fabf71d](https://github.com/devr-tools/codeguard/commit/fabf71d82869dada6da9e99d5a5b1a10f57c3c3a))
+* **performance:** bound framework regex matches ([62915df](https://github.com/devr-tools/codeguard/commit/62915df68a52c7276584ec31cf1fda2cc322d77b))
+* **performance:** bound framework regex matches ([#128](https://github.com/devr-tools/codeguard/issues/128)) ([52cfb39](https://github.com/devr-tools/codeguard/commit/52cfb39860dd71141dedc2aa1a6e49d10fa420ee))
+* prevent filename injection in format targets ([e0b7ce8](https://github.com/devr-tools/codeguard/commit/e0b7ce8ed64490292726d220836272b400f67ff9))
+* prevent SARIF narrative secret leakage ([aebc32c](https://github.com/devr-tools/codeguard/commit/aebc32c78f66391c67fa3c8833cdd88a49ce574d))
+* **quality:** bound pnpm lockfile scanning ([551993b](https://github.com/devr-tools/codeguard/commit/551993b97a075aa6d76f9f4ff92370b1054a94bc))
+* **quality:** bound pnpm lockfile scanning ([#121](https://github.com/devr-tools/codeguard/issues/121)) ([d44cd26](https://github.com/devr-tools/codeguard/commit/d44cd264a6a582ce2d00c3952a9fa33379980995))
+* **quality:** preserve capped reader failures ([5a508f6](https://github.com/devr-tools/codeguard/commit/5a508f6b238b3e5d98009c6ab7e34fe4e13995d3))
+* **quality:** preserve capped reader failures to prevent uncapped reads in diff scans ([#120](https://github.com/devr-tools/codeguard/issues/120)) ([2e82480](https://github.com/devr-tools/codeguard/commit/2e824802c618b48c6980187cfe9acf1f019a1664))
+* **quality:** reuse duplicated knowledge regex ([9f112fd](https://github.com/devr-tools/codeguard/commit/9f112fd3807c0af4fe0808d3cd98377e0c86eb3a))
+* respect TypeScript config root exclusions ([e86b29b](https://github.com/devr-tools/codeguard/commit/e86b29b3c4a5bf9f1690a3c1099e6dc513845045))
+* **security:** bound duplicate-code detection work ([2ea8833](https://github.com/devr-tools/codeguard/commit/2ea883318d0720a53415c14f3f36a691a001bbdb))
+* **security:** bound duplicate-code detection work ([#112](https://github.com/devr-tools/codeguard/issues/112)) ([cc6b95c](https://github.com/devr-tools/codeguard/commit/cc6b95cb287f539cbc597993028251385e5d77c7))
+* **security:** detect multiline C++ TLS disabling ([bc382c2](https://github.com/devr-tools/codeguard/commit/bc382c23dc1a2371fe391f2a56ef2b02f2072013))
+* **security:** gate benchmark execution on trust opt-in ([8dacc79](https://github.com/devr-tools/codeguard/commit/8dacc791f3952455d0fd4d1b50fe4b4383918d43))
+* **security:** gate benchmark execution on trust opt-in ([#102](https://github.com/devr-tools/codeguard/issues/102)) ([a2ea743](https://github.com/devr-tools/codeguard/commit/a2ea7439593ccfc859f3549f416e18ba386a31ec))
+* **security:** track identifier lines linearly ([82ade0f](https://github.com/devr-tools/codeguard/commit/82ade0f973293c930973f2c2f5cb10d0ccaaab82))
+* **security:** track identifier lines linearly ([#110](https://github.com/devr-tools/codeguard/issues/110)) ([dc348e8](https://github.com/devr-tools/codeguard/commit/dc348e8e8b1bc61d520d42dc9a8ce4aeaa85c850))
+* **semantic:** contain source snapshots within target ([5a24381](https://github.com/devr-tools/codeguard/commit/5a2438184c8a96f7fe3b2e5c266abf94b4536953))
+* **version:** read module build info ([2f33945](https://github.com/devr-tools/codeguard/commit/2f33945005505e93e9045357ba2006f1a1fa584e))
+
 ## [1.5.1](https://github.com/devr-tools/codeguard/compare/v1.5.0...v1.5.1) (2026-08-18)
 
 

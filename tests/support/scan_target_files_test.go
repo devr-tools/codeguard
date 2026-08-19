@@ -132,6 +132,32 @@ func TestLoadDiffScopeScopesSubdirectoryTarget(t *testing.T) {
 	}
 }
 
+func TestLoadDiffScopeMergesCollidingPathsFromOverlappingTargets(t *testing.T) {
+	dir := t.TempDir()
+	writeScanFile(t, dir, "a.go", strings.Repeat("// unchanged\n", 10))
+	writeScanFile(t, dir, "sub/a.go", "// unchanged\n")
+	runGit(t, dir, "init", "-b", "main")
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "Test User")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "initial")
+
+	writeScanFile(t, dir, "a.go", strings.Repeat("// unchanged\n", 9)+"// root changed\n")
+	writeScanFile(t, dir, "sub/a.go", "// nested changed\n")
+
+	scope, err := runnersupport.LoadDiffScope(context.Background(), []core.TargetConfig{
+		{Name: "root", Path: dir},
+		{Name: "sub", Path: filepath.Join(dir, "sub")},
+	}, "main")
+	if err != nil {
+		t.Fatalf("load diff scope: %v", err)
+	}
+	changed := scope["a.go"].Export()
+	if !changed.Contains(10) || !changed.Contains(1) {
+		t.Fatalf("expected colliding target ranges to be merged, got %+v", changed)
+	}
+}
+
 func benchmarkScanTargetFiles(b *testing.B, scan func(runnersupport.Context, core.TargetConfig, string, func(string) bool, func(string, []byte) []core.Finding) []core.Finding) {
 	dir := b.TempDir()
 	line := strings.Repeat("some scanned line of file content\n", 32)

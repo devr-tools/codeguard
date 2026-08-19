@@ -334,31 +334,6 @@ func fileHasSelector(parsed *ast.File, selector string) bool {
 	return found
 }
 
-func isInsideLoop(root ast.Node, target ast.Node) bool {
-	inside := false
-	var stack []ast.Node
-	ast.Inspect(root, func(node ast.Node) bool {
-		if node == nil {
-			if len(stack) > 0 {
-				stack = stack[:len(stack)-1]
-			}
-			return true
-		}
-		if node == target {
-			for _, item := range stack {
-				switch item.(type) {
-				case *ast.ForStmt, *ast.RangeStmt:
-					inside = true
-					return false
-				}
-			}
-		}
-		stack = append(stack, node)
-		return true
-	})
-	return inside
-}
-
 func isErrorsNewCall(call *ast.CallExpr) bool {
 	selector, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok || selector.Sel.Name != "New" {

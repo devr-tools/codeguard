@@ -2,6 +2,7 @@ package checks_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -82,6 +83,43 @@ void useState; void useRouter; void prisma; void config; void value; void shared
 	}
 
 	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ai.hallucinated-import")
+}
+
+func TestQualityCheckIgnoresExcludedPNPMLockfile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "package.json"), `{"name":"fixture"}`)
+	writeFile(t, filepath.Join(dir, "pnpm-lock.yaml"), "packages:\n  excluded-package@1.0.0:\n")
+	writeFile(t, filepath.Join(dir, "app.ts"), `import value from "excluded-package";`)
+
+	cfg := qualityAITestConfig(dir, "quality-ai-excluded-pnpm-lock")
+	cfg.Targets[0].Language = "typescript"
+	cfg.Exclude = append(cfg.Exclude, "pnpm-lock.yaml")
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.hallucinated-import")
+}
+
+func TestQualityCheckIgnoresSymlinkedPNPMLockfile(t *testing.T) {
+	dir := t.TempDir()
+	external := filepath.Join(t.TempDir(), "pnpm-lock.yaml")
+	writeFile(t, external, "packages:\n  external-package@1.0.0:\n")
+	if err := os.Symlink(external, filepath.Join(dir, "pnpm-lock.yaml")); err != nil {
+		t.Skipf("create symlink: %v", err)
+	}
+	writeFile(t, filepath.Join(dir, "package.json"), `{"name":"fixture"}`)
+	writeFile(t, filepath.Join(dir, "app.ts"), `import value from "external-package";`)
+
+	cfg := qualityAITestConfig(dir, "quality-ai-symlinked-pnpm-lock")
+	cfg.Targets[0].Language = "typescript"
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.hallucinated-import")
 }
 
 func TestQualityCheckWarnsForDeadCode(t *testing.T) {

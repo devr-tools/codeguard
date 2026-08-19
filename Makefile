@@ -17,7 +17,7 @@ CONFIG ?= examples/codeguard.json
 CI_CONFIG ?= .codeguard/codeguard.yaml
 BASE_REF ?= main
 CODEGUARD_BIN ?= ./dist/codeguard
-GOFILES := $(shell find cmd internal pkg tests -type f -name '*.go' 2>/dev/null)
+GOFILE_DIRS := cmd internal pkg tests
 # MENU_VERSION defaults to the current release-please version so `make menu`
 # previews the banner with the real version (like a release build) instead of
 # the source default; override with MENU_VERSION=x.y.z.
@@ -61,11 +61,11 @@ help:
 	@printf "  make clean      Remove local build caches and dist/\n\n"
 
 fmt:
-	@test -n "$(GOFILES)" || (echo "no Go files found" && exit 1)
-	$(GOFMT) -w $(GOFILES)
+	@find $(GOFILE_DIRS) -type f -name '*.go' -print -quit 2>/dev/null | grep -q . || (echo "no Go files found" && exit 1)
+	find $(GOFILE_DIRS) -type f -name '*.go' -exec $(GOFMT) -w {} +
 
 fmt-check:
-	@unformatted="$$( $(GOFMT) -l $(GOFILES) )"; \
+	@unformatted="$$(find $(GOFILE_DIRS) -type f -name '*.go' -exec $(GOFMT) -l {} +)"; \
 	if [ -n "$$unformatted" ]; then \
 		echo "unformatted Go files:"; \
 		printf '%s\n' "$$unformatted"; \
