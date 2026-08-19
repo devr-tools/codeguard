@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
+
+const scanHistoryTimeout = 5 * time.Minute
 
 func runScanHistory(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("scan-history", flag.ContinueOnError)
@@ -30,7 +33,9 @@ func runScanHistory(args []string, stdout io.Writer, stderr io.Writer) int {
 		cfg = service.ExampleConfig()
 	}
 
-	report, err := service.ScanGitHistory(context.Background(), cfg, service.HistoryScanOptions{
+	ctx, cancel := context.WithTimeout(context.Background(), scanHistoryTimeout)
+	defer cancel()
+	report, err := service.ScanGitHistory(ctx, cfg, service.HistoryScanOptions{
 		RepoPath:   *repoPath,
 		MaxCommits: *maxCommits,
 		AllRefs:    *allRefs,

@@ -8,6 +8,7 @@ package history
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -19,6 +20,11 @@ import (
 )
 
 const commitMarker = "@@CG-COMMIT@@ "
+
+const (
+	maxHistoryLineBytes   = 64 * 1024
+	maxHistoryOutputBytes = 256 * 1024 * 1024
+)
 
 var hunkHeader = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)`)
 
@@ -39,7 +45,9 @@ func Scan(ctx context.Context, opts Options) (Report, error) {
 		args = append(args, fmt.Sprintf("-n%d", opts.MaxCommits))
 	}
 
-	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec // fixed git log subcommand; args are tool-controlled constants plus the scan repo path
+	cmdCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	cmd := exec.CommandContext(cmdCtx, "git", args...) //nolint:gosec // fixed git log subcommand; args are tool-controlled constants plus the scan repo path
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return Report{}, err
@@ -48,7 +56,13 @@ func Scan(ctx context.Context, opts Options) (Report, error) {
 		return Report{}, fmt.Errorf("git log: %w", err)
 	}
 
-	report := parseLog(stdout, opts.Scanner)
+	limited := &io.LimitedReader{R: stdout, N: maxHistoryOutputBytes + 1}
+	report := parseLog(limited, opts.Scanner)
+	if limited.N == 0 {
+		cancel()
+		_ = cmd.Wait()
+		return Report{}, fmt.Errorf("git log output exceeds %d MiB limit", maxHistoryOutputBytes/(1024*1024))
+	}
 
 	if err := cmd.Wait(); err != nil {
 		return Report{}, fmt.Errorf("git log: %w", err)
@@ -69,19 +83,16 @@ type logParser struct {
 }
 
 func parseLog(reader io.Reader, scanner security.Scanner) Report {
-	// bufio.Reader.ReadString grows for arbitrarily long lines, unlike
-	// bufio.Scanner, which silently stops on an over-long token — a dangerous
-	// failure mode for a security scan (it would skip the rest of history).
-	buf := bufio.NewReaderSize(reader, 64*1024)
+	buf := bufio.NewReaderSize(reader, maxHistoryLineBytes)
 	parser := &logParser{
 		scanner: scanner,
 		seen:    make(map[string]struct{}),
 		commits: make(map[string]struct{}),
 	}
 	for {
-		raw, err := buf.ReadString('\n')
+		raw, err := readBoundedLine(buf)
 		if len(raw) > 0 {
-			parser.handleLine(strings.TrimRight(raw, "\r\n"))
+			parser.handleLine(strings.TrimRight(string(raw), "\r\n"))
 		}
 		if err != nil {
 			break
@@ -89,6 +100,26 @@ func parseLog(reader io.Reader, scanner security.Scanner) Report {
 	}
 	parser.report.CommitsScanned = len(parser.commits)
 	return parser.report
+}
+
+// readBoundedLine retains at most maxHistoryLineBytes from a diff line while
+// draining the rest, so an attacker-controlled blob cannot cause an unbounded
+// allocation or make the parser silently skip the remainder of history.
+func readBoundedLine(buf *bufio.Reader) ([]byte, error) {
+	var line []byte
+	for {
+		fragment, err := buf.ReadSlice('\n')
+		remaining := maxHistoryLineBytes - len(line)
+		if remaining > 0 {
+			if len(fragment) < remaining {
+				remaining = len(fragment)
+			}
+			line = append(line, fragment[:remaining]...)
+		}
+		if !errors.Is(err, bufio.ErrBufferFull) {
+			return line, err
+		}
+	}
 }
 
 // handleLine advances parser state for one line of `git log -p -U0` output.
