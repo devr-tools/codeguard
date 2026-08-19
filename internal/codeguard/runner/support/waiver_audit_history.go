@@ -1,12 +1,11 @@
 package support
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/cachefile"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	"github.com/devr-tools/codeguard/internal/version"
 )
@@ -28,12 +27,8 @@ func LoadWaiverAuditHistory(path string) []core.WaiverAuditHistoryEntry {
 	if strings.TrimSpace(path) == "" {
 		return nil
 	}
-	data, err := os.ReadFile(path) //nolint:gosec // config-supplied waiver-audit history cache path
-	if err != nil {
-		return nil
-	}
 	var file waiverAuditHistoryFile
-	if err := json.Unmarshal(data, &file); err != nil || file.Version != waiverAuditHistoryVersion {
+	if !cachefile.Load(path, &file) || file.Version != waiverAuditHistoryVersion {
 		return nil
 	}
 	return file.Entries
