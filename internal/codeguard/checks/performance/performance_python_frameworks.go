@@ -120,20 +120,31 @@ func (f *pythonFrameworkScan) checkDjangoRelation(s *pythonPerformanceScan, line
 	if !f.django || f.prefetched || len(f.loopVars) == 0 {
 		return
 	}
-	for _, m := range pythonReverseRelation.FindAllStringSubmatch(line, -1) {
-		if f.isActiveLoopVar(m[1]) {
+	for offset := 0; offset < len(line); {
+		m := pythonReverseRelation.FindStringSubmatchIndex(line[offset:])
+		if m == nil {
+			break
+		}
+		if f.isActiveLoopVar(line[offset+m[2] : offset+m[3]]) {
 			s.addFinding("performance.python.django-nplusone-relation", lineNo,
 				"reverse relation access on a queryset row inside the loop issues one query per row; load it up front with prefetch_related")
 			return
 		}
+		offset += m[1]
 	}
-	for _, m := range pythonAttrChain.FindAllStringSubmatchIndex(line, -1) {
-		base := line[m[2]:m[3]]
-		middle := line[m[4]:m[5]]
+	for offset := 0; offset < len(line); {
+		m := pythonAttrChain.FindStringSubmatchIndex(line[offset:])
+		if m == nil {
+			break
+		}
+		base := line[offset+m[2] : offset+m[3]]
+		middle := line[offset+m[4] : offset+m[5]]
 		if !f.isActiveLoopVar(base) || middle == "objects" {
+			offset += m[1]
 			continue
 		}
-		if rest := strings.TrimLeft(line[m[1]:], " \t"); strings.HasPrefix(rest, "(") {
+		if rest := strings.TrimLeft(line[offset+m[1]:], " \t"); strings.HasPrefix(rest, "(") {
+			offset += m[1]
 			continue
 		}
 		s.addFinding("performance.python.django-nplusone-relation", lineNo,

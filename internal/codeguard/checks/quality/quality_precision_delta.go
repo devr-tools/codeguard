@@ -66,9 +66,8 @@ func changedFilesForTarget(env support.Context, target core.TargetConfig) []stri
 
 func readCurrentTargetFile(env support.Context, target core.TargetConfig, rel string) ([]byte, bool) {
 	if env.ReadTargetFile != nil {
-		if data, err := env.ReadTargetFile(target, rel); err == nil {
-			return data, true
-		}
+		data, err := env.ReadTargetFile(target, rel)
+		return data, err == nil
 	}
 	data, err := os.ReadFile(filepath.Join(target.Path, filepath.FromSlash(rel))) //nolint:gosec // rel comes from the scan's own changed-file list
 	return data, err == nil

@@ -2,6 +2,9 @@ package codeguard
 
 import "github.com/devr-tools/codeguard/internal/codeguard/config"
 
+// ErrConfigNotFound identifies a missing top-level configuration file.
+var ErrConfigNotFound = config.ErrConfigNotFound
+
 // ExampleConfig returns CodeGuard's complete, ready-to-edit starter
 // configuration. It is intended for callers creating a new configuration,
 // rather than as a way to normalize a partial Config.

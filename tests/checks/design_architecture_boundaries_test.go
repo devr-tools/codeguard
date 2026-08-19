@@ -140,6 +140,26 @@ func TestDesignLayerDeniedExternalImport(t *testing.T) {
 	}
 }
 
+func TestDesignTypeScriptLayerDeniedExternalImportIgnoresArbitraryJSON(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "domain", "notes.json"), "{}\n")
+	writeFile(t, filepath.Join(dir, "src", "domain", "@aws-sdk", "client-s3.ts"), "export class S3Client {}\n")
+	writeFile(t, filepath.Join(dir, "src", "domain", "service.ts"), "import { S3Client } from '@aws-sdk/client-s3';\nexport const client = S3Client;\n")
+	cfg := graphTestConfig("design-ts-layer-external-json", dir, "typescript")
+	cfg.Checks.DesignRules.Layers = []codeguard.DesignLayerConfig{{
+		Name: "domain", Paths: []string{"src/domain/**"}, DeniedExternal: []string{"@aws-sdk/**"},
+	}}
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	finding := designFinding(t, report, "design.layer-boundary")
+	if finding.Path != "src/domain/service.ts" || finding.Line != 1 || !strings.Contains(finding.Message, "@aws-sdk/client-s3") {
+		t.Fatalf("external layer finding = %s:%d %q", finding.Path, finding.Line, finding.Message)
+	}
+}
+
 func TestDesignCPPLayerBoundarySupportsDottedNamedModules(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "src", "domain.cppm"), "export module app.domain;\nimport app.adapters;\nexport int run();\n")

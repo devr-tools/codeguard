@@ -43,12 +43,21 @@ func readCappedFile(path string) ([]byte, error) {
 // Each cached slot carries its own sync.Once, so concurrent callers racing on a
 // cold slot compute it exactly once and every caller observes the same result.
 type fileCorpus struct {
-	mu      sync.Mutex
-	targets map[string]*targetListing
-	reads   map[string]*fileRead
-	asts    map[string]*goParse
-	scripts map[string]*scriptParse
+	mu          sync.Mutex
+	targets     map[string]*targetListing
+	reads       map[string]*fileRead
+	asts        map[string]*goParse
+	scripts     map[string]*scriptParse
+	scriptBytes int
+	scriptCount int
+	scriptParse chan struct{}
 }
+
+// maxTreeSitterScanBytes bounds the source represented by retained script
+// trees during one scan. Parsing is also serialized because the pure-Go
+// runtime's transient heap is much larger than its input.
+const maxTreeSitterScanBytes = 256 * 1024
+const maxTreeSitterScanFiles = 64
 
 type targetListing struct {
 	once  sync.Once
@@ -77,10 +86,11 @@ type scriptParse struct {
 
 func newFileCorpus() *fileCorpus {
 	return &fileCorpus{
-		targets: map[string]*targetListing{},
-		reads:   map[string]*fileRead{},
-		asts:    map[string]*goParse{},
-		scripts: map[string]*scriptParse{},
+		targets:     map[string]*targetListing{},
+		reads:       map[string]*fileRead{},
+		asts:        map[string]*goParse{},
+		scripts:     map[string]*scriptParse{},
+		scriptParse: make(chan struct{}, 1),
 	}
 }
 
@@ -153,12 +163,20 @@ func (c *fileCorpus) parseScript(path string, data []byte, lang checkSupport.Scr
 	c.mu.Lock()
 	entry, ok := c.scripts[key]
 	if !ok {
+		if c.scriptCount >= maxTreeSitterScanFiles || c.scriptBytes+len(data) > maxTreeSitterScanBytes {
+			c.mu.Unlock()
+			return nil, fmt.Errorf("tree-sitter scan budget of %d files or %d bytes exhausted", maxTreeSitterScanFiles, maxTreeSitterScanBytes)
+		}
 		entry = &scriptParse{}
 		c.scripts[key] = entry
+		c.scriptCount++
+		c.scriptBytes += len(data)
 	}
 	c.mu.Unlock()
 
 	entry.once.Do(func() {
+		c.scriptParse <- struct{}{}
+		defer func() { <-c.scriptParse }()
 		entry.tree, entry.err = checkSupport.ParseScriptSource(path, data, lang)
 	})
 	return entry.tree, entry.err

@@ -88,3 +88,38 @@ func TestSecurityCheckFindsAdditionalLanguagePatterns(t *testing.T) {
 		})
 	}
 }
+
+func TestSecurityCheckFindsMultilineCPPInsecureTLS(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "multiline.cpp"), `void configure(CURL* curl, SSL_CTX* ctx) {
+  curl_easy_setopt(curl,
+    CURLOPT_SSL_VERIFYPEER,
+    0L);
+  SSL_CTX_set_verify(ctx,
+    SSL_VERIFY_NONE,
+    nullptr);
+  socket.set_verify_mode(
+    boost::asio::ssl::verify_none);
+}
+`)
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "security-cpp-multiline"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "cpp", Path: dir, Language: "cpp"}}
+	cfg.Checks.Security = true
+	cfg.Checks.Design = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cfg.Checks.Quality = false
+	cfg.Checks.SecurityRules.GovulncheckMode = "off"
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Security", "fail")
+	assertFindingRulePresent(t, report, "Security", "security.cpp.insecure-tls")
+}

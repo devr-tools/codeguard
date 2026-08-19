@@ -47,8 +47,8 @@ jobs:
           git archive --format=tar.gz --output "$archive_path" HEAD
           sha256="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
 
-          if [ -z "$version" ]; then
-            echo "failed to extract codeguard version from internal/version/version.go"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?(\+[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            echo "invalid codeguard version extracted from internal/version/version.go: $version"
             exit 1
           fi
 

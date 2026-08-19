@@ -17,6 +17,9 @@ import (
 const maxConfigFileBytes = 32 << 20
 
 var (
+	// ErrConfigNotFound identifies a missing top-level configuration file. It is
+	// distinct from missing artifacts referenced by an existing configuration.
+	ErrConfigNotFound    = errors.New("config file not found")
 	defaultConfigNames   = []string{"codeguard.yaml", "codeguard.yml", "codeguard.json"}
 	directoryConfigNames = []string{"codeguard.yaml", "codeguard.yml", "codeguard.json", "config.yaml", "config.yml", "config.json"}
 	defaultConfigDirs    = []string{".", ".codeguard"}
@@ -30,6 +33,9 @@ func LoadFile(path string) (core.Config, error) {
 
 	f, err := os.Open(resolvedPath) //nolint:gosec // operator-supplied config path; read is size-capped by LimitReader below
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return core.Config{}, fmt.Errorf("%w: %w", ErrConfigNotFound, err)
+		}
 		return core.Config{}, err
 	}
 	defer func() { _ = f.Close() }()
@@ -94,6 +100,10 @@ func containConfigArtifactPaths(cfg *core.Config, baseDir string) error {
 	legibilityHistoryPath := cachefile.DerivedPath(cfg.Cache.Path, ".legibility-history")
 	if _, err := containedPath(baseDir, legibilityHistoryPath); err != nil {
 		return fmt.Errorf("context_rules.legibility_history: %w", err)
+	}
+	performanceHistoryPath := cachefile.DerivedPath(cfg.Cache.Path, ".perf-history")
+	if _, err := containedPath(baseDir, performanceHistoryPath); err != nil {
+		return fmt.Errorf("performance_rules.score_history: %w", err)
 	}
 	for i := range cfg.ExternalReports {
 		resolved, err := containedPath(baseDir, cfg.ExternalReports[i].Path)
