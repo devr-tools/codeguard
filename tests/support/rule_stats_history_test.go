@@ -2,6 +2,7 @@ package support_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
