@@ -60,7 +60,7 @@ function loadProgram() {
       configPath,
     );
     return ts.createProgram({
-      rootNames: configuredRootNames(parsed.fileNames, rootNames),
+      rootNames: rootNames || parsed.fileNames.filter((name) => isWithinTarget(path.resolve(name))),
       options: parsed.options,
     });
   }
@@ -69,15 +69,6 @@ function loadProgram() {
     rootNames: rootNames || ts.sys.readDirectory(targetPath, scriptExtensions(), undefined, undefined),
     options: defaultCompilerOptions(),
   });
-}
-
-function configuredRootNames(configuredFiles, corpusFiles) {
-  const withinTarget = configuredFiles.filter((name) => isWithinTarget(path.resolve(name)));
-  if (!Array.isArray(corpusFiles)) {
-    return withinTarget;
-  }
-  const corpus = new Set(corpusFiles.map((name) => path.resolve(name)));
-  return withinTarget.filter((name) => corpus.has(path.resolve(name)));
 }
 
 function findConfigPath() {
