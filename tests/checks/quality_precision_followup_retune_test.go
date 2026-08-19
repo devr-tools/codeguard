@@ -406,6 +406,26 @@ func TestDefensiveNullAssumptionCreditsTypeScriptNarrowing(t *testing.T) {
 	assertCodeQualityRuleAbsentForPath(t, report, "defensive.null-assumption", "null-narrowing.ts:16")
 }
 
+func TestDefensiveNullAssumptionRejectsUnsafeTypeofGuards(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "packages/api/src/lib/unsafe-typeof.ts"), strings.Join([]string{
+		"export function objectCheck(user: User | null) {",
+		"  if (typeof user === 'object') return user.email;",
+		"}",
+		"export function lateCheck(user: User | null) {",
+		"  const email = user.email;",
+		"  if (typeof user === 'string') return '';",
+		"  return email;",
+		"}",
+		"interface User { email: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.null-assumption", "unsafe-typeof.ts:2")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "defensive.null-assumption", "unsafe-typeof.ts:5")
+}
+
 func TestDefensiveBoundaryInputSkipsTypedInternalDTOs(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "packages/api/src/routers/internal-dtos.ts"), strings.Join([]string{
