@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"math/big"
 	"strings"
 )
 
@@ -216,8 +215,7 @@ func isZeroDuration(expr ast.Expr) bool {
 		if n.Kind != token.INT {
 			return false
 		}
-		value, ok := new(big.Int).SetString(strings.ReplaceAll(n.Value, "_", ""), 0)
-		return ok && value.Sign() == 0
+		return isZeroIntegerLiteral(n.Value)
 	case *ast.CallExpr:
 		// Duration conversions, such as time.Duration(0), preserve zero.
 		return len(n.Args) == 1 && isZeroDuration(n.Args[0])
@@ -230,6 +228,21 @@ func isZeroDuration(expr ast.Expr) bool {
 		}
 	}
 	return false
+}
+
+func isZeroIntegerLiteral(literal string) bool {
+	// Go's parser has already validated the integer literal. Avoid converting it
+	// to a big.Int: literals come from untrusted repositories and may be millions
+	// of digits long. In every supported base, a zero contains no nonzero digit.
+	if len(literal) >= 2 && literal[0] == '0' && strings.ContainsRune("bBoOxX", rune(literal[1])) {
+		literal = literal[2:]
+	}
+	for _, char := range literal {
+		if char != '0' && char != '_' {
+			return false
+		}
+	}
+	return true
 }
 
 func isHTTPClientType(expr ast.Expr, aliases map[string]struct{}) bool {
