@@ -29,8 +29,9 @@ func changeImpactFindings(env support.Context, graphs []targetModuleGraph) []cor
 	entries := make([]core.ChangeImpactEntry, 0)
 	findings := make([]core.Finding, 0)
 	for _, item := range graphs {
+		reverse := item.graph.reverseDependencies()
 		for _, changed := range env.ChangedFiles {
-			entry, ok := changeImpactEntry(item, changed)
+			entry, ok := changeImpactEntry(item, reverse, changed)
 			if !ok {
 				continue
 			}
@@ -46,12 +47,12 @@ func changeImpactFindings(env support.Context, graphs []targetModuleGraph) []cor
 	return findings
 }
 
-func changeImpactEntry(item targetModuleGraph, changed string) (core.ChangeImpactEntry, bool) {
+func changeImpactEntry(item targetModuleGraph, reverse map[string][]string, changed string) (core.ChangeImpactEntry, bool) {
 	module, ok := item.graph.fileToModule[filepath.ToSlash(changed)]
 	if !ok {
 		return core.ChangeImpactEntry{}, false
 	}
-	dependents := item.graph.transitiveDependents(module)
+	dependents := support.TransitiveDependents(reverse, module)
 	return core.ChangeImpactEntry{
 		Target:               item.target.Name,
 		Language:             item.graph.language,

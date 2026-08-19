@@ -318,8 +318,6 @@ func nullableParamGuarded(loweredBody string, name string) bool {
 		name + " != null",
 		name + " == nullptr",
 		name + " != nullptr",
-		"typeof " + name + " === ",
-		"typeof " + name + " == ",
 	}
 	if containsAny(loweredBody, guards) {
 		return true
@@ -334,12 +332,20 @@ func nullableParamHasBlockExitGuard(loweredBody string, quotedName string) bool 
 	if guardStart == nil {
 		return false
 	}
-	windowStart := guardStart[1]
-	windowEnd := windowStart + 3000
-	if windowEnd > len(loweredBody) {
-		windowEnd = len(loweredBody)
+	blockStart := guardStart[1] - 1
+	depth := 1
+	for blockEnd := blockStart + 1; blockEnd < len(loweredBody); blockEnd++ {
+		switch loweredBody[blockEnd] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return regexp.MustCompile(`\b(?:return|throw|continue|break)\b`).MatchString(loweredBody[blockStart+1 : blockEnd])
+			}
+		}
 	}
-	return regexp.MustCompile(`\b(?:return|throw|continue|break)\b`).MatchString(loweredBody[windowStart:windowEnd])
+	return false
 }
 
 func nullableUseLine(fn precisionFunction, name string) int {
@@ -356,7 +362,14 @@ func nullableUseLine(fn precisionFunction, name string) int {
 }
 
 func nullableStatementUsesOnlyNullSafeOperators(statement string, name string) bool {
-	return containsAny(statement, []string{name + "?.", name + "?.[", name + " ??"})
+	if containsAny(statement, []string{name + "?.", name + "?.[", name + " ??"}) {
+		return true
+	}
+	// A typeof check only narrows the value on the branch controlled by that
+	// check. Do not treat an arbitrary typeof occurrence elsewhere in the
+	// function as a null guard.
+	quotedName := regexp.QuoteMeta(name)
+	return regexp.MustCompile(`typeof\s+` + quotedName + `\s*={2,3}\s*['"](?:string|number|boolean|bigint|symbol|function)['"]\s*\?[^:]*\b` + quotedName + `(?:\.|\[)`).MatchString(statement)
 }
 
 func firstUseLine(fn precisionFunction, name string) int {

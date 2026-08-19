@@ -3,6 +3,8 @@ package reliability
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
+	"math/big"
 	"strings"
 )
 
@@ -195,11 +197,37 @@ func isHTTPClientWithTimeout(expr ast.Expr, aliases map[string]struct{}) bool {
 				continue
 			}
 			if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "Timeout" {
-				return true
+				return !isZeroDuration(kv.Value)
 			}
 		}
 	case *ast.CallExpr:
 		return callName(n) == "http.Client" || strings.HasSuffix(callName(n), ".Client")
+	}
+	return false
+}
+
+func isZeroDuration(expr ast.Expr) bool {
+	switch n := expr.(type) {
+	case *ast.ParenExpr:
+		return isZeroDuration(n.X)
+	case *ast.UnaryExpr:
+		return (n.Op == token.ADD || n.Op == token.SUB) && isZeroDuration(n.X)
+	case *ast.BasicLit:
+		if n.Kind != token.INT {
+			return false
+		}
+		value, ok := new(big.Int).SetString(strings.ReplaceAll(n.Value, "_", ""), 0)
+		return ok && value.Sign() == 0
+	case *ast.CallExpr:
+		// Duration conversions, such as time.Duration(0), preserve zero.
+		return len(n.Args) == 1 && isZeroDuration(n.Args[0])
+	case *ast.BinaryExpr:
+		if n.Op == token.MUL {
+			return isZeroDuration(n.X) || isZeroDuration(n.Y)
+		}
+		if n.Op == token.ADD || n.Op == token.SUB {
+			return isZeroDuration(n.X) && isZeroDuration(n.Y)
+		}
 	}
 	return false
 }
