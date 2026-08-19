@@ -318,8 +318,6 @@ func nullableParamGuarded(loweredBody string, name string) bool {
 		name + " != null",
 		name + " == nullptr",
 		name + " != nullptr",
-		"typeof " + name + " === ",
-		"typeof " + name + " == ",
 	}
 	if containsAny(loweredBody, guards) {
 		return true
@@ -364,7 +362,14 @@ func nullableUseLine(fn precisionFunction, name string) int {
 }
 
 func nullableStatementUsesOnlyNullSafeOperators(statement string, name string) bool {
-	return containsAny(statement, []string{name + "?.", name + "?.[", name + " ??"})
+	if containsAny(statement, []string{name + "?.", name + "?.[", name + " ??"}) {
+		return true
+	}
+	// A typeof check only narrows the value on the branch controlled by that
+	// check. Do not treat an arbitrary typeof occurrence elsewhere in the
+	// function as a null guard.
+	quotedName := regexp.QuoteMeta(name)
+	return regexp.MustCompile(`typeof\s+` + quotedName + `\s*={2,3}\s*['"](?:string|number|boolean|bigint|symbol|function)['"]\s*\?[^:]*\b` + quotedName + `(?:\.|\[)`).MatchString(statement)
 }
 
 func firstUseLine(fn precisionFunction, name string) int {
