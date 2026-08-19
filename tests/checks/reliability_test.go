@@ -162,3 +162,31 @@ func Fetch(ctx context.Context, url string) error {
 	assertFindingRuleAbsent(t, report, "Reliability", "reliability.missing-timeout")
 	assertFindingRuleAbsent(t, report, "Reliability", "reliability.resource-leak")
 }
+
+func TestReliabilityGoFlagsZeroClientTimeout(t *testing.T) {
+	for _, timeout := range []string{"0", "time.Duration(0)", "0 * time.Second"} {
+		t.Run(timeout, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, "client.go"), `package sample
+
+import (
+	"net/http"
+	"time"
+)
+
+func Fetch(req *http.Request) error {
+	client := &http.Client{Timeout: `+timeout+`}
+	_, err := client.Do(req)
+	return err
+}
+`)
+
+			report, err := codeguard.Run(context.Background(), reliabilityConfig("reliability-zero-timeout", dir))
+			if err != nil {
+				t.Fatalf("run: %v", err)
+			}
+
+			assertFindingRulePresent(t, report, "Reliability", "reliability.missing-timeout")
+		})
+	}
+}
