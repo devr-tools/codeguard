@@ -177,7 +177,7 @@ func TestRunScanFolderWithoutConfigUsesDefaultProfile(t *testing.T) {
 	writeScanTestFile(t, filepath.Join(dir, "sub", "Makefile"), "test:\n\tgo test ./...\n")
 	writeScanTestFile(t, filepath.Join(dir, "sub", "README.md"), "# Configless scan\n\nRun `make test`.\n")
 	writeScanTestFile(t, filepath.Join(dir, "sub", "AGENTS.md"), "# Agent Notes\n\n## Build & test\n- `make test` runs the unit suite.\n")
-	writeScanTestFile(t, filepath.Join(dir, "sub", ".github", "workflows", "ci.yml"), "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: go test ./...\n")
+	writeScanTestFile(t, filepath.Join(dir, "sub", ".github", "workflows", "ci.yml"), "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: go test ./...\n")
 
 	var stdout, stderr bytes.Buffer
 	code := cli.Run([]string{"scan", "-folder", "sub", "-profile", "startup"}, strings.NewReader(""), &stdout, &stderr)
