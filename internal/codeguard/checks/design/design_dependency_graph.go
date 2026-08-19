@@ -1,10 +1,6 @@
 package design
 
-import (
-	"sort"
-
-	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
-)
+import "sort"
 
 // moduleGraph is a language-neutral module import graph used for cycle,
 // god-module, and change-impact analysis across languages.
@@ -118,14 +114,15 @@ func (g *moduleGraph) fanCounts() (map[string]int, map[string]int) {
 	return fanOut, fanIn
 }
 
-// transitiveDependents returns every module that reaches the given module
-// through one or more import edges, sorted by name.
-func (g *moduleGraph) transitiveDependents(module string) []string {
+// reverseDependencies builds the reverse adjacency list shared by change-impact
+// traversals. Callers should build it once after graph construction rather than
+// rebuilding it for every changed module.
+func (g *moduleGraph) reverseDependencies() map[string][]string {
 	reverse := make(map[string][]string, len(g.modules))
 	for from, node := range g.modules {
 		for _, edge := range node.edges {
 			reverse[edge.to] = append(reverse[edge.to], from)
 		}
 	}
-	return support.TransitiveDependents(reverse, module)
+	return reverse
 }
