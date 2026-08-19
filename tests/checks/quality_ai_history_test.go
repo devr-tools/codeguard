@@ -1,6 +1,7 @@
 package checks_test
 
 import (
+	"strings"
 	"context"
 	"os"
 	"path/filepath"
