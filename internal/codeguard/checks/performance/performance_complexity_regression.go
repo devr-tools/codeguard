@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -24,7 +22,7 @@ func complexityRegressionFindings(env support.Context, target core.TargetConfig)
 	if !toggleEnabled(env.Config.Checks.PerformanceRules.DetectComplexityRegression) {
 		return nil
 	}
-	if env.Mode != core.ScanModeDiff || env.DiffScope == nil || env.ReadBaseFile == nil {
+	if env.Mode != core.ScanModeDiff || env.DiffScope == nil || env.ReadBaseFile == nil || env.ReadTargetFile == nil {
 		return nil
 	}
 	switch support.NormalizedLanguage(target.Language) {
@@ -47,19 +45,19 @@ func complexityRegressionFindings(env support.Context, target core.TargetConfig)
 }
 
 func complexityRegressionFileFindings(env support.Context, target core.TargetConfig, rel string, changed core.ChangedLineRanges) []core.Finding {
-	headData, err := os.ReadFile(filepath.Join(target.Path, filepath.FromSlash(rel))) //nolint:gosec // target path from config + rel path from the scan's own git diff
+	baseData, err := env.ReadBaseFile(target, rel)
 	if err != nil {
-		// Deleted (or unreadable) file: nothing on the head side to regress.
+		// Added file: every function is new, so there is no base to compare.
+		return nil
+	}
+	headData, err := env.ReadTargetFile(target, rel)
+	if err != nil {
+		// Deleted, unreadable, or oversized file: nothing safe to compare.
 		return nil
 	}
 	headFset, headFile, err := support.ParseGoSource(env, rel, headData)
 	if err != nil {
 		// Unparseable Go is the quality section's problem (quality.parse-error).
-		return nil
-	}
-	baseData, err := env.ReadBaseFile(target, rel)
-	if err != nil {
-		// Added file: every function is new, so there is no base to compare.
 		return nil
 	}
 	baseDepths, err := baseFunctionLoopDepths(rel, baseData)

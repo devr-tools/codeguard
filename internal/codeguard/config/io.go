@@ -17,6 +17,9 @@ import (
 const maxConfigFileBytes = 32 << 20
 
 var (
+	// ErrConfigNotFound identifies a missing top-level configuration file. It is
+	// distinct from missing artifacts referenced by an existing configuration.
+	ErrConfigNotFound    = errors.New("config file not found")
 	defaultConfigNames   = []string{"codeguard.yaml", "codeguard.yml", "codeguard.json"}
 	directoryConfigNames = []string{"codeguard.yaml", "codeguard.yml", "codeguard.json", "config.yaml", "config.yml", "config.json"}
 	defaultConfigDirs    = []string{".", ".codeguard"}
@@ -30,6 +33,9 @@ func LoadFile(path string) (core.Config, error) {
 
 	f, err := os.Open(resolvedPath) //nolint:gosec // operator-supplied config path; read is size-capped by LimitReader below
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return core.Config{}, fmt.Errorf("%w: %w", ErrConfigNotFound, err)
+		}
 		return core.Config{}, err
 	}
 	defer func() { _ = f.Close() }()

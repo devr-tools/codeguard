@@ -42,12 +42,21 @@ func functionReliabilityFindings(env support.Context, file string, fset *token.F
 	deferCloseVars := deferredCloseVars(fn.Body)
 	boundedClients, boundedRequests := boundedHTTPValues(fn.Body, httpAliases)
 	goroutines := 0
+	loopDepth := 0
+	var loopStack []bool
 
 	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		if node == nil {
+			if loopStack[len(loopStack)-1] {
+				loopDepth--
+			}
+			loopStack = loopStack[:len(loopStack)-1]
+			return true
+		}
 		switch n := node.(type) {
 		case *ast.GoStmt:
 			goroutines++
-			if enabled(rules.DetectUnboundedWork) && isInsideLoop(fn.Body, n) {
+			if enabled(rules.DetectUnboundedWork) && loopDepth > 0 {
 				pos := fset.Position(n.Go)
 				findings = append(findings, newFinding(env, "reliability.unbounded-work", "warn", file, pos.Line, pos.Column, "goroutine launched inside a loop without an obvious work bound", "high", "work", "goroutine-in-loop"))
 			}
@@ -66,6 +75,13 @@ func functionReliabilityFindings(env support.Context, file string, fset *token.F
 			if enabled(rules.DetectLostErrorContext) {
 				findings = append(findings, lostErrorContextFindings(env, file, fset, n)...)
 			}
+		}
+		_, isFor := node.(*ast.ForStmt)
+		_, isRange := node.(*ast.RangeStmt)
+		isLoop := isFor || isRange
+		loopStack = append(loopStack, isLoop)
+		if isLoop {
+			loopDepth++
 		}
 		return true
 	})
