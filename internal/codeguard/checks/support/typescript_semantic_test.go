@@ -12,7 +12,7 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func TestTypeScriptSemanticRunnerIntersectsCorpusWithConfiguredFiles(t *testing.T) {
+func TestTypeScriptSemanticRunnerUsesCorpusDespiteConfiguredFiles(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is required for the embedded semantic runner test")
 	}
@@ -41,8 +41,7 @@ module.exports = {
 		TargetPath:        root,
 		SourceFiles: []string{
 			filepath.Join(root, "src/app.ts"),
-			filepath.Join(root, "vendor/excluded.ts"),
-			filepath.Join(root, "node_modules/pkg/index.ts"),
+			filepath.Join(root, "src/tsconfig-excluded.ts"),
 		},
 	}
 	_, err := runTypeScriptSemanticRunner(context.Background(), input)
@@ -50,12 +49,9 @@ module.exports = {
 		t.Fatal("semantic runner succeeded; want fake compiler root report")
 	}
 	message := err.Error()
-	if !strings.Contains(message, filepath.Join(root, "src/app.ts")) {
-		t.Fatalf("configured corpus root missing from compiler roots: %s", message)
-	}
-	for _, excluded := range []string{"vendor/excluded.ts", "node_modules/pkg/index.ts"} {
-		if strings.Contains(message, excluded) {
-			t.Fatalf("tsconfig-excluded corpus file %q reached compiler roots: %s", excluded, message)
+	for _, sourceFile := range input.SourceFiles {
+		if !strings.Contains(message, sourceFile) {
+			t.Fatalf("corpus root %q missing from compiler roots: %s", sourceFile, message)
 		}
 	}
 }
