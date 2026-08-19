@@ -91,9 +91,17 @@ func containConfigArtifactPaths(cfg *core.Config, baseDir string) error {
 	}
 	// History files are separate write targets and must be checked independently:
 	// validating the cache path does not detect a symlink at a derived filename.
-	legibilityHistoryPath := cachefile.DerivedPath(cfg.Cache.Path, ".legibility-history")
-	if _, err := containedPath(baseDir, legibilityHistoryPath); err != nil {
-		return fmt.Errorf("context_rules.legibility_history: %w", err)
+	for _, history := range []struct {
+		label  string
+		suffix string
+	}{
+		{"context_rules.legibility_history", ".legibility-history"},
+		{"quality_rules.ai_checks.slop_history", ".slop-history"},
+	} {
+		historyPath := cachefile.DerivedPath(cfg.Cache.Path, history.suffix)
+		if _, err := containedPath(baseDir, historyPath); err != nil {
+			return fmt.Errorf("%s: %w", history.label, err)
+		}
 	}
 	for i := range cfg.ExternalReports {
 		resolved, err := containedPath(baseDir, cfg.ExternalReports[i].Path)
