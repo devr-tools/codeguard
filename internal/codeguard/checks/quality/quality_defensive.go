@@ -334,12 +334,20 @@ func nullableParamHasBlockExitGuard(loweredBody string, quotedName string) bool 
 	if guardStart == nil {
 		return false
 	}
-	windowStart := guardStart[1]
-	windowEnd := windowStart + 3000
-	if windowEnd > len(loweredBody) {
-		windowEnd = len(loweredBody)
+	blockStart := guardStart[1] - 1
+	depth := 1
+	for blockEnd := blockStart + 1; blockEnd < len(loweredBody); blockEnd++ {
+		switch loweredBody[blockEnd] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return regexp.MustCompile(`\b(?:return|throw|continue|break)\b`).MatchString(loweredBody[blockStart+1 : blockEnd])
+			}
+		}
 	}
-	return regexp.MustCompile(`\b(?:return|throw|continue|break)\b`).MatchString(loweredBody[windowStart:windowEnd])
+	return false
 }
 
 func nullableUseLine(fn precisionFunction, name string) int {
