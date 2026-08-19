@@ -104,12 +104,7 @@ function scriptExtensions() {
 function isAnalyzableSourceFile(sourceFile) {
   return !sourceFile.isDeclarationFile &&
     scriptFlavor(sourceFile.fileName) &&
-    isWithinTarget(sourceFile.fileName) &&
-    !isNodeModulesPath(sourceFile.fileName);
-}
-
-function isNodeModulesPath(fileName) {
-  return normalizePath(path.resolve(fileName)).split("/").includes("node_modules");
+    isWithinTarget(sourceFile.fileName);
 }
 
 function isWithinTarget(fileName) {

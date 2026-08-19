@@ -159,6 +159,30 @@ func TestSecurityCheckUsesSemanticTypeScriptAnalyzerForRequirePropertyAlias(t *t
 	assertFindingRulePresent(t, report, "Security", "security.typescript.shell-execution")
 }
 
+func TestSecuritySemanticAnalyzerScansNodeModulesWithinTarget(t *testing.T) {
+	requireTypeScriptSemanticRuntime(t)
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "node_modules", "local-package", "index.ts"), "const agent = { rejectUnauthorized: false };\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "security-typescript-semantic-node-modules"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "web", Path: dir, Language: "typescript"}}
+	cfg.Checks.Security = true
+	cfg.Checks.Design = false
+	cfg.Checks.Quality = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertSectionStatus(t, report, "Security", "fail")
+	assertFindingRulePresent(t, report, "Security", "security.typescript.insecure-tls")
+}
+
 func requireTypeScriptSemanticRuntime(t *testing.T) {
 	t.Helper()
 
