@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.5.4](https://github.com/devr-tools/codeguard/compare/v1.5.3...v1.5.4) (2026-08-19)
+
+
+### Bug Fixes
+
+* bound waiver audit history reads ([4ecb4da](https://github.com/devr-tools/codeguard/commit/4ecb4da9ac5ea6e22aa67acd4f0f37bdda869dbd))
+* cap rule stats history reads ([8aa4345](https://github.com/devr-tools/codeguard/commit/8aa4345da8c3cd16bf61908c89bf19830150e4fe))
+* detect zero HTTP client timeouts ([c664c33](https://github.com/devr-tools/codeguard/commit/c664c338c2806a70bfbea5bdbb7c5a1409120396))
+* **parser:** make Python call extraction linear ([e3dd6d4](https://github.com/devr-tools/codeguard/commit/e3dd6d44f132548a2b43874de2a49ed4f5936f82))
+* **parser:** make Python call extraction linear ([#140](https://github.com/devr-tools/codeguard/issues/140)) ([0970150](https://github.com/devr-tools/codeguard/commit/0970150a8240b8c45645209de208aa8a9e4ac0c2))
+* **quality:** bound AI provenance git output ([#139](https://github.com/devr-tools/codeguard/issues/139)) ([dc17db9](https://github.com/devr-tools/codeguard/commit/dc17db9d1e1d8fd0017c29515716b4e1b5b73e87))
+* **quality:** cap git provenance output ([8e95804](https://github.com/devr-tools/codeguard/commit/8e95804bbabcb3e374b36371c521480e9da96e0e))
+* reject unsafe typeof null guards ([e2f552e](https://github.com/devr-tools/codeguard/commit/e2f552e9e4a5e943e707c3f7ebfc01b08c2cc1aa))
+* **reliability:** bound zero timeout detection ([e838116](https://github.com/devr-tools/codeguard/commit/e838116655194a7302ad1d559a385db82f3cbc53))
+* scope nullable block guards to their bodies ([fcb3023](https://github.com/devr-tools/codeguard/commit/fcb3023f9766f99c5712dbdbc1f35222d1965c98))
+* **security:** avoid retaining dynamic regexes ([1a55a38](https://github.com/devr-tools/codeguard/commit/1a55a389fca45fbbd302974c39bcd107b058955f))
+* **security:** avoid retaining dynamic regexes ([#145](https://github.com/devr-tools/codeguard/issues/145)) ([3b6aa51](https://github.com/devr-tools/codeguard/commit/3b6aa513c37911f26032df7704d12adeef6fe331))
+* **security:** bound git history secret scans ([3fa7c09](https://github.com/devr-tools/codeguard/commit/3fa7c093a3ad8501ec860c035eeb527aa9de73fb))
+* **security:** bound git-history parsing to prevent DoS ([#146](https://github.com/devr-tools/codeguard/issues/146)) ([d0eb42f](https://github.com/devr-tools/codeguard/commit/d0eb42f06625f360b3322028019a0334c40ad890))
+* use errors.Is for bounded history reads ([b5076ff](https://github.com/devr-tools/codeguard/commit/b5076ffe675f9073424a3cba57dbc7bee95a474a))
+
 ## [1.5.3](https://github.com/devr-tools/codeguard/compare/v1.5.2...v1.5.3) (2026-08-19)
 
 
