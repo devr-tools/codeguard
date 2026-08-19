@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	workflowUsesPattern   = regexp.MustCompile(`(?i)\buses:\s*['"]?([^@\s'"]+)(?:@([^\s#'"]+))?`)
-	latestImagePattern    = regexp.MustCompile(`(?i)\b(?:image:|from)\s+['"]?[^@\s'"]+:latest\b`)
-	deployImageRunPattern = regexp.MustCompile(`(?i)\b(?:docker|kubectl|helm)\b.*:latest\b`)
+	workflowUsesPattern       = regexp.MustCompile(`(?i)\buses:\s*['"]?([^@\s'"]+)(?:@([^\s#'"]+))?`)
+	immutableActionRefPattern = regexp.MustCompile(`(?i)^[0-9a-f]{40}$`)
+	latestImagePattern        = regexp.MustCompile(`(?i)\b(?:image:|from)\s+['"]?[^@\s'"]+:latest\b`)
+	deployImageRunPattern     = regexp.MustCompile(`(?i)\b(?:docker|kubectl|helm)\b.*:latest\b`)
 )
 
 func missingRequiredGateFindings(env support.Context, target core.TargetConfig) []core.Finding {
@@ -152,12 +153,7 @@ func latestImageFinding(env support.Context, rel string, lineNo int, line string
 }
 
 func isMutableActionRef(ref string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(ref))
-	switch normalized {
-	case "", "head", "latest", "main", "master", "develop", "development", "dev", "trunk", "stable":
-		return true
-	}
-	return strings.HasPrefix(normalized, "refs/heads/")
+	return !immutableActionRefPattern.MatchString(strings.TrimSpace(ref))
 }
 
 type ciFile struct {
