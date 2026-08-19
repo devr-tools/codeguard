@@ -105,6 +105,10 @@ func containConfigArtifactPaths(cfg *core.Config, baseDir string) error {
 	if _, err := containedPath(baseDir, performanceHistoryPath); err != nil {
 		return fmt.Errorf("performance_rules.score_history: %w", err)
 	}
+	slopHistoryPath := cachefile.DerivedPath(cfg.Cache.Path, ".slop-history")
+	if _, err := containedPath(baseDir, slopHistoryPath); err != nil {
+		return fmt.Errorf("quality_rules.ai_checks.slop_history: %w", err)
+	}
 	for i := range cfg.ExternalReports {
 		resolved, err := containedPath(baseDir, cfg.ExternalReports[i].Path)
 		if err != nil {

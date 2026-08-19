@@ -121,3 +121,24 @@ func TestLoadConfigRejectsPerformanceHistorySymlinkEscape(t *testing.T) {
 		t.Fatalf("expected a performance-history symlink containment error, got %v", err)
 	}
 }
+
+func TestLoadConfigRejectsSlopHistorySymlinkEscape(t *testing.T) {
+	dir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "victim.json")
+	cacheDir := filepath.Join(dir, ".codeguard")
+	if err := os.Mkdir(cacheDir, 0o750); err != nil {
+		t.Fatalf("create cache directory: %v", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(cacheDir, "cache.slop-history.json")); err != nil {
+		t.Skipf("symlinks unsupported on this platform: %v", err)
+	}
+	path := writeConfig(t, dir, ".codeguard/cache.json", "")
+
+	_, err := service.LoadConfigFile(path)
+	if err == nil {
+		t.Fatal("expected a derived slop-history symlink escape to be rejected")
+	}
+	if !strings.Contains(err.Error(), "slop_history") || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("expected a slop-history symlink containment error, got %v", err)
+	}
+}
