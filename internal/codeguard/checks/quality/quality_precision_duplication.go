@@ -10,6 +10,8 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
+var domainKnowledgeLiteralPattern = regexp.MustCompile(`"([^"]{2,80})"|'([^']{2,80})'|\b\d+(?:\.\d+)?\b`)
+
 func parsedDuplicatedKnowledgeFindings(env support.Context, file string, parsed *support.ParsedFile) []core.Finding {
 	if isQualityFixturePath(file) {
 		return nil
@@ -38,8 +40,12 @@ func sourceDuplicatedKnowledgeFindings(env support.Context, file string, source 
 		return nil
 	}
 	seen := map[string]int{}
+	lowerFile := strings.ToLower(file)
+	pythonSource := strings.HasSuffix(lowerFile, ".py") || strings.HasSuffix(lowerFile, ".pyi")
 	for idx, line := range strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n") {
-		if strings.TrimSpace(line) == "" {
+		trimmed := strings.TrimSpace(line)
+		pythonComment := pythonSource && strings.HasPrefix(trimmed, "#")
+		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") || pythonComment {
 			continue
 		}
 		for _, literal := range domainKnowledgeLiterals(line) {
@@ -57,7 +63,7 @@ func domainKnowledgeLiterals(line string) []string {
 	if duplicatedKnowledgeLineIsDisplayOnly(line) || duplicatedKnowledgeLineIsStructural(line) {
 		return nil
 	}
-	matches := regexp.MustCompile(`"([^"]{2,80})"|'([^']{2,80})'|\b\d+(?:\.\d+)?\b`).FindAllString(line, -1)
+	matches := domainKnowledgeLiteralPattern.FindAllString(line, -1)
 	out := make([]string, 0, len(matches))
 	for _, match := range matches {
 		if domainKnowledgeLiteralInLine(match, line) {

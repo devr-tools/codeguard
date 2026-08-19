@@ -92,7 +92,7 @@ var miscCatalog = map[string]core.RuleMetadata{
 		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
 		LanguageCoverage: core.RepositoryWideRuleLanguageCoverage(),
 		Title:            "Mutable deployment reference",
-		Description:      "Fails when deployment automation uses a mutable GitHub Action branch ref or a container image tagged latest.",
+		Description:      "Fails when deployment automation uses a GitHub Action ref other than a full commit SHA or a container image tagged latest.",
 		HowToFix:         "Pin external actions to an immutable reviewed ref and replace latest image tags with versioned tags or digests.",
 	},
 	"ci.test-file-location": {

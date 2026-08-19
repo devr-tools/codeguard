@@ -101,6 +101,10 @@ func containConfigArtifactPaths(cfg *core.Config, baseDir string) error {
 	if _, err := containedPath(baseDir, legibilityHistoryPath); err != nil {
 		return fmt.Errorf("context_rules.legibility_history: %w", err)
 	}
+	performanceHistoryPath := cachefile.DerivedPath(cfg.Cache.Path, ".perf-history")
+	if _, err := containedPath(baseDir, performanceHistoryPath); err != nil {
+		return fmt.Errorf("performance_rules.score_history: %w", err)
+	}
 	for i := range cfg.ExternalReports {
 		resolved, err := containedPath(baseDir, cfg.ExternalReports[i].Path)
 		if err != nil {

@@ -177,7 +177,7 @@ func TestRunScanFolderWithoutConfigUsesDefaultProfile(t *testing.T) {
 	writeScanTestFile(t, filepath.Join(dir, "sub", "Makefile"), "test:\n\tgo test ./...\n")
 	writeScanTestFile(t, filepath.Join(dir, "sub", "README.md"), "# Configless scan\n\nRun `make test`.\n")
 	writeScanTestFile(t, filepath.Join(dir, "sub", "AGENTS.md"), "# Agent Notes\n\n## Build & test\n- `make test` runs the unit suite.\n")
-	writeScanTestFile(t, filepath.Join(dir, "sub", ".github", "workflows", "ci.yml"), "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: go test ./...\n")
+	writeScanTestFile(t, filepath.Join(dir, "sub", ".github", "workflows", "ci.yml"), "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: go test ./...\n")
 
 	var stdout, stderr bytes.Buffer
 	code := cli.Run([]string{"scan", "-folder", "sub", "-profile", "startup"}, strings.NewReader(""), &stdout, &stderr)
@@ -189,7 +189,7 @@ func TestRunScanFolderWithoutConfigUsesDefaultProfile(t *testing.T) {
 	}
 }
 
-func TestRunScanWithoutConfigUsesDefaultProfileForCurrentDirectory(t *testing.T) {
+func TestRunScanWithoutConfigForCurrentDirectoryFails(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
@@ -211,11 +211,11 @@ func TestRunScanWithoutConfigUsesDefaultProfileForCurrentDirectory(t *testing.T)
 
 	var stdout, stderr bytes.Buffer
 	code := cli.Run([]string{"scan", "-profile", "startup"}, strings.NewReader(""), &stdout, &stderr)
-	if code != 0 {
-		t.Fatalf("scan exit code = %d, stderr = %s\nstdout = %s", code, stderr.String(), stdout.String())
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d; stdout = %s", code, stdout.String())
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".codeguard")); !os.IsNotExist(err) {
-		t.Fatalf("expected configless scan not to create .codeguard cache directory, stat err = %v", err)
+	if !strings.Contains(stderr.String(), "load config:") {
+		t.Fatalf("expected load config error, got %s", stderr.String())
 	}
 }
 
