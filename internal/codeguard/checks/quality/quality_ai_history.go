@@ -1,6 +1,7 @@
 package quality
 
 import (
+	"strings"
 	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -13,6 +14,11 @@ import (
 // score and delta when prior scans exist.
 func recordSlopHistory(env support.Context, artifact *core.Artifact) {
 	if artifact == nil || artifact.SlopScore == nil {
+		return
+	}
+	// Patch validation evaluates repository-controlled content in a temporary
+	// workspace and must not persist any state to repository-configured paths.
+	if strings.TrimSpace(env.DiffText) != "" {
 		return
 	}
 	cfg := env.Config.Checks.QualityRules.AIChecks

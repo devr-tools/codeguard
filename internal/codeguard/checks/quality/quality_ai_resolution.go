@@ -1,8 +1,10 @@
 package quality
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +12,10 @@ import (
 	"strings"
 	"time"
 )
+
+const maxGitHeadMessageBytes = 1 << 20
+
+var errGitHeadMessageTooLarge = errors.New("git HEAD message exceeds size limit")
 
 type packageManifest struct {
 	Name             string            `json:"name"`
@@ -59,11 +65,32 @@ func readGitHeadMessage(dir string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", "-C", dir, "log", "-1", "--format=%B") //nolint:gosec // fixed git subcommand; dir is a config-supplied scan target path
-	out, err := cmd.Output()
-	if err != nil {
+	out := limitedBuffer{limit: maxGitHeadMessageBytes}
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
 		return ""
 	}
-	return string(out)
+	return out.String()
+}
+
+// limitedBuffer prevents os/exec from buffering attacker-controlled command
+// output without bound. Returning an error also stops the stdout copy once the
+// limit is reached.
+type limitedBuffer struct {
+	bytes.Buffer
+	limit int
+}
+
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	remaining := b.limit - b.Len()
+	if remaining <= 0 {
+		return 0, errGitHeadMessageTooLarge
+	}
+	if len(p) > remaining {
+		n, _ := b.Buffer.Write(p[:remaining])
+		return n, errGitHeadMessageTooLarge
+	}
+	return b.Buffer.Write(p)
 }
 
 func envFlagEnabled(keys []string) bool {

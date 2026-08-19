@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/pkg/codeguard"
@@ -104,6 +105,32 @@ func TestSlopScoreHistoryHonorsToggle(t *testing.T) {
 	}
 	if _, err := os.Stat(codeguard.SlopHistoryPath(cfg)); !os.IsNotExist(err) {
 		t.Fatalf("expected no history file when disabled, stat err = %v", err)
+	}
+}
+
+func TestSlopScoreHistoryDoesNotWriteDuringPatchValidation(t *testing.T) {
+	dir := t.TempDir()
+	writeSlopFixture(t, dir)
+	cfg := slopHistoryTestConfig(dir, "quality-ai-history-patch")
+	diff := strings.Join([]string{
+		"diff --git a/service.go b/service.go",
+		"index 4adc33a..59b9f08 100644",
+		"--- a/service.go",
+		"+++ b/service.go",
+		"@@ -1,5 +1,6 @@",
+		" package sample",
+		" ",
+		" func Run() error {",
+		"+\t// create error object",
+		" \terr := doThing()",
+		" \t_ = err",
+	}, "\n")
+
+	if _, err := codeguard.RunPatch(context.Background(), cfg, diff); err != nil {
+		t.Fatalf("run patch: %v", err)
+	}
+	if _, err := os.Stat(codeguard.SlopHistoryPath(cfg)); !os.IsNotExist(err) {
+		t.Fatalf("expected no history file during patch validation, stat err = %v", err)
 	}
 }
 

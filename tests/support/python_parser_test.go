@@ -138,6 +138,30 @@ func TestParsePythonMultilineCallsAndStatements(t *testing.T) {
 	}
 }
 
+func TestExtractCallsHandlesNestedAndMalformedCalls(t *testing.T) {
+	calls := support.ExtractCalls("outer(inner(value), second)\nnext()", 10)
+	if len(calls) != 3 {
+		t.Fatalf("calls = %+v, want outer, inner, and next", calls)
+	}
+	if calls[0].Callee != "outer" || len(calls[0].Args) != 2 || calls[0].Args[0] != "inner(value)" {
+		t.Fatalf("outer call = %+v", calls[0])
+	}
+	if calls[1].Callee != "inner" || len(calls[1].Args) != 1 || calls[1].Args[0] != "value" {
+		t.Fatalf("inner call = %+v", calls[1])
+	}
+	if calls[2].Line != 11 {
+		t.Fatalf("next line = %d, want 11", calls[2].Line)
+	}
+
+	// Every opening parenthesis used to rescan the rest of this malformed
+	// input, making this small repository-controlled statement quadratic.
+	malformed := strings.Repeat("call(", 20_000)
+	calls = support.ExtractCalls(malformed, 1)
+	if len(calls) != 20_000 {
+		t.Fatalf("malformed calls = %d, want 20000", len(calls))
+	}
+}
+
 func hasImport(imports []support.ParsedImport, module string, alias string) bool {
 	for _, imp := range imports {
 		if imp.Module == module && imp.Alias == alias {

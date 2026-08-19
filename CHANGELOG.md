@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.5.3](https://github.com/devr-tools/codeguard/compare/v1.5.2...v1.5.3) (2026-08-19)
+
+
+### Bug Fixes
+
+* **ci:** require immutable GitHub Action refs ([#111](https://github.com/devr-tools/codeguard/issues/111)) ([cbcea34](https://github.com/devr-tools/codeguard/commit/cbcea34bc77d0aa79bcf2fc6ddfd60108e201fcf))
+* **ci:** validate Homebrew formula version ([c6b52bd](https://github.com/devr-tools/codeguard/commit/c6b52bd432d3233203170f18839e9bb31c673b68))
+* **ci:** validate Homebrew formula version ([#135](https://github.com/devr-tools/codeguard/issues/135)) ([3b14798](https://github.com/devr-tools/codeguard/commit/3b14798d838966cc6863bef48debfd88ff4d2ecf))
+* **config:** contain performance history path ([#126](https://github.com/devr-tools/codeguard/issues/126)) ([5f2f133](https://github.com/devr-tools/codeguard/commit/5f2f133bcbece7418ee59d4c841cd3d8764a16b4))
+* make goroutine loop detection linear ([b560584](https://github.com/devr-tools/codeguard/commit/b5605841149067b58e1d7271c45f45e304dd39ee))
+* **parser:** bound tree-sitter scan resources ([c83a2ce](https://github.com/devr-tools/codeguard/commit/c83a2cebfce9f276ba9eb3d05171d93d80f8fa67))
+* **parser:** bound tree-sitter scan resources ([#133](https://github.com/devr-tools/codeguard/issues/133)) ([a0e4e3c](https://github.com/devr-tools/codeguard/commit/a0e4e3cd61c4d62fddd4ce22e1f224e4730b553a))
+* **performance:** cap complexity regression reads ([fca8c4e](https://github.com/devr-tools/codeguard/commit/fca8c4edfc37b360dc84382af2cbc5fc2b33cf26))
+* **performance:** cap complexity-regression reads to use corpus reader ([#131](https://github.com/devr-tools/codeguard/issues/131)) ([25c173c](https://github.com/devr-tools/codeguard/commit/25c173c86c2fae69973712be6d662ffb9f248069))
+* prevent tsconfig from narrowing security scans ([a464824](https://github.com/devr-tools/codeguard/commit/a464824535aedf942bdd646a548033f62d55e790))
+* **quality:** skip rolling-hash precompute when no full clone window exists ([#125](https://github.com/devr-tools/codeguard/issues/125)) ([19c1874](https://github.com/devr-tools/codeguard/commit/19c187477be85aae533b272a6643e4fbe84bdac6))
+* **release:** protect trusted publishing environment ([4350eb9](https://github.com/devr-tools/codeguard/commit/4350eb91ac2d4406acc71930a3142fe8b0e9092a))
+* **release:** require protected `release-publish` environment for npm/PyPI OIDC publishing ([#132](https://github.com/devr-tools/codeguard/issues/132)) ([43cff7e](https://github.com/devr-tools/codeguard/commit/43cff7e4f957406c6c288105e290c70debd75a90))
+* **reliability:** make goroutine-in-loop detection linear to avoid quadratic AST walks ([#130](https://github.com/devr-tools/codeguard/issues/130)) ([23f7558](https://github.com/devr-tools/codeguard/commit/23f7558e1858c53e12a6209e8726331b8a8b48c0))
+* **security:** contain slop history writes ([d5209d5](https://github.com/devr-tools/codeguard/commit/d5209d5fb745118e045f7d912edea95265e8a0a5))
+* **security:** contain slop history writes ([#136](https://github.com/devr-tools/codeguard/issues/136)) ([6ebbafc](https://github.com/devr-tools/codeguard/commit/6ebbafce9529005a230aa17751f9b259baa9a6b7))
+* **security:** include targeted node_modules files in TypeScript semantic scans ([#137](https://github.com/devr-tools/codeguard/issues/137)) ([0ef6ab1](https://github.com/devr-tools/codeguard/commit/0ef6ab1305727e217b4243c3071690e5d3e3cb04))
+* **security:** scan targeted node modules semantically ([728e527](https://github.com/devr-tools/codeguard/commit/728e527810d22d8b382430d80888eeac7b26cd31))
+
 ## [1.5.2](https://github.com/devr-tools/codeguard/compare/v1.5.1...v1.5.2) (2026-08-18)
 
 
