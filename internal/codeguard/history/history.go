@@ -8,6 +8,7 @@ package history
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -115,7 +116,7 @@ func readBoundedLine(buf *bufio.Reader) ([]byte, error) {
 			}
 			line = append(line, fragment[:remaining]...)
 		}
-		if err != bufio.ErrBufferFull {
+		if !errors.Is(err, bufio.ErrBufferFull) {
 			return line, err
 		}
 	}
