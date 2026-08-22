@@ -18,7 +18,7 @@ const (
 // whose identifier looks secret-bearing next to a quoted value. It reports at
 // warn. privateKeyPattern detects PEM key material and reports at fail.
 var (
-	secretPattern     = regexp.MustCompile(`(?i)(secret|token|api[_-]?key|password)\s*[:=]\s*["']([^"']{8,})["']`)
+	secretPattern     = regexp.MustCompile(`(?i)["']?(secret|token|api[_-]?key|password|db[_-]?pass)["']?\s*(?::=|[:=])\s*["']([^"']{8,})["']`)
 	privateKeyPattern = regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`)
 
 	// quotedLiteralPattern captures whitespace-free quoted literals for the
@@ -57,7 +57,7 @@ var credentialPatterns = []credentialPattern{
 	{regexp.MustCompile(`\bdckr_pat_[A-Za-z0-9_-]{20,}\b`), "Docker Hub access token"},
 	{regexp.MustCompile(`(?i)AccountKey=([A-Za-z0-9+/=]{40,})`), "Azure storage account key"},
 	{regexp.MustCompile(`(?i)\b(?:postgres|postgresql|mysql|mongodb(?:\+srv)?|redis|amqp|amqps)://[^:@/\s]+:([^@/\s]+)@`), "database connection string with embedded credentials"},
-	{regexp.MustCompile(`(?i)authorization["']?\s*[:=]\s*["']?bearer\s+([A-Za-z0-9._\-]{16,})`), "hardcoded bearer token"},
+	{regexp.MustCompile(`(?i)\bauthorization["']?\s*(?::=|[:=]|,\s*)\s*["']?bearer\s+([A-Za-z0-9._\-]{16,})`), "hardcoded bearer token"},
 	{regexp.MustCompile(`(?i)(?:aws_secret_access_key|client_secret|private_token)\s*[:=]\s*["']([^"']{16,})["']`), "hardcoded credential assignment"},
 }
 
@@ -80,7 +80,7 @@ var (
 		"pypi-", "dckr_pat_", "PRIVATE KEY", "://",
 	}
 	gateFoldLiterals = []string{
-		"secret", "token", "password", "apikey", "api_key", "api-key", "bearer", "accountkey",
+		"secret", "token", "password", "dbpass", "db_pass", "db-pass", "apikey", "api_key", "api-key", "bearer", "accountkey",
 	}
 )
 
@@ -90,6 +90,9 @@ var (
 // high confidence; the name-based heuristic is the noisiest tier and carries
 // low confidence.
 func matchPrivateKey(line string) *Match {
+	if sourceCommentLine(line) {
+		return nil
+	}
 	if privateKeyPattern.MatchString(line) {
 		return &Match{RuleID: privateKeyRule, Level: "fail", Message: "private key material detected", SecretType: "private_key", Confidence: core.ConfidenceHigh}
 	}
@@ -141,6 +144,8 @@ func namedSecretType(identifier string) string {
 	switch {
 	case strings.Contains(lower, "password"):
 		return "password"
+	case strings.Contains(lower, "pass"), strings.Contains(lower, "pwd"):
+		return "password"
 	case strings.Contains(lower, "token"):
 		return "token"
 	case strings.Contains(lower, "api") && strings.Contains(lower, "key"):
@@ -164,6 +169,14 @@ func builtinGatePasses(line string) bool {
 		}
 	}
 	return false
+}
+
+func sourceCommentLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "//") ||
+		strings.HasPrefix(trimmed, "#") ||
+		strings.HasPrefix(trimmed, "/*") ||
+		strings.HasPrefix(trimmed, "*")
 }
 
 // asciiContainsFold reports whether s contains sub, case-insensitively for ASCII

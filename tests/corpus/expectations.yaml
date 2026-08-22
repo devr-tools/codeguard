@@ -80,22 +80,12 @@ groups:
             line: 6
       - path: bind-all-interfaces/clean/localhost.go
       - path: bind-all-interfaces/clean/comment_mention.go
-        known_gaps:
-          - rule: security.bind-all-interfaces
-            type: false-positive
-            line: 3
-            reason: raw-line matching flags 0.0.0.0 inside a Go comment
       - path: cors-wildcard/vulnerable/headers.go
         must_fire:
           - rule: security.cors-wildcard
             line: 6
       - path: cors-wildcard/clean/specific_origin.go
       - path: cors-wildcard/clean/comment_mention.go
-        known_gaps:
-          - rule: security.cors-wildcard
-            type: false-positive
-            line: 3
-            reason: raw-line matching flags the wildcard header spelled out in a comment
       - path: hardcoded-credential/vulnerable/providers.go
         must_fire:
           - rule: security.hardcoded-credential
@@ -113,12 +103,9 @@ groups:
           - rule: security.hardcoded-credential
             line: 13
       - path: hardcoded-credential/vulnerable/header_set.go
-        known_gaps:
+        must_fire:
           - rule: security.hardcoded-credential
-            type: false-negative
             line: 9
-            reason: bearer pattern requires ':' or '=' between name and value, so the
-              two-argument Header.Set("Authorization", "Bearer ...") form is missed
       - path: hardcoded-credential/clean/placeholders.go
       - path: hardcoded-credential/clean/comment_mention.go
       - path: hardcoded-secret/vulnerable/basic.go
@@ -132,12 +119,9 @@ groups:
           - rule: security.hardcoded-secret
             line: 12
       - path: hardcoded-secret/vulnerable/renamed_gap.go
-        known_gaps:
+        must_fire:
           - rule: security.hardcoded-secret
-            type: false-negative
             line: 6
-            reason: name-based heuristic only knows secret/token/api_key/password, so
-              the abbreviated identifier dbPass is missed
       - path: hardcoded-secret/clean/env_lookup.go
       - path: hardcoded-secret/clean/placeholder.go
       - path: high-entropy-string/vulnerable/seed.go
@@ -176,11 +160,6 @@ groups:
             line: 5
       - path: private-key/clean/key_path.go
       - path: private-key/clean/comment_pem.go
-        known_gaps:
-          - rule: security.private-key
-            type: false-positive
-            line: 3
-            reason: raw-line matching flags a PEM header quoted inside a comment
       - path: shell-execution/vulnerable/run.go
         must_fire:
           - rule: security.shell-execution
@@ -232,11 +211,6 @@ groups:
             line: 11
       - path: weak-hash/clean/sha256.go
       - path: weak-hash/clean/comment_mention.go
-        known_gaps:
-          - rule: security.weak-hash
-            type: false-positive
-            line: 3
-            reason: raw-line matching flags crypto/md5 mentioned in a comment
 
   - name: python
     language: python
