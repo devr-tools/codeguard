@@ -101,6 +101,7 @@ func TestExternalWritesJSONAndMarkdownReports(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("external exit code %d, stderr %q", exitCode, stderr.String())
 	}
+	// #nosec G304 -- jsonOut is a test-owned path under t.TempDir().
 	jsonData, err := os.ReadFile(jsonOut)
 	if err != nil {
 		t.Fatal(err)
@@ -108,6 +109,7 @@ func TestExternalWritesJSONAndMarkdownReports(t *testing.T) {
 	if !strings.Contains(string(jsonData), `"tool": "gitleaks"`) || !strings.Contains(string(jsonData), `"category": "secrets"`) {
 		t.Fatalf("unexpected JSON output:\n%s", string(jsonData))
 	}
+	// #nosec G304 -- markdownOut is a test-owned path under t.TempDir().
 	markdownData, err := os.ReadFile(markdownOut)
 	if err != nil {
 		t.Fatal(err)
@@ -134,6 +136,7 @@ func TestExternalAcceptsColonReportSeparator(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("external exit code %d, stderr %q", exitCode, stderr.String())
 	}
+	// #nosec G304 -- jsonOut is a test-owned path under t.TempDir().
 	data, err := os.ReadFile(jsonOut)
 	if err != nil {
 		t.Fatal(err)

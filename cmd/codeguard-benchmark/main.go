@@ -218,7 +218,8 @@ type compareSummary struct {
 
 func summarizeResult(result benchmark.Result) compareSummary {
 	entryIDs := map[string]bool{}
-	var cold, warm, all []time.Duration
+	var cold, warm []time.Duration
+	all := make([]time.Duration, 0, len(result.Runs))
 	summary := compareSummary{Tool: result.Tool, Corpus: result.Corpus, Runs: len(result.Runs)}
 	for _, run := range result.Runs {
 		entryIDs[run.ID] = true
