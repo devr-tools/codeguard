@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.6.0](https://github.com/devr-tools/codeguard/compare/v1.5.4...v1.6.0) (2026-08-22)
+
+
+### Features
+
+* **benchmark:** normalize external scanner reports ([31cb15a](https://github.com/devr-tools/codeguard/commit/31cb15ae84b9316744b85fe396dfc4809805314e))
+
+
+### Bug Fixes
+
+* **benchmark:** release provenance and improve benchmark/security coverage ([#152](https://github.com/devr-tools/codeguard/issues/152)) ([81b7cd9](https://github.com/devr-tools/codeguard/commit/81b7cd9989e8c73a13f1f8bff955e1d5b74eb650))
+* **benchmark:** satisfy strict lint ([ff61aed](https://github.com/devr-tools/codeguard/commit/ff61aedf75a4964e3c30142c6a735e6dfa35b4de))
+* **ci:** satisfy codeguard self-scan ([a3bf7f6](https://github.com/devr-tools/codeguard/commit/a3bf7f6da0d9ce994487bffa87bd6f433080e615))
+* **ci:** use tagged SLSA generator workflow ([e0b9a95](https://github.com/devr-tools/codeguard/commit/e0b9a954bd0940bd0e8bbb86c0604c0ff41a10bd))
+* **security:** reduce secret and OWASP detector gaps ([7e9e3f5](https://github.com/devr-tools/codeguard/commit/7e9e3f5b17e33278e9923f6e9c26d18a58bd43c4))
+
 ## [1.5.4](https://github.com/devr-tools/codeguard/compare/v1.5.3...v1.5.4) (2026-08-19)
 
 
