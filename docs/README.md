@@ -12,4 +12,4 @@
 - [Homebrew packaging](homebrew.md)
 - [Architecture](architecture.md)
 - [Checks](checks.md)
-- [Frozen PR benchmarks](benchmarks.md)
+- [Benchmarks](benchmarks.md)
