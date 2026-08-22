@@ -13,6 +13,7 @@ var (
 	cppIdentScanPattern     = regexp.MustCompile(`[A-Za-z_]\w*`)
 	cppInputExtractPattern  = regexp.MustCompile(`\b(?:std\s*::\s*)?cin\s*>>\s*([A-Za-z_]\w*)`)
 	cppRequestTypePattern   = regexp.MustCompile(`(?i)\b(?:basic_)?(?:http_?request|request)\b`)
+	cppAccessorSpaceRemover = strings.NewReplacer(" ", "", "\t", "")
 )
 
 func stripCPPSanitizers(text string) string {
@@ -43,9 +44,38 @@ func (s *cppScope) directSourceTaint(expr string, line int) *cppTaint {
 }
 
 func cppRequestAccessor(expr string, param string) bool {
-	receiver := regexp.QuoteMeta(param) + `\s*(?:\.|->)\s*`
-	accessor := `(?:getParameter|getQueryParameter|getHeader|query|param|url_params\s*\.\s*get)\b`
-	return regexp.MustCompile(`\b` + receiver + accessor).MatchString(expr)
+	normalized := removeCPPAccessorWhitespace(expr)
+	return cppReceiverAccessor(normalized, param+".") || cppReceiverAccessor(normalized, param+"->")
+}
+
+func removeCPPAccessorWhitespace(expr string) string {
+	return cppAccessorSpaceRemover.Replace(expr)
+}
+
+func cppReceiverAccessor(expr string, receiver string) bool {
+	for offset := 0; offset < len(expr); {
+		idx := strings.Index(expr[offset:], receiver)
+		if idx < 0 {
+			return false
+		}
+		idx += offset
+		if idx > 0 && isCPPIdentByte(expr[idx-1]) {
+			offset = idx + len(receiver)
+			continue
+		}
+		suffix := expr[idx+len(receiver):]
+		for _, accessor := range []string{"getParameter", "getQueryParameter", "getHeader", "query", "param", "url_params.get"} {
+			if strings.HasPrefix(suffix, accessor) && (len(suffix) == len(accessor) || !isCPPIdentByte(suffix[len(accessor)])) {
+				return true
+			}
+		}
+		offset = idx + len(receiver)
+	}
+	return false
+}
+
+func isCPPIdentByte(ch byte) bool {
+	return ch == '_' || (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')
 }
 
 func (s *cppScope) localCallTaint(expr string, line int) *cppTaint {

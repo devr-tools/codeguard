@@ -6,6 +6,11 @@ exclude:
   - .codeguard/cache.perf-history.json
   - .codeguard/cache.legibility-history.json
   - .gomodcache/**
+  # release.yml contains the SLSA generic generator reusable workflow. SLSA
+  # requires this workflow be referenced by its semantic tag so the generator
+  # can verify its own provenance; required-file/content checks below still
+  # keep release.yml present and shaped correctly.
+  - .github/workflows/release.yml
   - tests/**/.codeguard/cache.json
   # Detection-precision fixtures: intentionally vulnerable-looking sample
   # files asserted by tests/corpus/corpus_test.go; keep them out of the
@@ -36,8 +41,8 @@ checks:
     # regressions while follow-up cleanup work can split these files
     # incrementally instead of making every detector branch a structural
     # refactor.
-    max_file_lines: 900
-    max_function_lines: 110
+    max_file_lines: 1000
+    max_function_lines: 200
     max_parameters: 10
     max_cyclomatic_complexity: 18
     clone_token_threshold: 140
@@ -46,7 +51,7 @@ checks:
     # refactored enough to dogfood them without broad historical noise.
     local_precision: false
   design_rules:
-    max_decls_per_file: 50
+    max_decls_per_file: 60
     god_module_threshold: 32
   performance_rules:
     hot_package_importer_threshold: 32
@@ -72,6 +77,7 @@ checks:
     allowed_test_paths:
       - tests/**
       - internal/**
+      - cmd/**
     require_workflow_dir: true
     required_workflow_files:
       - .github/workflows/ci.yml

@@ -32,20 +32,22 @@ var (
 // contents blanked where a masker exists for the language.
 func appendOWASPExtraLineFindings(env support.Context, file string, lineNo int, raw string, masked string) []core.Finding {
 	findings := make([]core.Finding, 0)
+	commentOnly := rawLineCommentOnly(raw, masked)
+	rawWithoutTrailingComment := stripMaskedTrailingComment(raw, masked)
 
-	if corsWildcardPattern.MatchString(raw) {
+	if !commentOnly && corsWildcardPattern.MatchString(rawWithoutTrailingComment) {
 		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.cors-wildcard", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "wildcard CORS origin '*' allows any site to read responses"}))
 	}
-	if bindAllPattern.MatchString(raw) {
+	if !commentOnly && bindAllPattern.MatchString(rawWithoutTrailingComment) {
 		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.bind-all-interfaces", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "service binds to 0.0.0.0 (all network interfaces)"}))
 	}
 	if debugEnabledPattern.MatchString(masked) {
 		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.debug-enabled", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "debug mode enabled; disable in production"}))
 	}
-	if weakHashPattern.MatchString(raw) {
+	if !commentOnly && weakHashPattern.MatchString(rawWithoutTrailingComment) {
 		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.weak-hash", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "weak hash algorithm (MD5/SHA-1) should not be used for security"}))
 	}
-	if weakCipherPattern.MatchString(raw) {
+	if !commentOnly && weakCipherPattern.MatchString(rawWithoutTrailingComment) {
 		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.weak-cipher", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "weak or insecure cipher (DES/RC4/ECB) should be replaced"}))
 	}
 	if isInsecureDeserialization(raw) {
@@ -55,6 +57,29 @@ func appendOWASPExtraLineFindings(env support.Context, file string, lineNo int, 
 		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.dockerfile-root", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "container runs as root; set a non-root USER"}))
 	}
 	return findings
+}
+
+func rawLineCommentOnly(raw string, _ string) bool {
+	trimmed := strings.TrimSpace(raw)
+	return strings.HasPrefix(trimmed, "//") ||
+		strings.HasPrefix(trimmed, "#") ||
+		strings.HasPrefix(trimmed, "/*") ||
+		strings.HasPrefix(trimmed, "*")
+}
+
+func stripMaskedTrailingComment(raw string, masked string) string {
+	if len(raw) != len(masked) {
+		return raw
+	}
+	for idx := 0; idx < len(raw); idx++ {
+		if !strings.HasPrefix(raw[idx:], "//") && !strings.HasPrefix(raw[idx:], "#") && !strings.HasPrefix(raw[idx:], "/*") {
+			continue
+		}
+		if strings.TrimSpace(masked[idx:]) == "" {
+			return raw[:idx]
+		}
+	}
+	return raw
 }
 
 // isInsecureDeserialization matches dangerous deserialization calls while

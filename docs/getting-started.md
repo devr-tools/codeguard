@@ -39,8 +39,8 @@ codeguard init
 codeguard validate -config codeguard.yaml
 codeguard doctor -config codeguard.yaml
 codeguard scan -config codeguard.yaml
-codeguard scan -config codeguard.yaml -folder ./service/api
-codeguard scan -folder ./service/api -profile startup
+codeguard scan -config codeguard.yaml -folder ./internal/codeguard
+codeguard scan -folder ./internal/codeguard -profile startup
 codeguard waivers audit -config codeguard.yaml
 codeguard rules
 codeguard profiles
