@@ -88,8 +88,8 @@ codeguard init
 codeguard validate -config codeguard.yaml
 codeguard doctor -config codeguard.yaml
 codeguard scan -config codeguard.yaml
-codeguard scan -config codeguard.yaml -folder ./service/api
-codeguard scan -folder ./service/api -profile startup
+codeguard scan -config codeguard.yaml -folder ./internal/codeguard
+codeguard scan -folder ./internal/codeguard -profile startup
 codeguard scan-history
 codeguard waivers audit -config codeguard.yaml
 codeguard rules
@@ -109,7 +109,7 @@ Use `codeguard scan -folder <path>` to scan only one folder. `-path <path>` is a
 For agent bootstrap flows, the shortest useful commands are:
 
 ```bash
-codeguard scan -folder ./service/api -profile startup
+codeguard scan -folder ./internal/codeguard -profile startup
 ```
 
 Text output includes ANSI color and emoji markers by default. Set `NO_COLOR=1` if you want plain terminal output.

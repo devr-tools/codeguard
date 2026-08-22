@@ -43,6 +43,8 @@ var (
 	jsonReaderSchemaCall     = regexp.MustCompile(`(?i)\b(?:read|parse|decode)Json[A-Za-z0-9_]*\s*\([^)\n,]+,\s*[A-Za-z_$][\w$]*(?:Schema|Validator|Codec|Parser)\b`)
 	prismaTakePattern        = regexp.MustCompile(`(?is)\b(?:findMany|findFirst|findUnique|query|search)\s*\([^)]*\btake\s*:`)
 	sequenceIndexKeyPattern  = regexp.MustCompile(`(?i)^(?:i|j|n|idx|index|offset|position|pos|[A-Za-z_$][\w$]*(?:Index|Idx|Offset|Position|Pos))$`)
+	dataTransferPartPattern  = regexp.MustCompile(`part\d+$`)
+	blockExitKeywordPattern  = regexp.MustCompile(`\b(?:return|throw|continue|break)\b`)
 )
 
 func defensiveBoundaryFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -168,7 +170,7 @@ func structuralDataTransferContainerLine(line string) bool {
 			strings.HasSuffix(name, "row") ||
 			strings.Contains(name, "rowpart") ||
 			strings.HasSuffix(name, "part") ||
-			regexp.MustCompile(`part\d+$`).MatchString(name) ||
+			dataTransferPartPattern.MatchString(name) ||
 			strings.HasSuffix(name, "context") ||
 			strings.HasSuffix(name, "ctx") ||
 			strings.Contains(name, "dto") ||
@@ -341,7 +343,7 @@ func nullableParamHasBlockExitGuard(loweredBody string, quotedName string) bool 
 		case '}':
 			depth--
 			if depth == 0 {
-				return regexp.MustCompile(`\b(?:return|throw|continue|break)\b`).MatchString(loweredBody[blockStart+1 : blockEnd])
+				return blockExitKeywordPattern.MatchString(loweredBody[blockStart+1 : blockEnd])
 			}
 		}
 	}

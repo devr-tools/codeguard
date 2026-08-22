@@ -34,6 +34,7 @@ var (
 	scriptKindSwitchPattern = regexp.MustCompile(`(?m)switch\s*\([^)]*(?:\.|_)?(?:kind|type|Kind|Type)\b[^)]*\)`)
 	cppKindSwitchPattern    = regexp.MustCompile(`(?m)switch\s*\([^)]*(?:\.|_)?(?:kind|type|Kind|Type)\b[^)]*\)`)
 	typeBranchPattern       = regexp.MustCompile(`(?m)(?:\.\(type\)|\btypeid\s*\(|\bdynamic_cast\s*<|\binstanceof\b|\btypeof\b|\bisinstance\s*\(|\btype\s*\()`)
+	fileTraversalPattern    = regexp.MustCompile(`\bfile\.`)
 )
 
 type structuralClass struct {
@@ -591,7 +592,7 @@ func looksLikeAllowedTraversalChain(line string) bool {
 		"tojson", ".tojson",
 	} {
 		if marker == "file." {
-			if regexp.MustCompile(`\bfile\.`).MatchString(lowered) {
+			if fileTraversalPattern.MatchString(lowered) {
 				return true
 			}
 			continue
