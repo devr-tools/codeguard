@@ -8,7 +8,34 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
+
+func TestRustToolchainDeadCodeRequiresConfigCommandTrust(t *testing.T) {
+	originalPolicy := trust.Current()
+	t.Cleanup(func() { trust.Set(originalPolicy) })
+	trust.Set(trust.Policy{})
+
+	enabled := true
+	env := support.Context{
+		Config: core.Config{Checks: core.CheckConfig{QualityRules: core.QualityRulesConfig{
+			DeadCode: core.QualityDeadCodeConfig{Enabled: &enabled, Mode: "toolchain"},
+		}}},
+		NewFinding: func(input support.FindingInput) core.Finding {
+			return core.Finding{RuleID: input.RuleID, Level: input.Level, Message: input.Message}
+		},
+	}
+	target := core.TargetConfig{Name: "crate", Path: t.TempDir(), Language: "rust"}
+
+	findings := rustToolchainDeadCodeFindings(t.Context(), env, target)
+
+	if len(findings) != 1 {
+		t.Fatalf("findings = %+v, want one trust diagnostic", findings)
+	}
+	if !strings.Contains(findings[0].Message, "refusing to run config-supplied command") {
+		t.Fatalf("message = %q, want config command trust error", findings[0].Message)
+	}
+}
 
 func TestParseCargoDeadCodeDiagnostics(t *testing.T) {
 	output := `{"reason":"compiler-message","message":{"level":"error","message":"function ` + "`unused_helper`" + ` is never used","code":{"code":"dead_code"},"spans":[{"file_name":"src/lib.rs","line_start":3,"column_start":4,"is_primary":true}]}}` + "\n" +

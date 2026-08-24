@@ -14,6 +14,7 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
 
 const (
@@ -75,6 +76,9 @@ func rustToolchainDeadCodeFindings(ctx context.Context, env support.Context, tar
 		return nil
 	}
 	level := toolchainDeadCodeLevel(cfg)
+	if err := trust.GuardConfigCommand("quality_rules.dead_code", "cargo check"); err != nil {
+		return []core.Finding{rustToolchainDeadCodeDiagnostic(env, level, err.Error())}
+	}
 	issues, err := rustToolchainDeadCodeIssues(ctx, env, target, cfg)
 	findings := make([]core.Finding, 0, len(issues)+1)
 	for _, issue := range issues {
