@@ -1,6 +1,7 @@
 package quality
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +28,7 @@ func TestRustToolchainDeadCodeRequiresConfigCommandTrust(t *testing.T) {
 	}
 	target := core.TargetConfig{Name: "crate", Path: t.TempDir(), Language: "rust"}
 
-	findings := rustToolchainDeadCodeFindings(t.Context(), env, target)
+	findings := rustToolchainDeadCodeFindings(context.Background(), env, target)
 
 	if len(findings) != 1 {
 		t.Fatalf("findings = %+v, want one trust diagnostic", findings)
