@@ -492,9 +492,7 @@ func pythonToolchainReachable(nodes map[string]pythonToolchainModule, entrypoint
 
 func pythonToolchainModuleName(rel string) string {
 	normalized := strings.TrimSuffix(filepath.ToSlash(rel), ".py")
-	if strings.HasSuffix(normalized, "/__init__") {
-		normalized = strings.TrimSuffix(normalized, "/__init__")
-	}
+	normalized = strings.TrimSuffix(normalized, "/__init__")
 	return strings.Trim(strings.ReplaceAll(normalized, "/", "."), ".")
 }
 

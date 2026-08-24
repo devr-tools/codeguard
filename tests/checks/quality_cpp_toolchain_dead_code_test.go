@@ -49,7 +49,7 @@ func TestCPPToolchainDeadCodeReportsDiscardedLinkerSymbols(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "src", "orphan.cpp"), "static int orphan_fn() { return 2; }\n")
 	writeFile(t, filepath.Join(dir, "build", "app.map"), "ld.lld: removing unused section '.text._Z9orphan_fnv'\n")
 
-	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, true, func(cfg *codeguard.Config) {
+	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, func(cfg *codeguard.Config) {
 		graph := false
 		cfg.Checks.QualityRules.DeadCode.CPP.Graph = &graph
 		cfg.Checks.QualityRules.DeadCode.CPP.Reports = []string{"build/app.map"}
@@ -64,7 +64,7 @@ func TestCPPToolchainDeadCodeReportsDiscardedLinkerObjects(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "src", "orphan.cpp"), "int orphan_api() { return 2; }\n")
 	writeFile(t, filepath.Join(dir, "build", "app.map"), "linker: discarded object src/orphan.o\n")
 
-	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, true, func(cfg *codeguard.Config) {
+	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, func(cfg *codeguard.Config) {
 		graph := false
 		cfg.Checks.QualityRules.DeadCode.CPP.Graph = &graph
 		cfg.Checks.QualityRules.DeadCode.CPP.Reports = []string{"build/*.map"}
@@ -79,7 +79,7 @@ func TestCPPToolchainDeadCodeLiveSymbolReportSuppressesGraphOnlyFinding(t *testi
 	writeFile(t, filepath.Join(dir, "src", "library_api.cpp"), "int public_api() { return 1; }\n")
 	writeFile(t, filepath.Join(dir, "build", "nm.txt"), "0000000000001000 T _Z10public_apiv\n")
 
-	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, true, func(cfg *codeguard.Config) {
+	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, func(cfg *codeguard.Config) {
 		cfg.Checks.QualityRules.DeadCode.CPP.Reports = []string{"build/nm.txt"}
 	})
 
@@ -92,7 +92,7 @@ func TestCPPToolchainDeadCodeMachODeadStripMapReportsDiscardedSymbol(t *testing.
 	writeFile(t, filepath.Join(dir, "src", "dead.cpp"), "static int apple_dead() { return 1; }\n")
 	writeFile(t, filepath.Join(dir, "build", "app.map"), "<<dead>>	[  1] _Z10apple_deadv\n")
 
-	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, true, func(cfg *codeguard.Config) {
+	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, func(cfg *codeguard.Config) {
 		graph := false
 		cfg.Checks.QualityRules.DeadCode.CPP.Graph = &graph
 		cfg.Checks.QualityRules.DeadCode.CPP.Reports = []string{"build/app.map"}
@@ -107,7 +107,7 @@ func TestCPPToolchainDeadCodeDumpbinLiveSymbolSuppressesGraphOnlyFinding(t *test
 	writeFile(t, filepath.Join(dir, "src", "library_api.cpp"), "int public_api() { return 1; }\n")
 	writeFile(t, filepath.Join(dir, "build", "dumpbin.txt"), "004 00000000 SECT3  notype ()    External     | ?public_api@@YAHXZ (int __cdecl public_api(void))\n")
 
-	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, true, func(cfg *codeguard.Config) {
+	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, func(cfg *codeguard.Config) {
 		cfg.Checks.QualityRules.DeadCode.CPP.Reports = []string{"build/dumpbin.txt"}
 	})
 
@@ -120,7 +120,7 @@ func TestCPPToolchainDeadCodeIgnoresWeakDiscardNoise(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "src", "weak.cpp"), "static int weak_hook() { return 1; }\n")
 	writeFile(t, filepath.Join(dir, "build", "app.map"), "ld.lld: removing unused weak section '.text._Z9weak_hookv'\n")
 
-	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, true, func(cfg *codeguard.Config) {
+	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, func(cfg *codeguard.Config) {
 		graph := false
 		cfg.Checks.QualityRules.DeadCode.CPP.Graph = &graph
 		cfg.Checks.QualityRules.DeadCode.CPP.Reports = []string{"build/app.map"}
@@ -160,7 +160,7 @@ func TestCPPToolchainDeadCodeCoversFalsePositiveCorpusAndReportsRealOrphan(t *te
 	writeFile(t, filepath.Join(dir, "src", "orphan.cpp"), "int orphan() { return 2; }\n")
 	writeFile(t, filepath.Join(dir, "build", "nm.txt"), "0000000000001000 T _Z20exported_library_apiv\n")
 
-	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, true, func(cfg *codeguard.Config) {
+	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, func(cfg *codeguard.Config) {
 		cfg.Checks.QualityRules.DeadCode.CPP.Reports = []string{"build/nm.txt"}
 	})
 
@@ -182,7 +182,7 @@ func TestCPPToolchainDeadCodeDoesNotTreatStrippedArtifactNoiseAsDiscardProof(t *
 	writeFile(t, filepath.Join(dir, "src", "ambiguous.cpp"), "static int maybe_inlined_or_stripped() { return 1; }\n")
 	writeFile(t, filepath.Join(dir, "build", "link.txt"), "strip: removed local symbols from src/ambiguous.o\n")
 
-	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, true, func(cfg *codeguard.Config) {
+	report := runCPPToolchainDeadCodeScanWithConfig(t, dir, func(cfg *codeguard.Config) {
 		graph := false
 		cfg.Checks.QualityRules.DeadCode.CPP.Graph = &graph
 		cfg.Checks.QualityRules.DeadCode.CPP.Reports = []string{"build/link.txt"}
@@ -197,9 +197,9 @@ func runCPPToolchainDeadCodeScan(t *testing.T, dir string, enabled bool) codegua
 	return runCPPToolchainDeadCodeScanConfig(t, cfg)
 }
 
-func runCPPToolchainDeadCodeScanWithConfig(t *testing.T, dir string, enabled bool, mutate func(*codeguard.Config)) codeguard.Report {
+func runCPPToolchainDeadCodeScanWithConfig(t *testing.T, dir string, mutate func(*codeguard.Config)) codeguard.Report {
 	t.Helper()
-	cfg := cppToolchainDeadCodeConfig(dir, enabled)
+	cfg := cppToolchainDeadCodeConfig(dir, true)
 	mutate(&cfg)
 	return runCPPToolchainDeadCodeScanConfig(t, cfg)
 }

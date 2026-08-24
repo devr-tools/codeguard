@@ -257,7 +257,10 @@ version = "0.1.0"
 
 func rustToolchainTestContext(path string, data []byte) support.Context {
 	return support.Context{
-		ReadTargetFile: func(core.TargetConfig, string) ([]byte, error) {
+		ReadTargetFile: func(_ core.TargetConfig, rel string) ([]byte, error) {
+			if filepath.ToSlash(rel) != filepath.ToSlash(path) {
+				return nil, os.ErrNotExist
+			}
 			return data, nil
 		},
 		VisitTargetFiles: func(core.TargetConfig, func(string) bool, func(string, []byte)) {},
@@ -285,10 +288,10 @@ func rustToolchainMapTestContext(files map[string][]byte) support.Context {
 
 func writeRustToolchainTestFile(t *testing.T, path string, data string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }

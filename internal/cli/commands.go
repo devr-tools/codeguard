@@ -56,8 +56,8 @@ func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 	if !ok {
 		return exitError
 	}
-	if err := applyConfigOverrides(&cfg, overrides); err != nil {
-		_, _ = fmt.Fprintf(stderr, "invalid config override: %v\n", err)
+	if overrideErr := applyConfigOverrides(&cfg, overrides); overrideErr != nil {
+		_, _ = fmt.Fprintf(stderr, "invalid config override: %v\n", overrideErr)
 		return exitError
 	}
 	if err := service.ValidateConfig(cfg); err != nil {
@@ -152,8 +152,8 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
 		cfg.Output.Format = trimmedFormat
 	}
-	if err := applyConfigOverrides(&cfg, overrides); err != nil {
-		_, _ = fmt.Fprintf(stderr, "invalid config override: %v\n", err)
+	if overrideErr := applyConfigOverrides(&cfg, overrides); overrideErr != nil {
+		_, _ = fmt.Fprintf(stderr, "invalid config override: %v\n", overrideErr)
 		return exitError
 	}
 

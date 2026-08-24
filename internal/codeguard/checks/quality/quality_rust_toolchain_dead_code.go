@@ -156,10 +156,10 @@ func rustToolchainDeadCodeIssues(ctx context.Context, env support.Context, targe
 	crates := rustToolchainCrates(cfg.Rust.Crates)
 	allIssues := make([]rustToolchainIssue, 0)
 	for _, crate := range crates {
-		issues, err := rustToolchainDeadCodeIssuesForCrate(ctx, targetDir, tmpDir, crate, cfg)
+		issues, crateErr := rustToolchainDeadCodeIssuesForCrate(ctx, targetDir, tmpDir, crate, cfg)
 		allIssues = append(allIssues, issues...)
-		if err != nil {
-			return allIssues, err
+		if crateErr != nil {
+			return allIssues, crateErr
 		}
 	}
 	artifactIssues, err := rustToolchainArtifactIssues(env, target, cfg)
@@ -287,9 +287,9 @@ func rustToolchainArtifactEvidenceFromReports(targetDir string, reports []string
 			return evidence, fmt.Errorf("read Rust artifact report %q: %w", rel, err)
 		}
 		if info.Size() > rustToolchainArtifactReportLimit {
-			return evidence, fmt.Errorf("Rust artifact report %q exceeds %d bytes", rel, rustToolchainArtifactReportLimit)
+			return evidence, fmt.Errorf("rust artifact report %q exceeds %d bytes", rel, rustToolchainArtifactReportLimit)
 		}
-		data, err := os.ReadFile(abs)
+		data, err := os.ReadFile(abs) //nolint:gosec // report path is validated target-relative before reading.
 		if err != nil {
 			return evidence, fmt.Errorf("read Rust artifact report %q: %w", rel, err)
 		}
@@ -608,7 +608,7 @@ func rustToolchainLegacyMangledPrefix(parts []string) string {
 		if part == "" {
 			continue
 		}
-		b.WriteString(fmt.Sprintf("%d%s", len(part), part))
+		_, _ = fmt.Fprintf(&b, "%d%s", len(part), part)
 	}
 	return b.String()
 }

@@ -221,36 +221,6 @@ function normalizePath(value) {
   return value.split(path.sep).join("/");
 }
 
-function normalizeReportSourcePath(value) {
-  if (typeof value !== "string") {
-    return "";
-  }
-  let normalized = value.trim();
-  if (!normalized) {
-    return "";
-  }
-  normalized = normalized.split("!").pop();
-  normalized = normalized.split("?")[0].split("#")[0];
-  normalized = normalized.replace(/^webpack:\/\/[^/]+\//, "");
-  normalized = normalized.replace(/^\.\//, "");
-  const dotSlash = normalized.indexOf("/./");
-  if (dotSlash >= 0) {
-    normalized = normalized.slice(dotSlash + 3);
-  }
-  normalized = normalizePath(normalized);
-  if (path.isAbsolute(normalized)) {
-    if (!isWithinTarget(normalized)) {
-      return "";
-    }
-    normalized = normalizePath(path.relative(targetPath, normalized));
-  }
-  normalized = normalized.replace(/^\.\//, "");
-  if (!scriptFlavor(normalized) || normalized.startsWith("../") || isVendorPath(normalized)) {
-    return "";
-  }
-  return normalized;
-}
-
 function scriptFlavor(fileName) {
   switch (path.extname(fileName).toLowerCase()) {
     case ".ts":
