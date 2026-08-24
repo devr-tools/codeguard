@@ -90,6 +90,7 @@ codeguard doctor -config codeguard.yaml
 codeguard scan -config codeguard.yaml
 codeguard scan -config codeguard.yaml -folder ./internal/codeguard
 codeguard scan -folder ./internal/codeguard -profile startup
+codeguard scan -folder ./internal/codeguard -profile startup -set checks.quality=true -set output.format=json
 codeguard scan-history
 codeguard waivers audit -config codeguard.yaml
 codeguard rules
@@ -105,6 +106,20 @@ By default, `codeguard` looks for `codeguard.yaml`, `codeguard.yml`, or `codegua
 If you point `-config` at a directory such as `.codeguard`, `codeguard` will look inside it for `codeguard.*` or `config.*` files.
 
 Use `codeguard scan -folder <path>` to scan only one folder. `-path <path>` is accepted as an alias. If no config file exists and you did not pass `-config`, folder scans use CodeGuard's built-in default config; add `-profile startup`, `-profile strict`, `-profile enterprise`, or `-profile ai-safe` to choose a default profile.
+
+Use repeatable `-set key=value` flags to override config values from the terminal without writing a temporary config file. Keys use dotted YAML paths and are validated against the typed CodeGuard config; mistyped fields fail before the scan runs. String lists accept comma-separated values or a JSON string array.
+
+```bash
+codeguard scan -folder . \
+  -profile startup \
+  -set targets[0].language=go \
+  -set checks.quality=true \
+  -set checks.security=false \
+  -set checks.quality_rules.dead_code.enabled=true \
+  -set checks.quality_rules.dead_code.mode=toolchain \
+  -set checks.quality_rules.dead_code.go.entrypoints=./cmd/codeguard \
+  -set output.format=json
+```
 
 For agent bootstrap flows, the shortest useful commands are:
 

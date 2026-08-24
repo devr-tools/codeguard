@@ -7,6 +7,7 @@ type QualityRulesConfig struct {
 	MaxCyclomaticComplexity int                             `json:"max_cyclomatic_complexity" yaml:"max_cyclomatic_complexity"`
 	CloneTokenThreshold     int                             `json:"clone_token_threshold,omitempty" yaml:"clone_token_threshold,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
+	DeadCode                QualityDeadCodeConfig           `json:"dead_code,omitempty" yaml:"dead_code,omitempty"`
 	AIProvenance            AIProvenanceConfig              `json:"ai_provenance,omitempty" yaml:"ai_provenance,omitempty"`
 	AIChangeRisk            AIChangeRiskConfig              `json:"ai_change_risk,omitempty" yaml:"ai_change_risk,omitempty"`
 	RiskScoring             RiskScoringConfig               `json:"risk_scoring,omitempty" yaml:"risk_scoring,omitempty"`
@@ -15,6 +16,66 @@ type QualityRulesConfig struct {
 	CPPTooling              CPPToolingConfig                `json:"cpp_tooling,omitempty" yaml:"cpp_tooling,omitempty"`
 	LocalPrecision          *bool                           `json:"local_precision,omitempty" yaml:"local_precision,omitempty"`
 	Naming                  QualityNamingConfig             `json:"naming,omitempty" yaml:"naming,omitempty"`
+}
+
+// QualityDeadCodeConfig enables toolchain-backed dead-code evidence. It is
+// intentionally separate from AIChecks.DeadCode, which stays a fast heuristic
+// pass for obvious unreachable code and AI leftovers.
+type QualityDeadCodeConfig struct {
+	Enabled      *bool                     `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	Mode         string                    `json:"mode,omitempty" yaml:"mode,omitempty"`
+	Level        string                    `json:"level,omitempty" yaml:"level,omitempty"`
+	IncludeTests *bool                     `json:"include_tests,omitempty" yaml:"include_tests,omitempty"`
+	Go           GoDeadCodeToolchainConfig `json:"go,omitempty" yaml:"go,omitempty"`
+	Rust         RustDeadCodeConfig        `json:"rust,omitempty" yaml:"rust,omitempty"`
+	CPP          CPPDeadCodeConfig         `json:"cpp,omitempty" yaml:"cpp,omitempty"`
+	Python       PythonDeadCodeConfig      `json:"python,omitempty" yaml:"python,omitempty"`
+	TypeScript   ScriptDeadCodeConfig      `json:"typescript,omitempty" yaml:"typescript,omitempty"`
+	JavaScript   ScriptDeadCodeConfig      `json:"javascript,omitempty" yaml:"javascript,omitempty"`
+}
+
+// GoDeadCodeToolchainConfig asks CodeGuard to build configured Go entrypoints
+// with the Go linker dependency graph enabled and compare linked functions
+// against private package-level declarations in the target.
+type GoDeadCodeToolchainConfig struct {
+	Entrypoints []string `json:"entrypoints,omitempty" yaml:"entrypoints,omitempty"`
+	Packages    []string `json:"packages,omitempty" yaml:"packages,omitempty"`
+	IgnorePaths []string `json:"ignore_paths,omitempty" yaml:"ignore_paths,omitempty"`
+	Linker      *bool    `json:"linker,omitempty" yaml:"linker,omitempty"`
+}
+
+type RustDeadCodeConfig struct {
+	// Crates names target-relative crate roots or Cargo.toml files to check.
+	// Empty runs cargo check from the target root.
+	Crates []string `json:"crates,omitempty" yaml:"crates,omitempty"`
+	// Packages is passed as fixed cargo --package values after validation.
+	// Values are package names, not commands or flags.
+	Packages    []string `json:"packages,omitempty" yaml:"packages,omitempty"`
+	Entrypoints []string `json:"entrypoints,omitempty" yaml:"entrypoints,omitempty"`
+	Reports     []string `json:"reports,omitempty" yaml:"reports,omitempty"`
+	IgnorePaths []string `json:"ignore_paths,omitempty" yaml:"ignore_paths,omitempty"`
+}
+
+type CPPDeadCodeConfig struct {
+	CompileCommands string   `json:"compile_commands,omitempty" yaml:"compile_commands,omitempty"`
+	Entrypoints     []string `json:"entrypoints,omitempty" yaml:"entrypoints,omitempty"`
+	Reports         []string `json:"reports,omitempty" yaml:"reports,omitempty"`
+	IgnorePaths     []string `json:"ignore_paths,omitempty" yaml:"ignore_paths,omitempty"`
+	Graph           *bool    `json:"graph,omitempty" yaml:"graph,omitempty"`
+}
+
+type PythonDeadCodeConfig struct {
+	Modules     []string `json:"modules,omitempty" yaml:"modules,omitempty"`
+	Entrypoints []string `json:"entrypoints,omitempty" yaml:"entrypoints,omitempty"`
+	Reports     []string `json:"reports,omitempty" yaml:"reports,omitempty"`
+	IgnorePaths []string `json:"ignore_paths,omitempty" yaml:"ignore_paths,omitempty"`
+}
+
+type ScriptDeadCodeConfig struct {
+	Projects    []string `json:"projects,omitempty" yaml:"projects,omitempty"`
+	Entrypoints []string `json:"entrypoints,omitempty" yaml:"entrypoints,omitempty"`
+	Reports     []string `json:"reports,omitempty" yaml:"reports,omitempty"`
+	IgnorePaths []string `json:"ignore_paths,omitempty" yaml:"ignore_paths,omitempty"`
 }
 
 type QualityNamingConfig struct {

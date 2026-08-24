@@ -88,6 +88,10 @@ All HTTP providers (OpenAI-compatible and Anthropic, in triage and the shared ru
   - warns when mock setup strongly outweighs behavior assertions
 - Dead-code detection is heuristic:
   - currently focuses on obvious constant-condition branches such as `if false` and `if (false)`
+  - compiler, linker, semantic, graph, bundler, or toolchain-backed dead-code evidence is intentionally tracked by the separate `quality.dead-code.toolchain` rule, not by `quality.ai.dead-code`
+  - for TypeScript and JavaScript targets, `quality.dead-code.toolchain` uses configured TypeScript/JavaScript projects plus optional trusted esbuild metafile, webpack stats, and Rollup/Vite rendered-length reports instead of invoking package-manager or bundler commands itself
+  - for Python targets, `quality.dead-code.toolchain` can combine conservative static import reachability with trusted vulture-style text or JSON reports, but it does not execute Python modules or analyzers
+  - exported APIs and dynamic references such as reflection, plugin loading, generated registration, build tags, cgo callbacks, C ABI callbacks, virtual dispatch, templates, macros, decorators, dynamic imports, framework conventions, and string-named handlers require conservative handling because they can be used without direct static references; C++ linker map or `nm`-style artifact ingestion provides stronger evidence than graph-only reachability when configured
 - Semantic review is opt-in:
   - can be enabled through the normal AI runtime or through `CODEGUARD_SEMANTIC_CHECKS=1`
   - scopes itself to changed files from diff or patch input, or from a git diff against the configured base ref during full scans, plus a small set of nearby test files

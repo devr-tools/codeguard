@@ -16,6 +16,9 @@ import (
 //go:embed typescript_semantic_runner_core.js
 var typeScriptSemanticRunnerCore string
 
+//go:embed typescript_semantic_runner_dead_code_reports.js
+var typeScriptSemanticRunnerDeadCodeReports string
+
 //go:embed typescript_semantic_runner_security.js
 var typeScriptSemanticRunnerSecurity string
 
@@ -27,6 +30,7 @@ var typeScriptSemanticRunnerBootstrap string
 
 var typeScriptSemanticRunner = strings.Join([]string{
 	typeScriptSemanticRunnerCore,
+	typeScriptSemanticRunnerDeadCodeReports,
 	typeScriptSemanticRunnerSecurity,
 	typeScriptSemanticRunnerTaint,
 	typeScriptSemanticRunnerBootstrap,

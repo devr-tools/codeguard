@@ -28,7 +28,7 @@ This glossary is the quick map of every built-in check family and the main subse
 
 | Check family | Report section | Config key | Main subsections / rule themes |
 | --- | --- | --- | --- |
-| Quality | `Code Quality` | `checks.quality` | formatting and parseability; maintainability thresholds; file/function size; cyclomatic complexity; clone detection; language-specific quality rules; local-quality precision for naming, function shape, error handling, and defensive programming; TypeScript/JavaScript type-safety rules; AI-failure-mode checks; semantic review; changed-line coverage; C++ formatter/compiler validation |
+| Quality | `Code Quality` | `checks.quality` | formatting and parseability; maintainability thresholds; file/function size; cyclomatic complexity; clone detection; language-specific quality rules; local-quality precision for naming, function shape, error handling, and defensive programming; TypeScript/JavaScript type-safety rules; AI-failure-mode checks; semantic review; changed-line coverage; opt-in toolchain dead-code analysis; C++ formatter/compiler validation |
 | Performance | `Performance` | `checks.performance` | N+1 query/fetch patterns; allocation-heavy loops; repeated work in loops; blocking I/O in request paths; unbounded concurrency; sequential await; timer/listener leaks; unbounded whole-input reads; framework-aware performance smells; rebuild-cascade analysis; complexity regression; size budgets; build regression; benchmark regression |
 | Reliability | `Reliability` | `checks.reliability` | missing outbound timeouts; unbounded retries; retries without backoff/jitter; non-idempotent retries; missing cancellation propagation; unbounded work; missing concurrency limits; resource leaks; hidden partial failures; missing graceful shutdown; swallowed errors; lost error context; recoverable panics/exceptions |
 | Data Correctness | `Data Correctness` | `checks.data` | read-modify-write races; missing transaction boundaries; external side effects inside transactions; non-idempotent consumers; missing deduplication; unsafe dual writes; missing outbox strategy; unstable pagination; unbounded reads; exactly-once assumptions; cache writes without TTL/policy |
@@ -398,7 +398,7 @@ Current inference behavior:
 
 | Family | Go | C++ | Python | TypeScript | Rust | Java | C# | Ruby |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Quality | `gofmt`, parseability, maintainability thresholds | maintainability thresholds across sources, headers, templates, and modules; optional `clang-format` and sanitized `clang++` validation | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, `explicit any`, double assertions, non-null assertions, `debugger` statements | maintainability thresholds | maintainability thresholds | maintainability thresholds | maintainability thresholds |
+| Quality | `gofmt`, parseability, maintainability thresholds, opt-in toolchain dead-code evidence | maintainability thresholds across sources, headers, templates, and modules; optional `clang-format` and sanitized `clang++` validation | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, `explicit any`, double assertions, non-null assertions, `debugger` statements | maintainability thresholds | maintainability thresholds | maintainability thresholds | maintainability thresholds |
 | Design | package boundary rules, generic package names, declarations per file, methods per type, interface size, graph reachability/stability/impact | include and named-module cycles, reachability, stability, graph impact, generic filenames, declarations per file, method counts, contract surface checks, boundary-policy enforcement | public/private and entrypoint coupling, import cycles, generic module names, methods per type, protocol size | generic module names, max methods per class, max members per interface/object type, graph resolution through `tsconfig` paths, package `imports`, and workspace package exports | module cycles, graph impact, generic module names, methods per type, trait size | import cycles and graph impact | - | - |
 | Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, unsafe C string APIs, taint flow, SSRF | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
 | Reliability | missing timeouts, cancellation gaps, retry policy gaps, non-idempotent retry evidence, unbounded goroutines/work, resource cleanup, swallowed/lost errors, recoverable panic, graceful shutdown | retry policy gaps, non-idempotent retry evidence, unbounded thread/task launch, raw allocation cleanup gaps, generic runtime throws | missing HTTP timeouts, retry policy gaps, non-idempotent retry evidence, unbounded asyncio work, swallowed exceptions, generic raises, resource cleanup | missing timeout/abort evidence, promise/HTTP work in loops, retry policy gaps, non-idempotent retry evidence, swallowed catches, generic throws | - | - | - | - |
@@ -432,6 +432,7 @@ Purpose:
 - Go formatting and parse validation
 - Maintainability thresholds
 - Cyclomatic complexity checks
+- Optional compiler/toolchain-backed dead-code analysis
 
 Config keys:
 
@@ -469,6 +470,7 @@ Current behavior:
 - explicit C++ targets can opt into `clang-format` and sanitized `clang++ -fsyntax-only` validation through `quality_rules.cpp_tooling`
 - TypeScript and JavaScript targets also warn on `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, explicit `any`, double assertions, non-null assertions, and committed `debugger` statements
 - can run language-specific quality commands based on `targets[].language`
+- can opt into `quality.dead-code.toolchain` findings backed by language-specific compiler, linker, semantic, or import-graph evidence; this is distinct from heuristic `quality.ai.dead-code` and graph-level `design.unreachable-module`
 
 AI provenance example:
 
@@ -530,6 +532,197 @@ Language command example:
   }
 }
 ```
+
+### Toolchain dead-code analysis
+
+`quality.dead-code.toolchain` is the opt-in rule for compiler, linker, semantic,
+or import-graph evidence that code is unreachable from configured entrypoints.
+The current implementation supports Go, Rust, C++, Python, TypeScript, and
+JavaScript with different evidence models.
+It is separate from:
+
+- `quality.ai.dead-code`, which is a fast heuristic for obvious AI-style
+  leftovers such as constant-false branches and unused private helpers.
+- `design.unreachable-module`, which reasons about module/file reachability from
+  configured architecture entrypoints, not declaration-level toolchain usage.
+
+Intended config shape:
+
+```yaml
+checks:
+  quality: true
+  quality_rules:
+    dead_code:
+      enabled: true
+      mode: toolchain
+      level: warn
+      go:
+        packages:
+          - ./...
+        entrypoints:
+          - ./cmd/codeguard
+        linker: true
+        ignore_paths:
+          - internal/generated/**
+      cpp:
+        entrypoints:
+          - src/main.cpp
+        reports:
+          - build/app.map
+          - build/nm.txt
+        graph: true
+        ignore_paths:
+          - src/generated/**
+      rust:
+        crates:
+          - crates/app
+        packages:
+          - app
+        reports:
+          - target/debug/app.nm
+        ignore_paths:
+          - src/generated/**
+      python:
+        entrypoints:
+          - app/__main__.py
+        reports:
+          - .codeguard/vulture.txt
+        ignore_paths:
+          - migrations/**
+      typescript:
+        projects:
+          - tsconfig.json
+        reports:
+          - dist/meta.json
+        ignore_paths:
+          - src/generated/**
+      javascript:
+        projects:
+          - jsconfig.json
+        reports:
+          - dist/webpack-stats.json
+        ignore_paths:
+          - generated/**
+```
+
+The same keys can be supplied from the CLI with repeatable `-set key=value`
+overrides, which is useful for agent-driven scans that should not create a
+temporary config file:
+
+```bash
+codeguard scan -folder ./app \
+  -profile startup \
+  -set targets[0].language=typescript \
+  -set checks.quality_rules.dead_code.enabled=true \
+  -set checks.quality_rules.dead_code.mode=toolchain \
+  -set checks.quality_rules.dead_code.typescript.projects=tsconfig.json \
+  -set checks.quality_rules.dead_code.typescript.reports=.codeguard/esbuild-meta.json
+```
+
+Behavior and precision:
+
+- Findings warn by default and should report `quality.dead-code.toolchain`.
+- The rule only runs when explicitly enabled. The Go implementation uses
+  `go build -gcflags=all=-l -ldflags=-dumpdep` over configured entrypoint
+  packages, with a temporary build cache, to collect linker dependency evidence.
+- High-confidence findings are private package-level functions or entire
+  non-main packages absent from the configured linked binaries.
+- The Rust implementation uses fixed `cargo check --message-format=json`
+  invocations with `rustc` `dead_code` and `unreachable_code` lints promoted
+  through `RUSTFLAGS`. It can also ingest trusted text symbol reports listed in
+  `quality_rules.dead_code.rust.reports`, such as `nm --demangle`,
+  `llvm-nm --demangle`, or linker-map extracts. Artifact findings only report
+  private top-level Rust functions when the same module has symbol evidence and
+  the candidate function is absent from the report.
+- Rust artifact evidence is conservative. It skips public APIs, generics,
+  inline-marked functions, proc macros, cfg/test-only code, runtime exports,
+  plugin registries, generated/vendor paths, tests, examples, and benches by
+  default. Optimized or stripped artifacts can inline or remove reachable
+  functions, so use an unstripped debug or carefully configured release artifact
+  when relying on symbol reports for cleanup.
+- The C++ implementation first ingests configured trusted linker artifacts from
+  `quality_rules.dead_code.cpp.reports`. GNU/LLD/MSVC-style discard lines,
+  Apple/Mach-O dead-strip map lines, and section-garbage-collection output can
+  produce high-confidence findings for discarded translation units or local
+  symbols. `nm`/`dumpbin`-style live symbol tables are used to suppress
+  graph-only false positives for linked library APIs.
+- When C++ linker artifacts are not configured, or only provide partial live
+  evidence, the C++ implementation falls back to target-local `#include` and
+  C++20 named-module graph evidence from configured entrypoint files.
+  Unreachable named modules are medium-confidence findings; ordinary
+  translation units are low-confidence because C++ link steps can connect
+  `.cpp` files without include edges.
+- The Python implementation uses static import reachability from configured
+  entrypoint modules/files. It can also ingest trusted vulture-style text or
+  JSON reports listed under `quality_rules.dead_code.python.reports`; low
+  confidence report entries are ignored. Static findings are low-confidence
+  because dynamic import, framework discovery, decorators, and packaging
+  exports can create runtime reachability that static imports do not show.
+- The TypeScript and JavaScript implementation uses configured
+  `tsconfig.json`/`jsconfig.json` project files when
+  `quality_rules.dead_code.typescript.projects` or
+  `quality_rules.dead_code.javascript.projects` is set; otherwise it falls back
+  to normal project discovery.
+- The TypeScript and JavaScript analysis enables `noUnusedLocals`,
+  `noUnusedParameters`, and unreachable-code diagnostics for the semantic pass.
+  It can also ingest trusted local esbuild metafile JSON, webpack stats JSON,
+  and Rollup/Vite chunk summaries with per-module `renderedLength` values
+  listed under `reports`, reporting only explicit zero-byte tree-shaking,
+  zero-rendered-length, or orphan-module evidence after generated, test, story,
+  package-entrypoint, framework-convention, side-effect, and configured
+  ignored-path guards. Vite manifests alone are treated as live-output metadata,
+  not dead-code proof.
+- Exported declarations are lower-confidence unless the repository config
+  declares a complete consumer surface. Public libraries may intentionally
+  export APIs that no in-repo caller references.
+- Dynamic references can hide legitimate use. Treat reflection, `init`
+  registration, plugin loading, generated dependency injection, build tags,
+  cgo callbacks, `//go:linkname`, Rust cfg/test-only code, proc macros, C ABI
+  callbacks, virtual dispatch, templates, macros, plugin registries, Python
+  decorators/importlib, TypeScript dynamic imports, framework file conventions,
+  package exports, and string-named handlers as caveats that require either
+  conservative skipping, reduced confidence, or an explicit waiver.
+- Deleting a finding should be verified with normal package tests and, for
+  binary entrypoints, a rebuild of the affected command. C++ graph-only
+  findings still need linker map, `nm`, or section-garbage-collection evidence
+  before large removals.
+
+Safe artifact examples:
+
+```bash
+# Go: CodeGuard invokes a fixed go build command itself when the rule is enabled.
+codeguard scan -config .codeguard/codeguard.yaml
+
+# Rust: generate an unstripped local symbol report for configured reports.
+cargo build
+nm --demangle target/debug/my-binary > .codeguard/rust-symbols.txt
+
+# C++: collect live symbols and, when available, linker garbage-collection logs.
+cmake --build build
+nm -C build/my-binary > .codeguard/cpp-symbols.txt
+clang++ -Wl,--print-gc-sections ... 2> .codeguard/cpp-gc-sections.txt
+dumpbin /symbols build\my-binary.exe > .codeguard/cpp-dumpbin-symbols.txt
+
+# TypeScript/JavaScript: emit trusted bundler metadata without letting CodeGuard
+# execute the bundler.
+esbuild src/index.ts --bundle --metafile=.codeguard/esbuild-meta.json
+webpack --json > .codeguard/webpack-stats.json
+# Rollup/Vite reports must include per-module renderedLength, not only manifest
+# entries for live outputs.
+
+# Python: import vulture output or a trusted JSON report generated by CI.
+vulture app > .codeguard/vulture.txt
+```
+
+Reviewer checklist:
+
+- Confirm `quality_rules.dead_code.enabled` is intentionally set; the toolchain
+  rule is opt-in.
+- Prefer artifact-backed findings for deletion PRs. Treat graph-only or static
+  import findings as cleanup leads unless normal tests and rebuilds also pass.
+- Keep reports target-relative and generated by the project's trusted build
+  pipeline. CodeGuard reads these files but does not execute C++ linkers,
+  Rust symbol tools, Python analyzers, package managers, or bundlers for them.
 
 ### C++ Clang tooling
 

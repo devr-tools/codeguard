@@ -41,6 +41,16 @@ var qualityCatalog = map[string]core.RuleMetadata{
 		Description:    "Fails when a Go source file cannot be parsed.",
 		HowToFix:       "Fix the syntax error so the file parses cleanly.",
 	},
+	"quality.dead-code.toolchain": {
+		ID:               "quality.dead-code.toolchain",
+		Section:          "Code Quality",
+		DefaultLevel:     "warn",
+		ExecutionModel:   core.RuleExecutionModelCommandDriven,
+		LanguageCoverage: core.FixedRuleLanguageCoverage(core.RuleLanguageGo, core.RuleLanguageRust, core.RuleLanguageCPP, core.RuleLanguagePython, core.RuleLanguageTypeScript, core.RuleLanguageJavaScript),
+		Title:            "Toolchain dead code",
+		Description:      "Warns when opt-in toolchain or language-graph evidence indicates code is unreachable from configured entrypoints. Go uses linker dependency evidence; Rust uses cargo/rustc dead_code and unreachable_code diagnostics plus configured artifact symbol reports; C++ ingests trusted linker map, nm, and dumpbin-style artifacts when configured and otherwise falls back to target-local include and C++20 named-module graph evidence; Python uses static import reachability plus trusted reports; TypeScript and JavaScript use compiler semantic diagnostics plus trusted bundler reports.",
+		HowToFix:         "Remove the unreachable code, wire it into a real entrypoint, or document and suppress dynamic, public API, registration, plugin, or callback usage that the configured toolchain evidence cannot prove.",
+	},
 	"quality.max-file-lines": {
 		ID:             "quality.max-file-lines",
 		Section:        "Code Quality",
