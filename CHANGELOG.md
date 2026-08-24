@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.0](https://github.com/devr-tools/codeguard/compare/v1.6.0...v1.7.0) (2026-08-24)
+
+
+### Features
+
+* add toolchain dead-code scans ([03bd363](https://github.com/devr-tools/codeguard/commit/03bd3633d8e13a063d2234b257bdd8bcc0a63db4))
+
+
+### Bug Fixes
+
+* reduce LMP false positives ([995501e](https://github.com/devr-tools/codeguard/commit/995501e8f7c3b7e7c51ad701db41b3a53dcd1419))
+* satisfy dead-code lint gates ([67ed8ae](https://github.com/devr-tools/codeguard/commit/67ed8aeec61109082e92302a929d4823406c1c7e))
+
 ## [1.6.0](https://github.com/devr-tools/codeguard/compare/v1.5.4...v1.6.0) (2026-08-22)
 
 
