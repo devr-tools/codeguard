@@ -85,6 +85,9 @@ func typeScriptExplicitAnyFindings(ctx typeScriptScanContext, tree *support.Synt
 }
 
 func typeScriptDoubleAssertionFindings(ctx typeScriptScanContext, tree *support.SyntaxTree) []core.Finding {
+	if isScriptTestOrHelperFile(ctx.file) {
+		return nil
+	}
 	regexSpec := support.ScriptRegexSpec{
 		Pattern: tsDoubleAssertPattern,
 		RuleID:  qualityRuleID(ctx.file, "double-assertion"),
@@ -116,6 +119,9 @@ func typeScriptDoubleAssertionFindings(ctx typeScriptScanContext, tree *support.
 
 func typeScriptNonNullAssertionFindings(ctx typeScriptScanContext, tree *support.SyntaxTree) []core.Finding {
 	ruleID := qualityRuleID(ctx.file, "non-null-assertion")
+	if isScriptTestOrHelperFile(ctx.file) {
+		return nil
+	}
 	if typeScriptTreeUsable(tree) {
 		findings, ok := support.ScriptQueryFindings(ctx.env, ctx.file, tree, support.ScriptQuerySpec{
 			Query:      tsNonNullQuery,

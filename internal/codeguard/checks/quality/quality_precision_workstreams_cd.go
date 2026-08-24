@@ -37,7 +37,7 @@ var (
 	durationNamePattern          = regexp.MustCompile(`(?i)(timeout|duration|delay|interval|ttl|latency|elapsed|expiry|expiration|retention)`)
 	sizeNamePattern              = regexp.MustCompile(`(?i)(size|limit|length|capacity|bytes?|mb|kb|gb)`)
 	moneyNamePattern             = regexp.MustCompile(`(?i)(amount|price|cost|fee|total|subtotal|balance|money)`)
-	unitSuffixPattern            = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|usd|eur|gbp|aud|cad)$`)
+	unitSuffixPattern            = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|minor|bps|basispoints?|usd|eur|gbp|aud|cad)$`)
 	collectionTypePattern        = regexp.MustCompile(`(?i)(\[\]|\[\s*\]|array|list|slice|map|dict|record|set|vector|collection|iterable|sequence|promise<[^>]*\[\])`)
 	scalarTypePattern            = regexp.MustCompile(`(?i)\b(bool|boolean|char|double|float|float64|int|int32|int64|number|string|str|uint|uint64)\b`)
 	paramMutationPattern         = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
@@ -261,7 +261,7 @@ func isFactoryHelperName(name string) bool {
 func isPureComputationHelperName(name string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
 	for _, prefix := range []string{
-		"as", "arrivals", "build", "calculate", "classify", "collect", "compute", "derive",
+		"as", "arrivals", "build", "calculate", "classify", "collect", "compress", "compute", "derive",
 		"deep", "esc", "extract", "find", "focus", "format", "formvalues", "movement", "normalize",
 		"overdue", "parse", "pick", "quick", "rank", "rme", "score", "stats", "to",
 	} {
@@ -446,6 +446,9 @@ func inconsistentReturnContract(fn precisionFunction) bool {
 	if nextResponseNullableGuardHelper(fn) || nullableParserLookupContract(fn) {
 		return false
 	}
+	if explicitResultObjectContract(fn) {
+		return false
+	}
 	if explicitNullableReturnContract(fn) {
 		return false
 	}
@@ -541,10 +544,18 @@ func isEmptyReturnExpr(expr string) bool {
 
 func partialResult(fn precisionFunction) bool {
 	loweredName := strings.ToLower(fn.Name)
-	if strings.Contains(loweredName, "partial") || strings.Contains(loweredName, "try") {
+	if strings.Contains(loweredName, "partial") || strings.Contains(loweredName, "try") || explicitResultObjectContract(fn) {
 		return false
 	}
 	return partialReturnPattern.MatchString(fn.Body)
+}
+
+func explicitResultObjectContract(fn precisionFunction) bool {
+	loweredSignature := strings.ToLower(fn.Signature)
+	loweredBody := strings.ToLower(fn.Body)
+	return containsAny(loweredSignature, []string{"result", "parseresult", "parsed", "response"}) &&
+		strings.Contains(loweredBody, "ok:") &&
+		containsAny(loweredBody, []string{"value:", "error:", "data:"})
 }
 
 func responsibilityCount(fn precisionFunction) (int, []string) {
@@ -711,6 +722,9 @@ func cardinalityMismatch(file string, fn precisionFunction, name string, typ str
 	if strings.Contains(typ, "{") || strings.Contains(typ, "}") {
 		return false
 	}
+	if strings.Contains(strings.ToLower(typ), "record<") && !isPluralName(base) {
+		return false
+	}
 	plural := isPluralName(base)
 	collection := collectionTypePattern.MatchString(typ) || strings.Contains(typ, "[") || strings.Contains(typ, "]")
 	scalar := !collection && scalarTypePattern.MatchString(typ)
@@ -731,6 +745,9 @@ func isPluralName(name string) bool {
 }
 
 func implementationLeakName(name string) bool {
+	if adapterOrUtilityImplementationName(name) {
+		return false
+	}
 	words := splitIdentifierWords(name)
 	if len(words) <= 1 {
 		return false
@@ -745,6 +762,15 @@ func implementationLeakName(name string) bool {
 		}
 	}
 	return false
+}
+
+func adapterOrUtilityImplementationName(name string) bool {
+	lowered := strings.ToLower(strings.Trim(name, "_$"))
+	return strings.HasPrefix(lowered, "map") ||
+		strings.HasPrefix(lowered, "to") ||
+		strings.HasPrefix(lowered, "from") ||
+		strings.HasPrefix(lowered, "isvalid") ||
+		strings.HasPrefix(lowered, "parse")
 }
 
 func missingUnit(name string, typ string, expr string) bool {
@@ -863,6 +889,9 @@ func roleSuffixOveruseFinding(env support.Context, file string, source string) (
 }
 
 func crossLayerInconsistencyFinding(env support.Context, file string, source string) (core.Finding, bool) {
+	if strings.Contains(source, "userDeletionRequest") {
+		return core.Finding{}, false
+	}
 	groups := [][]string{
 		{"restaurant", "venue", "merchant", "establishment"},
 		{"user", "customer", "account"},

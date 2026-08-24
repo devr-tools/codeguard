@@ -87,7 +87,7 @@ func godModuleFindings(env support.Context, graph *moduleGraph) []core.Finding {
 			continue
 		}
 		node := graph.modules[module]
-		if allowedCentralDataClientModule(node.file) {
+		if allowedCentralDataClientModule(node.file) || allowedCentralUtilityModule(node.file, fanIn[module], fanOut[module]) {
 			continue
 		}
 		findings = append(findings, env.NewFinding(support.FindingInput{
@@ -100,6 +100,29 @@ func godModuleFindings(env support.Context, graph *moduleGraph) []core.Finding {
 		}))
 	}
 	return findings
+}
+
+func allowedCentralUtilityModule(file string, fanIn int, fanOut int) bool {
+	if fanIn <= 0 || fanOut > 4 {
+		return false
+	}
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	base := normalized
+	if slash := strings.LastIndex(base, "/"); slash >= 0 {
+		base = base[slash+1:]
+	}
+	return containsAnyLocal(base, []string{
+		"route-auth", "auth", "authorize", "validate-request", "validation", "validator",
+	})
+}
+
+func containsAnyLocal(source string, needles []string) bool {
+	for _, needle := range needles {
+		if strings.Contains(source, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func allowedCentralDataClientModule(file string) bool {

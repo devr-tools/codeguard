@@ -79,7 +79,23 @@ func scriptErrorStyleDriftFinding(env support.Context, file string, source strin
 	if isLikelyUIFile(file) || isSeedOrScriptSourcePath(file) || strings.Contains(strings.ToLower(file), "/integrations/") {
 		return nil
 	}
+	if scriptUsesSingleCustomErrorClass(source) {
+		return nil
+	}
 	return errorStyleDriftFinding(env, file, dominant, scriptErrorStyleCounts(source), "thrown error")
+}
+
+func scriptUsesSingleCustomErrorClass(source string) bool {
+	classes := map[string]struct{}{}
+	total := 0
+	for _, match := range scriptThrowNewPattern.FindAllStringSubmatch(source, -1) {
+		if match[1] == "Error" {
+			return false
+		}
+		classes[match[1]] = struct{}{}
+		total++
+	}
+	return total > 0 && len(classes) == 1
 }
 
 // --- shared style machinery ---
