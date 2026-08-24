@@ -180,6 +180,23 @@ async function handleMessage(email, event) {
 	assertFindingRuleAbsent(t, report, "Data Correctness", "data.exactly-once-assumption")
 }
 
+func TestDataTypeScriptAcceptsSupabaseMaybeSingleBounds(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "override-store.ts"), `
+async function markOverrideCleared(update) {
+  const { data, error } = await update.select("id").maybeSingle();
+  return { data, error };
+}
+`)
+
+	report, err := codeguard.Run(context.Background(), dataLangConfig("data-ts-supabase-single", dir, "typescript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Data Correctness", "data.unbounded-read")
+}
+
 func TestDataJavaScriptUsesSameDetector(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "service.js"), `

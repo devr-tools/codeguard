@@ -129,6 +129,38 @@ func TestChangeDetectsMixedAndTooManyConcerns(t *testing.T) {
 	assertFindingRulePresent(t, report, "Change Safety", "change.too-many-concerns")
 }
 
+func TestChangeAllowsCohesiveDaintreeLMPFeatureAcrossLayers(t *testing.T) {
+	dir := initChangeRepo(t)
+	fixtures := map[string]string{
+		"src/app/(app)/apps/lmp/_components/account-detail/feature-access-tab.tsx": "export function FeatureAccessTab() { return null }\n",
+		"src/app/api/apps/lmp/new-editor/route.ts":                                 "export async function POST() { return Response.json({ ok: true }) }\n",
+		"src/lib/statsig/override-service.ts":                                      "export async function applyStatsigOverride() { return true }\n",
+		"src/lib/statsig/override-store.ts":                                        "export async function markOverrideCleared() { return true }\n",
+		"supabase/migrations/20260824000000_lmp_new_editor_access.sql":             "select 1;\n",
+	}
+	for rel, content := range fixtures {
+		writeFile(t, filepath.Join(dir, rel), content)
+	}
+	commitAll(t, dir, "base")
+	for rel, content := range fixtures {
+		writeFile(t, filepath.Join(dir, rel), content+"\n")
+	}
+
+	cfg := changeSafetyTestConfig("change-lmp-cohesive", dir)
+	cfg.Targets[0].Language = "typescript"
+	cfg.Checks.ChangeRules.MaxChangedFiles = 20
+	cfg.Checks.ChangeRules.MaxChangedDirectories = 20
+	cfg.Checks.ChangeRules.MaxChangedLines = 100
+	cfg.Checks.ChangeRules.MaxPublicInterfacesChanged = 20
+	cfg.Checks.ChangeRules.MaxConcernFamilies = 2
+	cfg.Checks.ChangeRules.MinTestToProductionRatioPercent = 0
+
+	report := runChangeDiff(t, cfg)
+
+	assertFindingRuleAbsent(t, report, "Change Safety", "change.mixed-concerns")
+	assertFindingRuleAbsent(t, report, "Change Safety", "change.too-many-concerns")
+}
+
 func TestChangeDetectsMoveMixedWithBehaviorAndNoVerification(t *testing.T) {
 	dir := initChangeRepo(t)
 	writeFile(t, filepath.Join(dir, "service", "handler.go"), "package service\n\nfunc Handle() int {\n\treturn 1\n}\n")

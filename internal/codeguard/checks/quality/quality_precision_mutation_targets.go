@@ -464,7 +464,11 @@ func isFrameworkCommandBoundary(file string, name string) bool {
 	if !isHTTPMethodName(name) {
 		return false
 	}
-	normalized := strings.ReplaceAll(file, "\\", "/")
+	return isNextRouteFile(file)
+}
+
+func isNextRouteFile(file string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
 	return strings.HasSuffix(normalized, "/route.ts") || strings.HasSuffix(normalized, "/route.tsx") ||
 		strings.HasSuffix(normalized, "/route.js") || strings.HasSuffix(normalized, "/route.jsx")
 }

@@ -138,6 +138,29 @@ func TestTestingNondeterministicDomainLogicFindsDomainClock(t *testing.T) {
 	assertFindingRulePresent(t, report, "Change Safety", "testing.nondeterministic-domain-logic")
 }
 
+func TestTestingNondeterministicDomainLogicAllowsDurationMeasurement(t *testing.T) {
+	dir := testingGitRepo(t)
+	writeFile(t, filepath.Join(dir, "src", "domain", "audit.ts"), `export async function runAudit() {
+  return { durationMs: 0 };
+}
+`)
+	commitAll(t, dir, "base")
+	writeFile(t, filepath.Join(dir, "src", "domain", "audit.ts"), `export async function runAudit() {
+  const startedAt = Date.now();
+  await audit("start");
+  return { durationMs: Date.now() - startedAt };
+}
+`)
+
+	cfg := testingChangeConfig(t, dir, "typescript")
+	cfg.Checks.ChangeRules.DetectBehaviorChangeWithoutTest = boolValue(false)
+	cfg.Checks.ChangeRules.DetectFailurePathMissing = boolValue(false)
+	cfg.Checks.ChangeRules.DetectHardwiredDependency = boolValue(false)
+	report := runTestingChangeScan(t, cfg)
+
+	assertFindingRuleAbsent(t, report, "Change Safety", "testing.nondeterministic-domain-logic")
+}
+
 func TestTestingFailurePathMissingAcrossLanguages(t *testing.T) {
 	for _, tc := range testabilityFailurePathCases() {
 		t.Run(tc.name, func(t *testing.T) {

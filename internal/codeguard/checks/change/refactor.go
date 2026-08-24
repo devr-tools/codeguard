@@ -208,7 +208,7 @@ func publicContractEvidence(pair refactorFilePair, baseText string, afterText st
 	if len(before) == 0 && len(after) == 0 {
 		return refactorFindingEvidence{}, false
 	}
-	changed := signatureDiff(before, after)
+	changed := breakingSignatureDiff(before, after)
 	if len(changed) == 0 {
 		return refactorFindingEvidence{}, false
 	}
@@ -322,6 +322,9 @@ func dependencyDirectionEvidence(pair refactorFilePair, baseText string, afterTe
 	worse := make([]string, 0)
 	for _, imp := range afterImports {
 		if _, existed := baseImports[imp]; existed {
+			continue
+		}
+		if frameworkImportAllowedInUI(pair.afterPath, afterText, imp) {
 			continue
 		}
 		if dependencyWorsensLayer(layer, imp) {
@@ -590,7 +593,7 @@ func normalizeSignature(sig string) string {
 	return strings.Join(strings.Fields(sig), " ")
 }
 
-func signatureDiff(before map[string]string, after map[string]string) []string {
+func breakingSignatureDiff(before map[string]string, after map[string]string) []string {
 	diff := make([]string, 0)
 	for name, beforeSig := range before {
 		afterSig, ok := after[name]
@@ -600,11 +603,6 @@ func signatureDiff(before map[string]string, after map[string]string) []string {
 		}
 		if beforeSig != afterSig {
 			diff = append(diff, "changed "+name)
-		}
-	}
-	for name := range after {
-		if _, ok := before[name]; !ok {
-			diff = append(diff, "added "+name)
 		}
 	}
 	sort.Strings(diff)
@@ -746,6 +744,24 @@ func dependencyWorsensLayer(layer string, imp string) bool {
 	default:
 		return false
 	}
+}
+
+func frameworkImportAllowedInUI(path string, text string, imp string) bool {
+	imp = strings.ToLower(strings.TrimSpace(imp))
+	if imp != "react" && imp != "react-dom" {
+		return false
+	}
+	lowerPath := strings.ToLower(normalizePath(path))
+	if !strings.HasSuffix(lowerPath, ".tsx") && !strings.HasSuffix(lowerPath, ".jsx") {
+		return false
+	}
+	if strings.Contains(text, `"use client"`) || strings.Contains(text, `'use client'`) {
+		return true
+	}
+	return strings.Contains(lowerPath, "/src/app/") ||
+		strings.Contains(lowerPath, "/app/") ||
+		strings.Contains(lowerPath, "/components/") ||
+		strings.Contains(lowerPath, "/_components/")
 }
 
 func testEvidenceCount(text string) int {

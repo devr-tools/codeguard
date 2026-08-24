@@ -170,6 +170,33 @@ func TestFunctionCommandQueryMixAllowsReactAndNextBoundaries(t *testing.T) {
 	}
 }
 
+func TestFunctionMutationRulesAllowWrappedNextRouteHandlersAndRollbackNames(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "app", "api", "apps", "lmp", "new-editor", "route.ts"), strings.Join([]string{
+		"import { NextResponse } from 'next/server';",
+		"export async function postHandler(request: Request) {",
+		"  await overrides.update(await request.json());",
+		"  return NextResponse.json({ ok: true });",
+		"}",
+		"export const POST = withTrackedRoute({ surface: 'lmp.new-editor-access' }, postHandler);",
+		"declare const overrides: { update(input: unknown): Promise<void> };",
+		"declare function withTrackedRoute(options: unknown, handler: unknown): unknown;",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "src", "lib", "statsig", "override-service.ts"), strings.Join([]string{
+		"export async function rollbackStatsigOverride(store: Store, id: string) {",
+		"  await store.update(id);",
+		"  return { rolledBack: true };",
+		"}",
+		"interface Store { update(id: string): Promise<void> }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "function.command-query-mix", "route.ts")
+	assertCodeQualityRuleAbsentForPath(t, report, "function.hidden-mutation", "route.ts")
+	assertCodeQualityRuleAbsentForPath(t, report, "function.hidden-mutation", "override-service.ts")
+}
+
 func TestQualityAmbiguousNameAllowsNestJSPayloadNames(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps/api/src/users/users.controller.ts"), strings.Join([]string{
@@ -193,6 +220,47 @@ func TestQualityAmbiguousNameAllowsNestJSPayloadNames(t *testing.T) {
 	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ambiguous-name")
 	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
 	assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
+}
+
+func TestQualityDuplicatedKnowledgeSkipsZodEnumAndUnionLiterals(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "app", "(app)", "apps", "lmp", "_components", "account-detail", "feature-access-tab.tsx"), strings.Join([]string{
+		"import { z } from 'zod';",
+		"const ActionSchema = z.enum([",
+		"  'force_new',",
+		"  'force_old',",
+		"  'reset',",
+		"]);",
+		"export type NewEditorEffectiveState =",
+		"  | 'new_editor'",
+		"  | 'old_editor'",
+		"  | 'unassigned';",
+		"export function FeatureAccessTab() {",
+		"  const forcedState: NewEditorEffectiveState = 'new_editor';",
+		"  return <button>{ActionSchema.parse('force_new')}{forcedState}</button>;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.duplicated-knowledge")
+}
+
+func TestErrorLoggedAndReturnedSkipsAuditWrites(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "app", "api", "apps", "lmp", "new-editor", "route.ts"), strings.Join([]string{
+		"import { NextResponse } from 'next/server';",
+		"export async function postHandler() {",
+		"  const message = 'statsig override failed';",
+		"  await audit('error', message);",
+		"  return NextResponse.json({ error: message }, { status: 502 });",
+		"}",
+		"declare function audit(kind: string, message: string): Promise<void>;",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "error.logged-and-returned")
 }
 
 func TestQualityDuplicatedKnowledgeSkipsDisplayStringsAndIncludesLiteral(t *testing.T) {

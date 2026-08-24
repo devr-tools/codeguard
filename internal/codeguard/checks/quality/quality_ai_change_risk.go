@@ -31,6 +31,9 @@ func changeRiskFindings(env support.Context, target core.TargetConfig, findings 
 	if level == "" {
 		level = "warn"
 	}
+	if !changeRiskHasConcreteFindingEvidence(artifact.ChangeRisk) {
+		level = "warn"
+	}
 	return []core.Finding{env.NewFinding(support.FindingInput{
 		RuleID:  "quality.ai.change-risk",
 		Level:   level,
@@ -100,6 +103,13 @@ func summarizeChangeRisk(risk *core.ChangeRiskArtifact) string {
 	return strings.Join(parts, "; ")
 }
 
+func changeRiskHasConcreteFindingEvidence(risk *core.ChangeRiskArtifact) bool {
+	if risk == nil {
+		return false
+	}
+	return risk.AIFindingCount > 0 || risk.SemanticFindingCount > 0
+}
+
 func targetChangedFileCount(env support.Context, _ core.TargetConfig) int {
 	return len(env.ChangedFiles)
 }
@@ -132,9 +142,27 @@ func addAISignalRisk(score int, components []core.ChangeRiskComponent, aiRuleIDs
 	components = append(components, core.ChangeRiskComponent{
 		Label:        "ai_signals",
 		Contribution: contribution,
-		Detail:       fmt.Sprintf("%d AI findings contributed a slop score of %d", len(aiRuleIDs), slop),
+		Detail:       fmt.Sprintf("%d concrete AI findings contributed a slop score of %d (%s)", len(aiRuleIDs), slop, strings.Join(limitChangeRiskRuleIDs(aiRuleIDs, 4), ", ")),
 	})
 	return score, components
+}
+
+func limitChangeRiskRuleIDs(ruleIDs []string, limit int) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(ruleIDs))
+	for _, ruleID := range ruleIDs {
+		if _, ok := seen[ruleID]; ok {
+			continue
+		}
+		seen[ruleID] = struct{}{}
+		if len(out) < limit {
+			out = append(out, ruleID)
+		}
+	}
+	if len(seen) > len(out) {
+		out = append(out, fmt.Sprintf("+%d more", len(seen)-len(out)))
+	}
+	return out
 }
 
 func addProvenanceRisk(score int, components []core.ChangeRiskComponent, provenanceActive bool) (int, []core.ChangeRiskComponent) {

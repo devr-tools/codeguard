@@ -128,6 +128,30 @@ func CheckoutHandler(ctx context.Context, orderID string, err error) {
 	assertFindingRuleAbsent(t, report, "Observability", "observability.critical-path-uninstrumented")
 }
 
+func TestObservabilityAllowsWithTrackedRouteInstrumentation(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "app", "api", "apps", "lmp", "new-editor", "route.ts"), `function actor() {
+  return { id: "operator" };
+}
+
+async function postHandler(request: Request) {
+  actor();
+  await request.json();
+  return Response.json({ ok: true });
+}
+
+export const POST = withTrackedRoute({ surface: "lmp.new-editor-access" }, postHandler);
+declare function withTrackedRoute(options: unknown, handler: unknown): unknown;
+`)
+
+	report, err := codeguard.Run(context.Background(), observabilityConfig("observability-tracked-route", dir, "typescript"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Observability", "observability.critical-path-uninstrumented")
+}
+
 func TestObservabilityDetectorMatrixAcrossLanguages(t *testing.T) {
 	cases := []observabilityMatrixCase{
 		observabilityCase("unstructured", "observability.unstructured-log", map[string]string{

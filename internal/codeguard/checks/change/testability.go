@@ -265,7 +265,35 @@ func isHardwiredDependencyLine(line string) bool {
 
 func isNondeterministicLine(line string) bool {
 	line = maskLineComments(line)
+	if nondeterministicLineIsMeasurement(line) {
+		return false
+	}
 	return nondeterministicPattern.MatchString(line)
+}
+
+func nondeterministicLineIsMeasurement(line string) bool {
+	if !nondeterministicPattern.MatchString(line) {
+		return false
+	}
+	if strings.Contains(line, "math.random") || strings.Contains(line, "random.") || strings.Contains(line, "rand.") || strings.Contains(line, "uuid.") {
+		return false
+	}
+	if changeContainsAny(line, []string{"ttl", "expiry", "expires", "deadline", "validuntil", "valid_until"}) {
+		return false
+	}
+	return changeContainsAny(line, []string{
+		"startedat", "start_time", "starttime", "duration", "elapsed", "latency",
+		"audit", "metric", "metrics", "trace", "span", "log", "telemetry",
+	})
+}
+
+func changeContainsAny(source string, needles []string) bool {
+	for _, needle := range needles {
+		if strings.Contains(source, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func confidenceWithTests(hasChangedTests bool) string {

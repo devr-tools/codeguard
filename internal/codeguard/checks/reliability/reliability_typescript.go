@@ -42,12 +42,13 @@ func typeScriptFindingsForFile(env support.Context, file string, data []byte) []
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
 	code := support.StripTypeScriptCommentsAndStrings(source)
 	scan := &tsReliabilityScan{
-		env:         env,
-		file:        file,
-		rules:       env.Config.Checks.ReliabilityRules,
-		limited:     tsLimitHint.MatchString(source),
-		cancellable: tsCancellationHint.MatchString(source),
-		hasShutdown: tsShutdownHint.MatchString(source),
+		env:             env,
+		file:            file,
+		rules:           env.Config.Checks.ReliabilityRules,
+		limited:         tsLimitHint.MatchString(source),
+		cancellable:     tsCancellationHint.MatchString(source),
+		hasShutdown:     tsShutdownHint.MatchString(source),
+		hasErrorHandler: hasTypeScriptErrorHandler(code),
 	}
 	for idx, line := range strings.Split(code, "\n") {
 		scan.consumeLine(idx+1, line)
@@ -68,18 +69,19 @@ func typeScriptFindingsForFile(env support.Context, file string, data []byte) []
 }
 
 type tsReliabilityScan struct {
-	env            support.Context
-	file           string
-	rules          core.ReliabilityRulesConfig
-	limited        bool
-	cancellable    bool
-	hasShutdown    bool
-	depth          int
-	loops          []int
-	unboundedLoops []int
-	detachedLines  []int
-	resourceLine   int
-	findings       []core.Finding
+	env             support.Context
+	file            string
+	rules           core.ReliabilityRulesConfig
+	limited         bool
+	cancellable     bool
+	hasShutdown     bool
+	hasErrorHandler bool
+	depth           int
+	loops           []int
+	unboundedLoops  []int
+	detachedLines   []int
+	resourceLine    int
+	findings        []core.Finding
 }
 
 func (s *tsReliabilityScan) consumeLine(lineNo int, line string) {
@@ -131,9 +133,23 @@ func (s *tsReliabilityScan) checkLine(lineNo int, line string, inLoop bool, inUn
 	if enabled(s.rules.DetectNonIdempotentRetry) && inLoop && tsNonIdempotentCall.MatchString(line) && !tsIdempotencyHint.MatchString(line) {
 		s.add("reliability.non-idempotent-retry", "fail", lineNo, "retry-like JavaScript loop wraps a non-idempotent side effect without idempotency evidence", "medium", "retry", "side-effect")
 	}
-	if enabled(s.rules.DetectRecoverablePanic) && tsGenericThrow.MatchString(line) {
+	if enabled(s.rules.DetectRecoverablePanic) && tsGenericThrow.MatchString(line) && !s.hasErrorHandler && !tsThrowLooksDefensive(line) {
 		s.add("reliability.recoverable-panic", "fail", lineNo, "production code throws a generic exception for a recoverable failure path", "medium", "exception", "generic-throw")
 	}
+}
+
+func hasTypeScriptErrorHandler(code string) bool {
+	return strings.Contains(code, ".catch(") ||
+		regexp.MustCompile(`\btry\s*\{`).MatchString(code) && regexp.MustCompile(`\bcatch\s*\(`).MatchString(code)
+}
+
+func tsThrowLooksDefensive(line string) bool {
+	lowered := strings.ToLower(line)
+	return strings.Contains(lowered, "invariant") ||
+		strings.Contains(lowered, "unreachable") ||
+		strings.Contains(lowered, "impossible") ||
+		strings.Contains(lowered, "must ") ||
+		strings.Contains(lowered, "expected ")
 }
 
 func (s *tsReliabilityScan) trackResourceLeak(lineNo int, line string) {

@@ -13,23 +13,7 @@ import (
 var domainKnowledgeLiteralPattern = regexp.MustCompile(`"([^"]{2,80})"|'([^']{2,80})'|\b\d+(?:\.\d+)?\b`)
 
 func parsedDuplicatedKnowledgeFindings(env support.Context, file string, parsed *support.ParsedFile) []core.Finding {
-	if isQualityFixturePath(file) {
-		return nil
-	}
-	if strings.HasPrefix(strings.ToLower(file), ".buildkite/") || isSeedOrScriptSourcePath(file) {
-		return nil
-	}
-	seen := map[string]int{}
-	for _, statement := range parsed.Module.Statements {
-		for _, literal := range domainKnowledgeLiterals(statement.Raw) {
-			if first, exists := seen[literal]; exists {
-				return []core.Finding{precisionWarnFinding(env, qualityDuplicatedKnowledgeRuleID, file, statement.Line,
-					fmt.Sprintf("business literal %s is duplicated near line %d; centralize shared domain knowledge", literal, first), core.ConfidenceLow)}
-			}
-			seen[literal] = statement.Line
-		}
-	}
-	return nil
+	return sourceDuplicatedKnowledgeFindings(env, file, parsed.Source)
 }
 
 func sourceDuplicatedKnowledgeFindings(env support.Context, file string, source string) []core.Finding {
@@ -42,10 +26,20 @@ func sourceDuplicatedKnowledgeFindings(env support.Context, file string, source 
 	seen := map[string]int{}
 	lowerFile := strings.ToLower(file)
 	pythonSource := strings.HasSuffix(lowerFile, ".py") || strings.HasSuffix(lowerFile, ".pyi")
+	enumOrTypeBlock := false
 	for idx, line := range strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n") {
 		trimmed := strings.TrimSpace(line)
 		pythonComment := pythonSource && strings.HasPrefix(trimmed, "#")
 		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") || pythonComment {
+			continue
+		}
+		if duplicatedKnowledgeLineStartsEnumOrTypeBlock(trimmed) {
+			enumOrTypeBlock = true
+		}
+		if enumOrTypeBlock || duplicatedKnowledgeLineIsEnumOrTypeLiteral(trimmed) {
+			if duplicatedKnowledgeLineEndsEnumOrTypeBlock(trimmed) {
+				enumOrTypeBlock = false
+			}
 			continue
 		}
 		for _, literal := range domainKnowledgeLiterals(line) {
@@ -57,6 +51,33 @@ func sourceDuplicatedKnowledgeFindings(env support.Context, file string, source 
 		}
 	}
 	return nil
+}
+
+func duplicatedKnowledgeLineStartsEnumOrTypeBlock(line string) bool {
+	lowered := strings.ToLower(line)
+	return strings.Contains(lowered, "z.enum(") ||
+		strings.Contains(lowered, "enum ") && strings.Contains(line, "{") ||
+		strings.HasPrefix(lowered, "export type ") && strings.Contains(line, "=") && !strings.Contains(line, ";") ||
+		strings.HasPrefix(lowered, "type ") && strings.Contains(line, "=") && !strings.Contains(line, ";")
+}
+
+func duplicatedKnowledgeLineEndsEnumOrTypeBlock(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.Contains(trimmed, "]);") ||
+		strings.Contains(trimmed, "];") ||
+		strings.Contains(trimmed, "};") ||
+		strings.HasSuffix(trimmed, ";")
+}
+
+func duplicatedKnowledgeLineIsEnumOrTypeLiteral(line string) bool {
+	lowered := strings.ToLower(line)
+	if strings.Contains(lowered, "z.enum(") || strings.Contains(lowered, " as const") {
+		return true
+	}
+	if strings.Contains(line, "|") && containsAny(lowered, []string{"type ", "=", `"`, `'`}) {
+		return true
+	}
+	return regexp.MustCompile(`^\s*["'][A-Za-z0-9_-]+["']\s*,?\s*$`).MatchString(line)
 }
 
 func domainKnowledgeLiterals(line string) []string {

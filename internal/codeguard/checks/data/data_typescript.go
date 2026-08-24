@@ -13,6 +13,8 @@ var (
 	tsDataLimitOffset = regexp.MustCompile(`(?i)\b(?:skip|offset)\s*:`)
 	tsDataOrder       = regexp.MustCompile(`(?i)\borderBy\s*:|order\s+by`)
 	tsDataLimit       = regexp.MustCompile(`(?i)\b(?:take|limit)\s*:|limit\s+\d+|cursor\s*:`)
+	tsDataSingleBound = regexp.MustCompile(`(?i)\.(?:single|maybesingle)\s*\(`)
+	tsDataEqualityKey = regexp.MustCompile(`(?i)\.(?:eq|match)\s*\(\s*["'](?:id|.*_id|.*id)["']`)
 	tsDataWrite       = regexp.MustCompile(`(?i)\.(?:create|update|delete|upsert|insert|save)\s*\(`)
 	tsDataPublish     = regexp.MustCompile(`(?i)\.(?:publish|emit|send|enqueue|dispatch)\s*\(`)
 	tsDataTx          = regexp.MustCompile(`(?i)transaction|\$transaction|withTransaction`)
@@ -80,7 +82,7 @@ func (s *tsDataScan) consumeLine(lineNo int, line string) {
 	if enabled(s.rules.DetectUnstablePagination) && tsDataLimitOffset.MatchString(line) && !tsDataOrder.MatchString(line) {
 		s.add("data.unstable-pagination", "warn", lineNo, "TypeScript/JavaScript query uses offset pagination without deterministic ordering", "high", "query", "offset-without-order")
 	}
-	if enabled(s.rules.DetectUnboundedRead) && tsDataRead.MatchString(line) && !tsDataLimit.MatchString(line) {
+	if enabled(s.rules.DetectUnboundedRead) && tsDataRead.MatchString(line) && !tsDataReadIsBounded(line) {
 		s.add("data.unbounded-read", "warn", lineNo, "TypeScript/JavaScript database read has no visible limit or cursor bound", "medium", "query", "unbounded-read")
 	}
 	if tsDataConsumer.MatchString(line) {
@@ -89,6 +91,13 @@ func (s *tsDataScan) consumeLine(lineNo int, line string) {
 	if enabled(s.rules.DetectCacheWithoutPolicy) && tsDataCacheSet.MatchString(line) && !tsDataTTL.MatchString(line) {
 		s.add("data.cache-without-policy", "warn", lineNo, "TypeScript/JavaScript cache write lacks TTL or expiration policy evidence", "medium", "cache", "set-without-ttl")
 	}
+}
+
+func tsDataReadIsBounded(line string) bool {
+	if tsDataLimit.MatchString(line) || tsDataSingleBound.MatchString(line) {
+		return true
+	}
+	return tsDataWrite.MatchString(line) && tsDataEqualityKey.MatchString(line)
 }
 
 func (s *tsDataScan) consumeRawSource(source string) {
