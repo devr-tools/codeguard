@@ -3,6 +3,12 @@ package codeguard
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
 type QualityRulesConfig = core.QualityRulesConfig
+type QualityDeadCodeConfig = core.QualityDeadCodeConfig
+type GoDeadCodeToolchainConfig = core.GoDeadCodeToolchainConfig
+type RustDeadCodeConfig = core.RustDeadCodeConfig
+type CPPDeadCodeConfig = core.CPPDeadCodeConfig
+type PythonDeadCodeConfig = core.PythonDeadCodeConfig
+type ScriptDeadCodeConfig = core.ScriptDeadCodeConfig
 type QualityNamingConfig = core.QualityNamingConfig
 type QualityNamingGlossaryEntry = core.QualityNamingGlossaryEntry
 type CPPToolingConfig = core.CPPToolingConfig

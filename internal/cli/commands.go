@@ -46,12 +46,18 @@ func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", service.DefaultConfigPath(), "config file or directory path")
 	profile := fs.String("profile", "", "optional policy profile override")
+	var overrides configOverrideValues
+	fs.Var(&overrides, "set", "override a config value after loading config, repeatable; use dotted YAML paths like checks.quality=false")
 	if ok, code := parseFlags(fs, args, stderr); !ok {
 		return code
 	}
 
 	cfg, ok := loadConfigOrFail(*configPath, *profile, stderr)
 	if !ok {
+		return exitError
+	}
+	if overrideErr := applyConfigOverrides(&cfg, overrides); overrideErr != nil {
+		_, _ = fmt.Fprintf(stderr, "invalid config override: %v\n", overrideErr)
 		return exitError
 	}
 	if err := service.ValidateConfig(cfg); err != nil {
@@ -104,6 +110,10 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
 		cfg.Output.Format = trimmedFormat
 	}
+	if err := applyConfigOverrides(&cfg, *flags.overrides); err != nil {
+		_, _ = fmt.Fprintf(stderr, "invalid config override: %v\n", err)
+		return exitError
+	}
 
 	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef), targetPath, *enableAI); err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
@@ -119,6 +129,8 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	format := fs.String("format", "", "optional output format override: text, json, sarif, github, cyclonedx")
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	profile := fs.String("profile", "", "optional policy profile override")
+	var overrides configOverrideValues
+	fs.Var(&overrides, "set", "override a config value after loading config, repeatable; use dotted YAML paths like checks.quality=false")
 	if ok, code := parseFlags(fs, args, stderr); !ok {
 		return code
 	}
@@ -139,6 +151,10 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	}
 	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
 		cfg.Output.Format = trimmedFormat
+	}
+	if overrideErr := applyConfigOverrides(&cfg, overrides); overrideErr != nil {
+		_, _ = fmt.Fprintf(stderr, "invalid config override: %v\n", overrideErr)
+		return exitError
 	}
 
 	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
@@ -176,6 +192,10 @@ func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
 		return exitError
 	}
 	cfg.Baseline.Path = ""
+	if err := applyConfigOverrides(&cfg, *flags.overrides); err != nil {
+		_, _ = fmt.Fprintf(stderr, "invalid config override: %v\n", err)
+		return exitError
+	}
 
 	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
 		Mode:    service.ScanMode(strings.TrimSpace(*flags.mode)),

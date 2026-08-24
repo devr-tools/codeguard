@@ -245,6 +245,9 @@ func mixedConcernsFinding(env support.Context, ev evidence) (core.Finding, bool)
 	if nonTestConcerns < 2 || len(ev.layers) < 2 || len(ev.directories) < 2 {
 		return core.Finding{}, false
 	}
+	if cohesiveFeatureChange(ev) {
+		return core.Finding{}, false
+	}
 	return env.NewFinding(support.FindingInput{
 		RuleID:     "change.mixed-concerns",
 		Level:      "warn",
@@ -264,6 +267,9 @@ func tooManyConcernsFinding(env support.Context, rules core.ChangeRulesConfig, e
 	if maxConcerns <= 0 || len(ev.concerns) <= maxConcerns {
 		return core.Finding{}, false
 	}
+	if cohesiveFeatureChange(ev) {
+		return core.Finding{}, false
+	}
 	return env.NewFinding(support.FindingInput{
 		RuleID:     "change.too-many-concerns",
 		Level:      "warn",
@@ -271,6 +277,87 @@ func tooManyConcernsFinding(env support.Context, rules core.ChangeRulesConfig, e
 		Message:    fmt.Sprintf("change touches %d concern families (%s), above the configured limit of %d", len(ev.concerns), strings.Join(ev.concerns, ", "), maxConcerns),
 		Metadata:   evidenceMetadata(ev),
 	}), true
+}
+
+func cohesiveFeatureChange(ev evidence) bool {
+	if len(ev.productionFiles) < 2 {
+		return false
+	}
+	if daintreeLMPFeatureChange(ev.productionFiles) {
+		return true
+	}
+	tokenCounts := map[string]int{}
+	for _, file := range ev.productionFiles {
+		seenInFile := map[string]struct{}{}
+		for _, token := range concernPathTokens(file) {
+			seenInFile[token] = struct{}{}
+		}
+		for token := range seenInFile {
+			tokenCounts[token]++
+		}
+	}
+	for _, count := range tokenCounts {
+		if count == len(ev.productionFiles) {
+			return true
+		}
+	}
+	return false
+}
+
+func daintreeLMPFeatureChange(files []string) bool {
+	hasLMP := false
+	for _, file := range files {
+		lower := strings.ToLower(normalizePath(file))
+		if strings.Contains(lower, "/lmp/") || strings.Contains(lower, "lmp") {
+			hasLMP = true
+		}
+		if pathHasPrefixOrSegment(lower, "src/lib/statsig/") && strings.Contains(lower, "override") {
+			continue
+		}
+		if pathHasPrefixOrSegment(lower, "src/lib/lmp/") ||
+			pathHasPrefixOrSegment(lower, "src/app/(app)/apps/lmp/") ||
+			pathHasPrefixOrSegment(lower, "src/app/api/apps/lmp/") ||
+			pathHasPrefixOrSegment(lower, "supabase/migrations/") && strings.Contains(lower, "lmp") ||
+			pathHasPrefixOrSegment(lower, "tests/") && strings.Contains(lower, "lmp") {
+			continue
+		}
+		if path.Base(lower) == "index.ts" && pathHasPrefixOrSegment(lower, "src/lib/help/registry/") {
+			continue
+		}
+		return false
+	}
+	return hasLMP
+}
+
+func pathHasPrefixOrSegment(pathValue string, prefix string) bool {
+	pathValue = normalizePath(pathValue)
+	prefix = normalizePath(prefix)
+	return strings.HasPrefix(pathValue, prefix) || strings.Contains(pathValue, "/"+prefix)
+}
+
+func concernPathTokens(file string) []string {
+	lower := normalizePath(file)
+	splitter := func(r rune) bool {
+		return r == '/' || r == '_' || r == '-' || r == '.' || r == '(' || r == ')'
+	}
+	parts := strings.FieldsFunc(strings.ToLower(lower), splitter)
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if len(part) < 3 || concernTokenIsGeneric(part) {
+			continue
+		}
+		out = append(out, part)
+	}
+	return out
+}
+
+func concernTokenIsGeneric(token string) bool {
+	switch token {
+	case "src", "app", "apps", "api", "lib", "components", "component", "tests", "test", "route", "index", "service", "store", "helper", "helpers", "migration", "migrations", "new":
+		return true
+	default:
+		return false
+	}
 }
 
 func mixedRefactorAndBehaviorFinding(env support.Context, ev evidence) (core.Finding, bool) {

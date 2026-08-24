@@ -11,6 +11,7 @@ This page lists the current `codeguard` feature surface and the main config entr
   - local-quality precision heuristics for naming, function shape, error handling, defensive programming, and maintainability deltas where the active build includes them
   - structural smell heuristics such as god object, feature envy, middle man, message chains, data clumps, and switch-on-type
   - AI-quality heuristics such as swallowed errors, narrative comments, hallucinated imports, dead code, over-mocked tests, idiom drift, semantic review, provenance policy, and change-risk rollups
+  - opt-in toolchain dead-code evidence for Go, Rust, C++, Python, TypeScript, and JavaScript through compiler diagnostics, linker/symbol artifacts, static import graphs, and trusted bundler reports
   - changed-line coverage gating in diff mode
   - opt-in `clang-format` and sanitized `clang++ -fsyntax-only` validation backed by safe `compile_commands.json` metadata
 - `design`

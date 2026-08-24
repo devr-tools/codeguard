@@ -159,6 +159,87 @@ func TestRunScanPathFlagScopesFolder(t *testing.T) {
 	}
 }
 
+func TestRunScanAppliesConfigOverrides(t *testing.T) {
+	dir := t.TempDir()
+	writeScanTestFile(t, filepath.Join(dir, "main.go"), "package main\n\nfunc main() {}\n")
+	configPath := filepath.Join(dir, "codeguard.json")
+	config := `{
+  "name": "override-scan",
+  "targets": [{"name": "repo", "path": ".", "language": "go"}],
+  "checks": {"quality": false, "design": false, "security": false, "prompts": false, "ci": false, "performance": false, "context": false},
+  "output": {"format": "text"}
+}`
+	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := cli.Run([]string{
+		"scan",
+		"-config", configPath,
+		"-set", "checks.quality=true",
+		"-set", "checks.quality_rules.max_file_lines=1",
+		"-set", "output.format=json",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("scan exit code = %d, stderr = %s\nstdout = %s", code, stderr.String(), stdout.String())
+	}
+	if !strings.Contains(stdout.String(), `"rule_id": "quality.max-file-lines"`) {
+		t.Fatalf("expected max-file-lines finding from overrides, got:\n%s", stdout.String())
+	}
+}
+
+func TestRunValidateRejectsUnknownConfigOverride(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "codeguard.json")
+	config := `{
+  "name": "bad-override",
+  "targets": [{"name": "repo", "path": ".", "language": "go"}],
+  "checks": {"quality": false, "design": false, "security": false, "prompts": false, "ci": false, "performance": false},
+  "output": {"format": "text"}
+}`
+	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := cli.Run([]string{"validate", "-config", configPath, "-set", "checks.not_a_real_field=true"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d; stdout = %s", code, stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "unknown config field") {
+		t.Fatalf("expected unknown override error, got %s", stderr.String())
+	}
+}
+
+func TestRunValidateAppliesIndexedListOverride(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "codeguard.json")
+	config := `{
+  "name": "indexed-override",
+  "targets": [{"name": "repo", "path": ".", "language": "go"}],
+  "checks": {"quality": false, "design": false, "security": false, "prompts": false, "ci": false, "performance": false},
+  "output": {"format": "text"}
+}`
+	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := cli.Run([]string{
+		"validate",
+		"-config", configPath,
+		"-set", "targets[0].language=python",
+		"-set", "targets[0].entrypoints=app/__main__.py,app/worker.py",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("validate exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "config valid") {
+		t.Fatalf("expected valid config, got stdout=%s stderr=%s", stdout.String(), stderr.String())
+	}
+}
+
 func TestRunScanFolderWithoutConfigUsesDefaultProfile(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {

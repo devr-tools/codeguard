@@ -100,7 +100,8 @@ func functionRawBody(fn precisionFunction) string {
 
 func loggedAndReturnedLine(statements []support.ParsedStatement) (int, bool) {
 	for idx, statement := range statements {
-		if !logsError(firstNonEmptyString(statement.Raw, statement.Text)) {
+		line := firstNonEmptyString(statement.Raw, statement.Text)
+		if isAuditOrTelemetryWrite(line) || !logsError(line) {
 			continue
 		}
 		if nearbyReturnedError(statements, idx) {
@@ -108,6 +109,16 @@ func loggedAndReturnedLine(statements []support.ParsedStatement) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+func isAuditOrTelemetryWrite(line string) bool {
+	lowered := strings.ToLower(strings.TrimSpace(line))
+	return strings.Contains(lowered, "audit(") ||
+		strings.Contains(lowered, "recordaudit") ||
+		strings.Contains(lowered, "writeaudit") ||
+		strings.Contains(lowered, "telemetry.") ||
+		strings.Contains(lowered, "event.") ||
+		strings.Contains(lowered, "events.")
 }
 
 func nearbyReturnedError(statements []support.ParsedStatement, idx int) bool {

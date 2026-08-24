@@ -109,6 +109,29 @@ func Normalize(value int) int { return value }
 	assertFindingRulePresent(t, report, "Change Safety", "refactor.visibility-expanded")
 }
 
+func TestRefactorAllowsAdditiveTypeScriptExports(t *testing.T) {
+	dir := initChangeRepo(t)
+	writeFile(t, filepath.Join(dir, "src", "lib", "apps", "index.ts"), `export function existingApp() {
+  return "ok";
+}
+`)
+	commitAll(t, dir, "base")
+	writeFile(t, filepath.Join(dir, "src", "lib", "apps", "index.ts"), `export function existingApp() {
+  return "ok";
+}
+
+export const LMP_HELP = {
+  title: "New editor access",
+};
+
+export class OverrideOwnershipConflict extends Error {}
+`)
+
+	report := runChangeDiff(t, refactorTestConfig(t, dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Change Safety", "refactor.public-contract-changed")
+}
+
 func TestRefactorDetectsTestCoverageReduced(t *testing.T) {
 	dir := initChangeRepo(t)
 	writeFile(t, filepath.Join(dir, "pricing", "price_test.go"), `package pricing
@@ -136,6 +159,31 @@ func TestPriceBase(t *testing.T) {
 	report := runChangeDiff(t, refactorTestConfig(t, dir, "go"))
 
 	assertFindingRulePresent(t, report, "Change Safety", "refactor.test-coverage-reduced")
+}
+
+func TestRefactorAllowsReactImportsInClientComponents(t *testing.T) {
+	dir := initChangeRepo(t)
+	writeFile(t, filepath.Join(dir, "src", "app", "(app)", "apps", "lmp", "_components", "account-detail", "feature-access-tab.tsx"), `"use client";
+
+export function FeatureAccessTab() {
+  return null;
+}
+`)
+	commitAll(t, dir, "base")
+	writeFile(t, filepath.Join(dir, "src", "app", "(app)", "apps", "lmp", "_components", "account-detail", "feature-access-tab.tsx"), `"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+export function FeatureAccessTab() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
+  return ready;
+}
+`)
+
+	report := runChangeDiff(t, refactorTestConfig(t, dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Change Safety", "refactor.dependency-direction-worsened")
 }
 
 func TestRefactorDetectsDependencyDirectionWorsenedAcrossLanguages(t *testing.T) {

@@ -16,64 +16,169 @@ const directivePatterns = [
 ];
 
 function main() {
-  const program = loadProgram();
-  const checker = program.getTypeChecker();
+  const programs = loadPrograms();
+  for (const program of programs) {
+    const checker = program.getTypeChecker();
 
-  for (const sourceFile of program.getSourceFiles()) {
-    if (!isAnalyzableSourceFile(sourceFile)) {
-      continue;
+    analyzeDeadCodeDiagnostics(program);
+
+    for (const sourceFile of program.getSourceFiles()) {
+      if (!isAnalyzableSourceFile(sourceFile)) {
+        continue;
+      }
+      const relPath = normalizePath(path.relative(targetPath, sourceFile.fileName));
+      const flavor = scriptFlavor(relPath);
+      if (!flavor) {
+        continue;
+      }
+
+      analyzeModuleName(sourceFile, relPath);
+      analyzeDirectives(sourceFile, relPath, flavor);
+      analyzeDesign(sourceFile, relPath);
+
+      const bindings = collectBindings(sourceFile);
+      sourceFile.bindings = bindings;
+      analyzeTaintFlows(sourceFile, relPath, flavor, bindings, checker);
+      visit(sourceFile, sourceFile, relPath, flavor, bindings, checker);
     }
-    const relPath = normalizePath(path.relative(targetPath, sourceFile.fileName));
-    const flavor = scriptFlavor(relPath);
-    if (!flavor) {
-      continue;
-    }
 
-    analyzeModuleName(sourceFile, relPath);
-    analyzeDirectives(sourceFile, relPath, flavor);
-    analyzeDesign(sourceFile, relPath);
-
-    const bindings = collectBindings(sourceFile);
-    sourceFile.bindings = bindings;
-    analyzeTaintFlows(sourceFile, relPath, flavor, bindings, checker);
-    visit(sourceFile, sourceFile, relPath, flavor, bindings, checker);
+    analyzeTaint(program, checker);
   }
 
-  analyzeTaint(program, checker);
+  analyzeDeadCodeReports(programs);
 
   process.stdout.write(JSON.stringify(results));
 }
 
-function loadProgram() {
-  const configPath = findConfigPath();
-  const rootNames = input.source_files;
-  if (configPath) {
-    const config = ts.readConfigFile(configPath, ts.sys.readFile);
-    if (config.error) {
-      throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, "\n"));
-    }
-    const parsed = ts.parseJsonConfigFileContent(
-      config.config,
-      ts.sys,
-      path.dirname(configPath),
-      defaultCompilerOptions(),
-      configPath,
-    );
-    return ts.createProgram({
-      rootNames: rootNames || parsed.fileNames.filter((name) => isWithinTarget(path.resolve(name))),
-      options: parsed.options,
-    });
+function loadPrograms() {
+  const configPaths = selectedConfigPaths();
+  if (configPaths.length > 0) {
+    return configPaths.map(loadProgramFromConfig);
   }
+  return [loadProgramWithoutConfig()];
+}
 
+function loadProgramFromConfig(configPath) {
+  const config = ts.readConfigFile(configPath, ts.sys.readFile);
+  if (config.error) {
+    throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, "\n"));
+  }
+  const parsed = ts.parseJsonConfigFileContent(
+    config.config,
+    ts.sys,
+    path.dirname(configPath),
+    defaultCompilerOptions(),
+    configPath,
+  );
+  const options = parsed.options;
+  applyDeadCodeCompilerOptions(options);
   return ts.createProgram({
-    rootNames: rootNames || ts.sys.readDirectory(targetPath, scriptExtensions(), undefined, undefined),
-    options: defaultCompilerOptions(),
+    rootNames: sourceRootsForConfig(parsed),
+    options,
   });
+}
+
+function loadProgramWithoutConfig() {
+  const options = defaultCompilerOptions();
+  applyDeadCodeCompilerOptions(options);
+  return ts.createProgram({
+    rootNames: input.source_files || ts.sys.readDirectory(targetPath, scriptExtensions(), undefined, undefined),
+    options,
+  });
+}
+
+function sourceRootsForConfig(parsed) {
+  const configured = parsed.fileNames.filter((name) => isWithinTarget(path.resolve(name)));
+  const allowed = sourceFileSet();
+  if (!allowed) {
+    return configured;
+  }
+  const roots = new Map();
+  for (const name of configured) {
+    if (allowed.has(path.resolve(name))) {
+      roots.set(path.resolve(name), name);
+    }
+  }
+  for (const name of input.source_files) {
+    const absolute = path.resolve(name);
+    if (isWithinTarget(absolute)) {
+      roots.set(absolute, name);
+    }
+  }
+  return Array.from(roots.values()).sort();
+}
+
+function sourceFileSet() {
+  if (!Array.isArray(input.source_files)) {
+    return null;
+  }
+  return new Set(input.source_files.map((name) => path.resolve(name)));
+}
+
+function selectedConfigPaths() {
+  const configured = configuredProjectPaths();
+  if (configured.length > 0) {
+    return configured;
+  }
+  const configPath = findConfigPath();
+  return configPath ? [configPath] : [];
+}
+
+function configuredProjectPaths() {
+  if (!input.dead_code || !input.dead_code.enabled) {
+    return [];
+  }
+  const patterns = activeDeadCodeList("projects");
+  return resolveConfiguredFiles(patterns, [".json"], isProjectConfigFile);
 }
 
 function findConfigPath() {
   return ts.findConfigFile(targetPath, ts.sys.fileExists, "tsconfig.json") ||
     ts.findConfigFile(targetPath, ts.sys.fileExists, "jsconfig.json");
+}
+
+function activeDeadCodeList(kind) {
+  if (!input.dead_code) {
+    return [];
+  }
+  const language = String(input.target_language || "").toLowerCase();
+  if (language === "javascript" || language === "js" || language === "jsx") {
+    return input.dead_code[`javascript_${kind}`] || [];
+  }
+  return input.dead_code[`typescript_${kind}`] || [];
+}
+
+function resolveConfiguredFiles(patterns, extensions, predicate) {
+  if (!Array.isArray(patterns) || patterns.length === 0) {
+    return [];
+  }
+  const resolved = new Set();
+  for (const pattern of patterns) {
+    const normalized = normalizePath(String(pattern || "").trim()).replace(/^\.\//, "");
+    if (!normalized) {
+      continue;
+    }
+    if (!normalized.includes("*")) {
+      const candidate = path.resolve(targetPath, normalized);
+      if (isWithinTarget(candidate) && ts.sys.fileExists(candidate) && predicate(candidate)) {
+        resolved.add(candidate);
+      }
+      continue;
+    }
+    const candidates = ts.sys.readDirectory(targetPath, extensions, undefined, undefined);
+    for (const candidate of candidates) {
+      const relPath = normalizePath(path.relative(targetPath, candidate));
+      if (matchesPathPattern(relPath, normalized) && predicate(candidate)) {
+        resolved.add(path.resolve(candidate));
+      }
+    }
+  }
+  return Array.from(resolved).sort();
+}
+
+function isProjectConfigFile(filePath) {
+  const base = path.basename(filePath).toLowerCase();
+  return base === "tsconfig.json" || base === "jsconfig.json" || /^tsconfig\..+\.json$/.test(base) || /^jsconfig\..+\.json$/.test(base);
 }
 
 function defaultCompilerOptions() {
@@ -86,6 +191,15 @@ function defaultCompilerOptions() {
     module: ts.ModuleKind.ESNext,
     jsx: ts.JsxEmit.Preserve,
   };
+}
+
+function applyDeadCodeCompilerOptions(options) {
+  if (!input.dead_code || !input.dead_code.enabled) {
+    return;
+  }
+  options.noUnusedLocals = true;
+  options.noUnusedParameters = true;
+  options.allowUnreachableCode = false;
 }
 
 function scriptExtensions() {
@@ -161,6 +275,152 @@ function pushFinding(section, sourceFile, relPath, flavor, ruleId, level, messag
     column: 1,
     message,
   });
+}
+
+function analyzeDeadCodeDiagnostics(program) {
+  if (!input.dead_code || !input.dead_code.enabled) {
+    return;
+  }
+  const diagnostics = program.getSemanticDiagnostics();
+  for (const diagnostic of diagnostics) {
+    if (!isDeadCodeDiagnostic(diagnostic) || !diagnostic.file) {
+      continue;
+    }
+    const sourceFile = diagnostic.file;
+    if (!isAnalyzableSourceFile(sourceFile)) {
+      continue;
+    }
+    const relPath = normalizePath(path.relative(targetPath, sourceFile.fileName));
+    const flavor = scriptFlavor(relPath);
+    if (!flavor || !deadCodeEnabledForFlavor(flavor) || shouldSkipDeadCodePath(relPath, sourceFile.text, flavor)) {
+      continue;
+    }
+    const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
+    pushFinding(
+      "quality",
+      sourceFile,
+      relPath,
+      flavor,
+      "quality.dead-code.toolchain",
+      input.dead_code.level || "warn",
+      `${scriptLabel(flavor)} compiler reports dead or unused code: ${message}`,
+      typeof diagnostic.start === "number" ? diagnostic.start : 0,
+    );
+  }
+}
+
+function isDeadCodeDiagnostic(diagnostic) {
+  switch (diagnostic.code) {
+    case 6133: // declared but never read
+    case 6192: // all imports in import declaration are unused
+    case 6196: // declared but never used
+    case 7027: // unreachable code detected
+      return true;
+    default:
+      return false;
+  }
+}
+
+function deadCodeEnabledForFlavor(flavor) {
+  const language = String(input.target_language || "").toLowerCase();
+  if (flavor === "javascript") {
+    return language === "javascript" || language === "js" || language === "jsx";
+  }
+  return language === "typescript" || language === "ts" || language === "tsx";
+}
+
+function shouldSkipDeadCodePath(relPath, sourceText, flavor) {
+  if (matchesAnyPathPattern(relPath, flavor === "javascript" ? input.dead_code.javascript_ignore_paths : input.dead_code.typescript_ignore_paths)) {
+    return true;
+  }
+  if (!input.dead_code.include_tests && isTestOrStoryPath(relPath)) {
+    return true;
+  }
+  if (isGeneratedSource(relPath, sourceText)) {
+    return true;
+  }
+  return false;
+}
+
+function isTestOrStoryPath(relPath) {
+  const lower = relPath.toLowerCase();
+  const base = path.basename(lower);
+  return lower.startsWith("__tests__/") ||
+    lower.startsWith("test/") ||
+    lower.startsWith("tests/") ||
+    lower.startsWith("fixtures/") ||
+    lower.startsWith("fixture/") ||
+    lower.includes("/__tests__/") ||
+    lower.includes("/test/") ||
+    lower.includes("/tests/") ||
+    lower.includes("/fixtures/") ||
+    lower.includes("/fixture/") ||
+    base.includes(".test.") ||
+    base.includes(".spec.") ||
+    base.includes(".stories.") ||
+    base.includes(".story.");
+}
+
+function isGeneratedSource(relPath, sourceText) {
+  const lower = relPath.toLowerCase();
+  if (lower.includes("/generated/") || lower.includes("/__generated__/") || lower.endsWith(".generated.ts") || lower.endsWith(".generated.tsx") || lower.endsWith(".generated.js") || lower.endsWith(".generated.jsx")) {
+    return true;
+  }
+  const header = sourceText.slice(0, 4096);
+  return /code generated/i.test(header) && /do not edit/i.test(header);
+}
+
+function matchesAnyPathPattern(relPath, patterns) {
+  if (!Array.isArray(patterns)) {
+    return false;
+  }
+  for (const pattern of patterns) {
+    if (matchesPathPattern(relPath, String(pattern || ""))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function matchesPathPattern(relPath, pattern) {
+  const normalizedPattern = normalizePath(pattern.trim()).replace(/\\/g, "/");
+  if (!normalizedPattern) {
+    return false;
+  }
+  if (normalizedPattern === relPath) {
+    return true;
+  }
+  if (normalizedPattern.endsWith("/**")) {
+    const prefix = normalizedPattern.slice(0, -3);
+    return relPath === prefix || relPath.startsWith(prefix + "/");
+  }
+  if (normalizedPattern.includes("*")) {
+    const regex = new RegExp("^" + globPatternToRegExp(normalizedPattern) + "$");
+    return regex.test(relPath);
+  }
+  return relPath.startsWith(normalizedPattern.endsWith("/") ? normalizedPattern : normalizedPattern + "/");
+}
+
+function globPatternToRegExp(pattern) {
+  let out = "";
+  for (let index = 0; index < pattern.length; index++) {
+    const char = pattern[index];
+    if (char !== "*") {
+      out += escapeRegExp(char);
+      continue;
+    }
+    if (pattern[index + 1] === "*") {
+      out += ".*";
+      index++;
+      continue;
+    }
+    out += "[^/]*";
+  }
+  return out;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function analyzeModuleName(sourceFile, relPath) {

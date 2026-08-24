@@ -129,6 +129,59 @@ type Card struct{}
 	assertFindingRulePresent(t, report, "Reliability", "reliability.non-idempotent-retry")
 }
 
+func TestReliabilityTypeScriptAllowsCaughtPromiseRejections(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "feature-access-tab.tsx"), `async function fetchNewEditorAccess() {
+  const response = await fetch("/api/apps/lmp/new-editor");
+  if (!response.ok) {
+    throw new Error("failed to load new editor access");
+  }
+  return response.json();
+}
+
+export function FeatureAccessTab() {
+  fetchNewEditorAccess().catch((error) => {
+    setError(String(error));
+  });
+  return null;
+}
+
+declare function setError(message: string): void;
+`)
+
+	cfg := reliabilityConfig("reliability-ts-caught-throw", dir)
+	cfg.Targets[0].Language = "typescript"
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	assertFindingRuleAbsent(t, report, "Reliability", "reliability.recoverable-panic")
+}
+
+func TestReliabilityDedupesOverlappingTargetFindings(t *testing.T) {
+	dir := t.TempDir()
+	rel := filepath.Join("src", "app", "(app)", "apps", "lmp", "_components", "account-detail", "feature-access-tab.tsx")
+	writeFile(t, filepath.Join(dir, rel), `export async function refresh() {
+  return fetch("/api/apps/lmp/new-editor");
+}
+`)
+
+	cfg := reliabilityConfig("reliability-overlap-dedupe", dir)
+	cfg.Targets = []codeguard.TargetConfig{
+		{Name: "apps", Path: filepath.Join(dir, "src", "app", "(app)", "apps"), Language: "typescript"},
+		{Name: "lmp-detail", Path: filepath.Join(dir, "src", "app", "(app)", "apps", "lmp", "_components", "account-detail"), Language: "typescript"},
+	}
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	if got := countRuleFindings(report, "Reliability", "reliability.missing-timeout"); got != 1 {
+		t.Fatalf("expected one deduped missing-timeout finding, got %d", got)
+	}
+}
+
 func TestReliabilityGoDoesNotFlagBoundedHTTPWithContextAndCleanup(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "client.go"), `package sample

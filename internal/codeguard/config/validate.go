@@ -23,6 +23,7 @@ func Validate(cfg core.Config) error {
 		validateAIChangeRisk(cfg.Checks.QualityRules.AIChangeRisk),
 		validateRiskScoring(cfg.Checks.QualityRules.RiskScoring),
 		validateAIChecks(cfg.Checks.QualityRules.AIChecks),
+		validateQualityDeadCode(cfg.Checks.QualityRules.DeadCode),
 		validateQualityNaming(cfg.Checks.QualityRules.Naming),
 		validateSupplyChainRules(cfg.Checks.SupplyChainRules),
 		validateDeliveryRules(cfg.Checks.DeliveryRules),

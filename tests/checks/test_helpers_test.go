@@ -68,6 +68,21 @@ func assertSectionFindingCountAtLeast(t *testing.T, report codeguard.Report, nam
 	t.Fatalf("section %q not found", name)
 }
 
+func countRuleFindings(report codeguard.Report, sectionName string, ruleID string) int {
+	count := 0
+	for _, section := range report.Sections {
+		if section.Name != sectionName {
+			continue
+		}
+		for _, finding := range section.Findings {
+			if finding.RuleID == ruleID {
+				count++
+			}
+		}
+	}
+	return count
+}
+
 func strippedANSI(value string) string {
 	return strings.NewReplacer(
 		"\x1b[38;2;10;18;60m", "",

@@ -205,6 +205,9 @@ func criticalKind(file string, line string, rules core.ObservabilityRulesConfig)
 
 func hasInstrumentationEvidence(source string, rules core.ObservabilityRulesConfig) bool {
 	lower := strings.ToLower(source)
+	if containsAny(lower, []string{"withtrackedroute", "trackedaction", "withtracing", "withmetrics", "withinstrumentation"}) {
+		return true
+	}
 	for _, pattern := range rules.InstrumentationEvidencePatterns {
 		pattern = strings.ToLower(strings.TrimSpace(pattern))
 		if pattern != "" && strings.Contains(lower, pattern) {

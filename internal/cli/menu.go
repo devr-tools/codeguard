@@ -90,6 +90,7 @@ func writeMenu(w io.Writer) {
 	_, _ = fmt.Fprintf(w, "  %s\n", whatsnew.Faint("Common flags", color))
 	_, _ = fmt.Fprintf(w, "    %s  %s\n", whatsnew.Blue(pad("-config", width), color), "Path to a config file or directory")
 	_, _ = fmt.Fprintf(w, "    %s  %s\n", whatsnew.Blue(pad("-profile", width), color), "startup | strict | enterprise | ai-safe")
+	_, _ = fmt.Fprintf(w, "    %s  %s\n", whatsnew.Blue(pad("-set", width), color), "Override config values with dotted YAML paths")
 	_, _ = fmt.Fprintf(w, "    %s  %s\n\n", whatsnew.Blue(pad("-format", width), color), "text | json | sarif | github")
 
 	_, _ = fmt.Fprintf(w, "Run %s to see all flags for a command.\n",

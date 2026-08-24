@@ -8,8 +8,15 @@ import (
 )
 
 func RunLimitedCommand(ctx context.Context, dir string, maxOutputBytes int, name string, args ...string) (string, error) {
+	return RunLimitedCommandWithEnv(ctx, dir, nil, maxOutputBytes, name, args...)
+}
+
+func RunLimitedCommandWithEnv(ctx context.Context, dir string, env []string, maxOutputBytes int, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // caller validates untrusted args before invoking this bounded subprocess helper
 	cmd.Dir = dir
+	if len(env) > 0 {
+		cmd.Env = env
+	}
 	var buf bytes.Buffer
 	limited := NewLimitedBufferWriter(&buf, maxOutputBytes)
 	cmd.Stdout = limited

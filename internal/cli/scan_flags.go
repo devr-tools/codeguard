@@ -16,16 +16,20 @@ type scanRunFlags struct {
 	mode             *string
 	baseRef          *string
 	profile          *string
+	overrides        *configOverrideValues
 	allowCommands    *bool
 	allowAIEndpoints *bool
 }
 
 func registerScanRunFlags(fs *flag.FlagSet) scanRunFlags {
+	var overrides configOverrideValues
+	fs.Var(&overrides, "set", "override a config value after loading config, repeatable; use dotted YAML paths like checks.quality=false or checks.quality_rules.dead_code.enabled=true")
 	return scanRunFlags{
 		configPath:       fs.String("config", service.DefaultConfigPath(), "config file or directory path"),
 		mode:             fs.String("mode", string(service.ScanModeFull), "scan mode: full or diff"),
 		baseRef:          fs.String("base-ref", "main", "base branch/ref for diff mode"),
 		profile:          fs.String("profile", "", "optional policy profile override"),
+		overrides:        &overrides,
 		allowCommands:    fs.Bool("allow-config-commands", false, "trust the repository config to run shell commands (off by default; only enable for trusted repos)"),
 		allowAIEndpoints: fs.Bool("allow-config-ai-endpoints", false, "trust the repository config to set non-allowlisted AI provider base URLs (off by default)"),
 	}
