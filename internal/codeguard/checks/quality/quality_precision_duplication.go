@@ -129,6 +129,12 @@ func duplicatedKnowledgeLineIsStructural(line string) bool {
 		strings.Contains(lowered, "accept:") || strings.Contains(lowered, "headers") {
 		return true
 	}
+	if containsAny(lowered, []string{".from(", ".select(", ".order(", ".gte(", ".lte(", ".eq(", ".in(", ".rpc("}) {
+		return true
+	}
+	if containsAny(lowered, []string{"key:", "keys:", "field:", "fields:", "column:", "columns:"}) {
+		return true
+	}
 	return false
 }
 

@@ -667,6 +667,9 @@ func switchOnTypeFindings(env support.Context, file string, source string, langu
 	if centralizedEnumDispatchContext(file, masked) {
 		return nil
 	}
+	if closedDomainDiscriminatorDispatch(masked) {
+		return nil
+	}
 	typeBranches := len(typeBranchPattern.FindAllStringIndex(masked, -1))
 	kindBranches := 0
 	switch language {
@@ -690,6 +693,13 @@ func switchOnTypeFindings(env support.Context, file string, source string, langu
 			core.ConfidenceMedium)}
 	}
 	return nil
+}
+
+func closedDomainDiscriminatorDispatch(source string) bool {
+	lowered := strings.ToLower(source)
+	return strings.Contains(lowered, "switch") &&
+		containsAny(lowered, []string{"type searchtype", ": searchtype", "detectsearchtype", "type:", "kind:"}) &&
+		!regexp.MustCompile(`(?is)\bswitch\b.*\bswitch\b`).MatchString(lowered)
 }
 
 func centralizedEnumDispatchContext(file string, source string) bool {

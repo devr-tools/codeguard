@@ -386,6 +386,7 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 				fmt.Sprintf("parameter %q is ambiguous without domain context", param.Name), core.ConfidenceHigh))
 		}
 		if isBooleanParameter(param) && !isAllowedBooleanArgumentFunction(fn.Name) && !isPredicateName(param.Name) && !isConventionalNonPredicateName(param.Name) &&
+			!isLocalBooleanParserFlag(fn, param.Name) &&
 			!isReactComponentOrHookBoundary(file, fn) && !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) {
 			findings = append(findings, precisionWarnFinding(env, qualityBooleanArgumentRuleID, file, fn.StartLine,
 				fmt.Sprintf("boolean parameter %q hides behavior behind a flag", param.Name), core.ConfidenceHigh))
@@ -434,6 +435,15 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 	findings = append(findings, errorContractFindings(env, file, fn)...)
 	findings = append(findings, defensiveBoundaryFindings(env, file, fn)...)
 	return findings
+}
+
+func isLocalBooleanParserFlag(fn precisionFunction, name string) bool {
+	loweredName := strings.ToLower(strings.Trim(name, "_$"))
+	if loweredName != "lower" && loweredName != "trim" && loweredName != "strict" {
+		return false
+	}
+	loweredFunction := strings.ToLower(strings.Trim(fn.Name, "_$"))
+	return containsAny(loweredFunction, []string{"parse", "split", "normalize", "format", "read"})
 }
 
 func isGenericIdentifier(name string) bool {
@@ -590,7 +600,7 @@ func errorHandlingFindings(env support.Context, file string, fn precisionFunctio
 		line := strings.TrimSpace(statement.Text)
 		lowered := strings.ToLower(line)
 		if strings.Contains(lowered, "err") || strings.Contains(lowered, "except") || strings.Contains(lowered, "catch") {
-			if logsError(line) && nearbyIgnoredError(statements, idx) {
+			if logsError(line) && nearbyIgnoredError(statements, idx) && !nearbyExplicitDegradedFallback(statements, idx) {
 				findings = append(findings, precisionWarnFinding(env, errorLoggedAndIgnoredRuleID, file, statement.Line,
 					"error is logged and then ignored or converted to success", core.ConfidenceHigh))
 			}
@@ -601,6 +611,19 @@ func errorHandlingFindings(env support.Context, file string, fn precisionFunctio
 		}
 	}
 	return findings
+}
+
+func nearbyExplicitDegradedFallback(statements []support.ParsedStatement, idx int) bool {
+	for lookahead := idx; lookahead < len(statements) && lookahead <= idx+4; lookahead++ {
+		line := strings.ToLower(strings.TrimSpace(firstNonEmptyString(statements[lookahead].Raw, statements[lookahead].Text)))
+		if containsAny(line, []string{
+			"return []", "return {}", "return reports", "return fallback", "return default",
+			"return;",
+		}) {
+			return true
+		}
+	}
+	return false
 }
 
 func logsError(line string) bool {
@@ -653,8 +676,10 @@ func defensiveStatementFindings(env support.Context, file string, statement supp
 	text := statement.Text
 	findings := make([]core.Finding, 0, 2)
 	if strings.Contains(text, " as unknown as ") || strings.Contains(text, " as any as ") || strings.Contains(text, "typing.cast(") {
-		findings = append(findings, precisionWarnFinding(env, defensiveUncheckedTypeAssertionRuleID, file, statement.Line,
-			"type assertion bypasses runtime validation", core.ConfidenceHigh))
+		if !isScriptTestOrHelperFile(file) {
+			findings = append(findings, precisionWarnFinding(env, defensiveUncheckedTypeAssertionRuleID, file, statement.Line,
+				"type assertion bypasses runtime validation", core.ConfidenceHigh))
+		}
 	}
 	if unsafeScriptNumericConversion(text) {
 		findings = append(findings, precisionWarnFinding(env, defensiveUnsafeNumericConversionRuleID, file, statement.Line,

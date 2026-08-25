@@ -432,6 +432,103 @@ func TestNamingCardinalityMismatchAllowsCommonPluralDomainCollections(t *testing
 	assertFindingRuleAbsent(t, report, "Code Quality", "naming.cardinality-mismatch")
 }
 
+func TestLMPFalsePositiveHardeningForBoundaryContractsAndNames(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "app", "api", "apps", "lmp", "search.ts"), strings.Join([]string{
+		"export async function executeSearch(rawBody: unknown): Promise<SearchResponse> {",
+		"  const input = parseSearchInput(rawBody);",
+		"  if (!input.ok) return { ok: false, error: input.error };",
+		"  const rows = await repo.search(input.value.query);",
+		"  return { ok: true, value: rows };",
+		"}",
+		"interface SearchResponse { ok: boolean; value?: unknown; error?: string }",
+		"declare const repo: { search(query: string): Promise<unknown> };",
+		"declare function parseSearchInput(raw: unknown): { ok: true; value: { query: string } } | { ok: false; error: string };",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "src", "lib", "lmp", "appearance", "theme.ts"), strings.Join([]string{
+		"export function mapAdvancedThemeToGraphql(payload: Record<string, unknown>): Record<string, string> {",
+		"  return { profile: String(payload.profile ?? '') };",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "src", "app", "(app)", "apps", "lmp", "_components", "billing", "rows.tsx"), strings.Join([]string{
+		"export function asCurrency(amountMinor: number | null | undefined, currency: string | null) {",
+		"  return `${currency ?? 'USD'} ${amountMinor ?? 0}`;",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "src", "lib", "lmp", "appearance", "prefill.ts"), strings.Join([]string{
+		"export function pickProfile(account: Record<string, unknown>, profile: Record<string, unknown>) {",
+		"  return { account, profile };",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	for _, ruleID := range []string{
+		"defensive.unvalidated-boundary-input",
+		"function.mixed-abstraction-level",
+		"function.orchestration-domain-mix",
+		"function.partial-result",
+		"function.inconsistent-return-contract",
+		"naming.implementation-leak",
+		"naming.missing-unit",
+		"naming.cardinality-mismatch",
+	} {
+		assertFindingRuleAbsent(t, report, "Code Quality", ruleID)
+	}
+}
+
+func TestTypeScriptAssertionRulesSkipTestsAndHelpers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "__tests__", "lib", "lmp", "coach", "context.test.ts"), strings.Join([]string{
+		"interface MeshAccount { id: string }",
+		"const ACCOUNT = { id: 'acct' } as unknown as MeshAccount;",
+		"export function latest(search: { mock: { calls: unknown[][] } }) {",
+		"  return search.mock.calls[0]![1] as unknown as { body: string };",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "src", "lib", "lmp", "coach", "help-centre-sync-test-helpers.ts"), strings.Join([]string{
+		"export function mockClient(client: unknown) {",
+		"  return client as unknown as { from(table: string): unknown };",
+		"}",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "src", "lib", "lmp", "production.ts"), strings.Join([]string{
+		"export function unsafe(input?: { value?: string }) {",
+		"  return input!.value as unknown as string;",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertCodeQualityRuleAbsentForPath(t, report, "quality.typescript.non-null-assertion", "context.test.ts")
+	assertCodeQualityRuleAbsentForPath(t, report, "quality.typescript.double-assertion", "context.test.ts")
+	assertCodeQualityRuleAbsentForPath(t, report, "defensive.unchecked-type-assertion", "context.test.ts")
+	assertCodeQualityRuleAbsentForPath(t, report, "quality.typescript.double-assertion", "help-centre-sync-test-helpers.ts")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "quality.typescript.non-null-assertion", "production.ts", "non-null")
+	assertCodeQualityRulePresentForPathWithMessage(t, report, "quality.typescript.double-assertion", "production.ts", "double")
+}
+
+func TestDefensiveRulesSkipDTOsGenericParsersAndUIDefaults(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "lib", "lmp", "account-context.ts"), strings.Join([]string{
+		"interface MeshAccount { username: string; tier: string }",
+		"export interface AccountContextBase { username: MeshAccount['username']; tier: MeshAccount['tier']; includeInactive?: boolean }",
+		"interface DevinDispatchResult { ok: boolean; pending?: boolean }",
+		"interface LinearIssueStatesResponse { issues: { nodes: { id: string; state: { type: string } }[] } }",
+		"export function safeJsonParse(raw: string): { ok: true; value: unknown } | { ok: false } {",
+		"  try { return { ok: true, value: JSON.parse(raw) }; } catch { return { ok: false }; }",
+		"}",
+		"export function toolbarConfig(config: { enabled?: boolean; docked?: boolean; minimized?: boolean }) {",
+		"  return { enabled: config.enabled === true, docked: config.docked !== false, minimized: config.minimized === true };",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.invalid-state-representable")
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.missing-schema-validation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "defensive.unsafe-default")
+}
+
 func TestQualityMutableGlobalStateIgnoresReactLocalBindings(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps/web/app/claims/claim-classification-fields.tsx"), strings.Join([]string{

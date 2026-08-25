@@ -201,6 +201,9 @@ func partialFailureHiddenLine(fn precisionFunction, loweredBody string) (int, bo
 	if partialFailureSurfacedInResult(loweredBody) {
 		return 0, false
 	}
+	if strings.Contains(loweredBody, "allsettled") && allSettledResultIsReturned(loweredBody) {
+		return 0, false
+	}
 	if strings.Contains(loweredBody, "allsettled") && !containsAny(loweredBody, []string{"rejected", "throw", "return err", "return error"}) {
 		return fn.StartLine, true
 	}
@@ -220,6 +223,12 @@ func partialFailureHiddenLine(fn precisionFunction, loweredBody string) (int, bo
 		}
 	}
 	return 0, false
+}
+
+func allSettledResultIsReturned(loweredBody string) bool {
+	return containsAny(loweredBody, []string{
+		"return {", "normalize", "mapsettled", "settledresults", "fulfilled", "rejected",
+	})
 }
 
 func partialFailureContinueAccounted(statements []support.ParsedStatement, idx int) bool {
@@ -273,6 +282,9 @@ func fallbackHidesCorruptionLine(fn precisionFunction, loweredBody string) (int,
 	}
 	for _, statement := range fn.Statements {
 		lowered := strings.ToLower(firstNonEmptyString(statement.Raw, statement.Text))
+		if containsAny(lowered, []string{"return fallback", "return default"}) {
+			continue
+		}
 		if containsAny(lowered, []string{"return {}", "return []", "return map[", "return default", "return fallback"}) {
 			return statement.Line, true
 		}
@@ -286,6 +298,9 @@ func retryableUndistinguishedLine(fn precisionFunction, loweredBody string) (int
 	}
 	if !containsAny(loweredBody, []string{"retry", "backoff", "again", "attempt"}) ||
 		!containsAny(loweredBody, []string{"err", "error", "catch", "except", "failure"}) {
+		return 0, false
+	}
+	if !containsAny(loweredBody, []string{"for ", "while ", "retrylater", "retry_again", "retry("}) {
 		return 0, false
 	}
 	if containsAny(loweredBody, []string{"retryable", "transient", "permanent", "temporary", "timeout", "status", "rate limit"}) {

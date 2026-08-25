@@ -75,7 +75,7 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, defensiveBoundsAssumptionRuleID, file, line,
 			"indexed access assumes collection bounds without a nearby length check", core.ConfidenceMedium))
 	}
-	if line, ok := unsafeDefaultLine(fn.Statements); ok {
+	if line, ok := unsafeDefaultLine(fn.Statements, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveUnsafeDefaultRuleID, file, line,
 			"configuration default can fail open or disable a safety control", core.ConfidenceHigh))
 	}
@@ -139,6 +139,9 @@ func sourceDefensiveInvariantFindings(env support.Context, file string, source s
 				break
 			}
 		}
+		if structuralPendingResultContainer(lines, idx) {
+			continue
+		}
 		if boolFields >= 2 || hasStringState {
 			return []core.Finding{precisionWarnFinding(env, defensiveInvalidStateRepresentableRuleID, file, idx+1,
 				"state shape uses booleans or raw status strings that can represent impossible combinations", core.ConfidenceMedium)}
@@ -164,6 +167,11 @@ func structuralDataTransferContainerLine(line string) bool {
 		}
 		name := strings.ToLower(strings.Trim(fields[idx+1], "_$"))
 		return strings.HasSuffix(name, "args") ||
+			strings.Contains(name, "context") ||
+			strings.HasSuffix(name, "base") ||
+			strings.HasSuffix(name, "data") ||
+			strings.HasSuffix(name, "response") ||
+			strings.HasSuffix(name, "responses") ||
 			strings.HasSuffix(name, "input") ||
 			strings.HasSuffix(name, "options") ||
 			strings.HasSuffix(name, "opts") ||
@@ -171,12 +179,28 @@ func structuralDataTransferContainerLine(line string) bool {
 			strings.Contains(name, "rowpart") ||
 			strings.HasSuffix(name, "part") ||
 			dataTransferPartPattern.MatchString(name) ||
-			strings.HasSuffix(name, "context") ||
 			strings.HasSuffix(name, "ctx") ||
 			strings.Contains(name, "dto") ||
+			strings.Contains(name, "schema") ||
+			strings.Contains(name, "payload") ||
+			strings.Contains(name, "record") ||
 			strings.Contains(name, "seed")
 	}
 	return false
+}
+
+func structuralPendingResultContainer(lines []string, start int) bool {
+	header := strings.ToLower(lines[start])
+	if !strings.Contains(header, "result") {
+		return false
+	}
+	blockEnd := start + 12
+	if blockEnd > len(lines) {
+		blockEnd = len(lines)
+	}
+	block := strings.ToLower(strings.Join(lines[start:blockEnd], "\n"))
+	return strings.Contains(block, "pending") &&
+		!containsAny(block, []string{"disabled", "deleted", "inactive", "archived"})
 }
 
 func unvalidatedBoundaryInputLine(file string, fn precisionFunction, loweredBody string) (int, bool) {
@@ -211,7 +235,7 @@ func formDataHasContentLengthPreflight(loweredBody string) bool {
 }
 
 func validatedBoundaryInputPattern(fn precisionFunction, loweredBody string) bool {
-	if containsAny(loweredBody, []string{"validate", "schema", "sanitize", "bind", "decodevalid", "safeparse", "z.safeparse", "zod.", "yup.", "pydantic", "jsonschema"}) {
+	if containsAny(loweredBody, []string{"validate", "schema", "sanitize", "bind", "decodevalid", "safeparse", "z.safeparse", "zod.", "yup.", "pydantic", "jsonschema", "runadminaction", "runsupportaction", "validaterequest"}) {
 		return true
 	}
 	if jsonReaderSchemaCall.MatchString(functionRawBody(fn)) {
@@ -230,7 +254,9 @@ func isValidationOrExtractionHelperName(name string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
 	if strings.HasPrefix(lowered, "parse") || strings.HasPrefix(lowered, "assert") ||
 		strings.HasPrefix(lowered, "guard") || strings.HasPrefix(lowered, "ensure") ||
-		strings.HasPrefix(lowered, "decode") || strings.HasPrefix(lowered, "validate") {
+		strings.HasPrefix(lowered, "decode") || strings.HasPrefix(lowered, "validate") ||
+		strings.HasPrefix(lowered, "normalize") || strings.HasPrefix(lowered, "map") ||
+		strings.HasPrefix(lowered, "pick") || strings.HasPrefix(lowered, "resolve") {
 		return true
 	}
 	return containsAny(lowered, []string{"bearertokenfrom", "tokenfrom", "headerfrom", "requestbodyfrom"})
@@ -589,13 +615,23 @@ func nearbyBoundsGuard(statements []support.ParsedStatement, idx int, target str
 	return false
 }
 
-func unsafeDefaultLine(statements []support.ParsedStatement) (int, bool) {
+func unsafeDefaultLine(statements []support.ParsedStatement, loweredBody string) (int, bool) {
 	for _, statement := range statements {
-		if unsafeDefaultPattern.MatchString(firstNonEmptyString(statement.Raw, statement.Text)) {
+		raw := strings.ToLower(firstNonEmptyString(statement.Raw, statement.Text))
+		if unsafeDefaultPattern.MatchString(raw) && unsafeDefaultIsSafetySensitive(raw, loweredBody) {
 			return statement.Line, true
 		}
 	}
 	return 0, false
+}
+
+func unsafeDefaultIsSafetySensitive(line string, loweredBody string) bool {
+	evidence := line + "\n" + loweredBody
+	return containsAny(evidence, []string{
+		"auth", "authorize", "permission", "policy", "admin", "security", "secure",
+		"csrf", "cors", "token", "secret", "allow", "deny", "disabled", "disable",
+		"skip", "insecure", "unsafe",
+	})
 }
 
 func nonExhaustiveBranchLine(fn precisionFunction, loweredBody string) (int, bool) {
@@ -632,10 +668,23 @@ func missingSchemaValidationLine(fn precisionFunction, loweredBody string) (int,
 	if !jsonDecodePattern.MatchString(functionRawBody(fn)) {
 		return 0, false
 	}
+	if genericJSONParserWrapper(fn) {
+		return 0, false
+	}
 	if validatedBoundaryInputPattern(fn, loweredBody) || jsonReaderSchemaCall.MatchString(functionRawBody(fn)) || containsAny(loweredBody, []string{"jsonschema", "isvalid", "required"}) {
 		return 0, false
 	}
 	return firstPatternLine(fn, jsonDecodePattern), true
+}
+
+func genericJSONParserWrapper(fn precisionFunction) bool {
+	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
+	if !containsAny(loweredName, []string{"jsonparse", "parsejson", "safejson", "safeparse"}) {
+		return false
+	}
+	loweredBody := strings.ToLower(fn.Body)
+	return strings.Contains(loweredBody, "json.parse") &&
+		containsAny(loweredBody, []string{"ok: true", "ok: false", "return null", "return undefined"})
 }
 
 func missingResourceLimitLine(fn precisionFunction, loweredBody string) (int, bool) {

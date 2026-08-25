@@ -3,6 +3,7 @@ package quality
 import (
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -12,6 +13,19 @@ var scriptTestFilePattern = regexp.MustCompile(`(?i)(?:^|/).*(?:\.test|\.spec)\.
 
 func isScriptTestFile(rel string) bool {
 	return scriptTestFilePattern.MatchString(filepath.ToSlash(rel))
+}
+
+func isScriptTestOrHelperFile(rel string) bool {
+	normalized := strings.ToLower(filepath.ToSlash(rel))
+	if isScriptTestFile(normalized) {
+		return true
+	}
+	base := filepath.Base(normalized)
+	return strings.Contains(base, "test-helper") ||
+		strings.Contains(base, "test_helpers") ||
+		strings.Contains(base, "testhelpers") ||
+		strings.Contains(base, "fixture") ||
+		strings.Contains(base, "mock")
 }
 
 func dominantScriptTestFramework(env support.Context, target core.TargetConfig, files []string, manifest packageManifest) string {

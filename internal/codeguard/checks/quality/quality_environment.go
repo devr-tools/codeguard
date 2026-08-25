@@ -22,14 +22,15 @@ func environmentBranchingFindings(env support.Context, target core.TargetConfig)
 		return environmentBranchingEligiblePath(env.Config.Checks.DeliveryRules, rel)
 	}, func(file string, data []byte) []core.Finding {
 		text := string(data)
-		if !environmentBranchPattern.MatchString(text) {
+		line := environmentBranchLine(text)
+		if line == 0 {
 			return nil
 		}
 		return []core.Finding{env.NewFinding(support.FindingInput{
 			RuleID:     "quality.environment-branching",
 			Level:      "warn",
 			Path:       file,
-			Line:       environmentBranchLine(text),
+			Line:       line,
 			Column:     1,
 			Message:    "domain/source code branches on deployment environment; move environment policy to configuration or bootstrap boundaries",
 			Confidence: core.ConfidenceHigh,
@@ -85,9 +86,26 @@ func environmentBranchingEligiblePath(cfg core.DeliveryRulesConfig, rel string) 
 
 func environmentBranchLine(text string) int {
 	for idx, line := range strings.Split(text, "\n") {
-		if environmentBranchPattern.MatchString(line) {
+		if environmentBranchLineIsDeploymentDecision(line) {
 			return idx + 1
 		}
 	}
-	return 1
+	return 0
+}
+
+func environmentBranchLineIsDeploymentDecision(line string) bool {
+	if !environmentBranchPattern.MatchString(line) {
+		return false
+	}
+	lowered := strings.ToLower(line)
+	if containsAny(lowered, []string{
+		"process.env", "node_env", "rails.env", "os.getenv", "os.getenv", "getenv(", "std::getenv",
+	}) {
+		return true
+	}
+	if !regexp.MustCompile(`\b(if|switch|case|when)\b`).MatchString(lowered) {
+		return false
+	}
+	return containsAny(lowered, []string{" env", "env.", "env[", "environment", "deployment"}) &&
+		containsAny(lowered, []string{"prod", "production", "staging", "stage", "dev", "development", "test"})
 }

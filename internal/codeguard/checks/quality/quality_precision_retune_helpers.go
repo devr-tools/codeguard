@@ -29,7 +29,21 @@ func isDomainSideEffectBoundaryName(name string) bool {
 
 func isAdapterOrOrchestrationFunction(file string, fn precisionFunction) bool {
 	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
+	loweredBody := strings.ToLower(fn.Body)
 	if containsAny(loweredName, []string{"adapter", "bugreport", "bug_report", "slack", "webhook", "sync", "abuseconfig", "abuse_config"}) {
+		return true
+	}
+	if strings.HasPrefix(loweredName, "execute") &&
+		(containsAny(strings.ToLower(fn.Signature), []string{"request", "response", "rawbody", "raw body"}) ||
+			containsAny(loweredBody, []string{"validaterequest", "runadminaction", "runsupportaction", "nextresponse", "response.json"})) {
+		return true
+	}
+	if containsAny(loweredName, []string{"handler", "route", "action", "runner"}) &&
+		containsAny(loweredBody, []string{"validaterequest", "authorize", "runadminaction", "runsupportaction"}) {
+		return true
+	}
+	if (strings.HasPrefix(loweredName, "fetch") || strings.HasPrefix(loweredName, "load")) &&
+		containsAny(loweredBody, []string{"fetch(", ".from(", ".select(", "supabase", "client.", "response.json"}) {
 		return true
 	}
 	if strings.HasPrefix(loweredName, "save") || strings.HasPrefix(loweredName, "insert") || strings.HasPrefix(loweredName, "post") ||
