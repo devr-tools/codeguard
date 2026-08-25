@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.1](https://github.com/devr-tools/codeguard/compare/v1.7.0...v1.7.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* gate Rust dead-code Cargo execution ([0440f94](https://github.com/devr-tools/codeguard/commit/0440f94ba0bb782abd5d1bf6aad40b2c84a797cd))
+* reduce LMP false positives ([12c2255](https://github.com/devr-tools/codeguard/commit/12c2255dfa738b61ef59f2364b8607b34d395b18))
+* reduce LMP false positives ([#158](https://github.com/devr-tools/codeguard/issues/158)) ([747086a](https://github.com/devr-tools/codeguard/commit/747086acc6ca52279cd0fbc93767d72c9319ecf5))
+* support Go 1.23 in Rust dead-code test ([427c6f6](https://github.com/devr-tools/codeguard/commit/427c6f60e51cfcaf160bd6e555af4773a8d4d07d))
+
 ## [1.7.0](https://github.com/devr-tools/codeguard/compare/v1.6.0...v1.7.0) (2026-08-24)
 
 
