@@ -27,9 +27,26 @@ const (
 )
 
 func IsSuppressed(sc Context, finding core.Finding) (bool, string) {
+	suppression := MatchSuppression(sc, finding)
+	return suppression != nil, suppressionReason(suppression)
+}
+
+func suppressionReason(suppression *core.Suppression) string {
+	if suppression == nil {
+		return ""
+	}
+	if suppression.Kind == "inline" {
+		return SuppressionReasonInline
+	}
+	return suppression.Kind
+}
+
+// MatchSuppression returns structured suppression evidence while retaining the
+// exact precedence and many-to-many fingerprint semantics of IsSuppressed.
+func MatchSuppression(sc Context, finding core.Finding) *core.Suppression {
 	if sc.Baseline != nil {
-		if _, ok := sc.Baseline[finding.Fingerprint]; ok {
-			return true, SuppressionReasonBaseline
+		if entry, ok := sc.Baseline[finding.Fingerprint]; ok {
+			return &core.Suppression{Kind: SuppressionReasonBaseline, Match: "exact", BaselineFingerprint: entry.Fingerprint}
 		}
 		// The context fingerprint deliberately omits the line number, so two
 		// identical findings in the same file (same rule, same normalized
@@ -40,31 +57,31 @@ func IsSuppressed(sc Context, finding core.Finding) (bool, string) {
 		// finding. Baseline files written before context fingerprints existed
 		// carry legacy-only entries and are matched by the check above.
 		if finding.ContextFingerprint != "" {
-			if _, ok := sc.Baseline[finding.ContextFingerprint]; ok {
-				return true, "baseline"
+			if entry, ok := sc.Baseline[finding.ContextFingerprint]; ok {
+				return &core.Suppression{Kind: SuppressionReasonBaseline, Match: "context", BaselineFingerprint: entry.Fingerprint}
 			}
 		}
 		if finding.ContentFingerprint != "" {
-			if _, ok := sc.Baseline[finding.ContentFingerprint]; ok {
-				return true, SuppressionReasonBaseline
+			if entry, ok := sc.Baseline[finding.ContentFingerprint]; ok {
+				return &core.Suppression{Kind: SuppressionReasonBaseline, Match: "content", BaselineFingerprint: entry.Fingerprint}
 			}
 		}
 	}
 	if len(MatchingWaivers(sc, finding)) > 0 {
-		return true, SuppressionReasonWaiver
+		return &core.Suppression{Kind: SuppressionReasonWaiver}
 	}
 	fullPath := findingFullPath(sc, finding.Path)
 	if fullPath == "" {
-		return false, ""
+		return nil
 	}
 	directives, err := parseInlineSuppressions(fullPath)
 	if err != nil {
-		return false, ""
+		return nil
 	}
 	if inlineSuppressionMatches(sc, finding, directives) {
-		return true, SuppressionReasonInline
+		return &core.Suppression{Kind: "inline"}
 	}
-	return false, ""
+	return nil
 }
 
 type WaiverMatch struct {

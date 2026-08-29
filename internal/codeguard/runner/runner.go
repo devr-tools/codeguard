@@ -76,6 +76,9 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	}
 	report.Artifacts = sc.Artifacts.List()
 	report.Summary = runnersupport.SummarizeSections(report.Sections)
+	if opts.IncludeSuppressed {
+		report.SuppressedFindings = sc.Suppressed.Snapshot()
+	}
 	if sc.Cache != nil {
 		_ = sc.Cache.Save()
 	}

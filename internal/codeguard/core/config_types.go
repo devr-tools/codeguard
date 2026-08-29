@@ -138,7 +138,22 @@ type CacheConfig struct {
 }
 
 type BaselineConfig struct {
-	Path string `json:"path,omitempty" yaml:"path,omitempty"`
+	Path       string                   `json:"path,omitempty" yaml:"path,omitempty"`
+	Governance BaselineGovernanceConfig `json:"governance,omitempty" yaml:"governance,omitempty"`
+}
+
+type BaselineGovernanceConfig struct {
+	MaxEntries                int                       `json:"max_entries,omitempty" yaml:"max_entries,omitempty"`
+	ForbidGrowth              bool                      `json:"forbid_growth,omitempty" yaml:"forbid_growth,omitempty"`
+	RequireNoStaleEntries     bool                      `json:"require_no_stale_entries,omitempty" yaml:"require_no_stale_entries,omitempty"`
+	ProhibitedNewRulePrefixes []string                  `json:"prohibited_new_rule_prefixes,omitempty" yaml:"prohibited_new_rule_prefixes,omitempty"`
+	Ownership                 []BaselineOwnershipConfig `json:"ownership,omitempty" yaml:"ownership,omitempty"`
+	SampleLimit               int                       `json:"sample_limit,omitempty" yaml:"sample_limit,omitempty"`
+}
+
+type BaselineOwnershipConfig struct {
+	Pattern string `json:"pattern" yaml:"pattern"`
+	Owner   string `json:"owner" yaml:"owner"`
 }
 
 type WaiverConfig struct {

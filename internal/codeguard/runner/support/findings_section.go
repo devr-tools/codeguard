@@ -84,9 +84,15 @@ func FinalizeSection(sc Context, id string, name string, findings []core.Finding
 			continue
 		}
 		sc.WaiverAudit.RecordMatches(MatchingWaivers(sc, finding), finding)
-		if suppressed, reason := IsSuppressed(sc, finding); suppressed {
+		if suppression := MatchSuppression(sc, finding); suppression != nil {
 			section.SuppressedCount++
-			sc.RuleStats.RecordSuppressed(finding.RuleID, reason)
+			sc.RuleStats.RecordSuppressed(finding.RuleID, suppressionReason(suppression))
+			if sc.Opts.IncludeSuppressed {
+				finding.Suppressed = true
+				finding.SuppressionReason = suppressionReason(suppression)
+				finding.Suppression = suppression
+				sc.Suppressed.Add(finding)
+			}
 			continue
 		}
 		sc.RuleStats.RecordEmitted(finding.RuleID)

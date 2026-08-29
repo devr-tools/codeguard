@@ -17,6 +17,7 @@ func Validate(cfg core.Config) error {
 		validateTargets(cfg.Targets),
 		validateOutput(cfg.Output),
 		validateWaivers(cfg.Waivers),
+		validateBaselineGovernance(cfg.Baseline.Governance),
 		validateCommandChecks(cfg),
 		validateAIConfig(cfg.AI),
 		validateAIProvenance(cfg.Checks.QualityRules.AIProvenance),
@@ -46,6 +47,29 @@ func Validate(cfg core.Config) error {
 		validateRulePacks(cfg.RulePacks),
 		validateExternalReports(cfg.ExternalReports),
 	)
+}
+
+func validateBaselineGovernance(cfg core.BaselineGovernanceConfig) error {
+	if cfg.MaxEntries < 0 {
+		return errors.New("baseline.governance.max_entries must not be negative")
+	}
+	if cfg.SampleLimit < 0 {
+		return errors.New("baseline.governance.sample_limit must not be negative")
+	}
+	for idx, prefix := range cfg.ProhibitedNewRulePrefixes {
+		if strings.TrimSpace(prefix) == "" {
+			return fmt.Errorf("baseline.governance.prohibited_new_rule_prefixes[%d] must not be blank", idx)
+		}
+	}
+	for idx, mapping := range cfg.Ownership {
+		if strings.TrimSpace(mapping.Pattern) == "" {
+			return fmt.Errorf("baseline.governance.ownership[%d].pattern is required", idx)
+		}
+		if strings.TrimSpace(mapping.Owner) == "" {
+			return fmt.Errorf("baseline.governance.ownership[%d].owner is required", idx)
+		}
+	}
+	return nil
 }
 
 func validateQualityNaming(cfg core.QualityNamingConfig) error {

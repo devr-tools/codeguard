@@ -136,6 +136,51 @@ func TestRunBaselineWritesFile(t *testing.T) {
 	}
 }
 
+func TestRunScanIncludeSuppressedEmitsIndividualRecords(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "codeguard.json")
+	baselinePath := filepath.Join(dir, "codeguard-baseline.json")
+	promptPath := filepath.Join(dir, "prompts", "system.prompt")
+	if err := os.MkdirAll(filepath.Dir(promptPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(promptPath, []byte("Use ${OPENAI_API_KEY}.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	config := `{"name":"suppressed-json","targets":[{"name":"repo","path":"` + dir + `","language":"go"}],"checks":{"quality":false,"design":false,"security":false,"prompts":true,"ci":false},"baseline":{"path":"` + baselinePath + `"},"output":{"format":"json"}}`
+	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := cli.Run([]string{"baseline", "-config", configPath, "-output", baselinePath}, strings.NewReader(""), &stdout, &stderr); code != 0 {
+		t.Fatalf("baseline exit=%d stderr=%s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := cli.Run([]string{"scan", "-config", configPath, "-include-suppressed"}, strings.NewReader(""), &stdout, &stderr); code != 0 {
+		t.Fatalf("scan exit=%d stderr=%s", code, stderr.String())
+	}
+	var payload struct {
+		SuppressedFindings []struct {
+			Suppression struct {
+				Kind string `json:"kind"`
+			} `json:"suppression"`
+		} `json:"suppressed_findings"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode: %v body=%s", err, stdout.String())
+	}
+	if len(payload.SuppressedFindings) == 0 {
+		t.Fatalf("suppressed findings = %#v", payload.SuppressedFindings)
+	}
+	for _, finding := range payload.SuppressedFindings {
+		if finding.Suppression.Kind != "baseline" {
+			t.Fatalf("suppressed findings = %#v", payload.SuppressedFindings)
+		}
+	}
+}
+
 func TestRunRulesWithConfigIncludesCustomRules(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "codeguard.json")

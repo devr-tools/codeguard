@@ -97,6 +97,9 @@ codeguard rules
 codeguard profiles
 codeguard explain security.hardcoded-credential
 codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
+codeguard baseline audit -config codeguard.yaml -format json
+codeguard baseline prune -config codeguard.yaml -check
+codeguard baseline policy -config codeguard.yaml -compare-baseline /tmp/base-baseline.json
 ```
 
 `codeguard rules` prints each rule's level, execution model, language coverage, section, and title. `codeguard explain <rule-id>` includes the same metadata for a single rule.
@@ -149,6 +152,42 @@ When a scan fails:
 - `warn` findings are non-blocking by default and are best used to drive cleanup, ownership, or gradual policy hardening.
 - section names such as `Design Patterns`, `Security`, or `Code Quality` tell you what kind of action is expected.
 - rule IDs are stable handles for waivers, baselines, dashboards, and agent workflows.
+
+### Baseline governance
+
+Baseline creation accepts all findings visible in that scan; it is not a cleanup
+operation. Use `baseline audit` to classify an existing baseline without adding
+findings, and `baseline prune -check` in CI to detect stale, invalid, or duplicate
+entries. After review, `baseline prune -write` atomically removes stale entries;
+`-output <path>` writes a candidate instead of replacing the source.
+
+An entry remains active when its exact fingerprint, line-shift-resilient context
+fingerprint, or path-insensitive content fingerprint matches a current finding.
+Identical snippets can legitimately collide on context or content fingerprints.
+Audits report those collisions and preserve every matching entry; pruning does
+not impose one-to-one matching or change scan suppression behavior.
+
+Opt-in governance rejects suppression growth and selected new rule families:
+
+```yaml
+baseline:
+  path: codeguard-baseline.json
+  governance:
+    max_entries: 9771
+    forbid_growth: true
+    require_no_stale_entries: true
+    prohibited_new_rule_prefixes: [security., defensive., error.]
+    sample_limit: 3
+    ownership:
+      - pattern: "services/**"
+        owner: services
+```
+
+`baseline policy -compare-baseline` compares exact entries with a trusted base
+branch baseline. Existing prohibited-family debt remains allowed; only additions
+violate that policy. Use `scan -include-suppressed -format json` when a consumer
+needs individual baseline, waiver, and inline suppression records. Default scan
+output remains unchanged.
 
 ## SDK
 

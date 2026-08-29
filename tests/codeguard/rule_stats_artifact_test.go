@@ -52,6 +52,50 @@ func TestRunPublishesRuleStatsArtifact(t *testing.T) {
 	assertRuleStatsSerialized(t, report)
 }
 
+// Removing suppression collection or losing the mechanism/match metadata would
+// make baseline audits unable to reconcile aggregate counts with real findings.
+func TestRunCanIncludeStructuredSuppressedFindings(t *testing.T) {
+	root := t.TempDir()
+	writeArtifactFile(t, filepath.Join(root, "keep.go"), "package keep\n// TODO keep\n")
+	writeArtifactFile(t, filepath.Join(root, "waived.go"), "package waived\n// TODO waived\n")
+	writeArtifactFile(t, filepath.Join(root, "base.go"), "package base\n// TODO base\n")
+	writeArtifactFile(t, filepath.Join(root, "inline.go"), "package inline\n// TODO inline codeguard:ignore custom.no-todo\n")
+
+	cfg := ruleStatsFixtureConfig(root, "")
+	first, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("first Run returned error: %v", err)
+	}
+	baselinePath := filepath.Join(t.TempDir(), "codeguard-baseline.json")
+	writeRuleStatsBaseline(t, baselinePath, first, "base.go")
+	cfg.Baseline.Path = baselinePath
+
+	report, err := codeguard.RunWithOptions(context.Background(), cfg, codeguard.ScanOptions{
+		Mode:              codeguard.ScanModeFull,
+		IncludeSuppressed: true,
+	})
+	if err != nil {
+		t.Fatalf("RunWithOptions returned error: %v", err)
+	}
+	if got, want := len(report.SuppressedFindings), report.Summary.SuppressedFindings; got != want {
+		t.Fatalf("suppressed records = %d, summary = %d", got, want)
+	}
+
+	got := map[string]codeguard.Suppression{}
+	for _, finding := range report.SuppressedFindings {
+		got[finding.Path] = *finding.Suppression
+	}
+	if got["base.go"].Kind != "baseline" || got["base.go"].Match != "exact" || got["base.go"].BaselineFingerprint == "" {
+		t.Fatalf("baseline suppression = %#v", got["base.go"])
+	}
+	if got["waived.go"].Kind != "waiver" {
+		t.Fatalf("waiver suppression = %#v", got["waived.go"])
+	}
+	if got["inline.go"].Kind != "inline" {
+		t.Fatalf("inline suppression = %#v", got["inline.go"])
+	}
+}
+
 func ruleStatsFixtureConfig(root string, baselinePath string) codeguard.Config {
 	cacheEnabled := false
 	cfg := codeguard.Config{

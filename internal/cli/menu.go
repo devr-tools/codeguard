@@ -36,7 +36,7 @@ var menuGroups = []menuGroup{
 			{"scan", "Scan the working tree or a diff for violations"},
 			{"scan-history", "Scan git history for committed secrets"},
 			{"validate-patch", "Scan a unified diff piped on stdin"},
-			{"baseline", "Record current findings as an accepted baseline"},
+			{"baseline", "Create, audit, prune, and govern accepted findings"},
 		},
 	},
 	{

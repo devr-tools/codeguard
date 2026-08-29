@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/ai/nlrule"
@@ -21,6 +22,7 @@ type Context struct {
 	Diff        map[string]LineRanges
 	Artifacts   *ArtifactStore
 	RuleStats   *RuleStatsCollector
+	Suppressed  *SuppressedFindingCollector
 	WaiverAudit *WaiverAuditCollector
 	Today       time.Time
 	RuleCatalog map[string]core.RuleMetadata
@@ -65,6 +67,7 @@ func NewContext(ctx context.Context, cfg core.Config, opts core.ScanOptions) (Co
 		Opts:              opts,
 		Artifacts:         NewArtifactStore(),
 		RuleStats:         NewRuleStatsCollector(),
+		Suppressed:        &SuppressedFindingCollector{},
 		Today:             time.Now(),
 		RuleCatalog:       ruleCatalog,
 		CustomRules:       customRules,
@@ -117,6 +120,33 @@ func NewContext(ctx context.Context, cfg core.Config, opts core.ScanOptions) (Co
 		sc.Diff = diff
 	}
 	return sc, nil
+}
+
+type SuppressedFindingCollector struct {
+	mu       sync.Mutex
+	findings []core.Finding
+}
+
+func (collector *SuppressedFindingCollector) Add(finding core.Finding) {
+	collector.mu.Lock()
+	defer collector.mu.Unlock()
+	collector.findings = append(collector.findings, finding)
+}
+
+func (collector *SuppressedFindingCollector) Snapshot() []core.Finding {
+	collector.mu.Lock()
+	defer collector.mu.Unlock()
+	out := append([]core.Finding(nil), collector.findings...)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Path != out[j].Path {
+			return out[i].Path < out[j].Path
+		}
+		if out[i].Line != out[j].Line {
+			return out[i].Line < out[j].Line
+		}
+		return out[i].RuleID < out[j].RuleID
+	})
+	return out
 }
 
 func (sc Context) Close() {

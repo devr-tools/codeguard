@@ -58,12 +58,13 @@ func parseScanMode(mode string) (service.ScanMode, error) {
 	return scanMode, nil
 }
 
-func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string, targetPath string, enableAI bool) error {
+func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string, targetPath string, enableAI bool, includeSuppressed bool) error {
 	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
-		Mode:       scanMode,
-		BaseRef:    baseRef,
-		TargetPath: targetPath,
-		EnableAI:   enableAI,
+		Mode:              scanMode,
+		BaseRef:           baseRef,
+		TargetPath:        targetPath,
+		EnableAI:          enableAI,
+		IncludeSuppressed: includeSuppressed,
 	})
 	if err != nil {
 		return err
