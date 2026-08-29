@@ -6,6 +6,7 @@ import (
 )
 
 const defaultNumber = "0.1.0"
+const developmentNumber = "devel"
 
 // Number is the codeguard version. It must be a var (not a const) so the
 // release build can override it via the linker: GoReleaser injects the git tag
@@ -13,7 +14,7 @@ const defaultNumber = "0.1.0"
 // (see .goreleaser.yaml). The linker's -X flag only sets string vars, so a
 // const would silently leave released binaries reporting this default. Version
 // precedence is linker flags, embedded build info, then the compiled default.
-var Number = defaultNumber
+var Number = developmentNumber
 
 func init() {
 	info, ok := debug.ReadBuildInfo()
@@ -25,7 +26,7 @@ func init() {
 
 // Resolve preserves an injected release version before consulting build info.
 func Resolve(current string, info *debug.BuildInfo) string {
-	if current != defaultNumber {
+	if current != defaultNumber && current != developmentNumber {
 		return current
 	}
 	if moduleVersion := ModuleVersionFromBuildInfo(info); moduleVersion != "" {
@@ -34,7 +35,7 @@ func Resolve(current string, info *debug.BuildInfo) string {
 	if developmentVersion := DevelopmentVersionFromBuildInfo(info); developmentVersion != "" {
 		return developmentVersion
 	}
-	return current
+	return developmentNumber
 }
 
 // ModuleVersionFromBuildInfo returns a real module version embedded by Go.
@@ -71,7 +72,7 @@ func DevelopmentVersionFromBuildInfo(info *debug.BuildInfo) string {
 	if len(revision) > 8 {
 		revision = revision[:8]
 	}
-	resolved := defaultNumber + "-dev+" + revision
+	resolved := developmentNumber + "+" + revision
 	if dirty {
 		resolved += ".dirty"
 	}
