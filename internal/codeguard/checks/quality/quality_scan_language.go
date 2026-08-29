@@ -2,19 +2,47 @@ package quality
 
 import (
 	"context"
+	"go/ast"
+	"strings"
+	"sync"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
 func languageQualityFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	return support.DispatchByLanguage(target.Language,
+	return languageQualityAnalysis(ctx, env, target).findings
+}
+
+type languageQualityScan struct {
+	findings   []core.Finding
+	unresolved []unresolvedMutationEvidence
+}
+
+func languageQualityAnalysis(ctx context.Context, env support.Context, target core.TargetConfig) languageQualityScan {
+	var unresolvedMu sync.Mutex
+	var unresolved []unresolvedMutationEvidence
+	addUnresolved := func(items []unresolvedMutationEvidence) {
+		if len(items) == 0 {
+			return
+		}
+		unresolvedMu.Lock()
+		unresolved = append(unresolved, items...)
+		unresolvedMu.Unlock()
+	}
+	findings := support.DispatchByLanguage(target.Language,
 		support.LanguageDispatch{
 			Aliases: []string{"", "go"},
 			Run: func() []core.Finding {
-				return support.ScanGoFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
+				findings := support.ScanGoFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
 					return goFindingsForFile(env, file, data)
 				})
+				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
+					env.VisitTargetFiles(target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) {
+						addUnresolved(goUnresolvedMutationEvidence(env, file, data))
+					})
+				}
+				return findings
 			},
 		},
 		support.LanguageDispatch{
@@ -42,9 +70,15 @@ func languageQualityFindings(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"c++", "cpp", "cxx", "cc"},
 			Run: func() []core.Finding {
-				return support.ScanCPPFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
+				findings := support.ScanCPPFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
 					return cppFindingsForFile(env, file, data)
 				})
+				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
+					env.VisitTargetFiles(target, func(file string) bool { return support.IsCPPPath(file, true) }, func(_ string, data []byte) {
+						addUnresolved(cppUnresolvedMutationEvidence(data))
+					})
+				}
+				return findings
 			},
 		},
 		support.LanguageDispatch{
@@ -72,4 +106,33 @@ func languageQualityFindings(ctx context.Context, env support.Context, target co
 			},
 		},
 	)
+	return languageQualityScan{findings: findings, unresolved: unresolved}
+}
+
+func goUnresolvedMutationEvidence(env support.Context, file string, data []byte) []unresolvedMutationEvidence {
+	fset, parsed, err := support.ParseGoSource(env, file, data)
+	if err != nil {
+		return nil
+	}
+	var unresolved []unresolvedMutationEvidence
+	ast.Inspect(parsed, func(node ast.Node) bool {
+		declaration, ok := node.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		analysis := functionMutationAnalysis(goPrecisionFunction(fset, declaration, data), "go")
+		unresolved = append(unresolved, analysis.Unresolved...)
+		return true
+	})
+	return unresolved
+}
+
+func cppUnresolvedMutationEvidence(data []byte) []unresolvedMutationEvidence {
+	parsed := support.ParseCLike(string(data), support.CLikeCPP)
+	var unresolved []unresolvedMutationEvidence
+	for _, fn := range parsed.AllFunctions() {
+		analysis := functionMutationAnalysis(parsedPrecisionFunction(fn), "c++")
+		unresolved = append(unresolved, analysis.Unresolved...)
+	}
+	return unresolved
 }

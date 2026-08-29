@@ -2,6 +2,7 @@ package quality
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -13,6 +14,19 @@ type mutationEvidence struct {
 	Origin string
 	Line   int
 	Detail string
+}
+
+type unresolvedMutationEvidence struct {
+	Language  string
+	Line      int
+	Operation string
+	Symbol    string
+	Reason    string
+}
+
+type mutationAnalysis struct {
+	Mutations  []mutationEvidence
+	Unresolved []unresolvedMutationEvidence
 }
 
 func mutationEvidenceMetadata(evidence mutationEvidence) map[string]string {
@@ -31,7 +45,6 @@ const (
 	targetLocal    = "local"
 	targetArgument = "argument"
 	targetReceiver = "receiver"
-	targetGlobal   = "global"
 	targetEscaped  = "escaped"
 )
 
@@ -44,6 +57,10 @@ var (
 )
 
 func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
+	return functionMutationAnalysis(fn, "").Mutations
+}
+
+func functionMutationAnalysis(fn precisionFunction, language string) mutationAnalysis {
 	origins := map[string]string{}
 	targets := map[string]string{}
 	for _, param := range fn.Params {
@@ -116,7 +133,7 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 			}
 		}
 	}
-	var evidence []mutationEvidence
+	var analysis mutationAnalysis
 	seen := map[string]struct{}{}
 	add := func(item mutationEvidence) {
 		key := item.Target + "|" + item.Effect + "|" + item.Origin + "|" + item.Detail
@@ -124,7 +141,22 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 			return
 		}
 		seen[key] = struct{}{}
-		evidence = append(evidence, item)
+		analysis.Mutations = append(analysis.Mutations, item)
+	}
+	unresolvedSeen := map[string]struct{}{}
+	addUnresolved := func(line int, operation string, symbol string) {
+		key := language + "|" + operation + "|" + symbol + "|" + strconv.Itoa(line)
+		if _, ok := unresolvedSeen[key]; ok {
+			return
+		}
+		unresolvedSeen[key] = struct{}{}
+		analysis.Unresolved = append(analysis.Unresolved, unresolvedMutationEvidence{
+			Language:  language,
+			Line:      line,
+			Operation: operation,
+			Symbol:    symbol,
+			Reason:    "symbol ownership could not be resolved",
+		})
 	}
 	for _, match := range bodyFieldMutationPattern.FindAllStringSubmatch(fn.Body, -1) {
 		name := match[1]
@@ -153,7 +185,8 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 				}
 			}
 			if target == "" {
-				target, origin = targetGlobal, originShared
+				addUnresolved(statement.Line, "assignment", name)
+				continue
 			}
 			add(mutationEvidence{Target: target, Effect: "shared_state", Origin: origin, Line: statement.Line, Detail: name})
 		}
@@ -164,6 +197,10 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 		if isObjectAssignCall(call) {
 			targetName = firstCallArgName(call)
 		}
+		unresolvedSymbol := targetName
+		if unresolvedSymbol == "" {
+			unresolvedSymbol = call.Callee
+		}
 		target, origin := targets[targetName], origins[targetName]
 		if origin == originLocal {
 			if escapedAt[targetName] > 0 && call.Line > escapedAt[targetName] {
@@ -173,17 +210,24 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 			}
 		}
 		if effect == "" {
-			if target == "" || !mutatingCallPattern.MatchString(call.Callee) || isConstructionOrHydrationCall(call.Callee) {
+			if target == "" {
+				if mutatingCallPattern.MatchString(call.Callee) && !isConstructionOrHydrationCall(call.Callee) {
+					addUnresolved(call.Line, "call", unresolvedSymbol)
+				}
+				continue
+			}
+			if !mutatingCallPattern.MatchString(call.Callee) || isConstructionOrHydrationCall(call.Callee) {
 				continue
 			}
 			effect = "shared_state"
 		}
 		if target == "" {
-			target, origin = targetGlobal, originShared
+			addUnresolved(call.Line, "call", unresolvedSymbol)
+			continue
 		}
 		add(mutationEvidence{Target: target, Effect: effect, Origin: origin, Line: call.Line, Detail: call.Callee})
 	}
-	return evidence
+	return analysis
 }
 
 func assignmentAliasSource(fn precisionFunction, assignment support.ParsedAssignment) string {

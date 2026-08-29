@@ -47,7 +47,7 @@ func contextFingerprintFinding(t *testing.T, content string, rel string, line in
 func TestContextFingerprintNormalization(t *testing.T) {
 	base := contextFingerprintFinding(t, contextFingerprintBase, "src/app.go", 3)
 	if base.ContextFingerprint == "" || base.ContextFingerprint == base.Fingerprint {
-		t.Fatalf("base finding must have a distinct context fingerprint, got %q (legacy %q)", base.ContextFingerprint, base.Fingerprint)
+		t.Fatalf("base finding must have a distinct context fingerprint, got %q (exact %q)", base.ContextFingerprint, base.Fingerprint)
 	}
 
 	cases := []struct {
@@ -94,13 +94,13 @@ func TestContextFingerprintNormalization(t *testing.T) {
 			wantSame: false,
 		},
 		{
-			name:         "line zero falls back to legacy",
+			name:         "line zero falls back to exact",
 			content:      contextFingerprintBase,
 			line:         0,
 			wantFallback: true,
 		},
 		{
-			name:         "line past end of file falls back to legacy",
+			name:         "line past end of file falls back to exact",
 			content:      contextFingerprintBase,
 			line:         99,
 			wantFallback: true,
@@ -121,12 +121,12 @@ func assertContextFingerprintCase(t *testing.T, base core.Finding, content strin
 	finding := contextFingerprintFinding(t, content, "src/app.go", line)
 	if want.wantFallback {
 		if finding.ContextFingerprint != finding.Fingerprint {
-			t.Fatalf("expected fallback to legacy fingerprint, got context %q legacy %q", finding.ContextFingerprint, finding.Fingerprint)
+			t.Fatalf("expected fallback to exact fingerprint, got context %q exact %q", finding.ContextFingerprint, finding.Fingerprint)
 		}
 		return
 	}
 	if finding.ContextFingerprint == finding.Fingerprint {
-		t.Fatalf("expected a real context fingerprint, got legacy fallback %q", finding.Fingerprint)
+		t.Fatalf("expected a real context fingerprint, got exact fallback %q", finding.Fingerprint)
 	}
 	same := finding.ContextFingerprint == base.ContextFingerprint
 	if same != want.wantSame {
@@ -146,6 +146,51 @@ func TestContextFingerprintUnreadableFileFallsBack(t *testing.T) {
 		Message: "fixture finding",
 	})
 	if finding.ContextFingerprint != finding.Fingerprint {
-		t.Fatalf("expected fallback to legacy fingerprint, got context %q legacy %q", finding.ContextFingerprint, finding.Fingerprint)
+		t.Fatalf("expected fallback to exact fingerprint, got context %q exact %q", finding.ContextFingerprint, finding.Fingerprint)
+	}
+}
+
+// A production change that folds Message, Confidence, or Metadata back into
+// fingerprint construction must fail this test: those fields are diagnostic
+// evidence, not finding identity.
+func TestFindingFingerprintsIgnoreDiagnosticProseAndMetadata(t *testing.T) {
+	dir := t.TempDir()
+	rel := "src/app.go"
+	full := filepath.Join(dir, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(full, []byte(contextFingerprintBase), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	sc := runnersupport.Context{Cfg: core.Config{Targets: []core.TargetConfig{{Name: "repo", Path: dir}}}}
+
+	before := runnersupport.NewFinding(sc, runnersupport.FindingInput{
+		RuleID:     "test.rule",
+		Level:      "warn",
+		Path:       rel,
+		Line:       3,
+		Message:    "old diagnostic prose",
+		Confidence: "low",
+		Metadata:   map[string]string{"mutation_target": "global", "origin": "shared"},
+	})
+	after := runnersupport.NewFinding(sc, runnersupport.FindingInput{
+		RuleID:     "test.rule",
+		Level:      "warn",
+		Path:       rel,
+		Line:       3,
+		Message:    "new diagnostic prose",
+		Confidence: "high",
+		Metadata:   map[string]string{"mutation_target": "argument", "origin": "caller_owned"},
+	})
+
+	if before.Fingerprint != after.Fingerprint {
+		t.Errorf("exact fingerprint changed with diagnostic evidence: %q -> %q", before.Fingerprint, after.Fingerprint)
+	}
+	if before.ContextFingerprint != after.ContextFingerprint {
+		t.Errorf("context fingerprint changed with diagnostic evidence: %q -> %q", before.ContextFingerprint, after.ContextFingerprint)
+	}
+	if before.ContentFingerprint != after.ContentFingerprint {
+		t.Errorf("content fingerprint changed with diagnostic evidence: %q -> %q", before.ContentFingerprint, after.ContentFingerprint)
 	}
 }

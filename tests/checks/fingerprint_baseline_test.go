@@ -2,8 +2,12 @@ package checks_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/pkg/codeguard"
@@ -176,4 +180,50 @@ func TestLegacyOnlyBaselineStillSuppresses(t *testing.T) {
 	if report.Summary.SuppressedFindings == 0 {
 		t.Fatal("expected legacy-only baseline entries to keep suppressing the finding")
 	}
+}
+
+// A production change that removes context/content fallback from baseline
+// matching must fail this test. The exact value deliberately uses the prior
+// rule|path|line|message identity while the current finding carries changed
+// prose and evidence.
+func TestBaselineFallsBackFromPriorExactFingerprintAfterEvidenceChange(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "prompts", "system.prompt"), shiftPromptBody)
+	cfg := promptOnlyConfig(dir, "fingerprint-evidence-test")
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	current := findFindingByRule(t, report, "prompts.secret-interpolation")
+	priorMessage := "prior finding prose with different evidence"
+	priorSum := sha256.Sum256([]byte(strings.Join([]string{
+		current.RuleID,
+		filepath.ToSlash(current.Path),
+		strconv.Itoa(current.Line),
+		priorMessage,
+	}, "|")))
+	entry := codeguard.BaselineEntry{
+		Fingerprint:        hex.EncodeToString(priorSum[:]),
+		ContextFingerprint: current.ContextFingerprint,
+		ContentFingerprint: current.ContentFingerprint,
+		RuleID:             current.RuleID,
+		Path:               current.Path,
+		Message:            priorMessage,
+	}
+	if entry.Fingerprint == current.Fingerprint {
+		t.Fatal("fixture prior exact fingerprint unexpectedly matches current exact fingerprint")
+	}
+	baselinePath := filepath.Join(dir, "codeguard-baseline.json")
+	if writeErr := codeguard.WriteBaselineFile(baselinePath, []codeguard.BaselineEntry{entry}); writeErr != nil {
+		t.Fatalf("write baseline: %v", writeErr)
+	}
+
+	cfg.Baseline.Path = baselinePath
+	report, err = codeguard.RunWithOptions(context.Background(), cfg, codeguard.ScanOptions{Mode: codeguard.ScanModeFull, IncludeSuppressed: true})
+	if err != nil {
+		t.Fatalf("run with baseline: %v", err)
+	}
+	assertSectionStatus(t, report, "AI Prompts", "pass")
+	assertSuppressionMatch(t, report, "context")
 }

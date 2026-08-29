@@ -29,11 +29,21 @@ func NewFinding(sc Context, input FindingInput) core.Finding {
 		input.Level = meta.DefaultLevel
 	}
 	input.Level = NormalizedSeverity(input.Level)
-	sum := sha256.Sum256([]byte(strings.Join([]string{input.RuleID, normalizedPath, strconv.Itoa(input.Line), input.Message}, "|")))
-	legacy := hex.EncodeToString(sum[:])
+	// Exact identity deliberately excludes diagnostic prose and evidence. The
+	// version prefix makes future identity-shape migrations explicit, while the
+	// normalized source line distinguishes multiple findings at the same
+	// rule/path/line without coupling identity to Message or Metadata.
+	sum := sha256.Sum256([]byte(strings.Join([]string{
+		"codeguard-finding/v2",
+		input.RuleID,
+		normalizedPath,
+		strconv.Itoa(input.Line),
+		sourceIdentity(sc, normalizedPath, input.Line),
+	}, "|")))
+	exact := hex.EncodeToString(sum[:])
 	contextFP := contextFingerprint(sc, input.RuleID, normalizedPath, input.Line)
 	if contextFP == "" {
-		contextFP = legacy
+		contextFP = exact
 	}
 	contentFP := contentFingerprint(sc, input.RuleID, normalizedPath, input.Line)
 	return core.Finding{
@@ -49,7 +59,7 @@ func NewFinding(sc Context, input FindingInput) core.Finding {
 		Path:               normalizedPath,
 		Line:               input.Line,
 		Column:             input.Column,
-		Fingerprint:        legacy,
+		Fingerprint:        exact,
 		ContextFingerprint: contextFP,
 		ContentFingerprint: contentFP,
 		Metadata:           cloneMetadata(input.Metadata),

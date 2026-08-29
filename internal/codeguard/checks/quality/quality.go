@@ -2,6 +2,9 @@ package quality
 
 import (
 	"context"
+	"fmt"
+	"sort"
+	"strconv"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -12,13 +15,28 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 }
 
 func runQualitySection(ctx context.Context, env support.Context) core.SectionResult {
-	findings := support.CollectTargetFindings(ctx, env, qualityTargetFindings)
+	var unresolved []unresolvedMutationEvidence
+	findings := support.CollectTargetFindings(ctx, env, func(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+		analysis := qualityTargetAnalysis(ctx, env, target)
+		unresolved = append(unresolved, analysis.unresolved...)
+		return analysis.findings
+	})
 	findings = append(findings, provenancePolicyFindings(env, findings)...) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
-	return env.FinalizeSection("quality", "Code Quality", findings)
+	return env.FinalizeSectionWithDiagnostics("quality", "Code Quality", findings, unresolvedMutationDiagnostics(unresolved))
 }
 
 func qualityTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	findings := languageQualityFindings(ctx, env, target)
+	return qualityTargetAnalysis(ctx, env, target).findings
+}
+
+type qualityTargetScan struct {
+	findings   []core.Finding
+	unresolved []unresolvedMutationEvidence
+}
+
+func qualityTargetAnalysis(ctx context.Context, env support.Context, target core.TargetConfig) qualityTargetScan {
+	language := languageQualityAnalysis(ctx, env, target)
+	findings := language.findings
 	findings = append(findings, environmentBranchingFindings(env, target)...)
 	findings = append(findings, cppToolingFindings(ctx, env, target)...)
 	findings = append(findings, goToolchainDeadCodeFindings(ctx, env, target)...)
@@ -36,7 +54,36 @@ func qualityTargetFindings(ctx context.Context, env support.Context, target core
 	}
 	maybePutAISlopArtifact(env, target, findings)
 	findings = append(findings, changeRiskFindings(env, target, findings)...) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
-	return findings
+	return qualityTargetScan{findings: findings, unresolved: language.unresolved}
+}
+
+func unresolvedMutationDiagnostics(unresolved []unresolvedMutationEvidence) []core.Diagnostic {
+	counts := make(map[string]int)
+	for _, evidence := range unresolved {
+		if evidence.Language != "" {
+			counts[evidence.Language]++
+		}
+	}
+	languages := make([]string, 0, len(counts))
+	for language := range counts {
+		languages = append(languages, language)
+	}
+	sort.Strings(languages)
+	diagnostics := make([]core.Diagnostic, 0, len(languages))
+	for _, language := range languages {
+		count := counts[language]
+		diagnostics = append(diagnostics, core.Diagnostic{
+			ID:      "quality.structural-unresolved-symbols",
+			Level:   "info",
+			Kind:    "analysis",
+			Message: fmt.Sprintf("retained %d unresolved mutation symbol(s) during %s structural analysis", count, language),
+			Metadata: map[string]string{
+				"language": language,
+				"count":    strconv.Itoa(count),
+			},
+		})
+	}
+	return diagnostics
 }
 
 func commandFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {

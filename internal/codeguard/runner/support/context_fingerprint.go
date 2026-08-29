@@ -13,18 +13,36 @@ const contextFingerprintRadius = 2
 // contextFingerprint returns sha256(ruleID|path|normalizedContext), where the
 // normalized context is the finding's source line plus up to
 // contextFingerprintRadius lines on each side, each with runs of whitespace
-// collapsed to a single space and trimmed. Unlike the legacy fingerprint it
+// collapsed to a single space and trimmed. Unlike the exact fingerprint it
 // does not embed the line number, so unrelated edits that merely shift the
 // finding up or down the file leave it unchanged. It returns "" when no source
 // context is available (line <= 0, the path resolves under no target, the file
 // is unreadable, or the line is past end of file), letting the caller fall
-// back to the legacy fingerprint.
+// back to the exact fingerprint.
 func contextFingerprint(sc Context, ruleID string, normalizedPath string, line int) string {
 	return findingContextFingerprint(sc, ruleID, normalizedPath, line, true)
 }
 
 func contentFingerprint(sc Context, ruleID string, normalizedPath string, line int) string {
 	return findingContextFingerprint(sc, ruleID, normalizedPath, line, false)
+}
+
+// sourceIdentity returns the normalized source line at a finding location.
+// It is intentionally narrower than contextFingerprint: exact identity keeps
+// its line coordinate while remaining independent of diagnostic prose.
+func sourceIdentity(sc Context, normalizedPath string, line int) string {
+	if line <= 0 || normalizedPath == "" {
+		return ""
+	}
+	data, ok := findingSource(sc, normalizedPath)
+	if !ok {
+		return ""
+	}
+	lines := strings.Split(string(data), "\n")
+	if line > len(lines) {
+		return ""
+	}
+	return strings.Join(strings.Fields(lines[line-1]), " ")
 }
 
 func findingContextFingerprint(sc Context, ruleID string, normalizedPath string, line int, includePath bool) string {
