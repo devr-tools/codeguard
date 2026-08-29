@@ -62,6 +62,7 @@ var (
 type precisionFunction struct {
 	Name                         string
 	Receiver                     string
+	ReceiverName                 string
 	StartLine                    int
 	EndLine                      int
 	Signature                    string
@@ -120,13 +121,14 @@ func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, 
 
 func goPrecisionFunction(fset *token.FileSet, fn *ast.FuncDecl, data []byte) precisionFunction {
 	out := precisionFunction{
-		Name:      fn.Name.Name,
-		Receiver:  goReceiverType(fn),
-		StartLine: fset.Position(fn.Pos()).Line,
-		EndLine:   fset.Position(fn.End()).Line,
-		Signature: goResultSignature(fn),
-		Params:    goParsedParams(fn),
-		Returns:   goFuncReturnsValue(fn),
+		Name:         fn.Name.Name,
+		Receiver:     goReceiverType(fn),
+		ReceiverName: goReceiverName(fn),
+		StartLine:    fset.Position(fn.Pos()).Line,
+		EndLine:      fset.Position(fn.End()).Line,
+		Signature:    goResultSignature(fn),
+		Params:       goParsedParams(fn),
+		Returns:      goFuncReturnsValue(fn),
 	}
 	if fn.Body == nil {
 		return out
@@ -163,6 +165,13 @@ func goPrecisionFunction(fset *token.FileSet, fn *ast.FuncDecl, data []byte) pre
 		}
 	}
 	return out
+}
+
+func goReceiverName(fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 || len(fn.Recv.List[0].Names) == 0 {
+		return ""
+	}
+	return fn.Recv.List[0].Names[0].Name
 }
 
 func goResultSignature(fn *ast.FuncDecl) string {
@@ -559,9 +568,10 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, functionMixedAbstractionLevelRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mixes orchestration calls with low-level infrastructure operations", fn.Name), core.ConfidenceMedium))
 	}
-	if commandQueryMix(file, fn) {
-		findings = append(findings, precisionWarnFinding(env, functionCommandQueryMixRuleID, file, fn.StartLine,
-			fmt.Sprintf("function %s returns a value while also invoking mutating side-effect operations", fn.Name), core.ConfidenceMedium))
+	if evidence, ok := commandQueryEvidence(file, fn); ok {
+		findings = append(findings, precisionWarnFindingWithMetadata(env, functionCommandQueryMixRuleID, file, fn.StartLine,
+			fmt.Sprintf("function %s returns a value while performing %s through %s state", fn.Name, evidence.Effect, evidence.Target),
+			core.ConfidenceMedium, mutationEvidenceMetadata(evidence)))
 	}
 	findings = append(findings, additionalPrecisionFunctionFindings(env, file, fn)...)
 	if !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) && !isFrontendLibraryPath(file) &&
@@ -697,44 +707,49 @@ func isDomainLevelCall(callee string) bool {
 }
 
 func commandQueryMix(file string, fn precisionFunction) bool {
+	_, ok := commandQueryEvidence(file, fn)
+	return ok
+}
+
+func commandQueryEvidence(file string, fn precisionFunction) (mutationEvidence, bool) {
 	if isQualityFixturePath(file) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if explicitRepositoryCommandResultContract(file, fn) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || isUIHelperOrMappingContext(file, fn) || isScriptEntrypoint(file, fn.Name) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) || isPostgresRepositoryPath(file) || isSecurityOrConfigUtilityFunction(file, fn) || explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if !fn.Returns {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isAccumulatorBuilderFunctionName(fn.Name) && !hasLikelyExternalMutationCall(fn) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isFactoryHelperName(fn.Name) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isPureComputationHelperName(fn.Name) && !hasLikelyParameterAssignment(fn) && !hasIOOrPersistenceSideEffect(fn) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isUIHelperOrMappingContext(file, fn) && !hasLikelyParameterAssignment(fn) && !predicateHasObviousSideEffect(fn) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isPredicateName(fn.Name) && !hasLikelyParameterAssignment(fn) && !predicateHasObviousSideEffect(fn) {
-		return false
+		return mutationEvidence{}, false
 	}
 	name := strings.ToLower(fn.Name)
 	if !queryFunctionPrefixPattern.MatchString(name) && !strings.Contains(fn.Body, "return ") {
-		return false
+		return mutationEvidence{}, false
 	}
-	localTargets := localMutationTargets(fn)
-	for _, call := range directCalls(fn) {
-		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call, localTargets) && !isLocalBuilderMutationCall(fn, call) && !isBuilderAccumulatorMutationCall(fn, call) {
-			return true
+	for _, evidence := range functionMutationEvidence(fn) {
+		if evidence.Effect == "persistence" || evidence.Effect == "network" || evidence.Effect == "event" ||
+			(evidence.Effect == "shared_state" && evidence.Target != targetLocal) {
+			return evidence, true
 		}
 	}
-	return false
+	return mutationEvidence{}, false
 }
 
 func errorHandlingFindings(env support.Context, file string, fn precisionFunction) []core.Finding {

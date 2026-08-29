@@ -22,19 +22,20 @@ const (
 )
 
 var (
-	pythonClassPattern      = regexp.MustCompile(`^(\s*)class\s+([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?\s*:`)
-	pythonMethodPattern     = regexp.MustCompile(`^(\s*)(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*:`)
-	clikeClassPattern       = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?(?:class|struct)[ \t]+([A-Za-z_$][\w$]*)([^{;]*)\{`)
-	clikeMethodLinePattern  = regexp.MustCompile(`^[ \t]*(?:(?:public|private|protected|static|async|virtual|override|inline|constexpr|const|explicit|final)\s+)*(?:[~A-Za-z_$][\w$:<>,*&\s]+\s+)?([~A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*(?:const\s*)?(?:override\s*)?(?:noexcept\s*)?\{`)
-	clikeFieldLinePattern   = regexp.MustCompile(`^[ \t]*(?:(?:public|private|protected|static|readonly|mutable|const|let|var|final)\s+)*(?:[A-Za-z_$][\w$:<>,.?*&\[\]]+\s+)?([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?(?:=[^;]+)?;`)
-	delegateReceiverPattern = regexp.MustCompile(`(?:return\s+)?(?:self|this|[a-zA-Z_]\w*)[.\->]+(_?[A-Za-z_]\w*)[.\->]+[A-Za-z_]\w*\s*\(`)
-	delegateLocalPattern    = regexp.MustCompile(`(?:return\s+)?(_?[A-Za-z_]\w*)[.\->]+[A-Za-z_]\w*\s*\(`)
-	goKindSwitchPattern     = regexp.MustCompile(`(?m)switch\s+[^{}\n]*(?:\.|_)?(?:kind|type|Kind|Type)\b`)
-	pythonKindBranchPattern = regexp.MustCompile(`(?m)\b(?:if|elif)\s+[^:\n]*(?:\.|_)?(?:kind|type)\b[^:\n]*(?:==| in )`)
-	scriptKindSwitchPattern = regexp.MustCompile(`(?m)switch\s*\([^)]*(?:\.|_)?(?:kind|type|Kind|Type)\b[^)]*\)`)
-	cppKindSwitchPattern    = regexp.MustCompile(`(?m)switch\s*\([^)]*(?:\.|_)?(?:kind|type|Kind|Type)\b[^)]*\)`)
-	typeBranchPattern       = regexp.MustCompile(`(?m)(?:\.\(type\)|\btypeid\s*\(|\bdynamic_cast\s*<|\binstanceof\b|\btypeof\b|\bisinstance\s*\(|\btype\s*\()`)
-	fileTraversalPattern    = regexp.MustCompile(`\bfile\.`)
+	pythonClassPattern        = regexp.MustCompile(`^(\s*)class\s+([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?\s*:`)
+	pythonMethodPattern       = regexp.MustCompile(`^(\s*)(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*:`)
+	clikeClassPattern         = regexp.MustCompile(`(?m)^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?(?:class|struct)[ \t]+([A-Za-z_$][\w$]*)([^{;]*)\{`)
+	clikeMethodLinePattern    = regexp.MustCompile(`^[ \t]*(?:(?:public|private|protected|static|async|virtual|override|inline|constexpr|const|explicit|final)\s+)*(?:[~A-Za-z_$][\w$:<>,*&\s]+\s+)?([~A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*(?:const\s*)?(?:override\s*)?(?:noexcept\s*)?\{`)
+	clikeFieldLinePattern     = regexp.MustCompile(`^[ \t]*(?:(?:public|private|protected|static|readonly|mutable|const|let|var|final)\s+)*(?:[A-Za-z_$][\w$:<>,.?*&\[\]]+\s+)?([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?(?:=[^;]+)?;`)
+	delegateReceiverPattern   = regexp.MustCompile(`(?:return\s+)?(?:self|this|[a-zA-Z_]\w*)[.\->]+(_?[A-Za-z_]\w*)[.\->]+[A-Za-z_]\w*\s*\(`)
+	delegateLocalPattern      = regexp.MustCompile(`(?:return\s+)?(_?[A-Za-z_]\w*)[.\->]+[A-Za-z_]\w*\s*\(`)
+	goKindSwitchPattern       = regexp.MustCompile(`(?m)switch\s+[^{}\n]*(?:\.|_)?(?:kind|type|Kind|Type)\b`)
+	pythonKindBranchPattern   = regexp.MustCompile(`(?m)\b(?:if|elif)\s+[^:\n]*(?:\.|_)?(?:kind|type)\b[^:\n]*(?:==| in )`)
+	scriptKindSwitchPattern   = regexp.MustCompile(`(?m)switch\s*\([^)]*(?:\.|_)?(?:kind|type|Kind|Type)\b[^)]*\)`)
+	cppKindSwitchPattern      = regexp.MustCompile(`(?m)switch\s*\([^)]*(?:\.|_)?(?:kind|type|Kind|Type)\b[^)]*\)`)
+	typeBranchPattern         = regexp.MustCompile(`(?m)(?:\.\(type\)|\btypeid\s*\(|\bdynamic_cast\s*<|\binstanceof\b|\btypeof\b|\bisinstance\s*\(|\btype\s*\()`)
+	fileTraversalPattern      = regexp.MustCompile(`\bfile\.`)
+	messageChainMemberPattern = regexp.MustCompile(`(?:\.|->|\?\.)\s*([A-Za-z_$][\w$]*)`)
 )
 
 type structuralClass struct {
@@ -530,13 +531,31 @@ func messageChainFindings(env support.Context, file string, source string, langu
 		if trimmed == "" || strings.HasPrefix(trimmed, "import ") || strings.HasPrefix(trimmed, "#include") || strings.HasPrefix(trimmed, "package ") {
 			continue
 		}
-		if chainSeparators(trimmed) >= 4 && !looksLikeAllowedFluentChain(trimmed) && !looksLikeAllowedTraversalChain(trimmed) {
+		if independentlyOwnedMessageChain(trimmed) && !looksLikeAllowedFluentChain(trimmed) && !looksLikeAllowedTraversalChain(trimmed) {
 			return []core.Finding{precisionWarnFinding(env, smellMessageChainRuleID, file, idx+1,
 				"long message chain reaches through several collaborators; introduce a named query/helper at the boundary",
 				core.ConfidenceMedium)}
 		}
 	}
 	return nil
+}
+
+func independentlyOwnedMessageChain(line string) bool {
+	if chainSeparators(line) < 4 {
+		return false
+	}
+	members := messageChainMemberPattern.FindAllStringSubmatch(line, -1)
+	if len(members) < 4 {
+		return false
+	}
+	generatedAccessors := 0
+	for _, member := range members {
+		name := strings.ToLower(member[1])
+		if strings.HasPrefix(name, "get") || containsAny(name, []string{"value", "unwrap", "orelse", "valueor", "andthen"}) {
+			generatedAccessors++
+		}
+	}
+	return generatedAccessors != len(members)
 }
 
 func isDomainSourcePathForMessageChains(file string) bool {
@@ -572,7 +591,7 @@ func looksLikeAllowedFluentChain(line string) bool {
 		strings.Contains(lowered, ".with") ||
 		strings.Contains(lowered, ".set") ||
 		strings.Contains(lowered, "z.") ||
-		containsAny(lowered, []string{".optional", ".nullable", ".default", ".min", ".max", ".regex", ".safeparse", ".parse"})
+		containsAny(lowered, []string{".optional", ".nullable", ".default", ".min", ".max", ".regex", ".safeparse", ".parse", ".unwrap", ".valueor", ".orelse"})
 }
 
 func looksLikeAllowedTraversalChain(line string) bool {
@@ -581,9 +600,9 @@ func looksLikeAllowedTraversalChain(line string) bool {
 		return true
 	}
 	for _, marker := range []string{
-		"response.", "result.", "payload.", "body.", "json.", "config.", "settings.",
+		"response.", "result.", "payload.", "body.", "json.", ".json", "config.", "settings.",
 		"process.env", "import.meta.env", "params.", "query.", "headers.",
-		"row.", "record.", "dto.", "args.", "urlsearchparams", "searchparams.",
+		"row.", "rows.", "record.", "dto.", "args.", "urlsearchparams", "searchparams.", ".scan(",
 		"contract.", "matter.", "risk.", "project.", "policy.", "file.",
 		"metadata.", "currentpatch.", "existing.", "finding.", "input.", "opts.",
 		".split(", ".map(", ".filter(", ".at(",
