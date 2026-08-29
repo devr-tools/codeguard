@@ -56,6 +56,10 @@ func maintainabilityHistoryFindings(ctx context.Context, env support.Context, ta
 	if env.Mode != core.ScanModeDiff {
 		return nil
 	}
+	cfg := env.Config.Checks.QualityRules.MaintainabilityHistory
+	if cfg.Enabled != nil && !*cfg.Enabled {
+		return nil
+	}
 	changed := changedFilesForTarget(env, target)
 	if len(changed) == 0 {
 		return nil
@@ -93,7 +97,40 @@ func maintainabilityHistoryFindings(ctx context.Context, env support.Context, ta
 		}
 		return findings[i].Message < findings[j].Message
 	})
+	if len(findings) > 0 {
+		env.PutArtifact(maintainabilityHistoryArtifact(target, findings))
+	}
+	if cfg.ReportAsFindings == nil || !*cfg.ReportAsFindings {
+		return nil
+	}
 	return findings
+}
+
+func maintainabilityHistoryArtifact(target core.TargetConfig, findings []core.Finding) core.Artifact {
+	entries := make([]core.FileRiskEntry, 0, len(findings))
+	for idx, finding := range findings {
+		entries = append(entries, core.FileRiskEntry{
+			Path:  finding.Path,
+			Rank:  idx + 1,
+			Score: 1,
+			Components: []core.FileRiskComponent{{
+				Label:        finding.RuleID,
+				Weight:       1,
+				Count:        1,
+				Contribution: 1,
+				Detail:       finding.Message,
+			}},
+		})
+	}
+	return core.Artifact{
+		ID:       "maintainability_history." + support.ArtifactSafeID(target.Name),
+		Kind:     "maintainability_history",
+		Language: target.Language,
+		Target:   target.Path,
+		PRHotspots: &core.PRHotspotsArtifact{
+			Hotspots: entries,
+		},
+	}
 }
 
 func historyRuleFindings(env support.Context, rel string, line int, metric history.FileChangeMetrics, hints fileMaintainabilityHints) []core.Finding {

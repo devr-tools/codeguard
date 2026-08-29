@@ -60,17 +60,19 @@ var (
 )
 
 type precisionFunction struct {
-	Name        string
-	StartLine   int
-	EndLine     int
-	Signature   string
-	Params      []support.ParsedParam
-	Assignments []support.ParsedAssignment
-	Calls       []support.ParsedCall
-	Statements  []support.ParsedStatement
-	Nested      []precisionLineRange
-	Body        string
-	Returns     bool
+	Name                         string
+	Receiver                     string
+	StartLine                    int
+	EndLine                      int
+	Signature                    string
+	Params                       []support.ParsedParam
+	Assignments                  []support.ParsedAssignment
+	Calls                        []support.ParsedCall
+	Statements                   []support.ParsedStatement
+	Nested                       []precisionLineRange
+	Body                         string
+	Returns                      bool
+	ImplementsInterfaceSignature bool
 }
 
 func localPrecisionEnabled(env support.Context) bool {
@@ -88,9 +90,11 @@ func excessiveParameterFinding(env support.Context, file string, fn functionMetr
 
 func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, data []byte) []core.Finding {
 	findings := make([]core.Finding, 0)
+	interfaceMethods := goInterfaceMethodSignatures(parsed)
 	ast.Inspect(parsed, func(n ast.Node) bool {
 		if node, ok := n.(*ast.FuncDecl); ok {
 			fn := goPrecisionFunction(fset, node, data)
+			fn.ImplementsInterfaceSignature = interfaceMethods[goInterfaceMethodKey(fn.Name, fn.Params, fn.Signature)]
 			findings = append(findings, precisionFunctionFindings(env, file, fn)...)
 			if node.Body != nil {
 				findings = append(findings, goDefensiveFindings(env, file, fset, node.Body)...)
@@ -117,6 +121,7 @@ func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, 
 func goPrecisionFunction(fset *token.FileSet, fn *ast.FuncDecl, data []byte) precisionFunction {
 	out := precisionFunction{
 		Name:      fn.Name.Name,
+		Receiver:  goReceiverType(fn),
 		StartLine: fset.Position(fn.Pos()).Line,
 		EndLine:   fset.Position(fn.End()).Line,
 		Signature: goResultSignature(fn),
@@ -133,6 +138,12 @@ func goPrecisionFunction(fset *token.FileSet, fn *ast.FuncDecl, data []byte) pre
 	}
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
 		switch node := n.(type) {
+		case *ast.FuncLit:
+			out.Nested = append(out.Nested, precisionLineRange{
+				Start: fset.Position(node.Pos()).Line,
+				End:   fset.Position(node.End()).Line,
+			})
+			return false
 		case *ast.AssignStmt:
 			out.Assignments = append(out.Assignments, goAssignments(fset, node)...)
 		case *ast.ValueSpec:
@@ -191,6 +202,56 @@ func goParsedParams(fn *ast.FuncDecl) []support.ParsedParam {
 		}
 	}
 	return params
+}
+
+func goReceiverType(fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return ""
+	}
+	return strings.TrimPrefix(goExprText(fn.Recv.List[0].Type), "*")
+}
+
+func goInterfaceMethodSignatures(parsed *ast.File) map[string]bool {
+	out := map[string]bool{}
+	for _, decl := range parsed.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+			iface, ok := typeSpec.Type.(*ast.InterfaceType)
+			if !ok || iface.Methods == nil {
+				continue
+			}
+			for _, method := range iface.Methods.List {
+				methodType, ok := method.Type.(*ast.FuncType)
+				if !ok {
+					continue
+				}
+				methodDecl := &ast.FuncDecl{Type: methodType}
+				signature := goResultSignature(methodDecl)
+				params := goParsedParams(methodDecl)
+				for _, name := range method.Names {
+					out[goInterfaceMethodKey(name.Name, params, signature)] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+func goInterfaceMethodKey(name string, params []support.ParsedParam, signature string) string {
+	parts := make([]string, 0, len(params)+2)
+	parts = append(parts, name)
+	for _, param := range params {
+		parts = append(parts, strings.ReplaceAll(param.Type, " ", ""))
+	}
+	parts = append(parts, strings.ReplaceAll(signature, " ", ""))
+	return strings.Join(parts, "\x00")
 }
 
 func goExprText(expr ast.Expr) string {
@@ -452,8 +513,10 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 	findings = append(findings, additionalPrecisionFunctionFindings(env, file, fn)...)
 	if !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) && !isFrontendLibraryPath(file) &&
 		!isDomainSideEffectBoundaryName(fn.Name) && !isValidationOrExtractionHelperName(fn.Name) && primitiveObsession(fn) {
-		findings = append(findings, precisionWarnFinding(env, qualityPrimitiveObsessionRuleID, file, fn.StartLine,
-			fmt.Sprintf("function %s passes several domain concepts as raw primitives", fn.Name), core.ConfidenceMedium))
+		if !fn.ImplementsInterfaceSignature {
+			findings = append(findings, precisionWarnFinding(env, qualityPrimitiveObsessionRuleID, file, fn.StartLine,
+				fmt.Sprintf("function %s passes several domain concepts as raw primitives", fn.Name), core.ConfidenceMedium))
+		}
 	}
 	if hiddenSideEffect(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, qualityHiddenSideEffectRuleID, file, fn.StartLine,
@@ -582,6 +645,9 @@ func isDomainLevelCall(callee string) bool {
 
 func commandQueryMix(file string, fn precisionFunction) bool {
 	if isQualityFixturePath(file) {
+		return false
+	}
+	if explicitRepositoryCommandResultContract(file, fn) {
 		return false
 	}
 	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || isUIHelperOrMappingContext(file, fn) || isScriptEntrypoint(file, fn.Name) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) || isPostgresRepositoryPath(file) || isSecurityOrConfigUtilityFunction(file, fn) || explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) {
