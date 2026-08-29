@@ -809,31 +809,6 @@ func isBooleanNameCandidate(name string, typ string, fn precisionFunction) bool 
 	return false
 }
 
-func explicitNonBooleanFunctionName(name string) bool {
-	lowered := strings.ToLower(strings.Trim(name, "_$"))
-	for _, prefix := range []string{
-		"build", "call", "create", "decode", "extract", "fetch", "format", "hydrate",
-		"load", "lookup", "normalize", "parse", "read", "reject", "render", "resolve",
-		"serialize", "strip", "to", "write",
-	} {
-		if strings.HasPrefix(lowered, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
-func functionReturnLooksBoolean(signature string) bool {
-	signature = strings.ToLower(strings.TrimSpace(signature))
-	if signature == "" {
-		return false
-	}
-	if idx := strings.LastIndex(signature, "->"); idx >= 0 {
-		return isBooleanType(signature[idx+len("->"):])
-	}
-	return isBooleanType(signature)
-}
-
 func isInferredUIBooleanAssignment(file string, fn precisionFunction, typ string, expr string, line int) bool {
 	if expr == "" || isBooleanType(typ) {
 		return false
