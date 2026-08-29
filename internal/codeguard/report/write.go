@@ -107,13 +107,24 @@ func writeSARIF(w io.Writer, report core.Report) error {
 			}
 			results = append(results, buildSARIFResult(finding))
 		}
+		for _, diagnostic := range section.Diagnostics {
+			results = append(results, buildSARIFDiagnostic(diagnostic))
+		}
 	}
 	sort.Slice(sarifRules, func(i, j int) bool { return sarifRules[i].ID < sarifRules[j].ID })
 
 	// invocation records that codeguard ran, so a consumer can attribute the
 	// SARIF file to a specific run (SOC 3 monitoring / audit trail). The analysis
 	// completing successfully is independent of whether findings were reported.
-	invocation := map[string]any{"executionSuccessful": true}
+	executionSuccessful := true
+	for _, section := range report.Sections {
+		for _, diagnostic := range section.Diagnostics {
+			if diagnostic.Operational && diagnostic.Level == "fail" {
+				executionSuccessful = false
+			}
+		}
+	}
+	invocation := map[string]any{"executionSuccessful": executionSuccessful}
 	if report.GeneratedAt != "" {
 		invocation["endTimeUtc"] = report.GeneratedAt
 	}

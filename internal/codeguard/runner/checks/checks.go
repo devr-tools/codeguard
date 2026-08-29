@@ -184,6 +184,9 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 		FinalizeSection: func(id string, name string, findings []core.Finding) core.SectionResult {
 			return runnersupport.FinalizeSection(sc, id, name, findings)
 		},
+		FinalizeSectionWithDiagnostics: func(id string, name string, findings []core.Finding, diagnostics []core.Diagnostic) core.SectionResult {
+			return runnersupport.FinalizeSectionWithDiagnostics(sc, id, name, findings, diagnostics)
+		},
 		PutArtifact: func(artifact core.Artifact) {
 			sc.Artifacts.Put(artifact)
 		},

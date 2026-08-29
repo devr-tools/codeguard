@@ -35,6 +35,11 @@ type CPPToolResult struct {
 	Err         error
 }
 
+type GovulncheckResult struct {
+	Findings    []core.Finding
+	Diagnostics []core.Diagnostic
+}
+
 type Context struct {
 	Config           core.Config
 	AIEnabled        bool
@@ -61,24 +66,25 @@ type Context struct {
 	// ParseScriptFile parses one supported non-Go file through the tree-sitter
 	// substrate. It is nil unless parsers.treesitter is "auto"; checks treat
 	// nil (and any error) as "use the native fallback path".
-	ParseScriptFile        func(path string, data []byte, lang ScriptLanguage) (*SyntaxTree, error)
-	NewFinding             func(FindingInput) core.Finding
-	FinalizeSection        func(id string, name string, findings []core.Finding) core.SectionResult
-	PutArtifact            func(core.Artifact)
-	GetArtifact            func(string) (core.Artifact, bool)
-	CountLines             func(data []byte) int
-	CyclomaticComplexity   func(body *ast.BlockStmt) int
-	TypeName               func(expr ast.Expr) string
-	IsInternalOrCmdFile    func(path string) bool
-	IsCmdFile              func(path string) bool
-	IsPublicPackageFile    func(path string) bool
-	IsSDKFacadeFile        func(path string) bool
-	IsPromptFile           func(rel string) bool
-	RunGovulncheck         func(ctx context.Context, dir string, cmdName string) ([]core.Finding, error)
-	RunCPPFormat           func(ctx context.Context, dir string, cfg core.CPPToolingConfig, files []string) CPPToolResult
-	RunCPPSyntax           func(ctx context.Context, dir string, cfg core.CPPToolingConfig) CPPToolResult
-	RunCommandCheck        func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error)
-	RunCommandCheckWithEnv func(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error)
-	RunDiffCommandCheck    func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error)
-	NormalizedSeverity     func(level string) string
+	ParseScriptFile                func(path string, data []byte, lang ScriptLanguage) (*SyntaxTree, error)
+	NewFinding                     func(FindingInput) core.Finding
+	FinalizeSection                func(id string, name string, findings []core.Finding) core.SectionResult
+	FinalizeSectionWithDiagnostics func(id string, name string, findings []core.Finding, diagnostics []core.Diagnostic) core.SectionResult
+	PutArtifact                    func(core.Artifact)
+	GetArtifact                    func(string) (core.Artifact, bool)
+	CountLines                     func(data []byte) int
+	CyclomaticComplexity           func(body *ast.BlockStmt) int
+	TypeName                       func(expr ast.Expr) string
+	IsInternalOrCmdFile            func(path string) bool
+	IsCmdFile                      func(path string) bool
+	IsPublicPackageFile            func(path string) bool
+	IsSDKFacadeFile                func(path string) bool
+	IsPromptFile                   func(rel string) bool
+	RunGovulncheck                 func(ctx context.Context, dir string, cmdName string) GovulncheckResult
+	RunCPPFormat                   func(ctx context.Context, dir string, cfg core.CPPToolingConfig, files []string) CPPToolResult
+	RunCPPSyntax                   func(ctx context.Context, dir string, cfg core.CPPToolingConfig) CPPToolResult
+	RunCommandCheck                func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error)
+	RunCommandCheckWithEnv         func(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error)
+	RunDiffCommandCheck            func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error)
+	NormalizedSeverity             func(level string) string
 }

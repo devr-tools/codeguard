@@ -77,6 +77,10 @@ func firstNonEmpty(values ...string) string {
 }
 
 func FinalizeSection(sc Context, id string, name string, findings []core.Finding) core.SectionResult {
+	return FinalizeSectionWithDiagnostics(sc, id, name, findings, nil)
+}
+
+func FinalizeSectionWithDiagnostics(sc Context, id string, name string, findings []core.Finding, diagnostics []core.Diagnostic) core.SectionResult {
 	section := core.SectionResult{ID: id, Name: name, Status: core.StatusPass}
 	active := make([]core.Finding, 0, len(findings))
 	for _, finding := range findings {
@@ -107,6 +111,20 @@ func FinalizeSection(sc Context, id string, name string, findings []core.Finding
 		}
 	}
 	section.Findings = active
+	section.Diagnostics = diagnostics
+	for _, diagnostic := range diagnostics {
+		if !diagnostic.Operational {
+			continue
+		}
+		switch diagnostic.Level {
+		case "fail":
+			section.Status = core.StatusFail
+		case "warn":
+			if section.Status != core.StatusFail {
+				section.Status = core.StatusWarn
+			}
+		}
+	}
 	if sc.Opts.OnSectionComplete != nil {
 		sc.Opts.OnSectionComplete(section)
 	}

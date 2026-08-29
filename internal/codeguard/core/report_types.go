@@ -41,11 +41,25 @@ type Report struct {
 }
 
 type SectionResult struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Status          Status    `json:"status"`
-	Findings        []Finding `json:"findings"`
-	SuppressedCount int       `json:"suppressed_count,omitempty"`
+	ID              string       `json:"id"`
+	Name            string       `json:"name"`
+	Status          Status       `json:"status"`
+	Findings        []Finding    `json:"findings"`
+	Diagnostics     []Diagnostic `json:"diagnostics,omitempty"`
+	SuppressedCount int          `json:"suppressed_count,omitempty"`
+}
+
+// Diagnostic describes scanner operation or informational classification. It
+// is deliberately separate from Finding and is never eligible for baselines.
+type Diagnostic struct {
+	ID          string            `json:"id"`
+	Level       string            `json:"level"`
+	Kind        string            `json:"kind"`
+	Message     string            `json:"message"`
+	Path        string            `json:"path,omitempty"`
+	Operational bool              `json:"operational,omitempty"`
+	Evidence    []string          `json:"evidence,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
 type Finding struct {

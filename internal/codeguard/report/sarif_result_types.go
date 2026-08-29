@@ -12,7 +12,10 @@ type sarifResult struct {
 // sarifResultProperties is the SARIF result property bag. Confidence carries
 // the finding's confidence ("high", "medium", "low") when the check set one.
 type sarifResultProperties struct {
-	Confidence string `json:"confidence,omitempty"`
+	Confidence string            `json:"confidence,omitempty"`
+	Kind       string            `json:"kind,omitempty"`
+	Evidence   []string          `json:"evidence,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
 }
 
 type sarifMessage struct {

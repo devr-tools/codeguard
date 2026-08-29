@@ -1,11 +1,14 @@
 package security
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
+
+var concatenatedLiteralPattern = regexp.MustCompile(`(["'])([^"']*)["']\s*\+\s*["']([^"']*)(["'])`)
 
 // Bounds that keep the scan cheap and resistant to pathological (and untrusted)
 // input such as minified bundles or deliberately oversized lines. codeguard runs
@@ -32,10 +35,25 @@ func (s Scanner) ScanContent(content string) []Match {
 		line := strings.TrimSuffix(content[start:i], "\r")
 		start = i + 1
 		if !s.lineAllowed(line) {
-			matches = append(matches, s.scanLine(lineNo, line)...)
+			lineMatches := s.scanLine(lineNo, line)
+			folded := foldConcatenatedLiterals(line)
+			if folded != line {
+				foldedMatches := s.scanLine(lineNo, folded)
+				if len(foldedMatches) > 0 && (len(lineMatches) == 0 || foldedMatches[0].RuleID == hardcodedCredentialRule) {
+					lineMatches = foldedMatches
+				}
+			}
+			matches = append(matches, lineMatches...)
 		}
 	}
 	return matches
+}
+
+func foldConcatenatedLiterals(line string) string {
+	for concatenatedLiteralPattern.MatchString(line) {
+		line = concatenatedLiteralPattern.ReplaceAllString(line, `$1$2$3$4`)
+	}
+	return line
 }
 
 // scanLine reports at most one match per line, preferring the highest-confidence
@@ -83,20 +101,36 @@ func located(m *Match, lineNo int) []Match {
 	return []Match{*m}
 }
 
-// secretFindingsForFile runs the scan over a single file and converts matches to
-// findings. It applies the path allowlist, skips binary/oversized files, and
-// demotes fixture-path matches when the demotion toggle is on.
-func secretFindingsForFile(env support.Context, file string, data []byte, scanner Scanner) []core.Finding {
+func secretResultsForFile(env support.Context, file string, data []byte, scanner Scanner) ([]core.Finding, []core.Diagnostic) {
 	if scanner.SkipPath(file) || len(data) > maxScanFileBytes || looksBinary(data) {
-		return nil
+		return nil, nil
 	}
-	demote := fixtureDemotionEnabled(env.Config.Checks.SecurityRules) && isFixturePath(file)
-	matches := scanner.ScanContent(string(data))
+	content := string(data)
+	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	matches := scanner.ScanContent(content)
 	findings := make([]core.Finding, 0, len(matches))
+	diagnostics := make([]core.Diagnostic, 0)
 	for _, match := range matches {
-		if demote {
-			match = demoteFixtureMatch(match)
+		line := ""
+		if match.Line > 0 && match.Line <= len(lines) {
+			line = lines[match.Line-1]
 		}
+		assessment := classifyFixtureCandidate(file, line, match)
+		if assessment.Classification == fixtureLikelySynthetic {
+			diagnostics = append(diagnostics, core.Diagnostic{ID: "security.credential-fixture", Level: "info", Kind: string(assessment.Classification), Message: "likely synthetic credential fixture", Path: file, Evidence: assessment.Evidence, Metadata: secretMetadata(match)})
+			continue
+		}
+		if assessment.Classification == fixtureAmbiguous {
+			match.Level = "warn"
+			match.Confidence = core.ConfidenceLow
+			match.Message += " (ambiguous credential-shaped fixture)"
+		}
+		metadata := secretMetadata(match)
+		if metadata == nil {
+			metadata = map[string]string{}
+		}
+		metadata["classification"] = string(assessment.Classification)
+		metadata["classification_evidence"] = strings.Join(assessment.Evidence, ",")
 		findings = append(findings, env.NewFinding(support.FindingInput{
 			RuleID:     match.RuleID,
 			Level:      match.Level,
@@ -105,10 +139,10 @@ func secretFindingsForFile(env support.Context, file string, data []byte, scanne
 			Column:     match.Column,
 			Message:    match.Message,
 			Confidence: match.Confidence,
-			Metadata:   secretMetadata(match),
+			Metadata:   metadata,
 		}))
 	}
-	return findings
+	return findings, diagnostics
 }
 
 func secretMetadata(match Match) map[string]string {

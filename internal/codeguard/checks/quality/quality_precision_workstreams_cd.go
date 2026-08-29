@@ -53,9 +53,10 @@ func additionalPrecisionFunctionFindings(env support.Context, file string, fn pr
 		findings = append(findings, precisionWarnFinding(env, namingBehaviorMismatchRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s name conflicts with observed query/command behavior", fn.Name), core.ConfidenceMedium))
 	}
-	if hiddenMutation(file, fn) {
-		findings = append(findings, precisionWarnFinding(env, functionHiddenMutationRuleID, file, fn.StartLine,
-			fmt.Sprintf("function %s mutates state without an explicit command-style name", fn.Name), core.ConfidenceMedium))
+	if evidence, ok := hiddenMutationEvidence(file, fn); ok {
+		findings = append(findings, precisionWarnFindingWithMetadata(env, functionHiddenMutationRuleID, file, fn.StartLine,
+			fmt.Sprintf("function %s mutates state owned by %s through %s", fn.Name, evidence.Target, evidence.Detail),
+			core.ConfidenceMedium, mutationEvidenceMetadata(evidence)))
 	}
 	if !isReactComponentOrHookBoundary(file, fn) && !isUIHelperOrMappingContext(file, fn) &&
 		!isSeedOrScriptSourcePath(file) && !isScriptEntrypoint(file, fn.Name) &&
@@ -199,40 +200,44 @@ func behaviorMismatch(file string, fn precisionFunction) bool {
 	return false
 }
 
-func hiddenMutation(file string, fn precisionFunction) bool {
+func hiddenMutationEvidence(file string, fn precisionFunction) (mutationEvidence, bool) {
 	if isQualityFixturePath(file) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) || isSecurityOrConfigUtilityFunction(file, fn) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isUIActionAssemblyFunction(file, fn) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isFactoryHelperName(fn.Name) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isReactComponentOrNamedHookBoundary(file, fn) {
-		return false
+		return mutationEvidence{}, false
 	}
-	mutatesParam := mutatesParameter(fn)
-	mutatesState := mutatingFunctionEvidence(fn)
+	evidence, hasEvidence := firstReportableMutationEvidence(fn)
+	mutatesParam := hasEvidence && evidence.Target == targetArgument
+	mutatesState := hasEvidence
 	if isUIHelperOrMappingContext(file, fn) && !hasPersistentCollaboratorSideEffect(fn) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isPureComputationHelperName(fn.Name) && !mutatesParam && !hasPersistentCollaboratorSideEffect(fn) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isReactLocalStateBoundary(file, fn) && mutatesState && !mutatesParam && onlyReactHookLocalStateMutation(fn) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isPredicateName(fn.Name) && !mutatesParam && !predicateHasObviousSideEffect(fn) {
-		return false
+		return mutationEvidence{}, false
 	}
 	if isAccumulatorBuilderFunctionName(fn.Name) && !hasLikelyExternalMutationCall(fn) && !hasLikelyParameterAssignment(fn) {
-		return false
+		return mutationEvidence{}, false
 	}
-	return mutatesState || mutatesParam
+	if mutatesState || mutatesParam {
+		return evidence, true
+	}
+	return mutationEvidence{}, false
 }
 
 func predicateHasObviousSideEffect(fn precisionFunction) bool {
@@ -354,31 +359,6 @@ func mutatingFunctionEvidence(fn precisionFunction) bool {
 			!isBuilderAccumulatorAssignment(fn, assignment) &&
 			!isLocalScalarAccumulatorAssignment(fn, assignment.Name) {
 			return true
-		}
-	}
-	return false
-}
-
-func mutatesParameter(fn precisionFunction) bool {
-	params := map[string]struct{}{}
-	for _, param := range fn.Params {
-		if param.Name != "" {
-			params[param.Name] = struct{}{}
-		}
-	}
-	if len(params) == 0 {
-		return false
-	}
-	for _, statement := range directStatements(fn) {
-		line := firstNonEmptyString(statement.Raw, statement.Text)
-		if !lineHasAssignmentOperator(line) {
-			continue
-		}
-		lhs := assignmentLeftHandSide(line)
-		for _, match := range paramMutationPattern.FindAllStringSubmatch(lhs, -1) {
-			if _, ok := params[match[1]]; ok {
-				return true
-			}
 		}
 	}
 	return false

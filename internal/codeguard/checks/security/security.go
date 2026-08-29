@@ -3,6 +3,7 @@ package security
 import (
 	"context"
 	"strings"
+	"sync"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -11,11 +12,24 @@ import (
 // Run is the security section entrypoint; govulncheck only applies to Go
 // targets, so non-Go languages rely on configured commands instead.
 func Run(ctx context.Context, env support.Context) core.SectionResult {
-	return support.RunTargetSection(ctx, env, "security", "Security", securityTargetFindings)
+	var findings []core.Finding
+	var diagnostics []core.Diagnostic
+	for _, target := range env.Config.Targets {
+		result := securityTargetScan(ctx, env, target)
+		findings = append(findings, result.findings...)
+		diagnostics = append(diagnostics, result.diagnostics...)
+	}
+	return env.FinalizeSectionWithDiagnostics("security", "Security", findings, diagnostics)
 }
 
-func securityTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+type targetScanResult struct {
+	findings    []core.Finding
+	diagnostics []core.Diagnostic
+}
+
+func securityTargetScan(ctx context.Context, env support.Context, target core.TargetConfig) targetScanResult {
 	findings := make([]core.Finding, 0)
+	diagnostics := make([]core.Diagnostic, 0)
 
 	// Hardcoded secret/credential detection is language-agnostic and runs for
 	// every target (including TypeScript/JavaScript, which otherwise bypass
@@ -33,8 +47,13 @@ func securityTargetFindings(ctx context.Context, env support.Context, target cor
 		}))
 	}
 	if scanner.Enabled() {
+		var diagnosticMu sync.Mutex
 		findings = append(findings, env.ScanTargetFiles(target, "security-secrets", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
-			return secretFindingsForFile(env, file, data, scanner)
+			fileFindings, fileDiagnostics := secretResultsForFile(env, file, data, scanner)
+			diagnosticMu.Lock()
+			diagnostics = append(diagnostics, fileDiagnostics...)
+			diagnosticMu.Unlock()
+			return fileFindings
 		})...)
 	}
 
@@ -57,9 +76,11 @@ func securityTargetFindings(ctx context.Context, env support.Context, target cor
 	findings = append(findings, commandFindings(ctx, env, target)...)
 
 	if isGoTarget(target) {
-		findings = append(findings, govulncheckFindings(ctx, env, target)...)
+		govulnResult := govulncheckFindings(ctx, env, target)
+		findings = append(findings, govulnResult.Findings...)
+		diagnostics = append(diagnostics, govulnResult.Diagnostics...)
 	}
-	return findings
+	return targetScanResult{findings: findings, diagnostics: diagnostics}
 }
 
 func commandFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
@@ -70,31 +91,21 @@ func commandFindings(ctx context.Context, env support.Context, target core.Targe
 	})
 }
 
-func govulncheckFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+func govulncheckFindings(ctx context.Context, env support.Context, target core.TargetConfig) support.GovulncheckResult {
 	mode := strings.ToLower(strings.TrimSpace(env.Config.Checks.SecurityRules.GovulncheckMode))
 	switch mode {
 	case "", "off":
-		return nil
+		return support.GovulncheckResult{}
 	case "auto", "required":
-		govulnFindings, err := env.RunGovulncheck(ctx, target.Path, env.Config.Checks.SecurityRules.GovulncheckCommand)
-		if err == nil {
-			return govulnFindings
+		result := env.RunGovulncheck(ctx, target.Path, env.Config.Checks.SecurityRules.GovulncheckCommand)
+		if mode == "auto" {
+			for i := range result.Diagnostics {
+				result.Diagnostics[i].Level = "warn"
+			}
 		}
-		level := "warn"
-		if mode == "required" {
-			level = "fail"
-		}
-		return append(govulnFindings, env.NewFinding(support.FindingInput{
-			RuleID:  "security.govulncheck",
-			Level:   level,
-			Message: err.Error(),
-		}))
+		return result
 	default:
-		return []core.Finding{env.NewFinding(support.FindingInput{
-			RuleID:  "security.govulncheck",
-			Level:   "fail",
-			Message: "govulncheck_mode must be off, auto, or required",
-		})}
+		return support.GovulncheckResult{Diagnostics: []core.Diagnostic{{ID: "scan.govulncheck.config", Level: "fail", Kind: "configuration", Message: "govulncheck_mode must be off, auto, or required", Operational: true}}}
 	}
 }
 

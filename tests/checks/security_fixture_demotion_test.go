@@ -35,7 +35,7 @@ func fixtureDemotionReport(t *testing.T, dir string, demote *bool) codeguard.Rep
 	return report
 }
 
-func TestSecurityFixturePathsDemoteCredentialFindings(t *testing.T) {
+func TestSecurityFixturePathsKeepProviderCredentialFindings(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -49,6 +49,8 @@ func TestSecurityFixturePathsDemoteCredentialFindings(t *testing.T) {
 		{"ts test file", "web/app.test.ts"},
 		{"python test file", "scripts/util_test.py"},
 		{"ts spec file", "src/api.spec.ts"},
+		{"json fixture", "fixtures/auth.json"},
+		{"cpp fixture", "testdata/auth_test.cpp"},
 	}
 
 	for _, tc := range cases {
@@ -58,13 +60,12 @@ func TestSecurityFixturePathsDemoteCredentialFindings(t *testing.T) {
 			writeFile(t, filepath.Join(dir, filepath.FromSlash(tc.path)), "key = \""+cred("AKIA", "1234567890ABCDEF")+"\"\n")
 
 			report := fixtureDemotionReport(t, dir, nil)
-			// Demoted, never silent: the finding is still present at warn.
-			assertSectionStatus(t, report, "Security", "warn")
-			assertFindingLevel(t, report, "Security", "security.hardcoded-credential", "warn")
-			assertFindingConfidence(t, report, "Security", "security.hardcoded-credential", "low")
+			assertSectionStatus(t, report, "Security", "fail")
+			assertFindingLevel(t, report, "Security", "security.hardcoded-credential", "fail")
+			assertFindingConfidence(t, report, "Security", "security.hardcoded-credential", "high")
 			finding := findFinding(t, report, "Security", "security.hardcoded-credential")
-			if !strings.HasSuffix(finding.Message, " (fixture path)") {
-				t.Fatalf("message missing fixture-path suffix: %q", finding.Message)
+			if finding.Metadata["classification"] != "confirmed" {
+				t.Fatalf("classification = %q, want confirmed", finding.Metadata["classification"])
 			}
 		})
 	}
@@ -110,12 +111,12 @@ func TestSecurityFixtureDemotionMarksNameBasedSecret(t *testing.T) {
 	assertFindingLevel(t, report, "Security", "security.hardcoded-secret", "warn")
 	assertFindingConfidence(t, report, "Security", "security.hardcoded-secret", "low")
 	finding := findFinding(t, report, "Security", "security.hardcoded-secret")
-	if !strings.HasSuffix(finding.Message, " (fixture path)") {
-		t.Fatalf("message missing fixture-path suffix: %q", finding.Message)
+	if !strings.HasSuffix(finding.Message, " (ambiguous credential-shaped fixture)") {
+		t.Fatalf("message missing ambiguous fixture suffix: %q", finding.Message)
 	}
 }
 
-func TestSecurityFixtureDemotionDemotesHighEntropyString(t *testing.T) {
+func TestSecurityFixtureKeepsHighEntropyStringStrict(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "testdata", "blob.txt"), "blob = \"k7Jx9PqL2mNvB4wR8tZc3aYd5eHfUgQ1\"\n")
@@ -124,12 +125,12 @@ func TestSecurityFixtureDemotionDemotesHighEntropyString(t *testing.T) {
 		Enabled: boolPtr(true),
 		Entropy: &codeguard.SecretsEntropyConfig{Enabled: boolPtr(true), Level: "fail"},
 	}, "go")
-	assertSectionStatus(t, report, "Security", "warn")
-	assertFindingLevel(t, report, "Security", "security.high-entropy-string", "warn")
+	assertSectionStatus(t, report, "Security", "fail")
+	assertFindingLevel(t, report, "Security", "security.high-entropy-string", "fail")
 	assertFindingConfidence(t, report, "Security", "security.high-entropy-string", "low")
 	finding := findFinding(t, report, "Security", "security.high-entropy-string")
-	if !strings.HasSuffix(finding.Message, " (fixture path)") {
-		t.Fatalf("message missing fixture-path suffix: %q", finding.Message)
+	if finding.Metadata["classification"] != "confirmed" {
+		t.Fatalf("classification = %q, want confirmed", finding.Metadata["classification"])
 	}
 }
 
@@ -146,4 +147,52 @@ func TestSecurityFixtureDemotionKeepsPrivateKeyAtFail(t *testing.T) {
 	if strings.Contains(finding.Message, "(fixture path)") {
 		t.Fatalf("private-key finding unexpectedly demoted: %q", finding.Message)
 	}
+}
+
+func TestSecurityLikelySyntheticFixtureIsDiagnosticNotFinding(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "testdata", "auth.go"), "package testdata\nconst FakePassword = \"fixture-password-local\"\n")
+
+	report := fixtureDemotionReport(t, dir, nil)
+	var section *codeguard.SectionResult
+	for i := range report.Sections {
+		if report.Sections[i].Name == "Security" {
+			section = &report.Sections[i]
+			break
+		}
+	}
+	if section == nil {
+		t.Fatal("Security section missing")
+	}
+	for _, finding := range section.Findings {
+		if finding.RuleID == "security.hardcoded-secret" {
+			t.Fatalf("synthetic fixture became baselinable finding: %#v", finding)
+		}
+	}
+	if len(section.Diagnostics) != 1 || section.Diagnostics[0].Kind != "likely_synthetic_fixture" {
+		t.Fatalf("diagnostics = %#v, want likely synthetic fixture", section.Diagnostics)
+	}
+}
+
+func TestSecurityFixtureSymbolDoesNotSuppressRealSecretValue(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "testdata", "auth.go"), "package testdata\nconst FakePassword = \"actual-secret-value\"\n")
+
+	report := fixtureDemotionReport(t, dir, nil)
+	assertFindingRulePresent(t, report, "Security", "security.hardcoded-secret")
+	finding := findFinding(t, report, "Security", "security.hardcoded-secret")
+	if finding.Metadata["classification"] == "likely_synthetic_fixture" {
+		t.Fatalf("fixture-shaped symbol suppressed a non-synthetic value: %#v", finding)
+	}
+}
+
+func TestSecuritySyntheticTokensRequireValueComponents(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "testdata", "auth.go"), "package testdata\nconst FakePassword = \"latest-local-admin-secret\"\n")
+
+	report := fixtureDemotionReport(t, dir, nil)
+	assertFindingRulePresent(t, report, "Security", "security.hardcoded-secret")
 }

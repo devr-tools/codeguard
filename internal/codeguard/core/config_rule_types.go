@@ -273,12 +273,10 @@ type SecurityRulesConfig struct {
 	TypeScriptTaintMaxDepth int                             `json:"typescript_taint_max_depth,omitempty" yaml:"typescript_taint_max_depth,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
 	Secrets                 *SecretsRulesConfig             `json:"secrets,omitempty" yaml:"secrets,omitempty"`
-	// DemoteFixtureFindings downgrades hardcoded-secret, hardcoded-credential,
-	// and high-entropy-string findings located in test/fixture paths (testdata/,
-	// fixtures/, __fixtures__/, *_test.go, *.test.ts, *_test.py, *.spec.ts):
-	// fail becomes warn, confidence drops to low, and the message notes the
-	// demotion. Fixture credentials are still reported — never silenced — but no
-	// longer fail the scan. Defaults to true when unset.
+	// DemoteFixtureFindings is retained for configuration compatibility.
+	// Fixture handling is evidence-based: provider-shaped and high-entropy
+	// credentials remain strict, ambiguous candidates are low-confidence review
+	// findings, and only clearly synthetic fixtures become diagnostics.
 	DemoteFixtureFindings *bool `json:"demote_fixture_findings,omitempty" yaml:"demote_fixture_findings,omitempty"`
 }
 

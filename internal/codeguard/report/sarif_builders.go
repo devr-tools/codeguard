@@ -46,6 +46,26 @@ func buildSARIFResult(finding core.Finding) sarifResult {
 	return result
 }
 
+func buildSARIFDiagnostic(diagnostic core.Diagnostic) sarifResult {
+	level := "note"
+	if diagnostic.Level == "warn" {
+		level = "warning"
+	}
+	if diagnostic.Level == "fail" {
+		level = "error"
+	}
+	result := sarifResult{
+		RuleID:     diagnostic.ID,
+		Level:      level,
+		Message:    sarifMessage{Text: diagnostic.Message},
+		Properties: &sarifResultProperties{Kind: diagnostic.Kind, Evidence: diagnostic.Evidence, Metadata: diagnostic.Metadata},
+	}
+	if diagnostic.Path != "" {
+		result.Locations = []sarifLocation{{PhysicalLocation: sarifPhysicalLocation{ArtifactLocation: sarifArtifactLocation{URI: diagnostic.Path}}}}
+	}
+	return result
+}
+
 // sarifPartialFingerprints exposes both codeguard fingerprints to SARIF
 // consumers. GitHub code scanning deduplicates alerts across commits by
 // partialFingerprints, so the line-shift-resilient context fingerprint keeps

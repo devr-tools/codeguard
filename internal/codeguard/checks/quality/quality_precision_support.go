@@ -11,6 +11,10 @@ type precisionLineRange struct {
 }
 
 func precisionWarnFinding(env support.Context, ruleID string, file string, line int, message string, confidence string) core.Finding {
+	return precisionWarnFindingWithMetadata(env, ruleID, file, line, message, confidence, nil)
+}
+
+func precisionWarnFindingWithMetadata(env support.Context, ruleID string, file string, line int, message string, confidence string, metadata map[string]string) core.Finding {
 	return env.NewFinding(support.FindingInput{
 		RuleID:     ruleID,
 		Level:      "warn",
@@ -19,6 +23,7 @@ func precisionWarnFinding(env support.Context, ruleID string, file string, line 
 		Column:     1,
 		Message:    message,
 		Confidence: confidence,
+		Metadata:   metadata,
 	})
 }
 
