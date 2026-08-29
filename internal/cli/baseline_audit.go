@@ -86,27 +86,24 @@ func Audit(file core.BaselineFile, findings []core.Finding, opts Options) AuditR
 	exactCurrent := indexFindings(findings, func(f core.Finding) string { return f.Fingerprint })
 	contextCurrent := indexFindings(findings, func(f core.Finding) string { return f.ContextFingerprint })
 	contentCurrent := indexFindings(findings, func(f core.Finding) string { return f.ContentFingerprint })
-
-	for _, entry := range file.Entries {
-		audit := EntryAudit{Entry: entry}
-		switch {
-		case strings.TrimSpace(entry.Fingerprint) == "":
+	matches := matchBaselineEntries(file.Entries, findings)
+	for idx, entry := range file.Entries {
+		audit := EntryAudit{Entry: entry, Status: "stale"}
+		if strings.TrimSpace(entry.Fingerprint) == "" {
 			audit.Status = "invalid"
 			result.Counts.Invalid++
-		case len(exactCurrent[entry.Fingerprint]) > 0:
-			audit.Status = "active_exact"
-			audit.Matches = refs(exactCurrent[entry.Fingerprint])
-			result.Counts.ActiveExact++
-		case entry.ContextFingerprint != "" && len(contextCurrent[entry.ContextFingerprint]) > 0:
-			audit.Status = "active_context"
-			audit.Matches = refs(contextCurrent[entry.ContextFingerprint])
-			result.Counts.ActiveContext++
-		case entry.ContentFingerprint != "" && len(contentCurrent[entry.ContentFingerprint]) > 0:
-			audit.Status = "active_content"
-			audit.Matches = refs(contentCurrent[entry.ContentFingerprint])
-			result.Counts.ActiveContent++
-		default:
-			audit.Status = "stale"
+		} else if match, ok := matches[idx]; ok {
+			audit.Status = "active_" + match.kind
+			audit.Matches = refs([]core.Finding{findings[match.finding]})
+			switch match.kind {
+			case "exact":
+				result.Counts.ActiveExact++
+			case "context":
+				result.Counts.ActiveContext++
+			case "content":
+				result.Counts.ActiveContent++
+			}
+		} else {
 			result.Counts.Stale++
 		}
 		result.Entries = append(result.Entries, audit)
@@ -121,6 +118,66 @@ func Audit(file core.BaselineFile, findings []core.Finding, opts Options) AuditR
 	result.ByRisk = groupActive(result.Entries, opts, func(e core.BaselineEntry) string { return riskFamily(e.RuleID) })
 	sort.SliceStable(result.ByRisk, func(i, j int) bool { return riskRank(result.ByRisk[i].Name) < riskRank(result.ByRisk[j].Name) })
 	return result
+}
+
+type baselineMatch struct {
+	finding int
+	kind    string
+}
+
+func matchBaselineEntries(entries []core.BaselineEntry, findings []core.Finding) map[int]baselineMatch {
+	matches := map[int]baselineMatch{}
+	usedFindings := make([]bool, len(findings))
+	tiers := []struct {
+		kind       string
+		entryKey   func(core.BaselineEntry) string
+		findingKey func(core.Finding) string
+	}{
+		{"exact", func(e core.BaselineEntry) string { return e.Fingerprint }, func(f core.Finding) string { return f.Fingerprint }},
+		{"context", func(e core.BaselineEntry) string { return e.ContextFingerprint }, func(f core.Finding) string { return f.ContextFingerprint }},
+		{"content", func(e core.BaselineEntry) string { return e.ContentFingerprint }, func(f core.Finding) string { return f.ContentFingerprint }},
+	}
+	for _, tier := range tiers {
+		entryGroups := map[string][]int{}
+		findingGroups := map[string][]int{}
+		for idx, entry := range entries {
+			if _, matched := matches[idx]; matched || strings.TrimSpace(entry.Fingerprint) == "" {
+				continue
+			}
+			if key := tier.entryKey(entry); key != "" {
+				entryGroups[key] = append(entryGroups[key], idx)
+			}
+		}
+		for idx, finding := range findings {
+			if usedFindings[idx] {
+				continue
+			}
+			if key := tier.findingKey(finding); key != "" {
+				findingGroups[key] = append(findingGroups[key], idx)
+			}
+		}
+		for key, entryIndexes := range entryGroups {
+			findingIndexes := findingGroups[key]
+			sort.Slice(entryIndexes, func(i, j int) bool { return entryKey(entries[entryIndexes[i]]) < entryKey(entries[entryIndexes[j]]) })
+			sort.Slice(findingIndexes, func(i, j int) bool {
+				return findingKey(findings[findingIndexes[i]]) < findingKey(findings[findingIndexes[j]])
+			})
+			limit := len(entryIndexes)
+			if len(findingIndexes) < limit {
+				limit = len(findingIndexes)
+			}
+			for pair := 0; pair < limit; pair++ {
+				entryIdx, findingIdx := entryIndexes[pair], findingIndexes[pair]
+				matches[entryIdx] = baselineMatch{finding: findingIdx, kind: tier.kind}
+				usedFindings[findingIdx] = true
+			}
+		}
+	}
+	return matches
+}
+
+func findingKey(f core.Finding) string {
+	return strings.Join([]string{f.Fingerprint, f.ContextFingerprint, f.ContentFingerprint, f.RuleID, f.Path, f.Message}, "\x00")
 }
 
 func (result AuditResult) ActiveEntries() []core.BaselineEntry {
@@ -188,7 +245,7 @@ func fingerprintDiagnostics(entries []core.BaselineEntry, indexes ...map[string]
 	var collisions []Collision
 	for idx, baselineIndex := range baselineIndexes {
 		for fingerprint, count := range baselineIndex {
-			if count > 1 {
+			if idx == 0 && count > 1 {
 				duplicates = append(duplicates, Duplicate{Kind: types[idx], Fingerprint: fingerprint, Count: count})
 			}
 			currentCount := len(indexes[idx][fingerprint])

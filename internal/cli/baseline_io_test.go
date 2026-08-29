@@ -59,7 +59,10 @@ func TestWritePrunedPreservesAllEntriesInAContextCollision(t *testing.T) {
 		{Fingerprint: "old-b", ContextFingerprint: "shared", RuleID: "quality.duplicate"},
 	}}
 	writeFixture(t, path, file)
-	result := Audit(file, []core.Finding{{Fingerprint: "current", ContextFingerprint: "shared", RuleID: "quality.duplicate"}}, Options{})
+	result := Audit(file, []core.Finding{
+		{Fingerprint: "current-a", ContextFingerprint: "shared", RuleID: "quality.duplicate"},
+		{Fingerprint: "current-b", ContextFingerprint: "shared", RuleID: "quality.duplicate"},
+	}, Options{})
 	if err := WritePruned(path, path, result, PruneOptions{}); err != nil {
 		t.Fatal(err)
 	}

@@ -67,3 +67,53 @@ func TestAuditOutputIsDeterministicAndHighRiskFirst(t *testing.T) {
 		t.Fatalf("rule distributions missing: %#v", first.ByRule[0])
 	}
 }
+
+func TestAuditConsumesFallbackFindingsOneToOne(t *testing.T) {
+	file := core.BaselineFile{Entries: []core.BaselineEntry{
+		{Fingerprint: "old-b", ContextFingerprint: "shared", RuleID: "quality.same", Path: "b.go"},
+		{Fingerprint: "old-a", ContextFingerprint: "shared", RuleID: "quality.same", Path: "a.go"},
+	}}
+	findings := []core.Finding{{Fingerprint: "current", ContextFingerprint: "shared", RuleID: "quality.same", Path: "a.go", Confidence: "high"}}
+
+	result := Audit(file, findings, Options{})
+	if result.Counts.ActiveContext != 1 || result.Counts.Stale != 1 {
+		t.Fatalf("counts = %#v, want one active context and one stale", result.Counts)
+	}
+	if len(result.Duplicates) != 0 {
+		t.Fatalf("weak collision classified as duplicate: %#v", result.Duplicates)
+	}
+	if len(result.Collisions) == 0 {
+		t.Fatal("expected context collision diagnostic")
+	}
+}
+
+func TestAuditRuleDistributionsUseOneCanonicalFindingPerEntry(t *testing.T) {
+	file := core.BaselineFile{Entries: []core.BaselineEntry{
+		{Fingerprint: "old-a", ContextFingerprint: "shared", RuleID: "quality.same", Path: "a.go"},
+		{Fingerprint: "old-b", ContextFingerprint: "shared", RuleID: "quality.same", Path: "b.cpp"},
+	}}
+	findings := []core.Finding{
+		{Fingerprint: "new-b", ContextFingerprint: "shared", RuleID: "quality.same", Path: "b.cpp", Confidence: "medium"},
+		{Fingerprint: "new-a", ContextFingerprint: "shared", RuleID: "quality.same", Path: "a.go", Confidence: "high"},
+	}
+
+	result := Audit(file, findings, Options{SampleLimit: 1})
+	if len(result.ByRule) != 1 {
+		t.Fatalf("by_rule = %#v", result.ByRule)
+	}
+	group := result.ByRule[0]
+	if got := namedCountTotal(group.Confidence); got != group.Count {
+		t.Fatalf("confidence total = %d, count = %d", got, group.Count)
+	}
+	if got := namedCountTotal(group.Languages); got != group.Count {
+		t.Fatalf("language total = %d, count = %d", got, group.Count)
+	}
+}
+
+func namedCountTotal(counts []NamedCount) int {
+	total := 0
+	for _, count := range counts {
+		total += count.Count
+	}
+	return total
+}
