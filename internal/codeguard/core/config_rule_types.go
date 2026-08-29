@@ -15,7 +15,13 @@ type QualityRulesConfig struct {
 	CoverageDelta           CoverageDeltaConfig             `json:"coverage_delta,omitempty" yaml:"coverage_delta,omitempty"`
 	CPPTooling              CPPToolingConfig                `json:"cpp_tooling,omitempty" yaml:"cpp_tooling,omitempty"`
 	LocalPrecision          *bool                           `json:"local_precision,omitempty" yaml:"local_precision,omitempty"`
+	MaintainabilityHistory  MaintainabilityHistoryConfig    `json:"maintainability_history,omitempty" yaml:"maintainability_history,omitempty"`
 	Naming                  QualityNamingConfig             `json:"naming,omitempty" yaml:"naming,omitempty"`
+}
+
+type MaintainabilityHistoryConfig struct {
+	Enabled          *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	ReportAsFindings *bool `json:"report_as_findings,omitempty" yaml:"report_as_findings,omitempty"`
 }
 
 // QualityDeadCodeConfig enables toolchain-backed dead-code evidence. It is

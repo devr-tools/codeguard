@@ -153,10 +153,11 @@ func TestNamingBehaviorMismatchWarnsAcrossLanguages(t *testing.T) {
 func TestNamingPredicateAndCardinalityPositiveNegative(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "names.ts"), strings.Join([]string{
-		"export function evaluate(users: number, user: Array<string>, enabled: boolean): boolean {",
+		"export function evaluate(users: number, user: Array<string>, enabled: boolean, flag: boolean): boolean {",
 		"  const active: boolean = enabled === true;",
+		"  const success: boolean = active;",
 		"  const isReady = users > 0;",
-		"  return active && isReady;",
+		"  return success && isReady && flag;",
 		"}",
 	}, "\n"))
 
