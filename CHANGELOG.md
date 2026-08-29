@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.3](https://github.com/devr-tools/codeguard/compare/v1.7.2...v1.7.3) (2026-08-29)
+
+
+### Bug Fixes
+
+* improve scanner precision for Go repositories ([078c3b3](https://github.com/devr-tools/codeguard/commit/078c3b32fec668598d735dea483732ac44eb4ae1))
+* improve scanner precision for Go repositories ([#163](https://github.com/devr-tools/codeguard/issues/163)) ([d6d7615](https://github.com/devr-tools/codeguard/commit/d6d7615f0e3d25f171c4e620b7fa09da13ebc63d))
+
 ## [1.7.2](https://github.com/devr-tools/codeguard/compare/v1.7.1...v1.7.2) (2026-08-29)
 
 
