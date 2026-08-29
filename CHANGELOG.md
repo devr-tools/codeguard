@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.2](https://github.com/devr-tools/codeguard/compare/v1.7.1...v1.7.2) (2026-08-29)
+
+
+### Bug Fixes
+
+* trigger release for scanner precision fixes ([caaa85e](https://github.com/devr-tools/codeguard/commit/caaa85e5c35765a54c905966dcf300ff2ed39487))
+* trigger release for scanner precision fixes ([#161](https://github.com/devr-tools/codeguard/issues/161)) ([4cbb945](https://github.com/devr-tools/codeguard/commit/4cbb9458baf773a666ab0efc682850b52daf9624))
+
 ## [1.7.1](https://github.com/devr-tools/codeguard/compare/v1.7.0...v1.7.1) (2026-08-25)
 
 
