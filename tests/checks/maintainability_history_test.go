@@ -84,7 +84,10 @@ func partnerFunctionName(path string) string {
 func TestMaintainabilityHistoryHotspotRulesUseGitEvidence(t *testing.T) {
 	dir := initMaintainabilityHistoryRepo(t)
 
-	report := runMaintainabilityDeltaScan(t, qualityPrecisionConfig(dir))
+	cfg := qualityPrecisionConfig(dir)
+	on := true
+	cfg.Checks.QualityRules.MaintainabilityHistory.ReportAsFindings = &on
+	report := runMaintainabilityDeltaScan(t, cfg)
 
 	assertFindingRulePresent(t, report, "Code Quality", "maintainability.hotspot")
 	assertFindingRulePresent(t, report, "Code Quality", "maintainability.high-churn-hotspot")
