@@ -78,6 +78,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	folderPath := fs.String("folder", "", "folder path to scan instead of all configured targets")
 	pathAlias := fs.String("path", "", "alias for -folder")
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
+	includeSuppressed := fs.Bool("include-suppressed", false, "include individual suppressed findings in JSON output")
 	interactive := fs.Bool("interactive", false, "prompt for scan inputs in the terminal")
 	if ok, code := parseFlags(fs, args, stderr); !ok {
 		return code
@@ -115,7 +116,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		return exitError
 	}
 
-	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef), targetPath, *enableAI); err != nil {
+	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef), targetPath, *enableAI, *includeSuppressed); err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
 		return exitError
 	}
@@ -177,7 +178,7 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	return exitOK
 }
 
-func runBaseline(args []string, stdout io.Writer, stderr io.Writer) int {
+func runBaselineCreate(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("baseline", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	flags := registerScanRunFlags(fs)

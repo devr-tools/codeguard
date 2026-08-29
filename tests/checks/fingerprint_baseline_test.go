@@ -88,7 +88,7 @@ func TestBaselineSuppressesFindingAfterLineShift(t *testing.T) {
 	}
 
 	cfg.Baseline.Path = baselinePath
-	report, err = codeguard.Run(context.Background(), cfg)
+	report, err = codeguard.RunWithOptions(context.Background(), cfg, codeguard.ScanOptions{Mode: codeguard.ScanModeFull, IncludeSuppressed: true})
 	if err != nil {
 		t.Fatalf("run with baseline: %v", err)
 	}
@@ -96,6 +96,7 @@ func TestBaselineSuppressesFindingAfterLineShift(t *testing.T) {
 	if report.Summary.SuppressedFindings == 0 {
 		t.Fatal("expected the pre-edit baseline to suppress the shifted finding")
 	}
+	assertSuppressionMatch(t, report, "context")
 }
 
 func TestBaselineSuppressesFindingAfterMoveToSplitFile(t *testing.T) {
@@ -122,7 +123,7 @@ func TestBaselineSuppressesFindingAfterMoveToSplitFile(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "prompts", "split", "system.prompt"), shiftPromptBody)
 
 	cfg.Baseline.Path = baselinePath
-	report, err = codeguard.Run(context.Background(), cfg)
+	report, err = codeguard.RunWithOptions(context.Background(), cfg, codeguard.ScanOptions{Mode: codeguard.ScanModeFull, IncludeSuppressed: true})
 	if err != nil {
 		t.Fatalf("run with baseline after move: %v", err)
 	}
@@ -130,6 +131,17 @@ func TestBaselineSuppressesFindingAfterMoveToSplitFile(t *testing.T) {
 	if report.Summary.SuppressedFindings == 0 {
 		t.Fatal("expected the pre-move baseline to suppress the moved finding")
 	}
+	assertSuppressionMatch(t, report, "content")
+}
+
+func assertSuppressionMatch(t *testing.T, report codeguard.Report, want string) {
+	t.Helper()
+	for _, finding := range report.SuppressedFindings {
+		if finding.RuleID == "prompts.secret-interpolation" && finding.Suppression != nil && finding.Suppression.Match == want {
+			return
+		}
+	}
+	t.Fatalf("suppressed findings did not contain %q match: %#v", want, report.SuppressedFindings)
 }
 
 // Baseline files written before context fingerprints existed carry legacy-only

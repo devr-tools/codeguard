@@ -38,6 +38,24 @@ In production, `codeguard` should do three things well:
    codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
    ```
 
+   Creating a baseline accepts the scan's current findings. It must not be used
+   as a substitute for pruning. Audit and validate an existing baseline without
+   accepting new findings:
+
+   ```bash
+   codeguard baseline audit -config codeguard.yaml -format json
+   codeguard baseline prune -config codeguard.yaml -check
+   codeguard baseline prune -config codeguard.yaml -write -output /tmp/candidate-baseline.json
+   codeguard baseline policy -config codeguard.yaml -compare-baseline /tmp/base-baseline.json
+   ```
+
+   Audit exits nonzero for scan/load failures. Prune check exits nonzero for
+   stale, invalid, or duplicate entries and never writes. Prune write removes
+   only stale entries, preserves fingerprint collisions, and refuses invalid
+   entries unless `-allow-invalid-entries` is explicitly supplied. Policy exits
+   nonzero for configured growth, maximum-entry, or prohibited-addition
+   violations.
+
    Then reference it from config so new regressions still fail while existing debt
    stays visible but suppressed.
 

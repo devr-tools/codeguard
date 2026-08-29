@@ -34,6 +34,7 @@ type (
 	AIFixArtifact               = core.AIFixArtifact
 	SectionResult               = core.SectionResult
 	Finding                     = core.Finding
+	Suppression                 = core.Suppression
 
 	ChangeImpactArtifact = core.ChangeImpactArtifact
 	ChangeImpactEntry    = core.ChangeImpactEntry

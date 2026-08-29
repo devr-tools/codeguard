@@ -35,6 +35,9 @@ type Report struct {
 	Sections    []SectionResult `json:"sections"`
 	Artifacts   []Artifact      `json:"artifacts,omitempty"`
 	Summary     ReportSummary   `json:"summary"`
+	// SuppressedFindings is populated only when ScanOptions.IncludeSuppressed
+	// is enabled, keeping existing report payloads unchanged by default.
+	SuppressedFindings []Finding `json:"suppressed_findings,omitempty"`
 }
 
 type SectionResult struct {
@@ -66,12 +69,19 @@ type Finding struct {
 	ContextFingerprint string `json:"context_fingerprint,omitempty"`
 	// ContentFingerprint hashes the rule and normalized source context without
 	// the path, preserving baseline suppression across file moves.
-	ContentFingerprint string `json:"content_fingerprint,omitempty"`
-	Suppressed         bool   `json:"suppressed,omitempty"`
-	SuppressionReason  string `json:"suppression_reason,omitempty"`
+	ContentFingerprint string       `json:"content_fingerprint,omitempty"`
+	Suppressed         bool         `json:"suppressed,omitempty"`
+	SuppressionReason  string       `json:"suppression_reason,omitempty"`
+	Suppression        *Suppression `json:"suppression,omitempty"`
 	// Metadata carries machine-readable, non-sensitive finding attributes. It
 	// must never contain source snippets or credential values.
 	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
+type Suppression struct {
+	Kind                string `json:"kind"`
+	Match               string `json:"match,omitempty"`
+	BaselineFingerprint string `json:"baseline_fingerprint,omitempty"`
 }
 
 type ReportSummary struct {

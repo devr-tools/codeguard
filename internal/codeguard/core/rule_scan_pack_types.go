@@ -17,6 +17,9 @@ type ScanOptions struct {
 	// EnableWaiverAudit records which configured waivers matched findings
 	// before waiver suppression removes them from the report.
 	EnableWaiverAudit bool
+	// IncludeSuppressed retains individually suppressed findings in the report.
+	// It does not mix them into section findings or alter section status.
+	IncludeSuppressed bool
 	// OnSectionComplete, when set, is invoked once per section as soon as that
 	// section finishes, enabling callers (e.g. the MCP server) to stream
 	// partial results. It is never serialized — json.Marshal errors on a
