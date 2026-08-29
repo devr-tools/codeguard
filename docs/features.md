@@ -84,6 +84,29 @@ This page lists the current `codeguard` feature surface and the main config entr
 - verified auto-fix through SDK and CLI
 - hook-pack examples for Claude Code and Cursor
 
+## Baseline governance
+
+- `codeguard baseline` creates a new accepted-debt snapshot.
+- `codeguard baseline audit` classifies existing entries as active through an
+  exact, context, or path-insensitive content fingerprint, or as stale/invalid.
+- `codeguard baseline prune -check` provides a non-mutating CI gate;
+  `-write` atomically removes only stale entries, and `-output` creates a
+  reviewable candidate file.
+- `codeguard baseline policy -compare-baseline <path>` rejects configured net
+  growth, maximum-entry violations, and newly baselined prohibited rule
+  families while allowing existing approved debt.
+- Audit reports group active debt by rule, ownership area, and risk family and
+  provide deterministic evidence samples with confidence/language counts.
+- Context/content collisions from identical snippets are reported and
+  preserved. Governance never forces one-to-one matching or changes v1.7.3
+  suppression semantics.
+- `codeguard scan -include-suppressed -format json` emits individual baseline,
+  waiver, and inline suppression records when explicitly requested; default
+  reports remain unchanged.
+
+See [Production rollout](production.md) for configuration, safe CI usage,
+review workflow, and exit-code behavior.
+
 ## External report ingestion
 
 CodeGuard can import findings from scanners that have already run. It does not
