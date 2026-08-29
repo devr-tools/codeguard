@@ -440,6 +440,42 @@ func TestBooleanPredicateNamingAcceptsConventionalPredicateVocabulary(t *testing
 	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
 }
 
+func TestImperativeBooleanNamesAreAllowedOnlyForParameters(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		language string
+		file     string
+		content  string
+	}{
+		{name: "go", language: "go", file: "options.go", content: strings.Join([]string{
+			"package sample",
+			"func Load(includeInactive, requireCompleteMetadata, allowPartial, skipCache, enableTrace, disableRetry, forceRefresh, useIndex bool) {}",
+		}, "\n")},
+		{name: "cpp", language: "cpp", file: "options.cpp", content: "void load(bool includeInactive, bool requireCompleteMetadata, bool allowPartial, bool skipCache, bool forceRefresh, bool useIndex) {}\n"},
+	} {
+		t.Run(tc.name+" parameters", func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), tc.content)
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, tc.language))
+			assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+		})
+	}
+
+	t.Run("go non-imperative parameter", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "state.go"), "package sample\nfunc Load(metadata bool) {}\n")
+		report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+		assertFindingRulePresent(t, report, "Code Quality", "naming.boolean-not-predicate")
+	})
+
+	t.Run("cpp non-imperative parameter", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "state.cpp"), "void load(bool metadata) {}\n")
+		report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "cpp"))
+		assertFindingRulePresent(t, report, "Code Quality", "naming.boolean-not-predicate")
+	})
+}
+
 func TestGoLocalRowAssignmentsDoNotLookLikeMutableGlobals(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "collections.go"), strings.Join([]string{
@@ -461,6 +497,42 @@ func TestGoLocalRowAssignmentsDoNotLookLikeMutableGlobals(t *testing.T) {
 	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 
 	assertFindingRuleAbsent(t, report, "Code Quality", "quality.mutable-global-state")
+}
+
+func TestGoMutableGlobalExemptsImmutableConstructorUntilReassigned(t *testing.T) {
+	t.Run("immutable compiled regex", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "patterns.go"), strings.Join([]string{
+			"package sample",
+			"import \"regexp\"",
+			"var emailPattern = regexp.MustCompile(`@`)",
+			"func Matches(value string) bool { return emailPattern.MatchString(value) }",
+		}, "\n"))
+
+		report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+		assertFindingRuleAbsent(t, report, "Code Quality", "quality.mutable-global-state")
+	})
+
+	t.Run("reassigned compiled regex", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "patterns.go"), strings.Join([]string{
+			"package sample",
+			"import \"regexp\"",
+			"var emailPattern = regexp.MustCompile(`@`)",
+			"func Configure(pattern string) { emailPattern = regexp.MustCompile(pattern) }",
+		}, "\n"))
+
+		report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+		assertFindingRulePresent(t, report, "Code Quality", "quality.mutable-global-state")
+	})
+
+	t.Run("mutable collection", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "cache.go"), "package sample\nvar cache = map[string]string{}\n")
+
+		report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+		assertFindingRulePresent(t, report, "Code Quality", "quality.mutable-global-state")
+	})
 }
 
 func TestPostgresRepositoryAllowsPgxQueriesAndRowsAffectedResults(t *testing.T) {
