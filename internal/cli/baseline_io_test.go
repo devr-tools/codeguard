@@ -30,7 +30,10 @@ func TestPruneWritesOnlyActiveEntriesAndNeverAddsFindings(t *testing.T) {
 	if len(got.Entries) != 1 || got.Entries[0].Fingerprint != "active" {
 		t.Fatalf("pruned entries = %#v", got.Entries)
 	}
-	sourceAfter, _ := os.ReadFile(source)
+	sourceAfter, err := os.ReadFile(source) //nolint:gosec // source is created inside t.TempDir
+	if err != nil {
+		t.Fatal(err)
+	}
 	var unchanged core.BaselineFile
 	if err := json.Unmarshal(sourceAfter, &unchanged); err != nil || len(unchanged.Entries) != 2 {
 		t.Fatalf("source was modified: %s err=%v", sourceAfter, err)

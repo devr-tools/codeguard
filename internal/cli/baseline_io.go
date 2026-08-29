@@ -51,8 +51,8 @@ func WritePruned(source, output string, result AuditResult, opts PruneOptions) e
 	if output == "" {
 		output = source
 	}
-	if err := os.MkdirAll(filepath.Dir(output), 0o750); err != nil {
-		return err
+	if mkdirErr := os.MkdirAll(filepath.Dir(output), 0o750); mkdirErr != nil {
+		return mkdirErr
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(output), ".codeguard-baseline-*.tmp")
 	if err != nil {
