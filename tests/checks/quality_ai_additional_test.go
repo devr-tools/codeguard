@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/pkg/codeguard"
@@ -26,6 +27,66 @@ func run() {}
 
 	assertFindingRulePresent(t, report, "Code Quality", "quality.ai.hallucinated-import")
 	assertFindingConfidence(t, report, "Code Quality", "quality.ai.hallucinated-import", "high")
+}
+
+func TestGoWorkspaceImportsResolveAgainstOwningModule(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "go.work"), `go 1.23
+
+use (
+	./apps/api
+	./libs/shared
+)
+
+replace example.com/work-replaced => ./third_party/work-replaced
+`)
+	writeFile(t, filepath.Join(dir, "apps", "api", "go.mod"), `module example.com/api
+
+go 1.23
+
+require (
+	github.com/direct/dependency v1.2.3
+	github.com/indirect/dependency v1.2.3 // indirect
+)
+
+replace github.com/direct/dependency => ../../third_party/direct
+`)
+	writeFile(t, filepath.Join(dir, "libs", "shared", "go.mod"), "module example.com/shared\n\ngo 1.23\n")
+	writeFile(t, filepath.Join(dir, "apps", "api", "nested", "go.mod"), "module example.com/nested\n\ngo 1.23\n\nrequire example.com/nested-dep v1.0.0\n")
+	writeFile(t, filepath.Join(dir, "apps", "api", "service.go"), `package api
+
+import (
+	"context"
+	"example.com/shared/client"
+	"example.com/work-replaced/client"
+	"github.com/direct/dependency/client"
+	"github.com/indirect/dependency/client"
+	"github.com/truly/missing/client"
+)
+
+var _ = context.Background
+`)
+	writeFile(t, filepath.Join(dir, "apps", "api", "nested", "service.go"), `package nested
+
+import "example.com/nested-dep/client"
+`)
+
+	report, err := codeguard.Run(context.Background(), qualityAITestConfig(dir, "quality-ai-go-workspace"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	var imports []string
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if finding.RuleID == "quality.ai.hallucinated-import" {
+				imports = append(imports, finding.Message)
+			}
+		}
+	}
+	if len(imports) != 1 || !strings.Contains(imports[0], "github.com/truly/missing/client") {
+		t.Fatalf("hallucinated import findings = %v, want only truly missing import", imports)
+	}
 }
 
 func TestQualityCheckWarnsForHallucinatedTypeScriptImport(t *testing.T) {
