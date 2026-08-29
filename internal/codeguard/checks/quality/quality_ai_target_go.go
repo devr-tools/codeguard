@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -12,23 +11,18 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-type goModuleMetadata struct {
-	modulePath string
-	required   []string
-}
-
 func goAITargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
 	files := aiTargetSourceFiles(env, target, ".go")
 	if len(files) == 0 {
 		return nil
 	}
-	metadata := readGoModuleMetadata(target.Path)
+	resolver := newGoModuleResolver(target.Path)
 	profile := goRepoStyleProfile(env, target, files)
 	packageFiles := map[string][]goParsedFile{}
 	findings := make([]core.Finding, 0)
 	for _, rel := range files {
 		fileFindings, parsedFile := goFileAIQualityFindings(env, target, rel, goFileScanInput{
-			metadata:   metadata,
+			metadata:   resolver.metadataForFile(rel),
 			dominant:   profile.testFramework,
 			errorStyle: profile.errorStyle,
 			naming:     profile.naming,
@@ -124,35 +118,6 @@ func goFileAIQualityFindings(env support.Context, target core.TargetConfig, rel 
 	return findings, parsedFile
 }
 
-func readGoModuleMetadata(root string) goModuleMetadata {
-	data, err := os.ReadFile(filepath.Join(root, "go.mod")) //nolint:gosec // fixed filename under the scan-target root
-	if err != nil {
-		return goModuleMetadata{}
-	}
-	metadata := goModuleMetadata{}
-	for _, line := range strings.Split(string(data), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		switch fields[0] {
-		case "module":
-			metadata.modulePath = fields[1]
-		case "go", "replace", "exclude", "retract":
-			continue
-		case "require":
-			if len(fields) >= 3 {
-				metadata.required = append(metadata.required, fields[1])
-			}
-		default:
-			if strings.HasPrefix(fields[1], "v") {
-				metadata.required = append(metadata.required, fields[0])
-			}
-		}
-	}
-	return metadata
-}
-
 func goHallucinatedImportFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, metadata goModuleMetadata) []core.Finding {
 	findings := make([]core.Finding, 0)
 	for _, imp := range parsed.Imports {
@@ -168,21 +133,7 @@ func goHallucinatedImportFindings(env support.Context, file string, fset *token.
 }
 
 func goImportResolvable(importPath string, metadata goModuleMetadata) bool {
-	if importPath == "" {
-		return true
-	}
-	if !strings.Contains(firstSegment(importPath), ".") {
-		return true
-	}
-	if metadata.modulePath != "" && (importPath == metadata.modulePath || strings.HasPrefix(importPath, metadata.modulePath+"/")) {
-		return true
-	}
-	for _, required := range metadata.required {
-		if importPath == required || strings.HasPrefix(importPath, required+"/") {
-			return true
-		}
-	}
-	return false
+	return metadata.resolvesImport(importPath)
 }
 
 func goDeadCodeFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {

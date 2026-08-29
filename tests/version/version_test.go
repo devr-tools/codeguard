@@ -1,7 +1,10 @@
 package version_test
 
 import (
+	"os/exec"
+	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"testing"
 
 	"github.com/devr-tools/codeguard/internal/version"
@@ -27,6 +30,23 @@ func TestModuleVersionFromBuildInfo(t *testing.T) {
 	}
 }
 
+func TestBuiltCommandReportsInjectedVersion(t *testing.T) {
+	repoRoot := filepath.Join("..", "..")
+	binary := filepath.Join(t.TempDir(), "codeguard")
+	build := exec.Command("go", "build", "-ldflags", "-X github.com/devr-tools/codeguard/internal/version.Number=v9.8.7", "-o", binary, "./cmd/codeguard")
+	build.Dir = repoRoot
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build command: %v\n%s", err, output)
+	}
+	output, err := exec.Command(binary, "version").CombinedOutput()
+	if err != nil {
+		t.Fatalf("run version: %v\n%s", err, output)
+	}
+	if got := strings.TrimSpace(string(output)); got != "v9.8.7" {
+		t.Fatalf("version output = %q, want v9.8.7", got)
+	}
+}
+
 func TestDevelopmentVersionFromBuildInfo(t *testing.T) {
 	info := &debug.BuildInfo{
 		Main: debug.Module{Version: "(devel)"},
@@ -35,7 +55,7 @@ func TestDevelopmentVersionFromBuildInfo(t *testing.T) {
 			{Key: "vcs.modified", Value: "true"},
 		},
 	}
-	if got, want := version.DevelopmentVersionFromBuildInfo(info), "0.1.0-dev+abcdef12.dirty"; got != want {
+	if got, want := version.DevelopmentVersionFromBuildInfo(info), "devel+abcdef12.dirty"; got != want {
 		t.Fatalf("DevelopmentVersionFromBuildInfo() = %q, want %q", got, want)
 	}
 }

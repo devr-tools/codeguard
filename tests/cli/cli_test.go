@@ -14,7 +14,7 @@ import (
 
 func TestRunVersion(t *testing.T) {
 	originalVersion := version.Number
-	version.Number = version.Resolve("0.1.0", &debug.BuildInfo{Main: debug.Module{Version: "v1.5.1"}})
+	version.Number = version.Resolve("devel", &debug.BuildInfo{Main: debug.Module{Version: "v1.5.1"}})
 	t.Cleanup(func() { version.Number = originalVersion })
 
 	var stdout bytes.Buffer

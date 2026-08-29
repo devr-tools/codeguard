@@ -86,20 +86,23 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 		typ  string
 		expr string
 		line int
+		role string
 	}, 0, 1+len(fn.Params)+len(fn.Assignments))
 	allNames = append(allNames, struct {
 		name string
 		typ  string
 		expr string
 		line int
-	}{name: fn.Name, line: fn.StartLine})
+		role string
+	}{name: fn.Name, line: fn.StartLine, role: "function"})
 	for _, param := range fn.Params {
 		allNames = append(allNames, struct {
 			name string
 			typ  string
 			expr string
 			line int
-		}{name: param.Name, typ: param.Type, line: fn.StartLine})
+			role string
+		}{name: param.Name, typ: param.Type, line: fn.StartLine, role: "parameter"})
 	}
 	for _, assignment := range fn.Assignments {
 		allNames = append(allNames, struct {
@@ -107,7 +110,8 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 			typ  string
 			expr string
 			line int
-		}{name: assignment.Name, expr: assignment.Expr, line: assignment.Line})
+			role string
+		}{name: assignment.Name, expr: assignment.Expr, line: assignment.Line, role: "local"})
 	}
 	for _, item := range allNames {
 		if item.name == "" {
@@ -116,14 +120,15 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 		if item.name == fn.Name && isReactComponentOrHookBoundary(file, fn) {
 			continue
 		}
-		if isSeedOrScriptSourcePath(file) && isBooleanNameCandidate(item.name, item.typ, fn) {
+		if isSeedOrScriptSourcePath(file) && isBooleanNameCandidate(item.typ) {
 			continue
 		}
-		if isBooleanNameCandidate(item.name, item.typ, fn) && isUIHelperOrMappingContext(file, fn) {
+		if isBooleanNameCandidate(item.typ) && isUIHelperOrMappingContext(file, fn) {
 			continue
 		}
-		if isBooleanNameCandidate(item.name, item.typ, fn) &&
+		if isBooleanNameCandidate(item.typ) &&
 			!isInferredUIBooleanAssignment(file, fn, item.typ, item.expr, item.line) &&
+			(item.role != "parameter" || !isImperativeBooleanParameterName(item.name)) &&
 			!isPredicateName(item.name) &&
 			!isAllowedBooleanUIName(file, fn, item.name) {
 			findings = append(findings, precisionWarnFinding(env, namingBooleanNotPredicateRuleID, file, item.line,
@@ -799,14 +804,42 @@ func orchestrationDomainMix(file string, fn precisionFunction) bool {
 	return hasInfra && hasDomainDecision
 }
 
-func isBooleanNameCandidate(name string, typ string, fn precisionFunction) bool {
-	if name == fn.Name {
+func isBooleanNameCandidate(typ string) bool {
+	return isBooleanType(typ)
+}
+
+func isImperativeBooleanParameterName(name string) bool {
+	words := identifierWords(name)
+	if len(words) < 2 {
 		return false
 	}
-	if isBooleanType(typ) {
-		return true
+	for _, prefix := range []string{"include", "require", "allow", "skip", "enable", "disable", "force", "use"} {
+		if words[0] == prefix {
+			return true
+		}
 	}
 	return false
+}
+
+func identifierWords(name string) []string {
+	name = strings.Trim(name, "_$")
+	var words []string
+	start := 0
+	for idx, r := range name {
+		if idx > 0 && (r == '_' || (r >= 'A' && r <= 'Z')) {
+			if word := strings.ToLower(strings.Trim(name[start:idx], "_")); word != "" {
+				words = append(words, word)
+			}
+			start = idx
+			if r == '_' {
+				start++
+			}
+		}
+	}
+	if word := strings.ToLower(strings.Trim(name[start:], "_")); word != "" {
+		words = append(words, word)
+	}
+	return words
 }
 
 func isInferredUIBooleanAssignment(file string, fn precisionFunction, typ string, expr string, line int) bool {

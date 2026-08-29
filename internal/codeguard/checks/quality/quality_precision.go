@@ -108,7 +108,7 @@ func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, 
 			continue
 		}
 		findings = append(findings, goGenericDeclFindings(env, file, fset, gen)...)
-		findings = append(findings, goMutableGlobalFindings(env, file, fset, gen)...)
+		findings = append(findings, goMutableGlobalFindings(env, file, fset, parsed, gen)...)
 		findings = append(findings, goDuplicatedKnowledgeFindings(env, file, fset, gen)...)
 	}
 	findings = append(findings, redundantCommentFindings(env, file, string(data))...)
@@ -309,7 +309,12 @@ func goGenericDeclFindings(env support.Context, file string, fset *token.FileSet
 	return findings
 }
 
-func goMutableGlobalFindings(env support.Context, file string, fset *token.FileSet, decl *ast.GenDecl) []core.Finding {
+type globalDeclarationClassification struct {
+	immutableByConvention   bool
+	technicallyReassignable bool
+}
+
+func goMutableGlobalFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, decl *ast.GenDecl) []core.Finding {
 	if decl.Tok != token.VAR || isQualityFixturePath(file) {
 		return nil
 	}
@@ -319,15 +324,63 @@ func goMutableGlobalFindings(env support.Context, file string, fset *token.FileS
 		if !ok {
 			continue
 		}
-		for _, name := range value.Names {
+		for idx, name := range value.Names {
 			if strings.HasPrefix(strings.ToLower(name.Name), "err") {
 				continue
 			}
+			classification := classifyGoGlobalDeclaration(value, idx)
+			if classification.immutableByConvention && classification.technicallyReassignable && !goGlobalIsReassigned(parsed, name.Name) {
+				continue
+			}
+			message := fmt.Sprintf("mutable package-level variable %q makes behavior harder to isolate and test", name.Name)
+			if classification.immutableByConvention {
+				message = fmt.Sprintf("package-level variable %q is reassigned after immutable construction", name.Name)
+			}
 			findings = append(findings, precisionWarnFinding(env, qualityMutableGlobalStateRuleID, file, fset.Position(name.Pos()).Line,
-				fmt.Sprintf("mutable package-level variable %q makes behavior harder to isolate and test", name.Name), core.ConfidenceHigh))
+				message, core.ConfidenceHigh))
 		}
 	}
 	return findings
+}
+
+func classifyGoGlobalDeclaration(spec *ast.ValueSpec, index int) globalDeclarationClassification {
+	classification := globalDeclarationClassification{technicallyReassignable: true}
+	if len(spec.Values) == 0 {
+		return classification
+	}
+	exprIndex := index
+	if exprIndex >= len(spec.Values) {
+		exprIndex = len(spec.Values) - 1
+	}
+	call, ok := spec.Values[exprIndex].(*ast.CallExpr)
+	if !ok {
+		return classification
+	}
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != "MustCompile" {
+		return classification
+	}
+	pkg, ok := selector.X.(*ast.Ident)
+	classification.immutableByConvention = ok && pkg.Name == "regexp"
+	return classification
+}
+
+func goGlobalIsReassigned(parsed *ast.File, name string) bool {
+	reassigned := false
+	ast.Inspect(parsed, func(node ast.Node) bool {
+		assignment, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for _, lhs := range assignment.Lhs {
+			if ident, ok := lhs.(*ast.Ident); ok && ident.Name == name {
+				reassigned = true
+				return false
+			}
+		}
+		return true
+	})
+	return reassigned
 }
 
 func goDuplicatedKnowledgeFindings(env support.Context, file string, fset *token.FileSet, decl *ast.GenDecl) []core.Finding {
