@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.2](https://github.com/devr-tools/codeguard/compare/v1.8.1...v1.8.2) (2026-08-29)
+
+
+### Bug Fixes
+
+* harden scan evidence edge cases ([d2a4a36](https://github.com/devr-tools/codeguard/commit/d2a4a36a0437c7e91825dd1fdbf9e4643a535fb3))
+* make security scans workspace and fixture aware ([0b86a3b](https://github.com/devr-tools/codeguard/commit/0b86a3bbf31d5c22907b5a47c0d1657d0ea751da))
+* make structural mutation rules ownership aware ([92e006a](https://github.com/devr-tools/codeguard/commit/92e006aa3ba3f7fc1ea9d0d0bc95d920b6057cf1))
+* make workspace security scans and structural rules evidence-aware ([#170](https://github.com/devr-tools/codeguard/issues/170)) ([888d988](https://github.com/devr-tools/codeguard/commit/888d9881fad374f47b4c1da2764644818f81f0bf))
+* preserve evidence across precision boundaries ([306b3b1](https://github.com/devr-tools/codeguard/commit/306b3b1875d443f575a5abdb5a9a0d980b0e39c3))
+* preserve hidden mutation message contract ([6b6ec00](https://github.com/devr-tools/codeguard/commit/6b6ec009b75d3fbc0b84d3505f72ca4baeb80bbb))
+* satisfy security lint checks ([0c02e91](https://github.com/devr-tools/codeguard/commit/0c02e91b78aa3afafdb2a30dba71f5ac0c8abd69))
+
 ## [1.8.1](https://github.com/devr-tools/codeguard/compare/v1.8.0...v1.8.1) (2026-08-29)
 
 
