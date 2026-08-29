@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.0](https://github.com/devr-tools/codeguard/compare/v1.7.3...v1.8.0) (2026-08-29)
+
+
+### Features
+
+* add baseline governance ([5e532a2](https://github.com/devr-tools/codeguard/commit/5e532a2a23b60c19e357cbc155f8fe8e695bf306))
+* add baseline governance ([#165](https://github.com/devr-tools/codeguard/issues/165)) ([5b47aba](https://github.com/devr-tools/codeguard/commit/5b47aba416af4ddd18fe9b4e5af0d90a699109c3))
+
+
+### Bug Fixes
+
+* satisfy baseline governance lint checks ([19f1840](https://github.com/devr-tools/codeguard/commit/19f18407bda355a70a6e4f59b8b24608bfff7e5b))
+
 ## [1.7.3](https://github.com/devr-tools/codeguard/compare/v1.7.2...v1.7.3) (2026-08-29)
 
 
