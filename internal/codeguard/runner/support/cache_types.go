@@ -33,6 +33,6 @@ type cacheEntry struct {
 
 // scanCacheVersion is bumped whenever the on-disk cache layout or the meaning of
 // a stored fingerprint changes, so stale caches are discarded wholesale rather
-// than reused with mismatched semantics. v7 introduced per-section config
-// fingerprints (see SectionConfigHashes).
-const scanCacheVersion = 7
+// than reused with mismatched semantics. v8 introduced content fingerprints for
+// path-insensitive baseline suppression after code moves.
+const scanCacheVersion = 8

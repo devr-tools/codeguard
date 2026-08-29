@@ -87,6 +87,20 @@ func isIntegrationAdapterPath(file string) bool {
 		strings.Contains(normalized, "/integrations/")
 }
 
+func isPostgresRepositoryPath(file string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	if strings.HasPrefix(normalized, "platform/storage/postgres/") ||
+		strings.Contains(normalized, "/platform/storage/postgres/") {
+		return true
+	}
+	base := normalized
+	if slash := strings.LastIndex(base, "/"); slash >= 0 {
+		base = base[slash+1:]
+	}
+	return (strings.Contains(normalized, "/postgres/") || strings.Contains(normalized, "/pgx/")) &&
+		(strings.Contains(base, "repository") || strings.Contains(base, "repo"))
+}
+
 func configuredPluralDomainAbbreviation(name string) bool {
 	switch name {
 	case "docs", "krs":

@@ -11,6 +11,10 @@ type BaselineEntry struct {
 	// (rule, path, and normalized surrounding source). Absent in baseline files
 	// written before it existed; those entries match on Fingerprint alone.
 	ContextFingerprint string `json:"context_fingerprint,omitempty"`
+	// ContentFingerprint is the path-insensitive version of ContextFingerprint.
+	// It lets a baseline keep suppressing unchanged logic after the code is
+	// split into new files or moved as part of a refactor.
+	ContentFingerprint string `json:"content_fingerprint,omitempty"`
 	RuleID             string `json:"rule_id,omitempty"`
 	Path               string `json:"path,omitempty"`
 	Message            string `json:"message,omitempty"`
@@ -60,6 +64,9 @@ type Finding struct {
 	// survives unrelated edits that only shift the finding within the file.
 	// Falls back to Fingerprint when no source context is available.
 	ContextFingerprint string `json:"context_fingerprint,omitempty"`
+	// ContentFingerprint hashes the rule and normalized source context without
+	// the path, preserving baseline suppression across file moves.
+	ContentFingerprint string `json:"content_fingerprint,omitempty"`
 	Suppressed         bool   `json:"suppressed,omitempty"`
 	SuppressionReason  string `json:"suppression_reason,omitempty"`
 	// Metadata carries machine-readable, non-sensitive finding attributes. It
