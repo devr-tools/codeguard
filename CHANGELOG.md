@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.1](https://github.com/devr-tools/codeguard/compare/v1.8.0...v1.8.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* consume baseline matches deterministically ([bf865ce](https://github.com/devr-tools/codeguard/commit/bf865cee544c8c155c5605c8904b4b3cb0061c83))
+* improve Go global and boolean naming precision ([dcb4ad6](https://github.com/devr-tools/codeguard/commit/dcb4ad62d33097ccd891444f5265cc50cbd2cde2))
+* repair CodeGuard v1.8.0 regressions ([#168](https://github.com/devr-tools/codeguard/issues/168)) ([7443747](https://github.com/devr-tools/codeguard/commit/7443747a509d7e7e74f4cf4e205bd612f7032771))
+* report installed module version ([f828a65](https://github.com/devr-tools/codeguard/commit/f828a65927235720552d28db1d06aba46e1bdd00))
+* resolve Go imports by owning workspace module ([8b952e3](https://github.com/devr-tools/codeguard/commit/8b952e3356212e3a86a99e467178b121dbffa56c))
+* satisfy strict lint checks ([b4a1c18](https://github.com/devr-tools/codeguard/commit/b4a1c180e5e000a94e726d3637f7326c5fbded47))
+
 ## [1.8.0](https://github.com/devr-tools/codeguard/compare/v1.7.3...v1.8.0) (2026-08-29)
 
 
