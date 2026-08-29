@@ -137,3 +137,11 @@ func Country(order Order) string { return order.Customer().Account().Owner().Add
 	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 	findFinding(t, report, "Code Quality", "smell.message-chain")
 }
+
+func TestMessageChainAllowsRepeatedCallsOnLocalFluentValue(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "buffer.go"), `package sample
+func Render() string { buf := NewBuffer(); return buf.Append("a").Append("b").Append("c").Finish() }`)
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+	assertFindingRuleAbsent(t, report, "Code Quality", "smell.message-chain")
+}

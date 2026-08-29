@@ -3,6 +3,8 @@ package quality
 import (
 	"regexp"
 	"strings"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 )
 
 type mutationEvidence struct {
@@ -65,16 +67,15 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 		if name == "" {
 			continue
 		}
-		if origins[name] == "" {
-			origins[name], targets[name] = originLocal, targetLocal
-		}
-		if match := aliasExprPattern.FindStringSubmatch(strings.TrimSpace(assignment.Expr)); len(match) == 2 {
+		if match := aliasExprPattern.FindStringSubmatch(strings.TrimSpace(assignment.Expr)); len(match) == 2 && assignmentDeclaresLocal(fn, assignment) {
 			if origin := origins[match[1]]; origin != "" {
 				origins[name], targets[name] = origin, targets[match[1]]
 			}
 		}
-		if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(assignmentStatement(fn, assignment.Line), assignment.Expr) {
+		if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(fn, assignment) {
 			origins[name], targets[name] = originLocal, targetLocal
+		} else if origins[name] == "" && strings.Contains(assignment.Expr, "(") {
+			origins[name], targets[name] = originUnknown, targetEscaped
 		}
 	}
 	for _, pattern := range []*regexp.Regexp{goAliasPattern, cppAliasPattern} {
@@ -185,9 +186,29 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 	return evidence
 }
 
-func looksLikeLocalObjectAllocation(statement, expr string) bool {
-	lower := strings.ToLower(statement + " " + expr)
-	return containsAny(lower, []string{":= &", ":= make(", "= new ", "{}", "std::", "builder", "dto", "response", "payload"})
+func assignmentDeclaresLocal(fn precisionFunction, assignment support.ParsedAssignment) bool {
+	statement := assignmentStatement(fn, assignment.Line)
+	name := regexp.QuoteMeta(strings.TrimSpace(assignment.Name))
+	if name == "" {
+		return false
+	}
+	return regexp.MustCompile(`\b`+name+`\s*:=`).MatchString(statement) ||
+		regexp.MustCompile(`(?i)\b(?:const|let|var|auto)\s+`+name+`\b`).MatchString(statement) ||
+		regexp.MustCompile(`\b[A-Za-z_$][\w$:<>, ]*\s*&\s*`+name+`\b`).MatchString(statement)
+}
+
+func looksLikeLocalObjectAllocation(fn precisionFunction, assignment support.ParsedAssignment) bool {
+	lowerExpr := strings.ToLower(strings.TrimSpace(assignment.Expr))
+	if lowerExpr != "" {
+		return strings.HasPrefix(lowerExpr, "&") || strings.HasPrefix(lowerExpr, "new ") ||
+			strings.HasPrefix(lowerExpr, "make(") || strings.Contains(lowerExpr, "{}") ||
+			strings.HasPrefix(lowerExpr, "std::") || containsAny(lowerExpr, []string{"builder", "dto", "response", "payload"})
+	}
+	lowerStatement := strings.ToLower(assignmentStatement(fn, assignment.Line))
+	name := regexp.QuoteMeta(strings.ToLower(strings.TrimSpace(assignment.Name)))
+	return regexp.MustCompile(`\b`+name+`\s*:=\s*(?:&|make\s*\()`).MatchString(lowerStatement) ||
+		regexp.MustCompile(`\b`+name+`\s*=\s*new\b`).MatchString(lowerStatement) ||
+		regexp.MustCompile(`\b[A-Za-z_$][\w$:<>, ]+\s+`+name+`\s*\{`).MatchString(lowerStatement)
 }
 
 func observableCallEffect(callee string) string {

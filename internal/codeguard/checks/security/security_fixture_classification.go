@@ -27,12 +27,14 @@ func classifyFixtureCandidate(path, line string, match Match) fixtureAssessment 
 	}
 	lower := strings.ToLower(line)
 	evidence := []string{"path_scope:fixture"}
-	synthetic := containsAny(lower, syntheticTokens)
+	value := lower
 	symbol := false
 	if assignment := strings.IndexAny(lower, "=:"); assignment > 0 {
 		symbol = containsAny(lower[:assignment], fixtureSymbolTokens)
+		value = lower[assignment+1:]
 	}
-	if strings.Contains(lower, "example.com") {
+	synthetic := containsAny(value, syntheticTokens)
+	if strings.Contains(value, "example.com") {
 		evidence = append(evidence, "host:reserved_example")
 	}
 	if symbol {

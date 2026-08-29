@@ -117,13 +117,10 @@ func Run(ctx context.Context, dir string, cmdName string, sc runnersupport.Conte
 	}
 	text, err := runnersupport.RunLimitedCommand(ctx, dir, maxOutputBytes, cmdName, "./...")
 	parsed := parseOutput(text, sc)
-	if len(parsed) > 0 {
-		return parsed, nil
-	}
 	if err != nil {
-		return nil, fmt.Errorf("govulncheck integration failed: %w", err)
+		return parsed, fmt.Errorf("govulncheck integration failed: %w", err)
 	}
-	return nil, nil
+	return parsed, nil
 }
 
 func parseOutput(output string, sc runnersupport.Context) []core.Finding {

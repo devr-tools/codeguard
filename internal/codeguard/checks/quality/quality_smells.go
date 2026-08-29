@@ -549,8 +549,13 @@ func independentlyOwnedMessageChain(line string) bool {
 		return false
 	}
 	generatedAccessors := 0
+	seenMembers := make(map[string]int, len(members))
 	for _, member := range members {
 		name := strings.ToLower(member[1])
+		seenMembers[name]++
+		if seenMembers[name] >= 2 {
+			return false
+		}
 		if strings.HasPrefix(name, "get") || containsAny(name, []string{"value", "unwrap", "orelse", "valueor", "andthen"}) {
 			generatedAccessors++
 		}

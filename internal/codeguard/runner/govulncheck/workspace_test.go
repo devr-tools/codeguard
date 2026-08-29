@@ -7,7 +7,26 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
+
+func TestRunPreservesPartialFindingsAndPropagatesCommandError(t *testing.T) {
+	dir := t.TempDir()
+	command := filepath.Join(dir, defaultCommand)
+	writeTestFile(t, dir, defaultCommand, "#!/bin/sh\necho 'Vulnerability #1: GO-2099-0099'\necho '  Found in: example.com/partial@v1.0.0'\necho ''\nexit 2\n")
+	if err := os.Chmod(command, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	findings, err := Run(context.Background(), dir, defaultCommand, runnersupport.Context{})
+	if len(findings) != 1 {
+		t.Fatalf("findings = %#v, want partial vulnerability", findings)
+	}
+	if err == nil {
+		t.Fatal("error = nil, want command failure alongside partial findings")
+	}
+}
 
 func TestDiscoverModulesFromWorkspaceWithoutRootModule(t *testing.T) {
 	t.Parallel()
@@ -70,13 +89,13 @@ func TestScanWorkspaceTimesOutOneModuleWithoutDiscardingOthers(t *testing.T) {
 	execute := func(ctx context.Context, module Module) ([]Vulnerability, error) {
 		if module.ModulePath == "example.com/slow" {
 			<-ctx.Done()
-			return nil, ctx.Err()
+			return []Vulnerability{{AdvisoryID: "GO-2099-0003"}}, ctx.Err()
 		}
 		return []Vulnerability{{AdvisoryID: "GO-2099-0002"}}, nil
 	}
 	result := ScanWorkspace(context.Background(), workspace, ScanOptions{Concurrency: 2, ModuleTimeout: 10 * time.Millisecond, Execute: execute})
-	if len(result.Vulnerabilities) != 1 {
-		t.Fatalf("Vulnerabilities = %#v, want fast module result", result.Vulnerabilities)
+	if len(result.Vulnerabilities) != 2 {
+		t.Fatalf("Vulnerabilities = %#v, want fast and partial timed-out module results", result.Vulnerabilities)
 	}
 	if result.Modules[1].Status != ModuleTimedOut {
 		t.Fatalf("slow status = %q, want timed_out", result.Modules[1].Status)

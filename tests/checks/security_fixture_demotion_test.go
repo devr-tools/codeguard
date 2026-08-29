@@ -174,3 +174,16 @@ func TestSecurityLikelySyntheticFixtureIsDiagnosticNotFinding(t *testing.T) {
 		t.Fatalf("diagnostics = %#v, want likely synthetic fixture", section.Diagnostics)
 	}
 }
+
+func TestSecurityFixtureSymbolDoesNotSuppressRealSecretValue(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "testdata", "auth.go"), "package testdata\nconst FakePassword = \"actual-secret-value\"\n")
+
+	report := fixtureDemotionReport(t, dir, nil)
+	assertFindingRulePresent(t, report, "Security", "security.hardcoded-secret")
+	finding := findFinding(t, report, "Security", "security.hardcoded-secret")
+	if finding.Metadata["classification"] == "likely_synthetic_fixture" {
+		t.Fatalf("fixture-shaped symbol suppressed a non-synthetic value: %#v", finding)
+	}
+}
