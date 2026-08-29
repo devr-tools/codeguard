@@ -323,6 +323,226 @@ func TestFunctionReturnContractRules(t *testing.T) {
 	assertFindingRulePresent(t, report, "Code Quality", "function.partial-result")
 }
 
+func TestFunctionReturnContractAllowsStandardGoRepositoryResults(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "services", "postgres", "collections_repository.go"), strings.Join([]string{
+		"package postgres",
+		"",
+		"import \"context\"",
+		"",
+		"type Collection struct{ ID string }",
+		"type CollectionItem struct{ ID string }",
+		"type Row interface{ Scan(...any) error }",
+		"type Rows interface{ Next() bool; Scan(...any) error; Err() error; Close() error }",
+		"type Querier interface{ QueryRow(context.Context, string, ...any) Row; Query(context.Context, string, ...any) (Rows, error); Exec(context.Context, string, ...any) (CommandTag, error) }",
+		"type CommandTag interface{ RowsAffected() int64 }",
+		"type CollectionsRepository struct{ db Querier }",
+		"",
+		"func (r *CollectionsRepository) FindCollection(ctx context.Context, id string) (*Collection, error) {",
+		"\trow := r.db.QueryRow(ctx, \"select id from collections where id=$1\", id)",
+		"\tcollection := &Collection{}",
+		"\tif err := row.Scan(&collection.ID); err != nil {",
+		"\t\treturn nil, err",
+		"\t}",
+		"\treturn collection, nil",
+		"}",
+		"",
+		"func (r *CollectionsRepository) ListCollectionItems(ctx context.Context, id string) ([]*CollectionItem, error) {",
+		"\trows, err := r.db.Query(ctx, \"select id from collection_items where collection_id=$1\", id)",
+		"\tif err != nil {",
+		"\t\treturn nil, err",
+		"\t}",
+		"\tdefer rows.Close()",
+		"\titems := []*CollectionItem{}",
+		"\tfor rows.Next() {",
+		"\t\titem := &CollectionItem{}",
+		"\t\tif err := rows.Scan(&item.ID); err != nil {",
+		"\t\t\treturn nil, err",
+		"\t\t}",
+		"\t\titems = append(items, item)",
+		"\t}",
+		"\treturn items, rows.Err()",
+		"}",
+		"",
+		"func (r *CollectionsRepository) CollectionExists(ctx context.Context, id string) (bool, error) {",
+		"\trow := r.db.QueryRow(ctx, \"select exists(select 1 from collections where id=$1)\", id)",
+		"\tvar exists bool",
+		"\tif err := row.Scan(&exists); err != nil {",
+		"\t\treturn false, err",
+		"\t}",
+		"\treturn exists, nil",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.inconsistent-return-contract")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.partial-result")
+}
+
+func TestBooleanPredicateNamingOnlyRunsOnBooleanReturns(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "values.go"), strings.Join([]string{
+		"package sample",
+		"",
+		"type Field struct{}",
+		"type Row struct{}",
+		"type Timing struct{}",
+		"type Context struct{}",
+		"type Collection struct{}",
+		"",
+		"func Get(limit int) *Collection {",
+		"\treturn &Collection{}",
+		"}",
+		"",
+		"func RawStringField(row Row, fallback string) string {",
+		"\treturn \"value\"",
+		"}",
+		"",
+		"func ValueOrNotFound(value string, fallback string) (string, error) {",
+		"\treturn value, nil",
+		"}",
+		"",
+		"func CollectOneRowOrNilAndClose(rows []Row, limit int) (*Row, error) {",
+		"\treturn nil, nil",
+		"}",
+		"",
+		"func TimingFromContext(ctx Context, fallback Timing) Timing {",
+		"\treturn Timing{}",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+}
+
+func TestBooleanPredicateNamingAcceptsConventionalPredicateVocabulary(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "predicates.go"), strings.Join([]string{
+		"package sample",
+		"",
+		"func ContainsNeedle(haystack string, needle string) bool { return true }",
+		"func MatchesPattern(value string) bool { return true }",
+		"func AllowsAccess(userID string) bool { return true }",
+		"func ExistsInCache(key string) bool { return true }",
+		"func SupportedFormat(format string) bool { return true }",
+		"func ChangedSince(version int) bool { return true }",
+		"func ReadableBy(userID string) bool { return true }",
+		"func CompatibleWith(version string) bool { return true }",
+		"func CompleteEnough(score int) bool { return true }",
+		"func ForbiddenFor(role string) bool { return true }",
+		"func IncludedInPlan(plan string) bool { return true }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.boolean-not-predicate")
+}
+
+func TestGoLocalRowAssignmentsDoNotLookLikeMutableGlobals(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "collections.go"), strings.Join([]string{
+		"package sample",
+		"",
+		"type CollectionItem struct{ ID string }",
+		"",
+		"func BuildItems(ids []string) []CollectionItem {",
+		"\titems := make([]CollectionItem, 0, len(ids))",
+		"\tvar row CollectionItem",
+		"\tfor _, id := range ids {",
+		"\t\trow = CollectionItem{ID: id}",
+		"\t\titems = append(items, row)",
+		"\t}",
+		"\treturn items",
+		"}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.mutable-global-state")
+}
+
+func TestPostgresRepositoryAllowsPgxQueriesAndRowsAffectedResults(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "platform", "storage", "postgres", "collections_repository.go"), strings.Join([]string{
+		"package postgres",
+		"",
+		"import \"context\"",
+		"",
+		"type Collection struct{ ID string }",
+		"type Row interface{ Scan(...any) error }",
+		"type CommandTag interface{ RowsAffected() int64 }",
+		"type PgxPool interface{ QueryRow(context.Context, string, ...any) Row; Exec(context.Context, string, ...any) (CommandTag, error) }",
+		"type CollectionsRepository struct{ pool PgxPool }",
+		"",
+		"func (r *CollectionsRepository) FindCollection(ctx context.Context, id string) (*Collection, error) {",
+		"\tif err := validateCollectionID(id); err != nil {",
+		"\t\treturn nil, err",
+		"\t}",
+		"\trow := r.pool.QueryRow(ctx, \"select id from collections where id=$1\", id)",
+		"\treturn scanCollection(row)",
+		"}",
+		"",
+		"func (r *CollectionsRepository) LikeCollection(ctx context.Context, userID string, collectionID string) (bool, error) {",
+		"\tif err := validateCollectionID(collectionID); err != nil {",
+		"\t\treturn false, err",
+		"\t}",
+		"\ttag, err := r.pool.Exec(ctx, \"insert into collection_likes(user_id, collection_id) values($1, $2) on conflict do nothing\", userID, collectionID)",
+		"\tif err != nil {",
+		"\t\treturn false, err",
+		"\t}",
+		"\treturn tag.RowsAffected() > 0, nil",
+		"}",
+		"",
+		"func (r *CollectionsRepository) UnlikeCollection(ctx context.Context, userID string, collectionID string) (bool, error) {",
+		"\ttag, err := r.pool.Exec(ctx, \"delete from collection_likes where user_id=$1 and collection_id=$2\", userID, collectionID)",
+		"\tif err != nil {",
+		"\t\treturn false, err",
+		"\t}",
+		"\treturn tag.RowsAffected() > 0, nil",
+		"}",
+		"",
+		"func validateCollectionID(string) error { return nil }",
+		"func scanCollection(Row) (*Collection, error) { return &Collection{}, nil }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.mixed-abstraction-level")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.partial-result")
+}
+
+func TestPostgresStorageAdapterAllowsPgxQueriesOutsideRepositoryFilename(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "platform", "storage", "postgres", "collection_store.go"), strings.Join([]string{
+		"package postgres",
+		"",
+		"import \"context\"",
+		"",
+		"type Collection struct{ ID string }",
+		"type Row interface{ Scan(...any) error }",
+		"type PgxPool interface{ QueryRow(context.Context, string, ...any) Row }",
+		"type Store struct{ pool PgxPool }",
+		"",
+		"func (s *Store) LoadCollection(ctx context.Context, id string) (*Collection, error) {",
+		"\tif err := validateCollectionID(id); err != nil {",
+		"\t\treturn nil, err",
+		"\t}",
+		"\trow := s.pool.QueryRow(ctx, \"select id from collections where id=$1\", id)",
+		"\treturn scanCollection(row)",
+		"}",
+		"",
+		"func validateCollectionID(string) error { return nil }",
+		"func scanCollection(Row) (*Collection, error) { return &Collection{}, nil }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.mixed-abstraction-level")
+}
+
 func TestFunctionPrecisionSkipsExplicitSingleResponsibility(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "clean.ts"), strings.Join([]string{

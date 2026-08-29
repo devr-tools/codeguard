@@ -2,6 +2,7 @@ package checks_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -94,6 +95,40 @@ func TestBaselineSuppressesFindingAfterLineShift(t *testing.T) {
 	assertSectionStatus(t, report, "AI Prompts", "pass")
 	if report.Summary.SuppressedFindings == 0 {
 		t.Fatal("expected the pre-edit baseline to suppress the shifted finding")
+	}
+}
+
+func TestBaselineSuppressesFindingAfterMoveToSplitFile(t *testing.T) {
+	dir := t.TempDir()
+	legacyPath := filepath.Join(dir, "prompts", "legacy", "system.prompt")
+	writeFile(t, legacyPath, shiftPromptBody)
+
+	cfg := promptOnlyConfig(dir, "fingerprint-move-test")
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	assertSectionStatus(t, report, "AI Prompts", "fail")
+
+	baselinePath := filepath.Join(dir, "codeguard-baseline.json")
+	if writeErr := codeguard.WriteBaselineFile(baselinePath, codeguard.BaselineEntriesFromReport(report)); writeErr != nil {
+		t.Fatalf("write baseline: %v", writeErr)
+	}
+
+	if removeErr := os.Remove(legacyPath); removeErr != nil {
+		t.Fatalf("remove legacy file: %v", removeErr)
+	}
+	writeFile(t, filepath.Join(dir, "prompts", "split", "system.prompt"), shiftPromptBody)
+
+	cfg.Baseline.Path = baselinePath
+	report, err = codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run with baseline after move: %v", err)
+	}
+	assertSectionStatus(t, report, "AI Prompts", "pass")
+	if report.Summary.SuppressedFindings == 0 {
+		t.Fatal("expected the pre-move baseline to suppress the moved finding")
 	}
 }
 

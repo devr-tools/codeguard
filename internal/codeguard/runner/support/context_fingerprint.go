@@ -20,6 +20,14 @@ const contextFingerprintRadius = 2
 // is unreadable, or the line is past end of file), letting the caller fall
 // back to the legacy fingerprint.
 func contextFingerprint(sc Context, ruleID string, normalizedPath string, line int) string {
+	return findingContextFingerprint(sc, ruleID, normalizedPath, line, true)
+}
+
+func contentFingerprint(sc Context, ruleID string, normalizedPath string, line int) string {
+	return findingContextFingerprint(sc, ruleID, normalizedPath, line, false)
+}
+
+func findingContextFingerprint(sc Context, ruleID string, normalizedPath string, line int, includePath bool) string {
 	if line <= 0 || normalizedPath == "" {
 		return ""
 	}
@@ -31,7 +39,11 @@ func contextFingerprint(sc Context, ruleID string, normalizedPath string, line i
 	if !ok {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(strings.Join([]string{ruleID, normalizedPath, context}, "|")))
+	parts := []string{ruleID, context}
+	if includePath {
+		parts = []string{ruleID, normalizedPath, context}
+	}
+	sum := sha256.Sum256([]byte(strings.Join(parts, "|")))
 	return hex.EncodeToString(sum[:])
 }
 

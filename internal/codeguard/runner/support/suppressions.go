@@ -44,6 +44,11 @@ func IsSuppressed(sc Context, finding core.Finding) (bool, string) {
 				return true, "baseline"
 			}
 		}
+		if finding.ContentFingerprint != "" {
+			if _, ok := sc.Baseline[finding.ContentFingerprint]; ok {
+				return true, SuppressionReasonBaseline
+			}
+		}
 	}
 	if len(MatchingWaivers(sc, finding)) > 0 {
 		return true, SuppressionReasonWaiver

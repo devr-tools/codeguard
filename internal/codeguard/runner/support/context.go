@@ -170,6 +170,7 @@ func BaselineEntriesFromReport(report core.Report) []core.BaselineEntry {
 			entries = append(entries, core.BaselineEntry{
 				Fingerprint:        finding.Fingerprint,
 				ContextFingerprint: contextFP,
+				ContentFingerprint: finding.ContentFingerprint,
 				RuleID:             finding.RuleID,
 				Path:               finding.Path,
 				Message:            finding.Message,
@@ -199,6 +200,9 @@ func loadBaselineFile(path string) (map[string]core.BaselineEntry, error) {
 		}
 		if entry.ContextFingerprint != "" {
 			out[entry.ContextFingerprint] = entry
+		}
+		if entry.ContentFingerprint != "" {
+			out[entry.ContentFingerprint] = entry
 		}
 	}
 	return out, nil

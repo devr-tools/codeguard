@@ -24,9 +24,9 @@ func ConfigFingerprint(cfg core.Config, extras ...string) string {
 	if err != nil {
 		return ""
 	}
-	// version 8: findings gained ContextFingerprint, so entries cached by
+	// version 9: findings gained ContentFingerprint, so entries cached by
 	// earlier scanners must be recomputed rather than replayed without it.
-	prefix := "scanner-version-8|" + strings.Join(extras, "|") + "|"
+	prefix := "scanner-version-9|" + strings.Join(extras, "|") + "|"
 	return hashBytes(append([]byte(prefix), data...))
 }
 
@@ -40,9 +40,9 @@ func ConfigFingerprint(cfg core.Config, extras ...string) string {
 // section id that sectionConfigFamily does not recognize, so a newly added
 // section can never silently serve stale cache entries.
 func SectionConfigHashes(cfg core.Config, catalog map[string]core.RuleMetadata, extras ...string) map[string]string {
-	// v3: quality/security findings can now come from the tree-sitter path, so
-	// the parser selection (cfg.Parsers) is part of their fingerprints.
-	prefix := "section-config-v3|" + strings.Join(extras, "|") + "|"
+	// v4: findings gained ContentFingerprint, so cached per-file findings need
+	// to be regenerated with the path-insensitive fingerprint.
+	prefix := "section-config-v4|" + strings.Join(extras, "|") + "|"
 	checks := cfg.Checks
 	return map[string]string{
 		// quality reads both QualityRules and DesignRules, and its AI-quality

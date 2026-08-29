@@ -35,6 +35,7 @@ func NewFinding(sc Context, input FindingInput) core.Finding {
 	if contextFP == "" {
 		contextFP = legacy
 	}
+	contentFP := contentFingerprint(sc, input.RuleID, normalizedPath, input.Line)
 	return core.Finding{
 		RuleID:             input.RuleID,
 		Level:              input.Level,
@@ -50,6 +51,7 @@ func NewFinding(sc Context, input FindingInput) core.Finding {
 		Column:             input.Column,
 		Fingerprint:        legacy,
 		ContextFingerprint: contextFP,
+		ContentFingerprint: contentFP,
 		Metadata:           cloneMetadata(input.Metadata),
 	}
 }

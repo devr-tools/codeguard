@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/printer"
 	"go/token"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -88,20 +89,24 @@ func excessiveParameterFinding(env support.Context, file string, fn functionMetr
 func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, data []byte) []core.Finding {
 	findings := make([]core.Finding, 0)
 	ast.Inspect(parsed, func(n ast.Node) bool {
-		switch node := n.(type) {
-		case *ast.FuncDecl:
+		if node, ok := n.(*ast.FuncDecl); ok {
 			fn := goPrecisionFunction(fset, node, data)
 			findings = append(findings, precisionFunctionFindings(env, file, fn)...)
 			if node.Body != nil {
 				findings = append(findings, goDefensiveFindings(env, file, fset, node.Body)...)
 			}
-		case *ast.GenDecl:
-			findings = append(findings, goGenericDeclFindings(env, file, fset, node)...)
-			findings = append(findings, goMutableGlobalFindings(env, file, fset, node)...)
-			findings = append(findings, goDuplicatedKnowledgeFindings(env, file, fset, node)...)
 		}
 		return true
 	})
+	for _, decl := range parsed.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		findings = append(findings, goGenericDeclFindings(env, file, fset, gen)...)
+		findings = append(findings, goMutableGlobalFindings(env, file, fset, gen)...)
+		findings = append(findings, goDuplicatedKnowledgeFindings(env, file, fset, gen)...)
+	}
 	findings = append(findings, redundantCommentFindings(env, file, string(data))...)
 	findings = append(findings, sourceDuplicatedKnowledgeFindings(env, file, string(data))...)
 	findings = append(findings, sourceNamingFindings(env, file, string(data))...)
@@ -426,6 +431,7 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 	}
 	if mixedAbstractionLevel(fn) &&
 		!isQualityFixturePath(file) &&
+		!isPostgresRepositoryPath(file) &&
 		!isAdapterOrOrchestrationFunction(file, fn) &&
 		!isFrameworkOrchestrationBoundary(file, fn) &&
 		!isScriptEntrypoint(file, fn.Name) &&
@@ -578,7 +584,7 @@ func commandQueryMix(file string, fn precisionFunction) bool {
 	if isQualityFixturePath(file) {
 		return false
 	}
-	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || isUIHelperOrMappingContext(file, fn) || isScriptEntrypoint(file, fn.Name) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) || isSecurityOrConfigUtilityFunction(file, fn) || explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) {
+	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || isUIHelperOrMappingContext(file, fn) || isScriptEntrypoint(file, fn.Name) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) || isPostgresRepositoryPath(file) || isSecurityOrConfigUtilityFunction(file, fn) || explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) {
 		return false
 	}
 	if !fn.Returns {
@@ -760,6 +766,9 @@ func redundantCommentFindings(env support.Context, file string, source string) [
 
 func sourceMutableGlobalFindings(env support.Context, file string, source string) []core.Finding {
 	if isQualityFixturePath(file) {
+		return nil
+	}
+	if strings.EqualFold(filepath.Ext(file), ".go") {
 		return nil
 	}
 	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))

@@ -452,6 +452,9 @@ func inconsistentReturnContract(fn precisionFunction) bool {
 	if explicitNullableReturnContract(fn) {
 		return false
 	}
+	if standardGoResultErrorContract(fn) && !returnsNonZeroValueWithError(fn) {
+		return false
+	}
 	returns := returnCategories(fn.Body)
 	if returns.total < 2 {
 		return false
@@ -547,7 +550,75 @@ func partialResult(fn precisionFunction) bool {
 	if strings.Contains(loweredName, "partial") || strings.Contains(loweredName, "try") || explicitResultObjectContract(fn) {
 		return false
 	}
+	if standardGoResultErrorContract(fn) && !returnsNonZeroValueWithError(fn) {
+		return false
+	}
 	return partialReturnPattern.MatchString(fn.Body)
+}
+
+func standardGoResultErrorContract(fn precisionFunction) bool {
+	first := standardGoResultErrorFirstType(fn)
+	return first != ""
+}
+
+func standardGoResultErrorFirstType(fn precisionFunction) string {
+	signature := strings.ToLower(strings.ReplaceAll(fn.Signature, " ", ""))
+	if !strings.HasPrefix(signature, "(") || !strings.HasSuffix(signature, ",error)") {
+		return ""
+	}
+	first := strings.TrimPrefix(strings.TrimSuffix(signature, ",error)"), "(")
+	if first == "" || strings.Contains(first, ",") {
+		return ""
+	}
+	return first
+}
+
+func returnsNonZeroValueWithError(fn precisionFunction) bool {
+	firstType := standardGoResultErrorFirstType(fn)
+	for _, match := range returnLinePattern.FindAllStringSubmatch(fn.Body, -1) {
+		if len(match) < 2 {
+			continue
+		}
+		expr := strings.TrimSpace(match[1])
+		parts := strings.Split(expr, ",")
+		if len(parts) < 2 {
+			continue
+		}
+		first := strings.TrimSpace(parts[0])
+		second := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(parts[1], ";")))
+		if second != "err" && second != "error" {
+			continue
+		}
+		if !isEmptyReturnExpr(first) && !isGoZeroReturnExpr(firstType, first) {
+			return true
+		}
+	}
+	return false
+}
+
+func isGoZeroReturnExpr(resultType string, expr string) bool {
+	resultType = strings.TrimSpace(strings.ToLower(resultType))
+	expr = strings.TrimSpace(strings.TrimSuffix(expr, ";"))
+	loweredExpr := strings.ToLower(expr)
+	if resultType == "bool" {
+		return loweredExpr == "false"
+	}
+	if resultType == "string" {
+		return expr == `""` || expr == "``"
+	}
+	if scalarTypePattern.MatchString(resultType) || strings.HasPrefix(resultType, "uint") {
+		return loweredExpr == "0"
+	}
+	if strings.HasPrefix(resultType, "*") || strings.HasPrefix(resultType, "[]") ||
+		strings.HasPrefix(resultType, "map[") || strings.HasPrefix(resultType, "chan ") ||
+		strings.HasPrefix(resultType, "func(") || resultType == "any" || resultType == "interface{}" {
+		return loweredExpr == "nil"
+	}
+	if strings.HasSuffix(loweredExpr, "{}") {
+		zeroType := strings.TrimSpace(strings.TrimSuffix(loweredExpr, "{}"))
+		return zeroType == resultType
+	}
+	return false
 }
 
 func explicitResultObjectContract(fn precisionFunction) bool {
@@ -698,12 +769,22 @@ func isBooleanType(typ string) bool {
 
 func isPredicateName(name string) bool {
 	lowered := strings.ToLower(strings.Trim(name, "_$"))
-	for _, prefix := range []string{"arrivals", "deep", "is", "are", "has", "have", "can", "could", "should", "must", "allow", "allows", "enable", "enabled", "disable", "disabled", "needs", "requires", "supports", "valid", "verify", "visible", "ready", "show", "looks", "matches", "same", "pass", "passes"} {
+	for _, prefix := range []string{
+		"allow", "allows", "are", "can", "changed", "compatible", "complete",
+		"contains", "could", "deep", "disable", "disabled", "enable", "enabled",
+		"exists", "forbidden", "has", "have", "included", "is", "looks",
+		"matches", "must", "needs", "pass", "passes", "readable", "ready",
+		"requires", "same", "should", "show", "supported", "supports", "valid",
+		"verify", "visible",
+	} {
 		if strings.HasPrefix(lowered, prefix) {
 			return true
 		}
 	}
-	for _, suffix := range []string{"allowed", "equal", "equals", "differs", "matches"} {
+	for _, suffix := range []string{
+		"allowed", "changed", "compatible", "complete", "differs", "equal",
+		"equals", "forbidden", "included", "matches", "readable", "supported",
+	} {
 		if strings.HasSuffix(lowered, suffix) {
 			return true
 		}
