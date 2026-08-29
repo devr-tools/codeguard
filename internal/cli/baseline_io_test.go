@@ -73,6 +73,13 @@ func TestWritePrunedPreservesAllEntriesInAContextCollision(t *testing.T) {
 	if len(got.Entries) != 2 {
 		t.Fatalf("collision entries = %#v", got.Entries)
 	}
+	check := Audit(got, []core.Finding{
+		{Fingerprint: "current-a", ContextFingerprint: "shared", RuleID: "quality.duplicate"},
+		{Fingerprint: "current-b", ContextFingerprint: "shared", RuleID: "quality.duplicate"},
+	}, Options{})
+	if check.Counts.Stale != 0 || check.Counts.Invalid != 0 || len(check.Duplicates) != 0 {
+		t.Fatalf("freshly pruned collision baseline does not pass check: counts=%#v duplicates=%#v", check.Counts, check.Duplicates)
+	}
 }
 
 func writeFixture(t *testing.T, path string, file core.BaselineFile) {
