@@ -120,15 +120,15 @@ func precisionNamingFindings(env support.Context, file string, fn precisionFunct
 		if item.name == fn.Name && isReactComponentOrHookBoundary(file, fn) {
 			continue
 		}
-		if isSeedOrScriptSourcePath(file) && isBooleanNameCandidate(item.name, item.typ, fn) {
+		if isSeedOrScriptSourcePath(file) && isBooleanNameCandidate(item.typ) {
 			continue
 		}
-		if isBooleanNameCandidate(item.name, item.typ, fn) && isUIHelperOrMappingContext(file, fn) {
+		if isBooleanNameCandidate(item.typ) && isUIHelperOrMappingContext(file, fn) {
 			continue
 		}
-		if isBooleanNameCandidate(item.name, item.typ, fn) &&
+		if isBooleanNameCandidate(item.typ) &&
 			!isInferredUIBooleanAssignment(file, fn, item.typ, item.expr, item.line) &&
-			!(item.role == "parameter" && isImperativeBooleanParameterName(item.name)) &&
+			(item.role != "parameter" || !isImperativeBooleanParameterName(item.name)) &&
 			!isPredicateName(item.name) &&
 			!isAllowedBooleanUIName(file, fn, item.name) {
 			findings = append(findings, precisionWarnFinding(env, namingBooleanNotPredicateRuleID, file, item.line,
@@ -804,11 +804,8 @@ func orchestrationDomainMix(file string, fn precisionFunction) bool {
 	return hasInfra && hasDomainDecision
 }
 
-func isBooleanNameCandidate(name string, typ string, fn precisionFunction) bool {
-	if isBooleanType(typ) {
-		return true
-	}
-	return false
+func isBooleanNameCandidate(typ string) bool {
+	return isBooleanType(typ)
 }
 
 func isImperativeBooleanParameterName(name string) bool {

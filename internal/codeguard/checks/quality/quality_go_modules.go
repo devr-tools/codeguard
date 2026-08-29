@@ -74,7 +74,7 @@ func parseGoManifest(path string, workspace bool) ([]string, []string) {
 	if err != nil {
 		return nil, nil
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var primary, dependencies []string
 	block := ""
