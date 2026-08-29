@@ -73,10 +73,10 @@ func TestSecuritySecretsAllowPathsSkipsFixtures(t *testing.T) {
 	}, "go")
 	assertSectionStatus(t, allowed, "Security", "pass")
 
-	// Without the allowlist the same fixture is still reported, but the
-	// default fixture-path demotion downgrades it from fail to warn.
+	// Without the allowlist the provider-shaped credential remains strict even
+	// in a fixture path; path evidence alone cannot demote it.
 	blocked := secretsScanConfig(t, dir, nil, "go")
-	assertSectionStatus(t, blocked, "Security", "warn")
+	assertSectionStatus(t, blocked, "Security", "fail")
 	assertFindingRulePresent(t, blocked, "Security", "security.hardcoded-credential")
 }
 

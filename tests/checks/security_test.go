@@ -138,6 +138,7 @@ func TestSecurityCheckWarnsWhenGovulncheckIsAutoButMissing(t *testing.T) {
 
 func TestSecurityCheckSurfacesStructuredGovulncheckFindings(t *testing.T) {
 	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/test\n\ngo 1.24\n")
 	writeFile(t, filepath.Join(dir, "main.go"), "package main\nfunc main() {}\n")
 	script := filepath.Join(dir, "fake-govulncheck.sh")
 	writeExecutableFile(t, script, "#!/bin/sh\necho 'Vulnerability #1: GO-2024-0001'\necho '  Found in: example.com/module@v1.0.0'\necho '  Fixed in: example.com/module@v1.0.1'\necho ''\necho 'Vulnerability #2: GO-2024-0002'\necho '  Found in: example.com/other@v0.9.0'\nexit 1\n")

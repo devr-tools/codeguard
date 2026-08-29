@@ -18,7 +18,7 @@ const (
 // whose identifier looks secret-bearing next to a quoted value. It reports at
 // warn. privateKeyPattern detects PEM key material and reports at fail.
 var (
-	secretPattern     = regexp.MustCompile(`(?i)["']?(secret|token|api[_-]?key|password|db[_-]?pass)["']?\s*(?::=|[:=])\s*["']([^"']{8,})["']`)
+	secretPattern     = regexp.MustCompile(`(?i)["']?((?:test|fake|mock|fixture)?(?:secret|token|api[_-]?key|password|db[_-]?pass))["']?\s*(?::=|[:=])\s*["']([^"']{8,})["']`)
 	privateKeyPattern = regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`)
 
 	// quotedLiteralPattern captures whitespace-free quoted literals for the
