@@ -15,7 +15,7 @@ func TestRunPreservesPartialFindingsAndPropagatesCommandError(t *testing.T) {
 	dir := t.TempDir()
 	command := filepath.Join(dir, defaultCommand)
 	writeTestFile(t, dir, defaultCommand, "#!/bin/sh\necho 'Vulnerability #1: GO-2099-0099'\necho '  Found in: example.com/partial@v1.0.0'\necho ''\nexit 2\n")
-	if err := os.Chmod(command, 0o700); err != nil {
+	if err := os.Chmod(command, 0o700); err != nil { // #nosec G302 -- executable test fixture must have an execute bit.
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -32,7 +32,7 @@ func TestRunAcceptsGovulncheckVulnerabilityExitCode(t *testing.T) {
 	dir := t.TempDir()
 	command := filepath.Join(dir, defaultCommand)
 	writeTestFile(t, dir, defaultCommand, "#!/bin/sh\necho 'Vulnerability #1: GO-2099-0099'\necho '  Found in: example.com/affected@v1.0.0'\necho ''\nexit 3\n")
-	if err := os.Chmod(command, 0o700); err != nil {
+	if err := os.Chmod(command, 0o700); err != nil { // #nosec G302 -- executable test fixture must have an execute bit.
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -138,7 +138,7 @@ func TestDiscoverModulesUsesNearestNestedModule(t *testing.T) {
 func writeTestFile(t *testing.T, root, rel, content string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {

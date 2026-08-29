@@ -101,13 +101,6 @@ func located(m *Match, lineNo int) []Match {
 	return []Match{*m}
 }
 
-// secretFindingsForFile runs the scan over a single file and converts matches to
-// findings. It applies the path allowlist and skips binary/oversized files.
-func secretFindingsForFile(env support.Context, file string, data []byte, scanner Scanner) []core.Finding {
-	findings, _ := secretResultsForFile(env, file, data, scanner)
-	return findings
-}
-
 func secretResultsForFile(env support.Context, file string, data []byte, scanner Scanner) ([]core.Finding, []core.Diagnostic) {
 	if scanner.SkipPath(file) || len(data) > maxScanFileBytes || looksBinary(data) {
 		return nil, nil

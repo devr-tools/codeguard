@@ -22,10 +22,6 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 	return env.FinalizeSectionWithDiagnostics("security", "Security", findings, diagnostics)
 }
 
-func securityTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	return securityTargetScan(ctx, env, target).findings
-}
-
 type targetScanResult struct {
 	findings    []core.Finding
 	diagnostics []core.Diagnostic

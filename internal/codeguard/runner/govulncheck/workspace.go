@@ -63,7 +63,7 @@ func findUp(start, name string) string {
 
 func parseWorkspace(path string) (Workspace, error) {
 	root := filepath.Dir(path)
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path is the discovered go.work file, not repository content.
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -131,7 +131,7 @@ func resolveWorkPath(root, value string) string {
 }
 
 func readModulePath(path string) (string, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path is a go.mod resolved from the workspace root/use directives.
 	if err != nil {
 		return "", err
 	}

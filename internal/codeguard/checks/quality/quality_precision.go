@@ -706,11 +706,6 @@ func isDomainLevelCall(callee string) bool {
 	return strings.Contains(callee, ".") || queryFunctionPrefixPattern.MatchString(lowered) || len(callee) > 3
 }
 
-func commandQueryMix(file string, fn precisionFunction) bool {
-	_, ok := commandQueryEvidence(file, fn)
-	return ok
-}
-
 func commandQueryEvidence(file string, fn precisionFunction) (mutationEvidence, bool) {
 	if isQualityFixturePath(file) {
 		return mutationEvidence{}, false

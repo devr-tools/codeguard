@@ -200,11 +200,6 @@ func behaviorMismatch(file string, fn precisionFunction) bool {
 	return false
 }
 
-func hiddenMutation(file string, fn precisionFunction) bool {
-	_, ok := hiddenMutationEvidence(file, fn)
-	return ok
-}
-
 func hiddenMutationEvidence(file string, fn precisionFunction) (mutationEvidence, bool) {
 	if isQualityFixturePath(file) {
 		return mutationEvidence{}, false
@@ -364,31 +359,6 @@ func mutatingFunctionEvidence(fn precisionFunction) bool {
 			!isBuilderAccumulatorAssignment(fn, assignment) &&
 			!isLocalScalarAccumulatorAssignment(fn, assignment.Name) {
 			return true
-		}
-	}
-	return false
-}
-
-func mutatesParameter(fn precisionFunction) bool {
-	params := map[string]struct{}{}
-	for _, param := range fn.Params {
-		if param.Name != "" {
-			params[param.Name] = struct{}{}
-		}
-	}
-	if len(params) == 0 {
-		return false
-	}
-	for _, statement := range directStatements(fn) {
-		line := firstNonEmptyString(statement.Raw, statement.Text)
-		if !lineHasAssignmentOperator(line) {
-			continue
-		}
-		lhs := assignmentLeftHandSide(line)
-		for _, match := range paramMutationPattern.FindAllStringSubmatch(lhs, -1) {
-			if _, ok := params[match[1]]; ok {
-				return true
-			}
 		}
 	}
 	return false

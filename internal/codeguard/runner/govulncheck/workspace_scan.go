@@ -94,9 +94,9 @@ func deduplicateVulnerabilities(input []Vulnerability) []Vulnerability {
 	for _, vulnerability := range input {
 		current := byAdvisory[vulnerability.AdvisoryID]
 		if current == nil {
-			copy := vulnerability
-			copy.Occurrences = nil
-			current = &copy
+			vulnerabilityCopy := vulnerability
+			vulnerabilityCopy.Occurrences = nil
+			current = &vulnerabilityCopy
 			byAdvisory[vulnerability.AdvisoryID] = current
 		}
 		current.Occurrences = append(current.Occurrences, vulnerability.Occurrences...)
