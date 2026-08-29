@@ -55,7 +55,7 @@ func additionalPrecisionFunctionFindings(env support.Context, file string, fn pr
 	}
 	if evidence, ok := hiddenMutationEvidence(file, fn); ok {
 		findings = append(findings, precisionWarnFindingWithMetadata(env, functionHiddenMutationRuleID, file, fn.StartLine,
-			fmt.Sprintf("function %s mutates %s state through %s", fn.Name, evidence.Target, evidence.Detail),
+			fmt.Sprintf("function %s mutates state owned by %s through %s", fn.Name, evidence.Target, evidence.Detail),
 			core.ConfidenceMedium, mutationEvidenceMetadata(evidence)))
 	}
 	if !isReactComponentOrHookBoundary(file, fn) && !isUIHelperOrMappingContext(file, fn) &&
