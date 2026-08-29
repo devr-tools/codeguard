@@ -30,6 +30,7 @@ var (
 	cleanupIgnoredPattern          = regexp.MustCompile(`(?i)(_\s*=\s*[^;\n]*(close|rollback|remove|delete)\s*\(|defer\s+[^;\n]*\.close\s*\(|catch\s*\([^)]*\)\s*\{\s*(?:/\*.*\*/|//.*)?\s*\})`)
 	panicPattern                   = regexp.MustCompile(`\bpanic\s*\(`)
 	throwRaisePattern              = regexp.MustCompile(`(?i)\b(throw|raise)\b`)
+	nonPartialResultReturnPattern  = regexp.MustCompile(`(?i)^return(?:\s+(.+?))?\s*;?$`)
 )
 
 func errorContractFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -198,6 +199,9 @@ func cleanupIgnoredLine(statements []support.ParsedStatement) (int, bool) {
 }
 
 func partialFailureHiddenLine(fn precisionFunction, loweredBody string) (int, bool) {
+	if nonPartialResultFunction(fn) {
+		return 0, false
+	}
 	if partialFailureSurfacedInResult(loweredBody) {
 		return 0, false
 	}
@@ -223,6 +227,35 @@ func partialFailureHiddenLine(fn precisionFunction, loweredBody string) (int, bo
 		}
 	}
 	return 0, false
+}
+
+func nonPartialResultFunction(fn precisionFunction) bool {
+	signature := strings.ToLower(strings.ReplaceAll(fn.Signature, " ", ""))
+	if !fn.Returns {
+		return true
+	}
+	switch signature {
+	case "error", "(error)", "void":
+		return true
+	}
+	if strings.Contains(signature, "promise<void>") {
+		return true
+	}
+	for _, statement := range fn.Statements {
+		line := strings.TrimSpace(firstNonEmptyString(statement.Raw, statement.Text))
+		match := nonPartialResultReturnPattern.FindStringSubmatch(line)
+		if len(match) == 0 {
+			continue
+		}
+		if len(match) == 1 || strings.TrimSpace(match[1]) == "" {
+			continue
+		}
+		value := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(match[1], ";")))
+		if value != "nil" && value != "none" && value != "null" && value != "undefined" {
+			return false
+		}
+	}
+	return signature == "" || signature == "none"
 }
 
 func allSettledResultIsReturned(loweredBody string) bool {

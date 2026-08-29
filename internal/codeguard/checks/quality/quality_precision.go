@@ -114,6 +114,7 @@ func goPrecisionFunction(fset *token.FileSet, fn *ast.FuncDecl, data []byte) pre
 		Name:      fn.Name.Name,
 		StartLine: fset.Position(fn.Pos()).Line,
 		EndLine:   fset.Position(fn.End()).Line,
+		Signature: goResultSignature(fn),
 		Params:    goParsedParams(fn),
 		Returns:   goFuncReturnsValue(fn),
 	}
@@ -146,6 +147,27 @@ func goPrecisionFunction(fset *token.FileSet, fn *ast.FuncDecl, data []byte) pre
 		}
 	}
 	return out
+}
+
+func goResultSignature(fn *ast.FuncDecl) string {
+	if fn.Type == nil || fn.Type.Results == nil || len(fn.Type.Results.List) == 0 {
+		return ""
+	}
+	results := make([]string, 0, len(fn.Type.Results.List))
+	for _, field := range fn.Type.Results.List {
+		text := goExprText(field.Type)
+		if len(field.Names) == 0 {
+			results = append(results, text)
+			continue
+		}
+		for range field.Names {
+			results = append(results, text)
+		}
+	}
+	if len(results) == 1 {
+		return results[0]
+	}
+	return "(" + strings.Join(results, ", ") + ")"
 }
 
 func goParsedParams(fn *ast.FuncDecl) []support.ParsedParam {
