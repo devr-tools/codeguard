@@ -13,6 +13,9 @@ func MapUser(row Row) *User { out := &User{}; out.SetName(row.Name); return out 
 type Row struct { Name string }; type User struct{}; func (*User) SetName(string) {}`},
 		{"go local payload", "go", "payload.go", `package sample
 func BuildPayload(name string) map[string]any { payload := make(map[string]any); payload["name"] = name; return payload }`},
+		{"go constructor builder", "go", "buffer.go", `package sample
+type Buffer struct{}; func NewBuffer() *Buffer { return &Buffer{} }; func (*Buffer) Write(string) {}
+func Render() *Buffer { out := NewBuffer(); out.Write("ok"); return out }`},
 		{"go sql mapper", "go", "repository.go", `package sample
 func FindUser(rows Rows) (*User, error) { out := &User{}; if err := rows.Scan(&out.Name); err != nil { return nil, err }; return out, nil }
 type User struct { Name string }; type Rows interface { Scan(...any) error }`},
@@ -34,6 +37,9 @@ func TestFunctionEffectsReportOwnedAndObservableMutationEvidence(t *testing.T) {
 		{"go argument alias", "go", "mutation.go", `package sample
 type User struct { Name string }
 func PrepareUser(user *User) *User { alias := user; alias.Name = "ready"; return user }`, "argument", "shared_state", "caller_owned"},
+		{"go reassigned argument alias", "go", "reassignment.go", `package sample
+type User struct { Name string }
+func InspectUser(user *User) *User { var alias *User; alias = user; alias.Name = "seen"; return user }`, "argument", "shared_state", "caller_owned"},
 		{"go receiver", "go", "receiver.go", `package sample
 type Store struct { count int }
 func (s *Store) Current() int { s.count++; return s.count }`, "receiver", "shared_state", "caller_owned"},

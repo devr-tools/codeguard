@@ -187,3 +187,12 @@ func TestSecurityFixtureSymbolDoesNotSuppressRealSecretValue(t *testing.T) {
 		t.Fatalf("fixture-shaped symbol suppressed a non-synthetic value: %#v", finding)
 	}
 }
+
+func TestSecuritySyntheticTokensRequireValueComponents(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "testdata", "auth.go"), "package testdata\nconst FakePassword = \"latest-local-admin-secret\"\n")
+
+	report := fixtureDemotionReport(t, dir, nil)
+	assertFindingRulePresent(t, report, "Security", "security.hardcoded-secret")
+}

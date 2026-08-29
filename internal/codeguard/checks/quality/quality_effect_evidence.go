@@ -67,9 +67,9 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 		if name == "" {
 			continue
 		}
-		if match := aliasExprPattern.FindStringSubmatch(strings.TrimSpace(assignment.Expr)); len(match) == 2 && assignmentDeclaresLocal(fn, assignment) {
-			if origin := origins[match[1]]; origin != "" {
-				origins[name], targets[name] = origin, targets[match[1]]
+		if source := assignmentAliasSource(fn, assignment); source != "" && assignmentCanReceiveAlias(fn, assignment) {
+			if origin := origins[source]; origin != "" {
+				origins[name], targets[name] = origin, targets[source]
 			}
 		}
 		if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(fn, assignment) {
@@ -186,6 +186,18 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 	return evidence
 }
 
+func assignmentAliasSource(fn precisionFunction, assignment support.ParsedAssignment) string {
+	if match := aliasExprPattern.FindStringSubmatch(strings.TrimSpace(assignment.Expr)); len(match) == 2 {
+		return match[1]
+	}
+	name := regexp.QuoteMeta(strings.TrimSpace(assignment.Name))
+	match := regexp.MustCompile(`\b` + name + `\s*(?::?=)\s*&?([A-Za-z_$][\w$]*)\b`).FindStringSubmatch(assignmentStatement(fn, assignment.Line))
+	if len(match) == 2 {
+		return match[1]
+	}
+	return ""
+}
+
 func assignmentDeclaresLocal(fn precisionFunction, assignment support.ParsedAssignment) bool {
 	statement := assignmentStatement(fn, assignment.Line)
 	name := regexp.QuoteMeta(strings.TrimSpace(assignment.Name))
@@ -195,6 +207,14 @@ func assignmentDeclaresLocal(fn precisionFunction, assignment support.ParsedAssi
 	return regexp.MustCompile(`\b`+name+`\s*:=`).MatchString(statement) ||
 		regexp.MustCompile(`(?i)\b(?:const|let|var|auto)\s+`+name+`\b`).MatchString(statement) ||
 		regexp.MustCompile(`\b[A-Za-z_$][\w$:<>, ]*\s*&\s*`+name+`\b`).MatchString(statement)
+}
+
+func assignmentCanReceiveAlias(fn precisionFunction, assignment support.ParsedAssignment) bool {
+	if assignmentDeclaresLocal(fn, assignment) {
+		return true
+	}
+	name := regexp.QuoteMeta(strings.TrimSpace(assignment.Name))
+	return regexp.MustCompile(`(?m)\b(?:var|let|const|auto)\s+` + name + `\b`).MatchString(fn.Body)
 }
 
 func looksLikeLocalObjectAllocation(fn precisionFunction, assignment support.ParsedAssignment) bool {
@@ -208,7 +228,8 @@ func looksLikeLocalObjectAllocation(fn precisionFunction, assignment support.Par
 	name := regexp.QuoteMeta(strings.ToLower(strings.TrimSpace(assignment.Name)))
 	return regexp.MustCompile(`\b`+name+`\s*:=\s*(?:&|make\s*\()`).MatchString(lowerStatement) ||
 		regexp.MustCompile(`\b`+name+`\s*=\s*new\b`).MatchString(lowerStatement) ||
-		regexp.MustCompile(`\b[A-Za-z_$][\w$:<>, ]+\s+`+name+`\s*\{`).MatchString(lowerStatement)
+		regexp.MustCompile(`\b[A-Za-z_$][\w$:<>, ]+\s+`+name+`\s*\{`).MatchString(lowerStatement) ||
+		regexp.MustCompile(`\b`+name+`\s*:=\s*(?:new|create|build)[a-z0-9_$]*\s*\(`).MatchString(lowerStatement)
 }
 
 func observableCallEffect(callee string) string {

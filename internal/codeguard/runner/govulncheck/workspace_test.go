@@ -28,6 +28,24 @@ func TestRunPreservesPartialFindingsAndPropagatesCommandError(t *testing.T) {
 	}
 }
 
+func TestRunAcceptsGovulncheckVulnerabilityExitCode(t *testing.T) {
+	dir := t.TempDir()
+	command := filepath.Join(dir, defaultCommand)
+	writeTestFile(t, dir, defaultCommand, "#!/bin/sh\necho 'Vulnerability #1: GO-2099-0099'\necho '  Found in: example.com/affected@v1.0.0'\necho ''\nexit 3\n")
+	if err := os.Chmod(command, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	findings, err := Run(context.Background(), dir, defaultCommand, runnersupport.Context{})
+	if err != nil {
+		t.Fatalf("Run() error = %v, want vulnerability exit accepted", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("findings = %#v, want vulnerability", findings)
+	}
+}
+
 func TestDiscoverModulesFromWorkspaceWithoutRootModule(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

@@ -2,7 +2,9 @@ package govulncheck
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os/exec"
 	"regexp"
 	"strings"
 
@@ -118,6 +120,10 @@ func Run(ctx context.Context, dir string, cmdName string, sc runnersupport.Conte
 	text, err := runnersupport.RunLimitedCommand(ctx, dir, maxOutputBytes, cmdName, "./...")
 	parsed := parseOutput(text, sc)
 	if err != nil {
+		var exitErr *exec.ExitError
+		if len(parsed) > 0 && errors.As(err, &exitErr) && exitErr.ExitCode() == 3 {
+			return parsed, nil
+		}
 		return parsed, fmt.Errorf("govulncheck integration failed: %w", err)
 	}
 	return parsed, nil
