@@ -402,17 +402,20 @@ func hiddenPartialFailureCases() []reliabilityLanguageCase {
 
 import "log"
 
-func Process(items []Item) error {
+func Process(items []Item) ([]Result, error) {
+	results := make([]Result, 0, len(items))
 	for _, item := range items {
 		if err := process(item); err != nil {
 			log.Printf("item error: %v", err)
 			continue
 		}
+		results = append(results, Result{})
 	}
-	return nil
+	return results, nil
 }
 
 type Item struct{}
+type Result struct{}
 func process(Item) error { return nil }
 `,
 		},
@@ -424,13 +427,15 @@ func process(Item) error { return nil }
 import logging
 
 def process_all(items):
+    results = []
     for item in items:
         try:
             process(item)
         except Exception as error:
             logging.error("item failed: %s", error)
             continue
-    return None
+        results.append(item)
+    return results
 `,
 		},
 		{
@@ -438,7 +443,8 @@ def process_all(items):
 			language: "typescript",
 			file:     "batch.ts",
 			source: `
-async function processAll(items: Item[]): Promise<void> {
+async function processAll(items: Item[]): Promise<Result[]> {
+  const results: Result[] = [];
   for (const item of items) {
     try {
       await process(item);
@@ -446,9 +452,11 @@ async function processAll(items: Item[]): Promise<void> {
       console.error("item error", error);
       continue;
     }
+    results.push({});
   }
-  return;
+  return results;
 }
+interface Result {}
 `,
 		},
 		{
@@ -457,6 +465,7 @@ async function processAll(items: Item[]): Promise<void> {
 			file:     "batch.js",
 			source: `
 async function processAll(items) {
+  const results = [];
   for (const item of items) {
     try {
       await process(item);
@@ -464,8 +473,9 @@ async function processAll(items) {
       console.warn("item error", error);
       continue;
     }
+    results.push(item);
   }
-  return;
+  return results;
 }
 `,
 		},

@@ -170,6 +170,160 @@ func TestFunctionCommandQueryMixAllowsReactAndNextBoundaries(t *testing.T) {
 	}
 }
 
+func TestGoRouteRegistrationAllowsChiWiringAndServiceDeps(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "services", "rest", "share", "share_preview_routes.go"), strings.Join([]string{
+		"package share",
+		"",
+		"import \"github.com/go-chi/chi/v5\"",
+		"",
+		"type Deps struct {",
+		"\tUsersService UsersService",
+		"\tCreatorsService CreatorsService",
+		"\tNotificationsService NotificationsService",
+		"\tTermsOfServiceURL string",
+		"}",
+		"",
+		"func RegisterRoutes(api chi.Router, deps Deps) {",
+		"\tapi.Route(\"/share\", func(router chi.Router) {",
+		"\t\taddSharePreviewRoutes(router, deps)",
+		"\t})",
+		"}",
+		"",
+		"func addSharePreviewRoutes(router chi.Router, deps Deps) {",
+		"\trouter.Get(\"/{id}\", func(w ResponseWriter, r Request) {",
+		"\t\tpreview, err := validateSharePreviewRequest(r)",
+		"\t\tif err != nil {",
+		"\t\t\twriteSharePreviewError(w, err)",
+		"\t\t\treturn",
+		"\t\t}",
+		"\t\tcreator := deps.CreatorsService.Lookup(preview.CreatorID)",
+		"\t\tmedia := selectSharePreviewMedia(preview, creator)",
+		"\t\twriteSharePreviewResponse(w, metadataForSharePreview(preview, media, deps.TermsOfServiceURL))",
+		"\t})",
+		"}",
+		"",
+		"type UsersService interface { Lookup(string) Creator }",
+		"type CreatorsService interface { Lookup(string) Creator }",
+		"type NotificationsService interface { Notify(string) }",
+		"type Creator struct{}",
+		"type Request struct{}",
+		"type ResponseWriter struct{}",
+		"type Preview struct { CreatorID string }",
+		"func validateSharePreviewRequest(Request) (Preview, error) { return Preview{}, nil }",
+		"func writeSharePreviewError(ResponseWriter, error) {}",
+		"func selectSharePreviewMedia(Preview, Creator) string { return \"\" }",
+		"func metadataForSharePreview(Preview, string, string) string { return \"\" }",
+		"func writeSharePreviewResponse(ResponseWriter, string) {}",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.mixed-abstraction-level")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "naming.generic-identifier")
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.ambiguous-name")
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.primitive-obsession")
+}
+
+func TestQualityPartialFailureAllowsErrorOnlyBatchResultsAcrossLanguages(t *testing.T) {
+	cases := []struct {
+		name     string
+		language string
+		file     string
+		source   []string
+	}{
+		{
+			name:     "go",
+			language: "go",
+			file:     "records.go",
+			source: []string{
+				"package sample",
+				"",
+				"import \"log\"",
+				"",
+				"func RecordCollectionView(records []Record) error {",
+				"\tfor _, record := range records {",
+				"\t\tif err := persist(record); err != nil {",
+				"\t\t\tlog.Printf(\"record collection view failed: %v\", err)",
+				"\t\t\tcontinue",
+				"\t\t}",
+				"\t}",
+				"\treturn nil",
+				"}",
+				"",
+				"type Record struct{}",
+				"func persist(Record) error { return nil }",
+			},
+		},
+		{
+			name:     "typescript",
+			language: "typescript",
+			file:     "records.ts",
+			source: []string{
+				"export async function recordCollectionView(records: Record[]): Promise<void> {",
+				"  for (const record of records) {",
+				"    try {",
+				"      await persist(record);",
+				"    } catch (error) {",
+				"      console.error(\"record collection view failed\", error);",
+				"      continue;",
+				"    }",
+				"  }",
+				"}",
+				"interface Record {}",
+				"declare function persist(record: Record): Promise<void>;",
+			},
+		},
+		{
+			name:     "python",
+			language: "python",
+			file:     "records.py",
+			source: []string{
+				"import logging",
+				"",
+				"def record_collection_view(records) -> None:",
+				"    for record in records:",
+				"        try:",
+				"            persist(record)",
+				"        except RuntimeError as error:",
+				"            logging.warning(\"record collection view failed: %s\", error)",
+				"            continue",
+				"    return None",
+			},
+		},
+		{
+			name:     "cpp",
+			language: "cpp",
+			file:     "records.cpp",
+			source: []string{
+				"#include <iostream>",
+				"#include <vector>",
+				"",
+				"void RecordCollectionView(const std::vector<int>& records) {",
+				"  for (const auto& record : records) {",
+				"    if (!persist(record)) {",
+				"      std::cerr << \"record collection view failed\";",
+				"      continue;",
+				"    }",
+				"  }",
+				"}",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), strings.Join(tc.source, "\n"))
+
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, tc.language))
+
+			assertFindingRuleAbsent(t, report, "Code Quality", "error.partial-failure-hidden")
+		})
+	}
+}
+
 func TestFunctionMutationRulesAllowWrappedNextRouteHandlersAndRollbackNames(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "src", "app", "api", "apps", "lmp", "new-editor", "route.ts"), strings.Join([]string{

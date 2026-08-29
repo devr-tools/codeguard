@@ -129,6 +129,105 @@ type Card struct{}
 	assertFindingRulePresent(t, report, "Reliability", "reliability.non-idempotent-retry")
 }
 
+func TestReliabilityPartialFailureAllowsErrorOnlyBatchResultsAcrossLanguages(t *testing.T) {
+	cases := []struct {
+		name     string
+		language string
+		file     string
+		source   string
+	}{
+		{
+			name:     "go",
+			language: "go",
+			file:     "records.go",
+			source: `package sample
+
+import "log"
+
+func RecordCollectionView(records []Record) error {
+	for _, record := range records {
+		if err := persist(record); err != nil {
+			log.Printf("record collection view failed: %v", err)
+			continue
+		}
+	}
+	return nil
+}
+
+type Record struct{}
+func persist(Record) error { return nil }
+`,
+		},
+		{
+			name:     "typescript",
+			language: "typescript",
+			file:     "records.ts",
+			source: `export async function recordCollectionView(records: Record[]): Promise<void> {
+  for (const record of records) {
+    try {
+      await persist(record);
+    } catch (error) {
+      console.error("record collection view failed", error);
+      continue;
+    }
+  }
+}
+
+interface Record {}
+declare function persist(record: Record): Promise<void>;
+`,
+		},
+		{
+			name:     "python",
+			language: "python",
+			file:     "records.py",
+			source: `import logging
+
+def record_collection_view(records):
+    for record in records:
+        try:
+            persist(record)
+        except RuntimeError as error:
+            logging.warning("record collection view failed: %s", error)
+            continue
+    return None
+`,
+		},
+		{
+			name:     "cpp",
+			language: "cpp",
+			file:     "records.cpp",
+			source: `#include <iostream>
+#include <vector>
+
+void RecordCollectionView(const std::vector<int>& records) {
+  for (const auto& record : records) {
+    if (!persist(record)) {
+      std::cerr << "record collection view failed";
+      continue;
+    }
+  }
+}
+`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tc.file), tc.source)
+
+			cfg := reliabilityConfig("reliability-partial-error-only-"+tc.name, dir)
+			cfg.Targets[0].Language = tc.language
+			report, err := codeguard.Run(context.Background(), cfg)
+			if err != nil {
+				t.Fatalf("run: %v", err)
+			}
+
+			assertFindingRuleAbsent(t, report, "Reliability", "reliability.partial-failure-hidden")
+		})
+	}
+}
+
 func TestReliabilityTypeScriptAllowsCaughtPromiseRejections(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "feature-access-tab.tsx"), `async function fetchNewEditorAccess() {
