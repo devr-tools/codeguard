@@ -186,12 +186,24 @@ func (scope *goScope) lookup(name string) *goSymbol {
 	return nil
 }
 
+func snapshotGoScope(scope *goScope) *goScope {
+	if scope == nil {
+		return nil
+	}
+	snapshot := &goScope{id: scope.id, parent: snapshotGoScope(scope.parent), symbols: make(map[string]*goSymbol, len(scope.symbols))}
+	for name, symbol := range scope.symbols {
+		snapshot.symbols[name] = symbol
+	}
+	return snapshot
+}
+
 type goExpressionPath struct {
 	symbol           *goSymbol
 	shape            goReferenceShape
 	crossedReference bool
 	unresolved       string
 	packageName      bool
+	bindingKey       string
 }
 
 type goClosureDefinition struct {
@@ -213,6 +225,7 @@ type goMutationResolver struct {
 	order     int
 	closures  map[int]goClosureDefinition
 	active    map[int]bool
+	fields    map[string]*goSymbol
 }
 
 func goFunctionMutationEvidence(fn precisionFunction) mutationAnalysis {
@@ -229,6 +242,7 @@ func goFunctionMutationEvidence(fn precisionFunction) mutationAnalysis {
 		unseen:    make(map[string]struct{}),
 		closures:  make(map[int]goClosureDefinition),
 		active:    make(map[int]bool),
+		fields:    make(map[string]*goSymbol),
 	}
 	packageScope := resolver.newScope(nil)
 	resolver.declarePackageSymbols(packageScope)
@@ -419,7 +433,7 @@ func (resolver *goMutationResolver) resolveExpression(scope *goScope, expression
 		if symbol == nil {
 			return goExpressionPath{shape: goReferenceShape{Kind: goShapeUnknown}, unresolved: value.Name}
 		}
-		return goExpressionPath{symbol: symbol, shape: symbol.Shape, packageName: symbol.Kind == goSymbolImport}
+		return goExpressionPath{symbol: symbol, shape: symbol.Shape, packageName: symbol.Kind == goSymbolImport, bindingKey: strconv.Itoa(symbol.ID)}
 	case *ast.ParenExpr:
 		return resolver.resolveExpression(scope, value.X)
 	case *ast.StarExpr:
@@ -435,6 +449,12 @@ func (resolver *goMutationResolver) resolveExpression(scope *goScope, expression
 		path := resolver.resolveExpression(scope, value.X)
 		if path.packageName {
 			return path
+		}
+		if path.bindingKey != "" {
+			path.bindingKey += "." + value.Sel.Name
+			if binding := resolver.fields[path.bindingKey]; binding != nil {
+				return goExpressionPath{symbol: binding, shape: binding.Shape, bindingKey: path.bindingKey}
+			}
 		}
 		if path.shape.Kind == goShapePointer {
 			path.crossedReference = true
@@ -607,6 +627,125 @@ func (resolver *goMutationResolver) walkStatements(scope *goScope, statements []
 	}
 }
 
+func cloneGoEscapeState(state map[int]int) map[int]int {
+	clone := make(map[int]int, len(state))
+	for symbolID, escapedAt := range state {
+		clone[symbolID] = escapedAt
+	}
+	return clone
+}
+
+func intersectGoEscapeStates(first map[int]int, second map[int]int) map[int]int {
+	intersection := make(map[int]int)
+	for symbolID, firstEscape := range first {
+		secondEscape, exists := second[symbolID]
+		if !exists {
+			continue
+		}
+		if secondEscape > firstEscape {
+			firstEscape = secondEscape
+		}
+		intersection[symbolID] = firstEscape
+	}
+	return intersection
+}
+
+func cloneGoFieldBindings(bindings map[string]*goSymbol) map[string]*goSymbol {
+	clone := make(map[string]*goSymbol, len(bindings))
+	for key, symbol := range bindings {
+		clone[key] = symbol
+	}
+	return clone
+}
+
+func intersectGoFieldBindings(first map[string]*goSymbol, second map[string]*goSymbol) map[string]*goSymbol {
+	intersection := make(map[string]*goSymbol)
+	for key, firstSymbol := range first {
+		if second[key] == firstSymbol {
+			intersection[key] = firstSymbol
+		}
+	}
+	return intersection
+}
+
+type goBranchState struct {
+	escapes map[int]int
+	fields  map[string]*goSymbol
+}
+
+type goSymbolBindingState struct {
+	shape     goReferenceShape
+	origin    string
+	target    string
+	aliasOf   int
+	contentOf int
+}
+
+func snapshotGoSymbolBinding(symbol *goSymbol) goSymbolBindingState {
+	return goSymbolBindingState{
+		shape: symbol.Shape, origin: symbol.Origin, target: symbol.Target,
+		aliasOf: symbol.AliasOf, contentOf: symbol.ContentOf,
+	}
+}
+
+func restoreGoSymbolBinding(symbol *goSymbol, state goSymbolBindingState) {
+	symbol.Shape = state.shape
+	symbol.Origin = state.origin
+	symbol.Target = state.target
+	symbol.AliasOf = state.aliasOf
+	symbol.ContentOf = state.contentOf
+}
+
+func (resolver *goMutationResolver) branchState() goBranchState {
+	return goBranchState{escapes: cloneGoEscapeState(resolver.escapedAt), fields: cloneGoFieldBindings(resolver.fields)}
+}
+
+func (resolver *goMutationResolver) restoreBranchState(state goBranchState) {
+	resolver.escapedAt = cloneGoEscapeState(state.escapes)
+	resolver.fields = cloneGoFieldBindings(state.fields)
+}
+
+func intersectGoBranchStates(first goBranchState, second goBranchState) goBranchState {
+	return goBranchState{
+		escapes: intersectGoEscapeStates(first.escapes, second.escapes),
+		fields:  intersectGoFieldBindings(first.fields, second.fields),
+	}
+}
+
+func (resolver *goMutationResolver) walkExclusiveBranches(scope *goScope, statements []ast.Stmt, exhaustive bool) {
+	before := resolver.branchState()
+	states := make([]goBranchState, 0, len(statements)+1)
+	for _, statement := range statements {
+		resolver.restoreBranchState(before)
+		resolver.walkStatement(scope, statement)
+		states = append(states, resolver.branchState())
+	}
+	if !exhaustive || len(states) == 0 {
+		states = append(states, before)
+	}
+	merged := states[0]
+	for _, state := range states[1:] {
+		merged = intersectGoBranchStates(merged, state)
+	}
+	resolver.restoreBranchState(merged)
+}
+
+func goBranchesHaveDefault(statements []ast.Stmt) bool {
+	for _, statement := range statements {
+		switch clause := statement.(type) {
+		case *ast.CaseClause:
+			if len(clause.List) == 0 {
+				return true
+			}
+		case *ast.CommClause:
+			if clause.Comm == nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (resolver *goMutationResolver) walkStatement(scope *goScope, statement ast.Stmt) {
 	resolver.order++
 	switch value := statement.(type) {
@@ -650,10 +789,15 @@ func (resolver *goMutationResolver) walkStatement(scope *goScope, statement ast.
 			resolver.walkStatement(control, value.Init)
 		}
 		resolver.walkExpressionCalls(control, value.Cond)
+		beforeBranches := resolver.branchState()
+		resolver.restoreBranchState(beforeBranches)
 		resolver.walkStatements(resolver.newScope(control), value.Body.List)
+		thenState := resolver.branchState()
+		resolver.restoreBranchState(beforeBranches)
 		if value.Else != nil {
 			resolver.walkStatement(control, value.Else)
 		}
+		resolver.restoreBranchState(intersectGoBranchStates(thenState, resolver.branchState()))
 	case *ast.ForStmt:
 		control := resolver.newScope(scope)
 		if value.Init != nil {
@@ -667,15 +811,30 @@ func (resolver *goMutationResolver) walkStatement(scope *goScope, statement ast.
 	case *ast.RangeStmt:
 		control := resolver.newScope(scope)
 		resolver.walkExpressionCalls(control, value.X)
+		beforeLoop := resolver.branchState()
+		rangeBindings := make(map[*goSymbol]goSymbolBindingState)
+		if value.Tok != token.DEFINE {
+			for _, expression := range []ast.Expr{value.Key, value.Value} {
+				if identifier, ok := expression.(*ast.Ident); ok {
+					if symbol := control.lookup(identifier.Name); symbol != nil {
+						rangeBindings[symbol] = snapshotGoSymbolBinding(symbol)
+					}
+				}
+			}
+		}
 		resolver.bindRange(control, value)
 		resolver.walkStatements(resolver.newScope(control), value.Body.List)
+		for symbol, binding := range rangeBindings {
+			restoreGoSymbolBinding(symbol, binding)
+		}
+		resolver.restoreBranchState(beforeLoop)
 	case *ast.SwitchStmt:
 		control := resolver.newScope(scope)
 		if value.Init != nil {
 			resolver.walkStatement(control, value.Init)
 		}
 		resolver.walkExpressionCalls(control, value.Tag)
-		resolver.walkStatements(control, value.Body.List)
+		resolver.walkExclusiveBranches(control, value.Body.List, goBranchesHaveDefault(value.Body.List))
 	case *ast.TypeSwitchStmt:
 		control := resolver.newScope(scope)
 		if value.Init != nil {
@@ -684,9 +843,10 @@ func (resolver *goMutationResolver) walkStatement(scope *goScope, statement ast.
 		if value.Assign != nil {
 			resolver.walkStatement(control, value.Assign)
 		}
-		resolver.walkStatements(control, value.Body.List)
+		resolver.walkExclusiveBranches(control, value.Body.List, goBranchesHaveDefault(value.Body.List))
 	case *ast.SelectStmt:
-		resolver.walkStatements(resolver.newScope(scope), value.Body.List)
+		control := resolver.newScope(scope)
+		resolver.walkExclusiveBranches(control, value.Body.List, goBranchesHaveDefault(value.Body.List))
 	case *ast.CaseClause:
 		child := resolver.newScope(scope)
 		for _, expression := range value.List {
@@ -743,15 +903,21 @@ func (resolver *goMutationResolver) handleDeclaration(scope *goScope, declaratio
 
 func (resolver *goMutationResolver) bindAssignment(scope *goScope, assignment *ast.AssignStmt) {
 	for position, lhs := range assignment.Lhs {
-		identifier, ok := lhs.(*ast.Ident)
-		if !ok || identifier.Name == "_" {
-			continue
-		}
 		var rhs ast.Expr
 		if position < len(assignment.Rhs) {
 			rhs = assignment.Rhs[position]
 		} else if len(assignment.Rhs) == 1 {
 			rhs = assignment.Rhs[0]
+		}
+		if selector, ok := lhs.(*ast.SelectorExpr); ok {
+			if assignment.Tok == token.ASSIGN {
+				resolver.bindSelectorField(scope, selector, rhs)
+			}
+			continue
+		}
+		identifier, ok := lhs.(*ast.Ident)
+		if !ok || identifier.Name == "_" {
+			continue
 		}
 		if assignment.Tok == token.DEFINE {
 			if scope.symbols[identifier.Name] != nil {
@@ -773,6 +939,34 @@ func (resolver *goMutationResolver) bindAssignment(scope *goScope, assignment *a
 	}
 }
 
+func (resolver *goMutationResolver) bindSelectorField(scope *goScope, selector *ast.SelectorExpr, expression ast.Expr) {
+	if expression == nil {
+		return
+	}
+	path := resolver.resolveExpression(scope, selector)
+	if path.bindingKey == "" || path.packageName || path.crossedReference || path.symbol == nil {
+		return
+	}
+	owner := resolver.resolveAlias(path.symbol)
+	if owner == nil || owner.Kind == goSymbolGlobal || owner.Kind == goSymbolImport {
+		return
+	}
+	resolver.nextID++
+	binding := &goSymbol{
+		ID:       resolver.nextID,
+		Name:     selector.Sel.Name,
+		Kind:     goSymbolLocal,
+		Scope:    path.symbol.Scope,
+		Shape:    path.shape,
+		Origin:   originLocal,
+		Target:   targetLocal,
+		DeclLine: resolver.line(selector.Pos()),
+	}
+	resolver.symbols[binding.ID] = binding
+	resolver.setInitializer(scope, binding, expression)
+	resolver.fields[path.bindingKey] = binding
+}
+
 func (resolver *goMutationResolver) setInitializer(scope *goScope, symbol *goSymbol, expression ast.Expr) {
 	if symbol == nil || expression == nil {
 		return
@@ -788,7 +982,7 @@ func (resolver *goMutationResolver) setInitializer(scope *goScope, symbol *goSym
 	symbol.ContentOf = 0
 	delete(resolver.closures, symbol.ID)
 	if literal, ok := expression.(*ast.FuncLit); ok {
-		resolver.closures[symbol.ID] = goClosureDefinition{literal: literal, scope: scope}
+		resolver.closures[symbol.ID] = goClosureDefinition{literal: literal, scope: snapshotGoScope(scope)}
 		symbol.Origin = originLocal
 		return
 	}
@@ -829,24 +1023,35 @@ func (resolver *goMutationResolver) bindRange(scope *goScope, statement *ast.Ran
 	if shape.Elem != nil {
 		valueShape = *shape.Elem
 	}
-	declare := func(expression ast.Expr, itemShape goReferenceShape, inheritsContent bool) {
+	bind := func(expression ast.Expr, itemShape goReferenceShape, inheritsContent bool) {
 		identifier, ok := expression.(*ast.Ident)
 		if !ok || identifier.Name == "_" {
 			return
 		}
+		var symbol *goSymbol
 		if statement.Tok == token.DEFINE {
-			symbol := resolver.declare(scope, identifier.Name, goSymbolRange, itemShape, originLocal, targetLocal, resolver.line(identifier.Pos()))
-			if inheritsContent && source.symbol != nil {
-				if itemShape.referenceBacked() {
-					symbol.AliasOf = source.symbol.ID
-				} else {
-					symbol.ContentOf = source.symbol.ID
-				}
+			symbol = resolver.declare(scope, identifier.Name, goSymbolRange, itemShape, originLocal, targetLocal, resolver.line(identifier.Pos()))
+		} else {
+			symbol = scope.lookup(identifier.Name)
+			if symbol == nil || symbol.Kind == goSymbolGlobal || symbol.Kind == goSymbolImport {
+				return
+			}
+			symbol.Shape = itemShape
+			symbol.Origin = originLocal
+			symbol.Target = targetLocal
+			symbol.AliasOf = 0
+			symbol.ContentOf = 0
+		}
+		if inheritsContent && source.symbol != nil {
+			if itemShape.referenceBacked() {
+				symbol.AliasOf = source.symbol.ID
+			} else {
+				symbol.ContentOf = source.symbol.ID
 			}
 		}
 	}
-	declare(statement.Key, goReferenceShape{Kind: goShapeValue}, false)
-	declare(statement.Value, valueShape, true)
+	bind(statement.Key, goReferenceShape{Kind: goShapeValue}, false)
+	bind(statement.Value, valueShape, true)
 }
 
 func (resolver *goMutationResolver) recordEscapes(scope *goScope, assignment *ast.AssignStmt) {
@@ -895,18 +1100,18 @@ func (resolver *goMutationResolver) walkCall(scope *goScope, call *ast.CallExpr)
 		resolver.walkExpressionCalls(scope, argument)
 	}
 	if literal, ok := call.Fun.(*ast.FuncLit); ok {
-		resolver.executeClosure(goClosureDefinition{literal: literal, scope: scope}, call.Args, 0)
+		resolver.executeClosure(goClosureDefinition{literal: literal, scope: snapshotGoScope(scope)}, scope, call.Args, 0)
 		return
 	}
 	line := resolver.line(call.Pos())
 	if identifier, ok := call.Fun.(*ast.Ident); ok {
-		if resolver.recordBuiltinMutation(scope, identifier.Name, call.Args, line) {
-			return
-		}
 		if symbol := scope.lookup(identifier.Name); symbol != nil {
 			if definition, exists := resolver.closures[symbol.ID]; exists {
-				resolver.executeClosure(definition, call.Args, symbol.ID)
+				resolver.executeClosure(definition, scope, call.Args, symbol.ID)
 			}
+			return
+		}
+		if resolver.recordBuiltinMutation(scope, identifier.Name, call.Args, line) {
 			return
 		}
 		if mutatingCallPattern.MatchString(identifier.Name) && !isConstructionOrHydrationCall(identifier.Name) {
@@ -940,7 +1145,7 @@ func (resolver *goMutationResolver) walkCall(scope *goScope, call *ast.CallExpr)
 	}
 }
 
-func (resolver *goMutationResolver) executeClosure(definition goClosureDefinition, arguments []ast.Expr, symbolID int) {
+func (resolver *goMutationResolver) executeClosure(definition goClosureDefinition, callScope *goScope, arguments []ast.Expr, symbolID int) {
 	if definition.literal == nil || definition.scope == nil {
 		return
 	}
@@ -952,7 +1157,7 @@ func (resolver *goMutationResolver) executeClosure(definition goClosureDefinitio
 		defer delete(resolver.active, symbolID)
 	}
 	closure := resolver.newScope(definition.scope)
-	resolver.declareClosureParameters(definition.scope, closure, definition.literal.Type.Params, arguments)
+	resolver.declareClosureParameters(callScope, closure, definition.literal.Type.Params, arguments)
 	resolver.declareFieldList(closure, definition.literal.Type.Results, goSymbolResult, originLocal, targetLocal)
 	resolver.walkStatements(closure, definition.literal.Body.List)
 }

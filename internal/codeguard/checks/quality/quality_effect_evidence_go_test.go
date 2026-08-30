@@ -199,6 +199,56 @@ type Payload struct {
 	}
 }
 
+func TestGoReferenceFieldReassignmentUpdatesContentOwnership(t *testing.T) {
+	declarations := `package sample
+type Node struct{ Name string }
+type Payload struct {
+	Tags []string
+	Meta map[string]string
+	Node *Node
+	Any any
+}
+`
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "map field", body: `input.Meta = make(map[string]string); input.Meta["status"] = "local"`},
+		{name: "slice field", body: `input.Tags = make([]string, 1); input.Tags[0] = "local"`},
+		{name: "pointer field", body: `input.Node = &Node{}; input.Node.Name = "local"`},
+		{name: "interface field", body: `input.Any = map[string]string{}; input.Any.(map[string]string)["status"] = "local"`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			analysis := parseGoMutationAnalysisForTest(t, declarations+`func ReadValue(input Payload) string { `+test.body+`; return "ok" }`, "ReadValue")
+			if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+				t.Fatalf("analysis = %#v, want reassigned local field content to remain local", analysis)
+			}
+		})
+	}
+}
+
+func TestGoReferenceFieldReassignmentCanRetainCallerOwnership(t *testing.T) {
+	analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Payload struct{ Meta map[string]string }
+func ReadValue(input Payload, replacement map[string]string) string {
+	input.Meta = replacement
+	input.Meta["status"] = "ready"
+	return input.Meta["status"]
+}`, "ReadValue")
+	assertGoMutation(t, analysis, targetArgument, originCaller)
+}
+
+func TestGoReferenceFieldReassignmentDoesNotLeakAcrossBranches(t *testing.T) {
+	analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Payload struct{ Meta map[string]string }
+func ReadValue(input Payload, flag bool) string {
+	if flag { input.Meta = make(map[string]string) } else { input.Meta["status"] = "ready" }
+	return "ok"
+}`, "ReadValue")
+	assertGoMutation(t, analysis, targetArgument, originCaller)
+}
+
 func TestGoAliasOriginResolutionFollowsReferenceShapesOnly(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -249,6 +299,121 @@ func ReadValue(input Node) string { a := input; b := a; b.Name = "local"; return
 				return
 			}
 			assertGoMutation(t, analysis, test.wantTarget, originCaller)
+		})
+	}
+}
+
+func TestGoRangeAssignmentUpdatesExistingAlias(t *testing.T) {
+	analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Node struct{ Value int }
+func ReadValue(input []*Node) int {
+	var node *Node
+	for _, node = range input { node.Value = 1 }
+	return input[0].Value
+}`, "ReadValue")
+	assertGoMutation(t, analysis, targetArgument, originCaller)
+}
+
+func TestGoRangeAssignmentDoesNotLeakAliasAfterOptionalLoop(t *testing.T) {
+	analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Node struct{ Value int }
+func ReadValue(input []*Node) int {
+	var node *Node
+	for _, node = range input {}
+	node.Value = 1
+	return node.Value
+}`, "ReadValue")
+	if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+		t.Fatalf("analysis = %#v, want no alias proof after a possibly empty range", analysis)
+	}
+}
+
+func TestGoClosureCapturesDeclarationVisibleAtDefinition(t *testing.T) {
+	analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Node struct{ Value int }
+var shared *Node
+func ReadValue() int {
+	mutate := func() { shared.Value = 1 }
+	shared := &Node{}
+	mutate()
+	return shared.Value
+}`, "ReadValue")
+	assertGoMutation(t, analysis, targetGlobal, originShared)
+}
+
+func TestGoShadowedBuiltinsUseNearestDeclaration(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+	}{
+		{
+			name: "append",
+			source: `package sample
+func ReadValue(input []string) int { append := func([]string, string) {}; append(input, "x"); return len(input) }`,
+		},
+		{
+			name: "copy",
+			source: `package sample
+func ReadValue(input []string) int { copy := func([]string, []string) {}; copy(input, nil); return len(input) }`,
+		},
+		{
+			name: "delete",
+			source: `package sample
+func ReadValue(input map[string]string) int { delete := func(map[string]string, string) {}; delete(input, "x"); return len(input) }`,
+		},
+		{
+			name: "clear",
+			source: `package sample
+func ReadValue(input map[string]string) int { clear := func(map[string]string) {}; clear(input); return len(input) }`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			analysis := parseGoMutationAnalysisForTest(t, test.source, "ReadValue")
+			if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+				t.Fatalf("analysis = %#v, want shadowed callable behavior only", analysis)
+			}
+		})
+	}
+}
+
+func TestGoBranchEscapeRequiresEveryReachableArm(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		wantTarget string
+	}{
+		{
+			name: "escape and mutation in exclusive arms",
+			body: `if flag { shared = local } else { local.Value = 1 }`,
+		},
+		{
+			name: "optional escape before later mutation",
+			body: `if flag { shared = local }; local.Value = 1`,
+		},
+		{
+			name: "switch arms are exclusive",
+			body: `switch flag { case true: shared = local; default: local.Value = 1 }`,
+		},
+		{
+			name:       "escape in both arms before later mutation",
+			body:       `if flag { shared = local } else { shared = local }; local.Value = 1`,
+			wantTarget: targetEscaped,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Node struct{ Value int }
+var shared *Node
+func ReadValue(flag bool) int { local := &Node{}; `+test.body+`; return local.Value }`, "ReadValue")
+			if test.wantTarget == "" {
+				if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+					t.Fatalf("analysis = %#v, want no cross-branch escape proof", analysis)
+				}
+				return
+			}
+			assertGoMutation(t, analysis, test.wantTarget, originShared)
 		})
 	}
 }
