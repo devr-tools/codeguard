@@ -161,6 +161,40 @@ func CurrentPayload(input Payload) string { `+tc.body+` }
 	}
 }
 
+func TestFunctionEffectsCppStructuralOrigins(t *testing.T) {
+	cases := []struct {
+		name, source, target, origin string
+		finding                      bool
+	}{
+		{name: "value parameter", source: `int current(Token input) { input.value++; return input.value; }`},
+		{name: "moved local", source: `int current() { Token item{}; auto moved = std::move(item); moved.value++; return moved.value; }`},
+		{name: "reference parameter", source: `int current(Token& input) { input.value++; return input.value; }`, finding: true, target: "argument", origin: "caller_owned"},
+		{name: "reference capture", source: `int current(Token& input) { auto work = [&input]() { input.value++; }; work(); return input.value; }`, finding: true, target: "argument", origin: "caller_owned"},
+		{name: "receiver member", source: `struct Counter {
+  Token state;
+  int current() { state.value++; return state.value; }
+};`, finding: true, target: "receiver", origin: "caller_owned"},
+		{name: "proven global", source: `Token shared;
+int current() { shared.value++; return shared.value; }`, finding: true, target: "global", origin: "shared"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, "origin.cpp"), tc.source)
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "cpp"))
+			if !tc.finding {
+				assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+				assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+				return
+			}
+			finding := findFinding(t, report, "Code Quality", "function.hidden-mutation")
+			if finding.Metadata["mutation_target"] != tc.target || finding.Metadata["origin"] != tc.origin {
+				t.Fatalf("metadata = %v, want target=%q origin=%q", finding.Metadata, tc.target, tc.origin)
+			}
+		})
+	}
+}
+
 func assertUnresolvedDiagnosticCount(t *testing.T, report codeguard.Report, language string, count string) {
 	t.Helper()
 	for _, section := range report.Sections {

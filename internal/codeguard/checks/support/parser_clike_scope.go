@@ -122,10 +122,19 @@ func javaParamFromPart(part string) (ParsedParam, bool) {
 		return ParsedParam{}, false
 	}
 	name := fields[len(fields)-1]
+	shape := ""
+	for len(name) > 0 && (name[0] == '*' || name[0] == '&') {
+		shape += name[:1]
+		name = name[1:]
+	}
 	if !clikeIdentPattern.MatchString(name) {
 		return ParsedParam{}, false
 	}
-	return ParsedParam{Name: name, Type: strings.Join(fields[:len(fields)-1], " ")}, true
+	typ := strings.Join(fields[:len(fields)-1], " ")
+	if shape != "" {
+		typ = strings.TrimSpace(typ) + shape
+	}
+	return ParsedParam{Name: name, Type: typ}, true
 }
 
 var clikeIdentPattern = regexp.MustCompile(`^[A-Za-z_$][\w$]*$`)

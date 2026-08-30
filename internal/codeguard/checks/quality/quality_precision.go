@@ -61,6 +61,7 @@ var (
 
 type precisionFunction struct {
 	Name                         string
+	Language                     string
 	Receiver                     string
 	ReceiverName                 string
 	StartLine                    int
@@ -70,6 +71,8 @@ type precisionFunction struct {
 	Assignments                  []support.ParsedAssignment
 	Calls                        []support.ParsedCall
 	Statements                   []support.ParsedStatement
+	Declarations                 []support.ParsedDeclaration
+	QualifiedOwner               string
 	Nested                       []precisionLineRange
 	Body                         string
 	Returns                      bool
@@ -536,17 +539,20 @@ func parsedPrecisionFindings(env support.Context, file string, parsed *support.P
 func parsedPrecisionFunction(fn *support.ParsedFunction) precisionFunction {
 	body := maskedFunctionBody(fn)
 	return precisionFunction{
-		Name:        fn.Name,
-		StartLine:   fn.StartLine,
-		EndLine:     fn.EndLine,
-		Signature:   fn.Signature,
-		Params:      fn.Params,
-		Assignments: fn.Assignments,
-		Calls:       fn.Calls,
-		Statements:  fn.Statements,
-		Nested:      nestedPrecisionLineRanges(fn),
-		Body:        body,
-		Returns:     strings.Contains(body, "return "),
+		Name:           fn.Name,
+		Language:       fn.Language,
+		StartLine:      fn.StartLine,
+		EndLine:        fn.EndLine,
+		Signature:      fn.Signature,
+		Params:         fn.Params,
+		Assignments:    fn.Assignments,
+		Calls:          fn.Calls,
+		Statements:     fn.Statements,
+		Declarations:   fn.Declarations,
+		QualifiedOwner: fn.QualifiedOwner,
+		Nested:         nestedPrecisionLineRanges(fn),
+		Body:           body,
+		Returns:        strings.Contains(body, "return "),
 	}
 }
 

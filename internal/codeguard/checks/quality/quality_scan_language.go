@@ -166,7 +166,7 @@ func cppUnresolvedMutationEvidence(data []byte) []unresolvedMutationEvidence {
 	parsed := support.ParseCLike(string(data), support.CLikeCPP)
 	var unresolved []unresolvedMutationEvidence
 	for _, fn := range parsed.AllFunctions() {
-		analysis := functionMutationAnalysis(parsedPrecisionFunction(fn), "c++")
+		analysis := cppFunctionMutationEvidence(parsedPrecisionFunction(fn))
 		unresolved = append(unresolved, analysis.Unresolved...)
 	}
 	return unresolved

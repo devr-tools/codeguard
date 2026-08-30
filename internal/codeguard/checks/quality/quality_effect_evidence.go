@@ -65,6 +65,9 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 	if fn.GoDecl != nil {
 		return goFunctionMutationEvidence(fn)
 	}
+	if fn.Language == string(support.CLikeCPP) || language == "c++" || language == "cpp" {
+		return cppFunctionMutationEvidence(fn)
+	}
 	origins := map[string]string{}
 	targets := map[string]string{}
 	for name := range fn.ProvenGlobals {
