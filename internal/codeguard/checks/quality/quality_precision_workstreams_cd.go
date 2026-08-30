@@ -31,20 +31,19 @@ const (
 )
 
 var (
-	commandFunctionPrefixPattern = regexp.MustCompile(`^(add|allocate|append|apply|assign|bulk|cancel|capture|choose|clear|cleanup|close|copy|create|delete|disable|do|emit|enable|exchange|expose|export|fill|flip|flash|handle|hydrate|insert|link|log|move|mutate|note|notify|open|persist|publish|record|recompute|remember|remove|reset|retire|revert|rollback|save|send|set|store|submit|toggle|transfer|trigger|update|upsert|upload|walk|write)`)
-	readCallPattern              = regexp.MustCompile(`(^|[.>:\-_])(?i:count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
-	identifierTokenPattern       = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
-	roleSuffixPattern            = regexp.MustCompile(`(?i)(manager|helper|util|utils|service|processor)$`)
-	durationNamePattern          = regexp.MustCompile(`(?i)(timeout|duration|delay|interval|ttl|latency|elapsed|expiry|expiration|retention)`)
-	sizeNamePattern              = regexp.MustCompile(`(?i)(size|limit|length|capacity|bytes?|mb|kb|gb)`)
-	moneyNamePattern             = regexp.MustCompile(`(?i)(amount|price|cost|fee|total|subtotal|balance|money)`)
-	unitSuffixPattern            = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|minor|bps|basispoints?|usd|eur|gbp|aud|cad)$`)
-	collectionTypePattern        = regexp.MustCompile(`(?i)(\[\]|\[\s*\]|array|list|slice|map|dict|record|set|vector|collection|iterable|sequence|promise<[^>]*\[\])`)
-	scalarTypePattern            = regexp.MustCompile(`(?i)\b(bool|boolean|char|double|float|float64|int|int32|int64|number|string|str|uint|uint64)\b`)
-	paramMutationPattern         = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
-	returnLinePattern            = regexp.MustCompile(`(?m)^\s*return(?:\s+([^;\n]+))?`)
-	partialReturnPattern         = regexp.MustCompile(`(?i)\breturn\s+[^;\n,]+,\s*(err|error)\b|\breturn\s+\{[^}\n]*(data|result|value)[^}\n]*(err|error)[^}\n]*\}`)
-	identifierWordSplitPattern   = regexp.MustCompile(`[_\-\s]+`)
+	readCallPattern            = regexp.MustCompile(`(^|[.>:\-_])(?i:count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
+	identifierTokenPattern     = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
+	roleSuffixPattern          = regexp.MustCompile(`(?i)(manager|helper|util|utils|service|processor)$`)
+	durationNamePattern        = regexp.MustCompile(`(?i)(timeout|duration|delay|interval|ttl|latency|elapsed|expiry|expiration|retention)`)
+	sizeNamePattern            = regexp.MustCompile(`(?i)(size|limit|length|capacity|bytes?|mb|kb|gb)`)
+	moneyNamePattern           = regexp.MustCompile(`(?i)(amount|price|cost|fee|total|subtotal|balance|money)`)
+	unitSuffixPattern          = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|minor|bps|basispoints?|usd|eur|gbp|aud|cad)$`)
+	collectionTypePattern      = regexp.MustCompile(`(?i)(\[\]|\[\s*\]|array|list|slice|map|dict|record|set|vector|collection|iterable|sequence|promise<[^>]*\[\])`)
+	scalarTypePattern          = regexp.MustCompile(`(?i)\b(bool|boolean|char|double|float|float64|int|int32|int64|number|string|str|uint|uint64)\b`)
+	paramMutationPattern       = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
+	returnLinePattern          = regexp.MustCompile(`(?m)^\s*return(?:\s+([^;\n]+))?`)
+	partialReturnPattern       = regexp.MustCompile(`(?i)\breturn\s+[^;\n,]+,\s*(err|error)\b|\breturn\s+\{[^}\n]*(data|result|value)[^}\n]*(err|error)[^}\n]*\}`)
+	identifierWordSplitPattern = regexp.MustCompile(`[_\-\s]+`)
 )
 
 func additionalPrecisionFunctionFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -185,11 +184,10 @@ func behaviorMismatch(file string, fn precisionFunction) bool {
 	if explicitMutationName(fn.Name) || isUIHelperOrMappingContext(file, fn) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFactoryHelperName(fn.Name) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) {
 		return false
 	}
-	name := strings.ToLower(fn.Name)
 	if hiddenSideEffect(file, fn) {
 		return true
 	}
-	if !commandFunctionPrefixPattern.MatchString(name) || mutatingFunctionEvidence(fn) {
+	if !leadingCommandVerb(fn.Name) || mutatingFunctionEvidence(fn) {
 		return false
 	}
 	for _, call := range fn.Calls {
@@ -441,12 +439,34 @@ func explicitMutationName(name string) bool {
 	if cut := strings.LastIndex(lowered, "::"); cut >= 0 {
 		lowered = lowered[cut+2:]
 	}
-	return commandFunctionPrefixPattern.MatchString(lowered) ||
+	return leadingCommandVerb(name) ||
 		conventionalMutationBoundaryPattern.MatchString(lowered) ||
 		isEventHandlerName(name) ||
 		strings.Contains(lowered, "mutat") ||
 		strings.Contains(lowered, "persist") ||
 		strings.Contains(lowered, "write")
+}
+
+var commandFunctionVerbs = map[string]struct{}{
+	"add": {}, "allocate": {}, "append": {}, "apply": {}, "assign": {}, "bind": {}, "bulk": {},
+	"cancel": {}, "capture": {}, "choose": {}, "clear": {}, "cleanup": {}, "close": {}, "configure": {}, "copy": {}, "create": {},
+	"deactivate": {}, "delete": {}, "disable": {}, "discard": {}, "do": {},
+	"emit": {}, "enable": {}, "exchange": {}, "expose": {}, "export": {},
+	"fill": {}, "flip": {}, "flash": {}, "handle": {}, "hydrate": {}, "insert": {}, "issue": {},
+	"link": {}, "log": {}, "mark": {}, "move": {}, "mutate": {}, "note": {}, "notify": {}, "open": {},
+	"persist": {}, "publish": {}, "record": {}, "recompute": {}, "release": {}, "remember": {}, "remove": {}, "reset": {}, "retire": {}, "revert": {}, "revoke": {}, "rollback": {},
+	"save": {}, "send": {}, "set": {}, "shutdown": {}, "store": {}, "submit": {}, "subscribe": {},
+	"toggle": {}, "transfer": {}, "trigger": {}, "update": {}, "upsert": {}, "upload": {}, "walk": {}, "write": {},
+}
+
+func leadingCommandVerb(name string) bool {
+	terminal := terminalCallIdentifier(strings.TrimSpace(name))
+	words := identifierWords(terminal)
+	if len(words) == 0 {
+		return false
+	}
+	_, ok := commandFunctionVerbs[words[0]]
+	return ok
 }
 
 func inconsistentReturnContract(fn precisionFunction) bool {

@@ -301,17 +301,37 @@ func looksLikeLocalObjectAllocation(fn precisionFunction, assignment support.Par
 }
 
 func observableCallEffect(callee string) string {
-	if isConstructionOrHydrationCall(callee) || readCallPattern.MatchString(callee) {
+	if isConstructionOrHydrationCall(callee) {
 		return ""
 	}
-	words := identifierWords(terminalCallIdentifier(callee))
+	identifiers := identifierTokenPattern.FindAllString(callee, -1)
+	if len(identifiers) == 0 {
+		return ""
+	}
+	words := identifierWords(identifiers[len(identifiers)-1])
 	if containsWord(words, "publish", "emit", "dispatch", "enqueue") {
 		return "event"
+	}
+	// Read grammar belongs to the invoked method, not its receiver. A receiver such
+	// as fetchQueue must not turn Enqueue into a read, while RecordPrefetch must not
+	// become an event or persistence effect merely because of an embedded token.
+	if readCallPattern.MatchString(identifiers[len(identifiers)-1]) {
+		return ""
+	}
+	receiverWords := make([]string, 0, len(identifiers)-1)
+	for _, identifier := range identifiers[:len(identifiers)-1] {
+		receiverWords = append(receiverWords, identifierWords(identifier)...)
 	}
 	if containsWord(words, "fetch", "axios", "send", "upload") {
 		return "network"
 	}
+	if containsWord(receiverWords, "http") && containsWord(words, "post", "put", "patch") {
+		return "network"
+	}
 	if containsWord(words, "save", "insert", "update", "upsert", "delete", "exec", "commit", "rollback", "write", "persist") {
+		return "persistence"
+	}
+	if containsWord(receiverWords, "cache") && containsWord(words, "set", "put") {
 		return "persistence"
 	}
 	return ""

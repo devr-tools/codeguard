@@ -402,11 +402,15 @@ func (resolver *goMutationResolver) expressionShape(scope *goScope, expression a
 			return goReferenceShape{Kind: goShapePointer, Elem: &element}
 		}
 		return resolver.expressionShape(scope, value.X)
-	case *ast.Ident, *ast.SelectorExpr, *ast.IndexExpr, *ast.ParenExpr, *ast.StarExpr, *ast.TypeAssertExpr:
+	case *ast.Ident, *ast.SelectorExpr, *ast.IndexExpr, *ast.SliceExpr, *ast.ParenExpr, *ast.StarExpr, *ast.TypeAssertExpr:
 		return resolver.resolveExpression(scope, expression).shape
 	case *ast.CallExpr:
 		if identifier, ok := value.Fun.(*ast.Ident); ok {
 			switch identifier.Name {
+			case "append":
+				if len(value.Args) > 0 {
+					return resolver.expressionShape(scope, value.Args[0])
+				}
 			case "make":
 				if len(value.Args) > 0 {
 					return resolver.typeShape(value.Args[0], nil)
@@ -417,6 +421,13 @@ func (resolver *goMutationResolver) expressionShape(scope *goScope, expression a
 					return goReferenceShape{Kind: goShapePointer, Elem: &element}
 				}
 			}
+		}
+		// A call whose function expression is a type is a conversion. In
+		// particular, []T(nil) is the fresh destination in the standard
+		// append-copy idiom.
+		switch value.Fun.(type) {
+		case *ast.ArrayType, *ast.MapType, *ast.StarExpr, *ast.InterfaceType, *ast.StructType:
+			return resolver.typeShape(value.Fun, nil)
 		}
 		return goReferenceShape{Kind: goShapeUnknown}
 	case *ast.FuncLit:
@@ -479,6 +490,22 @@ func (resolver *goMutationResolver) resolveExpression(scope *goScope, expression
 			path.shape = goReferenceShape{Kind: goShapeUnknown}
 		}
 		return path
+	case *ast.SliceExpr:
+		path := resolver.resolveExpression(scope, value.X)
+		// A slice expression retains the backing storage and ownership of its
+		// source. Keep the root symbol so append(input[:0], ...) cannot be
+		// mistaken for a fresh local copy.
+		if path.shape.Kind != goShapeSlice {
+			path.shape = resolver.expressionShape(scope, value.X)
+		}
+		return path
+	case *ast.CallExpr:
+		if identifier, ok := value.Fun.(*ast.Ident); ok && identifier.Name == "append" && len(value.Args) > 0 {
+			path := resolver.resolveExpression(scope, value.Args[0])
+			path.shape = resolver.expressionShape(scope, value)
+			return path
+		}
+		return goExpressionPath{shape: resolver.expressionShape(scope, expression), unresolved: resolver.expressionRootName(expression)}
 	case *ast.TypeAssertExpr:
 		path := resolver.resolveExpression(scope, value.X)
 		if value.Type != nil {

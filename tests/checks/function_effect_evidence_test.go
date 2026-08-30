@@ -209,7 +209,7 @@ func TestStructuralOriginNamedSourceFixturesRetainLocalOwnership(t *testing.T) {
 			name:               "go crumb helpers",
 			language:           "go",
 			diagnosticLanguage: "go",
-			unresolvedCount:    "3",
+			unresolvedCount:    "1",
 			fixtureDir:         filepath.Join("testdata", "structural_origin", "go"),
 			functions: []string{
 				"normalizeBadgeRule",

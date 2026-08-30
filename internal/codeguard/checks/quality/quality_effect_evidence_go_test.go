@@ -4,6 +4,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -100,6 +102,79 @@ func LookupValue() int { storage.Update(); return 1 }`
 	fn.GoPackage = index.packageFor("fixture.go", parsed.Name.Name)
 	if hiddenSideEffect("fixture.go", fn) {
 		t.Fatal("imported package call was classified as a hidden side effect")
+	}
+}
+
+func TestGoStructuralOriginFixtureUnresolvedEvidenceIsIntentional(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "..", "tests", "checks", "testdata", "structural_origin", "go", "helpers.go")
+	source, err := os.ReadFile(path) //nolint:gosec // checked-in regression fixture path
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, path, source, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := newGoPackageIndex()
+	index.addFile(path, fset, parsed)
+	for _, declaration := range parsed.Decls {
+		fnDecl, ok := declaration.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		fn := goPrecisionFunction(fset, fnDecl, source)
+		fn.GoPackage = index.packageFor(path, parsed.Name.Name)
+		analysis := goFunctionMutationEvidence(fn)
+		if fnDecl.Name.Name == "CurrentUnresolvedGo" {
+			if len(analysis.Unresolved) != 1 {
+				t.Fatalf("%s unresolved = %#v, want one exact record", fnDecl.Name.Name, analysis.Unresolved)
+			}
+			evidence := analysis.Unresolved[0]
+			if evidence.Language != "go" || evidence.Operation != "call" || evidence.Symbol != "mystery" ||
+				evidence.Reason != "call target ownership could not be resolved" || evidence.Line <= 0 {
+				t.Fatalf("unresolved = %#v, want go/call/mystery with exact reason and line", evidence)
+			}
+			continue
+		}
+		if len(analysis.Unresolved) != 0 {
+			t.Fatalf("%s unresolved = %#v, want only CurrentUnresolvedGo to be incomplete", fnDecl.Name.Name, analysis.Unresolved)
+		}
+	}
+}
+
+func TestGoFreshSliceCopyOwnershipIsLocal(t *testing.T) {
+	for name, initializer := range map[string]string{
+		"nil slice append copy":   "append([]Item(nil), input...)",
+		"empty slice append copy": "append([]Item{}, input...)",
+		"made slice append copy":  "append(make([]Item, 0, len(input)), input...)",
+	} {
+		t.Run(name, func(t *testing.T) {
+			analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Item struct{ Value int }
+func Current(input []Item) int {
+	copied := `+initializer+`
+	copied[0].Value = 1
+	return copied[0].Value
+}`, "Current")
+			if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+				t.Fatalf("analysis = %#v, want proven fresh local slice", analysis)
+			}
+		})
+	}
+}
+
+func TestGoAppendReusingCallerBackingArrayPreservesOwnership(t *testing.T) {
+	analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Item struct{ Value int }
+func Current(input []Item) int {
+	reused := append(input[:0], input...)
+	reused[0].Value = 1
+	return reused[0].Value
+}`, "Current")
+	assertGoMutation(t, analysis, targetArgument, originCaller)
+	if len(analysis.Unresolved) != 0 {
+		t.Fatalf("unresolved = %#v, want caller ownership resolved", analysis.Unresolved)
 	}
 }
 

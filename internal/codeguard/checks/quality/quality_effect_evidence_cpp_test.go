@@ -266,6 +266,119 @@ func TestCppOriginObservableEffectsUseTerminalMethodWords(t *testing.T) {
 	}
 }
 
+func TestObservableCallEffectPreservesReceiverGrammar(t *testing.T) {
+	cases := map[string]string{
+		"http post":             "http.Post",
+		"http put":              "client.http.Put",
+		"http patch":            "transport.http.Patch",
+		"cache set":             "cache.Set",
+		"cache put":             "localCache.Put",
+		"event enqueue":         "fetchQueue.Enqueue",
+		"compound event method": "dispatcher.tryEnqueue",
+	}
+	want := map[string]string{
+		"http post": "network", "http put": "network", "http patch": "network",
+		"cache set": "persistence", "cache put": "persistence",
+		"event enqueue": "event", "compound event method": "event",
+	}
+	for name, callee := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := observableCallEffect(callee); got != want[name] {
+				t.Fatalf("observableCallEffect(%q) = %q, want %q", callee, got, want[name])
+			}
+		})
+	}
+	for name, callee := range map[string]string{
+		"upload receiver": "upload.expiresAt.Format",
+		"prefetch method": "sink.RecordPrefetch",
+		"read-only saved": "profile.savedPlateIds.size",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := observableCallEffect(callee); got != "" {
+				t.Fatalf("observableCallEffect(%q) = %q, want no observable effect", callee, got)
+			}
+		})
+	}
+}
+
+func TestCppObservableReceiverGrammarRetainsEffectEvidence(t *testing.T) {
+	analysis := cppAnalysisForTest(t, `int current(HttpClient& http, LocalCache& cache, FetchQueue& fetchQueue) {
+  http.Post();
+  cache.Set();
+  fetchQueue.Enqueue();
+  return 1;
+}`, "current")
+	want := map[string]bool{"network": false, "persistence": false, "event": false}
+	for _, evidence := range analysis.Mutations {
+		if _, expected := want[evidence.Effect]; expected && evidence.Target == targetArgument && evidence.Origin == originCaller {
+			want[evidence.Effect] = true
+		}
+	}
+	for effect, found := range want {
+		if !found {
+			t.Fatalf("analysis = %#v, want caller-owned %s evidence", analysis, effect)
+		}
+	}
+}
+
+func TestExplicitCommandNamesUseLeadingVerbGrammar(t *testing.T) {
+	for _, name := range []string{
+		"MarkRead", "RevokeCreatorInvite", "DeactivateUser", "ConfigureSafety",
+		"shutdown", "Repository::bind", "release", "discard", "Subscribe", "IssueAdminAccessToken",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if !explicitMutationName(name) {
+				t.Fatalf("explicitMutationName(%q) = false, want command grammar", name)
+			}
+		})
+	}
+	for _, name := range []string{"Current", "LookupState", "Status", "BindingQuery", "MarkerFor"} {
+		t.Run("query_"+name, func(t *testing.T) {
+			if explicitMutationName(name) {
+				t.Fatalf("explicitMutationName(%q) = true, want query-like grammar", name)
+			}
+		})
+	}
+}
+
+func TestExplicitCommandNamesDoNotReportProvenMutationAsHidden(t *testing.T) {
+	for _, name := range []string{
+		"MarkRead", "RevokeCreatorInvite", "DeactivateUser", "ConfigureSafety",
+		"shutdown", "release", "discard", "Subscribe", "IssueAdminAccessToken",
+	} {
+		t.Run(name, func(t *testing.T) {
+			source := strings.ReplaceAll(`struct State { int value; };
+void COMMAND(State& state) { state.value++; }`, "COMMAND", name)
+			parsed := support.ParseCLike(source, support.CLikeCPP)
+			fn := parsedPrecisionFunction(cppFunctionForTest(t, parsed, name))
+			assertCppMutationForTest(t, cppFunctionMutationEvidence(fn), targetArgument, originCaller)
+			if evidence, ok := hiddenMutationEvidence("commands.cpp", fn); ok {
+				t.Fatalf("command %q produced hidden mutation evidence: %#v", name, evidence)
+			}
+		})
+	}
+
+	parsed := support.ParseCLike(`struct Repository { State state; void bind(); };
+void Repository::bind() { state.value++; }`, support.CLikeCPP)
+	fn := parsedPrecisionFunction(cppFunctionForTest(t, parsed, "Repository::bind"))
+	assertCppMutationForTest(t, cppFunctionMutationEvidence(fn), targetReceiver, originCaller)
+	if evidence, ok := hiddenMutationEvidence("commands.cpp", fn); ok {
+		t.Fatalf("qualified bind produced hidden mutation evidence: %#v", evidence)
+	}
+}
+
+func TestQueryLikeNameWithProvenMutationStillReports(t *testing.T) {
+	parsed := support.ParseCLike(`
+struct Counter { int value; int Current(); };
+int Counter::Current() { value++; return value; }
+`, support.CLikeCPP)
+	fn := parsedPrecisionFunction(cppFunctionForTest(t, parsed, "Counter::Current"))
+	evidence, ok := hiddenMutationEvidence("counter.cpp", fn)
+	if !ok || evidence.Target != targetReceiver || evidence.Origin != originCaller {
+		t.Fatalf("evidence = %#v, ok=%v, want receiver/caller-owned hidden mutation", evidence, ok)
+	}
+}
+
 func TestCppConstructorMutationIsExplicitByLanguageSyntax(t *testing.T) {
 	parsed := support.ParseCLike(`
 struct Registry {
