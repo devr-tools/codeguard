@@ -249,6 +249,23 @@ func ReadValue(input Payload, flag bool) string {
 	assertGoMutation(t, analysis, targetArgument, originCaller)
 }
 
+func TestGoReferenceFieldReassignmentMergesEquivalentLocalBranches(t *testing.T) {
+	analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Payload struct{ Meta map[string]string }
+func ReadValue(input Payload, flag bool) string {
+	if flag {
+		input.Meta = make(map[string]string)
+	} else {
+		input.Meta = map[string]string{}
+	}
+	input.Meta["status"] = "local"
+	return input.Meta["status"]
+}`, "ReadValue")
+	if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+		t.Fatalf("analysis = %#v, want independently reassigned local field content to remain local", analysis)
+	}
+}
+
 func TestGoAliasOriginResolutionFollowsReferenceShapesOnly(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -416,6 +433,24 @@ func ReadValue(flag bool) int { local := &Node{}; `+test.body+`; return local.Va
 			assertGoMutation(t, analysis, test.wantTarget, originShared)
 		})
 	}
+}
+
+func TestGoSwitchFallthroughPreservesSequentialEscapeState(t *testing.T) {
+	analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Node struct{ Value int }
+var shared *Node
+func ReadValue(flag bool) int {
+	local := &Node{}
+	switch flag {
+	case true:
+		shared = local
+		fallthrough
+	default:
+		local.Value = 1
+	}
+	return local.Value
+}`, "ReadValue")
+	assertGoMutation(t, analysis, targetEscaped, originShared)
 }
 
 func TestGoReferenceOriginResolutionMarksOnlyPostEscapeMutation(t *testing.T) {

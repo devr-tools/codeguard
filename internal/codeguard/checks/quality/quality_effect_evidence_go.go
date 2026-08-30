@@ -658,10 +658,40 @@ func cloneGoFieldBindings(bindings map[string]*goSymbol) map[string]*goSymbol {
 	return clone
 }
 
-func intersectGoFieldBindings(first map[string]*goSymbol, second map[string]*goSymbol) map[string]*goSymbol {
+func goReferenceShapesEqual(first goReferenceShape, second goReferenceShape) bool {
+	if first.Kind != second.Kind || first.Name != second.Name || (first.Elem == nil) != (second.Elem == nil) || len(first.Fields) != len(second.Fields) {
+		return false
+	}
+	if first.Elem != nil && !goReferenceShapesEqual(*first.Elem, *second.Elem) {
+		return false
+	}
+	for name, firstField := range first.Fields {
+		secondField, exists := second.Fields[name]
+		if !exists || !goReferenceShapesEqual(firstField, secondField) {
+			return false
+		}
+	}
+	return true
+}
+
+func (resolver *goMutationResolver) goFieldBindingsEquivalent(first *goSymbol, second *goSymbol) bool {
+	if first == nil || second == nil || !goReferenceShapesEqual(first.Shape, second.Shape) {
+		return false
+	}
+	firstOwner := resolver.resolveContentOwner(first)
+	secondOwner := resolver.resolveContentOwner(second)
+	if firstOwner == nil || secondOwner == nil {
+		return false
+	}
+	firstGlobal := firstOwner.Kind == goSymbolGlobal
+	secondGlobal := secondOwner.Kind == goSymbolGlobal
+	return firstGlobal == secondGlobal && firstOwner.Origin == secondOwner.Origin && firstOwner.Target == secondOwner.Target
+}
+
+func (resolver *goMutationResolver) intersectGoFieldBindings(first map[string]*goSymbol, second map[string]*goSymbol) map[string]*goSymbol {
 	intersection := make(map[string]*goSymbol)
 	for key, firstSymbol := range first {
-		if second[key] == firstSymbol {
+		if resolver.goFieldBindingsEquivalent(firstSymbol, second[key]) {
 			intersection[key] = firstSymbol
 		}
 	}
@@ -705,10 +735,10 @@ func (resolver *goMutationResolver) restoreBranchState(state goBranchState) {
 	resolver.fields = cloneGoFieldBindings(state.fields)
 }
 
-func intersectGoBranchStates(first goBranchState, second goBranchState) goBranchState {
+func (resolver *goMutationResolver) intersectGoBranchStates(first goBranchState, second goBranchState) goBranchState {
 	return goBranchState{
 		escapes: intersectGoEscapeStates(first.escapes, second.escapes),
-		fields:  intersectGoFieldBindings(first.fields, second.fields),
+		fields:  resolver.intersectGoFieldBindings(first.fields, second.fields),
 	}
 }
 
@@ -725,7 +755,41 @@ func (resolver *goMutationResolver) walkExclusiveBranches(scope *goScope, statem
 	}
 	merged := states[0]
 	for _, state := range states[1:] {
-		merged = intersectGoBranchStates(merged, state)
+		merged = resolver.intersectGoBranchStates(merged, state)
+	}
+	resolver.restoreBranchState(merged)
+}
+
+func goCaseFallsThrough(statement ast.Stmt) bool {
+	clause, ok := statement.(*ast.CaseClause)
+	if !ok || len(clause.Body) == 0 {
+		return false
+	}
+	branch, ok := clause.Body[len(clause.Body)-1].(*ast.BranchStmt)
+	return ok && branch.Tok == token.FALLTHROUGH
+}
+
+func (resolver *goMutationResolver) walkSwitchBranches(scope *goScope, statements []ast.Stmt, exhaustive bool) {
+	before := resolver.branchState()
+	states := make([]goBranchState, 0, len(statements)+1)
+	for entry := range statements {
+		resolver.restoreBranchState(before)
+		resolver.walkStatement(scope, statements[entry])
+		for current := entry; goCaseFallsThrough(statements[current]) && current+1 < len(statements); current++ {
+			next, ok := statements[current+1].(*ast.CaseClause)
+			if !ok {
+				break
+			}
+			resolver.walkStatements(resolver.newScope(scope), next.Body)
+		}
+		states = append(states, resolver.branchState())
+	}
+	if !exhaustive || len(states) == 0 {
+		states = append(states, before)
+	}
+	merged := states[0]
+	for _, state := range states[1:] {
+		merged = resolver.intersectGoBranchStates(merged, state)
 	}
 	resolver.restoreBranchState(merged)
 }
@@ -797,7 +861,7 @@ func (resolver *goMutationResolver) walkStatement(scope *goScope, statement ast.
 		if value.Else != nil {
 			resolver.walkStatement(control, value.Else)
 		}
-		resolver.restoreBranchState(intersectGoBranchStates(thenState, resolver.branchState()))
+		resolver.restoreBranchState(resolver.intersectGoBranchStates(thenState, resolver.branchState()))
 	case *ast.ForStmt:
 		control := resolver.newScope(scope)
 		if value.Init != nil {
@@ -834,7 +898,7 @@ func (resolver *goMutationResolver) walkStatement(scope *goScope, statement ast.
 			resolver.walkStatement(control, value.Init)
 		}
 		resolver.walkExpressionCalls(control, value.Tag)
-		resolver.walkExclusiveBranches(control, value.Body.List, goBranchesHaveDefault(value.Body.List))
+		resolver.walkSwitchBranches(control, value.Body.List, goBranchesHaveDefault(value.Body.List))
 	case *ast.TypeSwitchStmt:
 		control := resolver.newScope(scope)
 		if value.Init != nil {
