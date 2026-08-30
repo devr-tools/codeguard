@@ -178,6 +178,110 @@ func Current(input []Item) int {
 	}
 }
 
+func TestGoReferenceBackedConversionsPreserveCallerOwnership(t *testing.T) {
+	tests := map[string]string{
+		"unnamed slice conversion": `package sample
+type Item struct{ Value int }
+func Current(input []Item) int {
+	copied := []Item(input)
+	copied[0].Value = 1
+	return copied[0].Value
+}`,
+		"named slice conversion": `package sample
+type Item struct{ Value int }
+type Set []Item
+func Current(input []Item) int {
+	copied := Set(input)
+	copied[0].Value = 1
+	return copied[0].Value
+}`,
+		"unnamed map conversion": `package sample
+type Item struct{ Value int }
+func Current(input map[string]*Item) int {
+	copied := map[string]*Item(input)
+	copied["item"].Value = 1
+	return copied["item"].Value
+}`,
+		"named map conversion": `package sample
+type Item struct{ Value int }
+type ItemsByName map[string]*Item
+func Current(input map[string]*Item) int {
+	copied := ItemsByName(input)
+	copied["item"].Value = 1
+	return copied["item"].Value
+}`,
+	}
+	for name, source := range tests {
+		t.Run(name, func(t *testing.T) {
+			analysis := parseGoMutationAnalysisForTest(t, source, "Current")
+			assertGoMutation(t, analysis, targetArgument, originCaller)
+		})
+	}
+}
+
+func TestGoFreshReferenceBackedConversionsRemainLocal(t *testing.T) {
+	tests := map[string]string{
+		"unnamed nil slice": `package sample
+type Item struct{ Value int }
+func Current() int {
+	copied := []Item(nil)
+	copied = append(copied, Item{})
+	copied[0].Value = 1
+	return copied[0].Value
+}`,
+		"named nil slice": `package sample
+type Item struct{ Value int }
+type Set []Item
+func Current() int {
+	copied := Set(nil)
+	copied = append(copied, Item{})
+	copied[0].Value = 1
+	return copied[0].Value
+}`,
+		"unnamed nil map": `package sample
+type Item struct{ Value int }
+func Current() int {
+	copied := map[string]*Item(nil)
+	copied["item"] = &Item{}
+	return 1
+}`,
+		"named literal map": `package sample
+type Item struct{ Value int }
+type ItemsByName map[string]*Item
+func Current() int {
+	copied := ItemsByName(map[string]*Item{})
+	copied["item"] = &Item{}
+	return 1
+}`,
+	}
+	for name, source := range tests {
+		t.Run(name, func(t *testing.T) {
+			analysis := parseGoMutationAnalysisForTest(t, source, "Current")
+			if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+				t.Fatalf("analysis = %#v, want fresh local conversion", analysis)
+			}
+		})
+	}
+}
+
+func TestGoReferenceBackedConversionWithUnknownOperandRemainsUnresolved(t *testing.T) {
+	analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Item struct{ Value int }
+type Items []Item
+func Current() int {
+	copied := Items(loadItems())
+	copied[0].Value = 1
+	return copied[0].Value
+}`, "Current")
+	if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 1 {
+		t.Fatalf("analysis = %#v, want one conservative unresolved assignment", analysis)
+	}
+	evidence := analysis.Unresolved[0]
+	if evidence.Operation != "assignment" || evidence.Symbol != "copied" || evidence.Reason != "symbol ownership or reference shape could not be resolved" {
+		t.Fatalf("unresolved = %#v, want exact converted operand diagnostic", evidence)
+	}
+}
+
 func TestGoClosureOriginResolutionUsesCapturedDeclaration(t *testing.T) {
 	analysis := parseGoMutationAnalysisForTest(t, `package sample
 type State struct{ Value int }

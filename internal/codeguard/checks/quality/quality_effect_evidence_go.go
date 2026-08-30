@@ -422,18 +422,60 @@ func (resolver *goMutationResolver) expressionShape(scope *goScope, expression a
 				}
 			}
 		}
-		// A call whose function expression is a type is a conversion. In
-		// particular, []T(nil) is the fresh destination in the standard
-		// append-copy idiom.
-		switch value.Fun.(type) {
-		case *ast.ArrayType, *ast.MapType, *ast.StarExpr, *ast.InterfaceType, *ast.StructType:
-			return resolver.typeShape(value.Fun, nil)
+		if shape, ok := resolver.conversionShape(scope, value); ok {
+			return shape
 		}
 		return goReferenceShape{Kind: goShapeUnknown}
 	case *ast.FuncLit:
 		return goReferenceShape{Kind: goShapeValue}
 	default:
 		return goReferenceShape{Kind: goShapeValue}
+	}
+}
+
+func (resolver *goMutationResolver) conversionShape(scope *goScope, call *ast.CallExpr) (goReferenceShape, bool) {
+	if call == nil || len(call.Args) != 1 {
+		return goReferenceShape{}, false
+	}
+	if !resolver.isTypeExpression(scope, call.Fun) {
+		return goReferenceShape{}, false
+	}
+	return resolver.typeShape(call.Fun, nil), true
+}
+
+func (resolver *goMutationResolver) isTypeExpression(scope *goScope, expression ast.Expr) bool {
+	switch value := expression.(type) {
+	case *ast.ArrayType, *ast.MapType, *ast.InterfaceType, *ast.StructType:
+		return true
+	case *ast.ParenExpr:
+		return resolver.isTypeExpression(scope, value.X)
+	case *ast.StarExpr:
+		return resolver.isTypeExpression(scope, value.X)
+	case *ast.Ident:
+		return (scope == nil || scope.lookup(value.Name) == nil) && resolver.pkg != nil && resolver.pkg.types[value.Name] != nil
+	default:
+		return false
+	}
+}
+
+func (resolver *goMutationResolver) freshConversionOperand(scope *goScope, expression ast.Expr) bool {
+	switch value := expression.(type) {
+	case *ast.ParenExpr:
+		return resolver.freshConversionOperand(scope, value.X)
+	case *ast.Ident:
+		return value.Name == "nil"
+	case *ast.BasicLit, *ast.CompositeLit:
+		return true
+	case *ast.UnaryExpr:
+		return value.Op == token.AND && resolver.freshConversionOperand(scope, value.X)
+	case *ast.CallExpr:
+		if identifier, ok := value.Fun.(*ast.Ident); ok && (identifier.Name == "make" || identifier.Name == "new") {
+			return true
+		}
+		_, conversion := resolver.conversionShape(scope, value)
+		return conversion && resolver.freshConversionOperand(scope, value.Args[0])
+	default:
+		return false
 	}
 }
 
@@ -503,6 +545,14 @@ func (resolver *goMutationResolver) resolveExpression(scope *goScope, expression
 		if identifier, ok := value.Fun.(*ast.Ident); ok && identifier.Name == "append" && len(value.Args) > 0 {
 			path := resolver.resolveExpression(scope, value.Args[0])
 			path.shape = resolver.expressionShape(scope, value)
+			return path
+		}
+		if shape, ok := resolver.conversionShape(scope, value); ok {
+			if resolver.freshConversionOperand(scope, value.Args[0]) {
+				return goExpressionPath{shape: shape}
+			}
+			path := resolver.resolveExpression(scope, value.Args[0])
+			path.shape = shape
 			return path
 		}
 		return goExpressionPath{shape: resolver.expressionShape(scope, expression), unresolved: resolver.expressionRootName(expression)}
@@ -1100,6 +1150,12 @@ func (resolver *goMutationResolver) setInitializer(scope *goScope, symbol *goSym
 		symbol.Origin = originLocal
 		return
 	}
+	if conversion, ok := expression.(*ast.CallExpr); ok {
+		if shape, isConversion := resolver.conversionShape(scope, conversion); isConversion && shape.referenceBacked() && !resolver.freshConversionOperand(scope, conversion.Args[0]) {
+			symbol.Origin = originUnknown
+			return
+		}
+	}
 	if _, ok := expression.(*ast.CallExpr); ok && shape.Kind == goShapeUnknown {
 		symbol.Origin = originUnknown
 	} else {
@@ -1195,6 +1251,9 @@ func (resolver *goMutationResolver) walkCall(scope *goScope, call *ast.CallExpr)
 	}
 	line := resolver.line(call.Pos())
 	if identifier, ok := call.Fun.(*ast.Ident); ok {
+		if _, conversion := resolver.conversionShape(scope, call); conversion {
+			return
+		}
 		if symbol := scope.lookup(identifier.Name); symbol != nil {
 			if definition, exists := resolver.closures[symbol.ID]; exists {
 				resolver.executeClosure(definition, scope, call.Args, symbol.ID)

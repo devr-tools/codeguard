@@ -1,7 +1,7 @@
 # Task 4 Report — Named Regressions, Invariants, and crumb-app Acceptance
 
 - status: IMPLEMENTATION_VERIFIED_EXTERNAL_FULL_CONFIG_GATE_DEFECT — implementation and repository verification pass; the supplied full configuration has an independently measured 193-finding non-structural floor, so its total cannot satisfy the requested maximum of 19
-- commits: `04398d3` (`test: lock structural origin classification acceptance`), `202c57f` (`fix: close structural acceptance parser gaps`), plus this review-fix commit
+- commits: `04398d3` (`test: lock structural origin classification acceptance`), `202c57f` (`fix: close structural acceptance parser gaps`), `7c759d2` (`fix: refine structural effect grammar`), plus this conversion-fix commit
 
 ## Coverage delivered
 
@@ -246,3 +246,33 @@ The 106 remaining structural/structurally-derived unsuppressed findings partitio
 For the two direct structural rules, all metadata remains ownership-proven. Go has 15 hidden mutations (9 receiver persistence, 5 receiver shared-state, 1 argument shared-state) and 14 command/query findings (8 argument and 6 receiver shared-state). C++ has 37 hidden mutations (22 argument, 13 receiver, 2 global) and 26 command/query findings (18 argument, 7 receiver, 1 global); effect metadata includes the restored event and persistence cases.
 
 Relative to the prior final scan, this round removes 24 unsuppressed structural locations and adds the two genuine cache-`put` findings at `request_planner_profile_generation_store.cpp:131`, for a net reduction of 22 (321 to 299). The location delta and complete 92-row direct structural listing are retained in the artifacts above. No crumb source, baseline, suppression, waiver, or cache file was modified.
+
+## Review fix round 2 — Go reference-backed conversions
+
+The focused RED command was:
+
+`GOCACHE=/private/tmp/codeguard-go-cache-review2-red szr proxy go test ./internal/codeguard/checks/quality -run 'TestGoReferenceBackedConversionsPreserveCallerOwnership|TestGoFreshReferenceBackedConversionsRemainLocal' -count=1 -v`
+
+- unnamed `[]Item(input)` and `map[string]*Item(input)` conversions were incorrectly classified as local and emitted no caller mutation;
+- declared slice/map conversions became unresolved because the call-shaped syntax was not connected to the package type declaration;
+- the existing unnamed nil conversions remained correctly local, while declared fresh conversions exposed the same declaration gap.
+
+The resolver now identifies conversion syntax from an AST type expression or an indexed declared type, respecting lexical value shadowing. A reference-backed conversion inherits its operand's symbol and ownership. Nil, basic/composite literals, address-of fresh literals, builtin allocation, and recursively fresh conversion operands remain local. A non-fresh operand whose ownership cannot be resolved stays diagnostic-only rather than being guessed local. Conversion calls whose declared type has a mutator-shaped name such as `Set` are recognized by declaration, not by their spelling, and do not create spurious call diagnostics.
+
+Focused coverage proves:
+
+- caller-owned unnamed and declared slice conversions report `mutation_target=argument`, `origin=caller_owned`;
+- caller-owned unnamed and declared map conversions report the same exact ownership;
+- unnamed/declared nil slice conversions and unnamed nil/declared literal map conversions remain local with no mutation or unresolved record;
+- a declared reference conversion over an unresolved call result produces exactly one assignment diagnostic for symbol `copied` with reason `symbol ownership or reference shape could not be resolved`;
+- the earlier fresh-append, reused-backing-array, and named-fixture unresolved invariants remain green.
+
+Verification:
+
+- focused conversion and prior Go ownership regressions: PASS
+- complete `internal/codeguard/checks/quality` package: PASS
+- structural-origin/function-effect integration selection in `tests/checks`: PASS
+- `go vet ./...`: PASS
+- branch binary build and `git diff --check`: PASS
+
+Because the change can reveal a genuine caller mutation, a scan-only acceptance comparison was run and retained at `/private/tmp/crumb-structural-origin-scan-review2.json`. Its finding set is identical to round 1: 299 unsuppressed (Go 118, C++ 181), 5,395 suppressed, with no added or removed rule/path/line location. The Go unresolved diagnostic count increases conservatively from 1,760 to 1,761; C++ remains 3,125. Since the baseline-relevant finding set did not change, audit/prune were not rerun as permitted by this review round. crumb-app was not modified.
