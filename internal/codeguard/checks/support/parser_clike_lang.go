@@ -63,16 +63,16 @@ func findCPPBodyOpen(masked string, offset int) int {
 		case ';':
 			return -1
 		case '{':
-			close := matchBracketOffset(masked, i)
-			if close < 0 {
+			initializerEnd := matchBracketOffset(masked, i)
+			if initializerEnd < 0 {
 				return -1
 			}
-			next := close + 1
+			next := initializerEnd + 1
 			for next < len(masked) && (masked[next] == ' ' || masked[next] == '\t' || masked[next] == '\n') {
 				next++
 			}
 			if next < len(masked) && (masked[next] == ',' || masked[next] == '{') {
-				i = close
+				i = initializerEnd
 				continue
 			}
 			return i

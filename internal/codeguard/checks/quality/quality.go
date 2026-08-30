@@ -25,10 +25,6 @@ func runQualitySection(ctx context.Context, env support.Context) core.SectionRes
 	return env.FinalizeSectionWithDiagnostics("quality", "Code Quality", findings, unresolvedMutationDiagnostics(unresolved))
 }
 
-func qualityTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	return qualityTargetAnalysis(ctx, env, target).findings
-}
-
 type qualityTargetScan struct {
 	findings   []core.Finding
 	unresolved []unresolvedMutationEvidence

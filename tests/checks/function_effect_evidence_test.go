@@ -1,6 +1,7 @@
 package checks_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -195,11 +196,128 @@ int current() { shared.value++; return shared.value; }`, finding: true, target: 
 	}
 }
 
+func TestStructuralOriginNamedSourceFixturesRetainLocalOwnership(t *testing.T) {
+	cases := []struct {
+		name               string
+		language           string
+		diagnosticLanguage string
+		unresolvedCount    string
+		fixtureDir         string
+		functions          []string
+	}{
+		{
+			name:               "go crumb helpers",
+			language:           "go",
+			diagnosticLanguage: "go",
+			unresolvedCount:    "3",
+			fixtureDir:         filepath.Join("testdata", "structural_origin", "go"),
+			functions: []string{
+				"normalizeBadgeRule",
+				"normalizeUpdateBadgeInput",
+				"normalizePreviewBadgeInput",
+				"normalizeRecomputeBadgeInput",
+				"normalizeBrandCampaignPatchInput",
+				"normalizePlaceUpdateFields",
+				"OvertureDatasetPath",
+				"NewStaticOvertureDivisionResolver",
+				"duckDBDivisionHierarchy",
+			},
+		},
+		{
+			name:               "cpp crumb helpers",
+			language:           "cpp",
+			diagnosticLanguage: "c++",
+			unresolvedCount:    "1",
+			fixtureDir:         filepath.Join("testdata", "structural_origin", "cpp"),
+			functions:          []string{"BuildLocalResponse", "DbRow::integer"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(tc.fixtureDir, tc.language))
+			for _, function := range tc.functions {
+				assertFunctionHasNoStructuralFinding(t, report, function)
+			}
+			assertUnresolvedDiagnosticCount(t, report, tc.diagnosticLanguage, tc.unresolvedCount)
+		})
+	}
+}
+
+func TestStructuralOriginNegativeFixturesRetainProvenMutations(t *testing.T) {
+	cases := []struct {
+		name, language, fixtureDir, function, target, origin string
+	}{
+		{"go receiver", "go", filepath.Join("testdata", "structural_origin", "go"), "CurrentReceiver", "receiver", "caller_owned"},
+		{"go argument", "go", filepath.Join("testdata", "structural_origin", "go"), "CurrentArgument", "argument", "caller_owned"},
+		{"go global", "go", filepath.Join("testdata", "structural_origin", "go"), "CurrentGlobal", "global", "shared"},
+		{"go escaped", "go", filepath.Join("testdata", "structural_origin", "go"), "CurrentEscaped", "escaped", "shared"},
+		{"cpp receiver", "cpp", filepath.Join("testdata", "structural_origin", "cpp"), "CurrentReceiver", "receiver", "caller_owned"},
+		{"cpp reference", "cpp", filepath.Join("testdata", "structural_origin", "cpp"), "CurrentReference", "argument", "caller_owned"},
+		{"cpp global", "cpp", filepath.Join("testdata", "structural_origin", "cpp"), "CurrentGlobal", "global", "shared"},
+		{"cpp escaped", "cpp", filepath.Join("testdata", "structural_origin", "cpp"), "CurrentEscaped", "escaped", "shared"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(tc.fixtureDir, tc.language))
+			finding := findStructuralFindingForFunction(t, report, "function.hidden-mutation", tc.function)
+			if finding.RuleID != "function.hidden-mutation" {
+				t.Fatalf("rule_id = %q, want function.hidden-mutation; finding=%#v", finding.RuleID, finding)
+			}
+			for key, want := range map[string]string{
+				"mutation_target": tc.target,
+				"effect_kind":     "shared_state",
+				"origin":          tc.origin,
+			} {
+				if got := finding.Metadata[key]; got != want {
+					t.Fatalf("%s = %q, want %q; finding=%#v", key, got, want, finding)
+				}
+			}
+		})
+	}
+}
+
+func assertFunctionHasNoStructuralFinding(t *testing.T, report codeguard.Report, function string) {
+	t.Helper()
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if isStructuralEffectRule(finding.RuleID) && strings.Contains(finding.Message, function) {
+				t.Fatalf("function %q unexpectedly has %s at %s:%d: %s", function, finding.RuleID, finding.Path, finding.Line, finding.Message)
+			}
+		}
+	}
+}
+
+func findStructuralFindingForFunction(t *testing.T, report codeguard.Report, ruleID string, function string) codeguard.Finding {
+	t.Helper()
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if finding.RuleID == ruleID && strings.Contains(finding.Message, function) {
+				return finding
+			}
+		}
+	}
+	t.Fatalf("finding %q for function %q not found", ruleID, function)
+	return codeguard.Finding{}
+}
+
+func isStructuralEffectRule(ruleID string) bool {
+	switch ruleID {
+	case "function.hidden-mutation", "function.command-query-mix", "quality.hidden-side-effect":
+		return true
+	default:
+		return false
+	}
+}
+
 func assertUnresolvedDiagnosticCount(t *testing.T, report codeguard.Report, language string, count string) {
 	t.Helper()
+	var diagnostics []string
 	for _, section := range report.Sections {
 		if section.Name != "Code Quality" {
 			continue
+		}
+		for _, diagnostic := range section.Diagnostics {
+			diagnostics = append(diagnostics, fmt.Sprintf("%s:%v", diagnostic.ID, diagnostic.Metadata))
 		}
 		for _, diagnostic := range section.Diagnostics {
 			if diagnostic.ID == "quality.structural-unresolved-symbols" && diagnostic.Metadata["language"] == language && diagnostic.Metadata["count"] == count {
@@ -207,7 +325,7 @@ func assertUnresolvedDiagnosticCount(t *testing.T, report codeguard.Report, lang
 			}
 		}
 	}
-	t.Fatalf("expected unresolved-symbol diagnostic language=%q count=%q: %#v", language, count, report.Sections)
+	t.Fatalf("expected unresolved-symbol diagnostic language=%q count=%q: %#v", language, count, diagnostics)
 }
 
 func TestFunctionEffectsReportOwnedAndObservableMutationEvidence(t *testing.T) {

@@ -255,7 +255,7 @@ func TestFunctionHiddenMutationAllowsReactHookLocalStateBoundaries(t *testing.T)
 	}
 }
 
-func TestFunctionHiddenMutationStillWarnsForHiddenPersistenceInsideReactHook(t *testing.T) {
+func TestFunctionHiddenMutationReportsUnresolvedPersistenceInsideReactHook(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps/web/src/hooks/use-user.ts"), strings.Join([]string{
 		"export function useUser(repo: Repository, user: User) {",
@@ -271,7 +271,8 @@ func TestFunctionHiddenMutationStillWarnsForHiddenPersistenceInsideReactHook(t *
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
-	assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+	assertUnresolvedDiagnosticCount(t, report, "typescript", "1")
 }
 
 func TestFunctionResponsibilityAndOrchestrationRules(t *testing.T) {

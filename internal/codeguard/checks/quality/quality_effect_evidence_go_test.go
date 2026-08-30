@@ -470,6 +470,7 @@ func ReadValue() int {
 	assertGoMutation(t, analysis, targetEscaped, originShared)
 }
 
+//nolint:unparam // Keeping the function selector explicit makes multi-function resolver fixtures unambiguous.
 func parseGoMutationAnalysisForTest(t *testing.T, source string, functionName string) mutationAnalysis {
 	t.Helper()
 	fset := token.NewFileSet()

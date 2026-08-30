@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	codeguardcli "github.com/devr-tools/codeguard/internal/cli"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 	"github.com/devr-tools/codeguard/pkg/codeguard"
@@ -37,16 +38,16 @@ func promptOnlyConfig(dir string, name string) codeguard.Config {
 	return cfg
 }
 
-func findFindingByRule(t *testing.T, report codeguard.Report, ruleID string) codeguard.Finding {
+func findPromptSecretFinding(t *testing.T, report codeguard.Report) codeguard.Finding {
 	t.Helper()
 	for _, section := range report.Sections {
 		for _, finding := range section.Findings {
-			if finding.RuleID == ruleID {
+			if finding.RuleID == "prompts.secret-interpolation" {
 				return finding
 			}
 		}
 	}
-	t.Fatalf("finding for rule %q not found", ruleID)
+	t.Fatal("prompts.secret-interpolation finding not found")
 	return codeguard.Finding{}
 }
 
@@ -65,7 +66,7 @@ func TestBaselineSuppressesFindingAfterLineShift(t *testing.T) {
 		t.Fatalf("run: %v", err)
 	}
 	assertSectionStatus(t, report, "AI Prompts", "fail")
-	before := findFindingByRule(t, report, "prompts.secret-interpolation")
+	before := findPromptSecretFinding(t, report)
 	if before.ContextFingerprint == "" {
 		t.Fatal("expected finding to carry a context fingerprint")
 	}
@@ -85,7 +86,7 @@ func TestBaselineSuppressesFindingAfterLineShift(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run after edit: %v", err)
 	}
-	after := findFindingByRule(t, report, "prompts.secret-interpolation")
+	after := findPromptSecretFinding(t, report)
 	if after.Fingerprint == before.Fingerprint {
 		t.Error("expected legacy fingerprint to change when the finding line shifts")
 	}
@@ -164,7 +165,7 @@ func TestLegacyOnlyBaselineStillSuppresses(t *testing.T) {
 	}
 	assertSectionStatus(t, report, "AI Prompts", "fail")
 
-	current := findFindingByRule(t, report, "prompts.secret-interpolation")
+	current := findPromptSecretFinding(t, report)
 	preV2Sum := sha256.Sum256([]byte(strings.Join([]string{
 		current.RuleID,
 		filepath.ToSlash(current.Path),
@@ -206,7 +207,7 @@ func TestBaselineFallsBackFromPriorExactFingerprintAfterEvidenceChange(t *testin
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	current := findFindingByRule(t, report, "prompts.secret-interpolation")
+	current := findPromptSecretFinding(t, report)
 	priorMessage := "prior finding prose with different evidence"
 	priorSum := sha256.Sum256([]byte(strings.Join([]string{
 		current.RuleID,
@@ -237,6 +238,58 @@ func TestBaselineFallsBackFromPriorExactFingerprintAfterEvidenceChange(t *testin
 	}
 	assertSectionStatus(t, report, "AI Prompts", "pass")
 	assertSuppressionMatch(t, report, "context")
+}
+
+func TestBaselineAuditAndPruneKeepWordingIndependentMatchesAndExposeResolvedFalsePositives(t *testing.T) {
+	dir := t.TempDir()
+	const source = "package sample\n\nfunc Current(input *State) int {\n\tinput.Value++\n\treturn input.Value\n}\n"
+	writeFile(t, filepath.Join(dir, "state.go"), source)
+	sc := runnersupport.Context{Cfg: core.Config{Targets: []core.TargetConfig{{Name: "repo", Path: dir}}}}
+	prior := runnersupport.NewFinding(sc, runnersupport.FindingInput{
+		RuleID: "function.hidden-mutation", Path: "state.go", Line: 4,
+		Message: "function Current mutates argument state", Confidence: "medium",
+		Metadata: map[string]string{"mutation_target": "argument", "origin": "caller_owned"},
+	})
+	current := runnersupport.NewFinding(sc, runnersupport.FindingInput{
+		RuleID: "function.hidden-mutation", Path: "state.go", Line: 4,
+		Message: "Current changes caller-owned state", Confidence: "high",
+		Metadata: map[string]string{"mutation_target": "argument", "effect_kind": "shared_state", "origin": "caller_owned"},
+	})
+	if prior.Fingerprint != current.Fingerprint || prior.ContextFingerprint != current.ContextFingerprint || prior.ContentFingerprint != current.ContentFingerprint {
+		t.Fatalf("wording/evidence changed source identity:\nprior=%#v\ncurrent=%#v", prior, current)
+	}
+	priorExact := sha256.Sum256([]byte(strings.Join([]string{
+		prior.RuleID,
+		filepath.ToSlash(prior.Path),
+		strconv.Itoa(prior.Line),
+		prior.Message,
+	}, "|")))
+	active := core.BaselineEntry{
+		Fingerprint:        hex.EncodeToString(priorExact[:]),
+		ContextFingerprint: prior.ContextFingerprint,
+		ContentFingerprint: prior.ContentFingerprint,
+		RuleID:             prior.RuleID,
+		Path:               prior.Path,
+		Message:            prior.Message,
+	}
+	resolvedFalsePositive := core.BaselineEntry{
+		Fingerprint: "resolved-structural-false-positive",
+		RuleID:      "function.hidden-mutation",
+		Path:        "helpers.go",
+		Message:     "local value construction was misclassified as shared mutation",
+	}
+	audit := codeguardcli.Audit(core.BaselineFile{Entries: []core.BaselineEntry{active, resolvedFalsePositive}}, []core.Finding{current}, codeguardcli.Options{})
+	if audit.Counts.ActiveContext != 1 || audit.Counts.Active != 1 || audit.Counts.Stale != 1 || audit.Counts.Final != 1 {
+		t.Fatalf("audit counts = %#v, want one context-active and one stale entry", audit.Counts)
+	}
+	retained := audit.ActiveEntries()
+	if len(retained) != 1 || retained[0].Fingerprint != active.Fingerprint {
+		t.Fatalf("prune retained = %#v, want only wording-independent active entry", retained)
+	}
+	prunable := audit.PrunableEntries()
+	if len(prunable) != 1 || prunable[0].Fingerprint != resolvedFalsePositive.Fingerprint {
+		t.Fatalf("prunable = %#v, want only resolved structural false positive", prunable)
+	}
 }
 
 func TestPreV2ExactOnlyBaselineSuppressesFindingWithoutSourceContext(t *testing.T) {

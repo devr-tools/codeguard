@@ -39,13 +39,14 @@ func TestQualityLocalDesignRules(t *testing.T) {
 		"quality.ambiguous-name",
 		"quality.boolean-argument",
 		"quality.primitive-obsession",
-		"quality.hidden-side-effect",
 		"quality.mutable-global-state",
 		"quality.redundant-comment",
 	} {
 		assertFindingRulePresent(t, report, "Code Quality", ruleID)
 		assertFindingLevel(t, report, "Code Quality", ruleID, "warn")
 	}
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
+	assertUnresolvedDiagnosticCount(t, report, "go", "2")
 }
 
 func TestQualityLocalDesignRulesForScriptLanguages(t *testing.T) {

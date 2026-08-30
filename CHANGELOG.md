@@ -5,6 +5,7 @@
 
 ### Bug Fixes
 
+* resolve Go and C++ structural mutation ownership from declarations, scopes, and aliases; report unresolved operations diagnostically and keep finding fingerprints stable across wording or evidence changes
 * harden scan evidence edge cases ([d2a4a36](https://github.com/devr-tools/codeguard/commit/d2a4a36a0437c7e91825dd1fdbf9e4643a535fb3))
 * make security scans workspace and fixture aware ([0b86a3b](https://github.com/devr-tools/codeguard/commit/0b86a3bbf31d5c22907b5a47c0d1657d0ea751da))
 * make structural mutation rules ownership aware ([92e006a](https://github.com/devr-tools/codeguard/commit/92e006aa3ba3f7fc1ea9d0d0bc95d920b6057cf1))

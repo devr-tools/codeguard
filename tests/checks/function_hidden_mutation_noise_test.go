@@ -655,7 +655,7 @@ func TestFunctionHiddenMutationAllowsReactComponentsAndHooksAsBoundaries(t *test
 	}
 }
 
-func TestFunctionHiddenMutationStillWarnsForReactNativeCollaboratorMutation(t *testing.T) {
+func TestFunctionHiddenMutationReportsUnresolvedReactNativeCollaboratorCapture(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps/mobile/src/screens/ProfileScreen.tsx"), strings.Join([]string{
 		"import { Pressable, Text } from 'react-native';",
@@ -672,7 +672,8 @@ func TestFunctionHiddenMutationStillWarnsForReactNativeCollaboratorMutation(t *t
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
-	assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+	assertUnresolvedDiagnosticCount(t, report, "typescript", "1")
 }
 
 func TestFunctionHiddenMutationAllowsConventionalCommandNames(t *testing.T) {

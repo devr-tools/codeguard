@@ -12,10 +12,6 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func goFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
-	return goFindingsForFileWithIndex(env, file, data, nil)
-}
-
 func goFindingsForFileWithIndex(env support.Context, file string, data []byte, index *goPackageIndex) []core.Finding {
 	findings := make([]core.Finding, 0)
 

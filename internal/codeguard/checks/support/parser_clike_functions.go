@@ -232,8 +232,8 @@ func cppLexicalScope(masked string, outerOpen int, outerEnd int, offset int) (in
 	}
 	if len(stack) > 0 {
 		start = stack[len(stack)-1]
-		if close := matchBracketOffset(masked, start); close > start {
-			end = close
+		if scopeEnd := matchBracketOffset(masked, start); scopeEnd > start {
+			end = scopeEnd
 		}
 	}
 	return start, end

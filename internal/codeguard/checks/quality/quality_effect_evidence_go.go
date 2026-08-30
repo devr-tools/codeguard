@@ -547,7 +547,7 @@ func (resolver *goMutationResolver) resolveContentOwner(symbol *goSymbol) *goSym
 	return nil
 }
 
-func (resolver *goMutationResolver) ownership(path goExpressionPath, line int, call bool) (string, string, bool) {
+func (resolver *goMutationResolver) ownership(path goExpressionPath, call bool) (string, string, bool) {
 	if path.symbol == nil || path.packageName {
 		return "", "", false
 	}
@@ -611,7 +611,7 @@ func (resolver *goMutationResolver) recordAssignmentMutation(scope *goScope, exp
 	if path.packageName {
 		return
 	}
-	target, origin, reportable := resolver.ownership(path, line, false)
+	target, origin, reportable := resolver.ownership(path, false)
 	if reportable {
 		resolver.addMutation(target, "shared_state", origin, line, detail)
 		return
@@ -1122,7 +1122,6 @@ func (resolver *goMutationResolver) recordEscapes(scope *goScope, assignment *as
 	if assignment.Tok != token.ASSIGN {
 		return
 	}
-	line := resolver.line(assignment.Pos())
 	for position, lhs := range assignment.Lhs {
 		if position >= len(assignment.Rhs) {
 			break
@@ -1135,7 +1134,7 @@ func (resolver *goMutationResolver) recordEscapes(scope *goScope, assignment *as
 		lhsPath := resolver.resolveExpression(scope, lhs)
 		external := lhsPath.symbol != nil && lhsPath.symbol.Kind == goSymbolGlobal
 		if !external {
-			_, _, external = resolver.ownership(lhsPath, line, false)
+			_, _, external = resolver.ownership(lhsPath, false)
 		}
 		if external {
 			resolver.escapedAt[local.ID] = resolver.order
@@ -1199,7 +1198,7 @@ func (resolver *goMutationResolver) walkCall(scope *goScope, call *ast.CallExpr)
 		}
 		effect = "shared_state"
 	}
-	target, origin, reportable := resolver.ownership(path, line, true)
+	target, origin, reportable := resolver.ownership(path, true)
 	if reportable {
 		resolver.addMutation(target, effect, origin, line, callee)
 		return
@@ -1255,7 +1254,7 @@ func (resolver *goMutationResolver) recordBuiltinMutation(scope *goScope, name s
 	if path.shape.referenceBacked() {
 		path.crossedReference = true
 	}
-	target, origin, reportable := resolver.ownership(path, line, false)
+	target, origin, reportable := resolver.ownership(path, false)
 	if reportable {
 		resolver.addMutation(target, "shared_state", origin, line, name)
 	} else if path.symbol == nil || path.symbol.Origin == originUnknown {

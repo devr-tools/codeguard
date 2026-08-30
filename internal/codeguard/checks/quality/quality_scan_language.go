@@ -10,10 +10,6 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func languageQualityFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	return languageQualityAnalysis(ctx, env, target).findings
-}
-
 type languageQualityScan struct {
 	findings   []core.Finding
 	unresolved []unresolvedMutationEvidence
@@ -128,10 +124,6 @@ func buildGoPackageIndex(env support.Context, target core.TargetConfig) *goPacka
 		}
 	})
 	return index
-}
-
-func goUnresolvedMutationEvidence(env support.Context, file string, data []byte) []unresolvedMutationEvidence {
-	return goUnresolvedMutationEvidenceWithIndex(env, file, data, nil)
 }
 
 func goUnresolvedMutationEvidenceWithIndex(env support.Context, file string, data []byte, index *goPackageIndex) []unresolvedMutationEvidence {
