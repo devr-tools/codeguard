@@ -79,13 +79,13 @@ int DbRow::integer(T input) {
 
 func TestCppOriginValueParametersAndLocalsRemainLocal(t *testing.T) {
 	cases := map[string]string{
-		"value parameter":     `int current(Token input) { input.value++; return input.value; }`,
-		"plain local":         `int current() { Token item; item.value++; return item.value; }`,
-		"braced local":        `int current() { Token item{}; item.value++; return item.value; }`,
-		"constructed auto":    `int current() { auto item = Token{}; item.value++; return item.value; }`,
-		"moved local":         `int current() { Token item{}; auto moved = std::move(item); moved.value++; return moved.value; }`,
-		"local builder":       `int current() { auto row = DbRow::integer(1); row.set_value(2); return row.value; }`,
-		"lambda init capture": `int current() { Token item{}; auto work = [copy = std::move(item)]() mutable { copy.value++; }; work(); return 1; }`,
+		"value parameter":      `int current(Token input) { input.value++; return input.value; }`,
+		"plain local":          `int current() { Token item; item.value++; return item.value; }`,
+		"braced local":         `int current() { Token item{}; item.value++; return item.value; }`,
+		"constructed auto":     `int current() { auto item = Token{}; item.value++; return item.value; }`,
+		"moved local":          `int current() { Token item{}; auto moved = std::move(item); moved.value++; return moved.value; }`,
+		"typed builder result": `int current() { DbRow row = DbRow::integer(1); row.set_value(2); return row.value; }`,
+		"lambda init capture":  `int current() { Token item{}; auto work = [copy = std::move(item)]() mutable { copy.value++; }; work(); return 1; }`,
 	}
 	for name, source := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -97,12 +97,57 @@ func TestCppOriginValueParametersAndLocalsRemainLocal(t *testing.T) {
 	}
 }
 
+func TestCppOriginUnknownAutoCallResultsNeverUseCalleeNames(t *testing.T) {
+	for name, initializer := range map[string]string{
+		"make prefix":           "make_widget()",
+		"create prefix":         "create_widget()",
+		"build method":          "Widget::build()",
+		"integer method":        "DbRow::integer(1)",
+		"capitalized qualifier": "Widget::from_row()",
+		"templated call":        "std::make_unique<Token>()",
+	} {
+		t.Run(name, func(t *testing.T) {
+			analysis := cppAnalysisForTest(t, `int current() {
+  auto item = `+initializer+`;
+  item.update();
+  return 1;
+}`, "current")
+			assertCppUnresolvedContains(t, analysis, "item", "call")
+		})
+	}
+}
+
 func TestCppOriginReferencesPointersAndAliasesRetainCallerOwnership(t *testing.T) {
 	cases := map[string]string{
 		"reference":             `int current(Token& input) { input.value++; return input.value; }`,
 		"pointer":               `int current(Token* input) { input->value++; return input->value; }`,
 		"reference alias chain": `int current(Token& input) { Token& first = input; auto& second = first; second.value++; return second.value; }`,
 		"pointer alias chain":   `int current(Token* input) { Token* first = input; auto* second = first; second->value++; return second->value; }`,
+	}
+	for name, source := range cases {
+		t.Run(name, func(t *testing.T) {
+			analysis := cppAnalysisForTest(t, source, "current")
+			assertCppMutationForTest(t, analysis, targetArgument, originCaller)
+		})
+	}
+}
+
+func TestCppOriginAutoPointerAliasesRetainCallerOwnership(t *testing.T) {
+	cases := map[string]string{
+		"address of reference": `int current(Token& input) { auto alias = &input; alias->value++; return alias->value; }`,
+		"pointer copy":         `int current(Token* inputPtr) { auto alias = inputPtr; alias->value++; return alias->value; }`,
+		"multi hop pointer copy": `int current(Token* inputPtr) {
+  auto first = inputPtr;
+  auto second = first;
+  second->value++;
+  return second->value;
+}`,
+		"explicit pointer then auto": `int current(Token& input) {
+  Token* first = &input;
+  auto second = first;
+  second->value++;
+  return second->value;
+}`,
 	}
 	for name, source := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -128,6 +173,42 @@ func TestCppLambdaCaptureOwnershipDistinguishesValueAndReference(t *testing.T) {
   return input.value;
 }`, "current")
 	assertCppMutationForTest(t, reference, targetArgument, originCaller)
+}
+
+func TestCppLambdaDefaultAndNestedCaptureOwnership(t *testing.T) {
+	t.Run("default value copies reference parameter", func(t *testing.T) {
+		analysis := cppAnalysisForTest(t, `int current(Token& input) {
+  auto work = [=]() mutable { input.value++; };
+  work();
+  return input.value;
+}`, "current")
+		if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+			t.Fatalf("analysis = %#v, want value-captured local copy", analysis)
+		}
+	})
+
+	t.Run("default reference retains parameter", func(t *testing.T) {
+		analysis := cppAnalysisForTest(t, `int current(Token& input) {
+  auto work = [&]() { input.value++; };
+  work();
+  return input.value;
+}`, "current")
+		assertCppMutationForTest(t, analysis, targetArgument, originCaller)
+	})
+
+	t.Run("nested default value copies outer reference capture", func(t *testing.T) {
+		analysis := cppAnalysisForTest(t, `int current(Token& input) {
+  auto outer = [&input]() {
+    auto inner = [=]() mutable { input.value++; };
+    inner();
+  };
+  outer();
+  return input.value;
+}`, "current")
+		if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+			t.Fatalf("analysis = %#v, want nested value-captured local copy", analysis)
+		}
+	})
 }
 
 func TestCppOriginUnknownCallResultRemainsUnresolved(t *testing.T) {
@@ -190,6 +271,37 @@ func TestCppOriginUnknownMutationRemainsUnresolved(t *testing.T) {
 	assertOnlyUnresolvedMutation(t, analysis, "c++", "mystery", "call")
 }
 
+func TestCppOriginUnknownBareMutationsRemainUnresolved(t *testing.T) {
+	for name, operation := range map[string]string{
+		"assignment": "mystery = value;",
+		"increment":  "mystery++;",
+	} {
+		t.Run(name, func(t *testing.T) {
+			analysis := cppAnalysisForTest(t, `int current() { `+operation+` return 1; }`, "current")
+			assertOnlyUnresolvedMutation(t, analysis, "c++", "mystery", "assignment")
+		})
+	}
+}
+
+func TestCppOriginNamespaceQualifiedReceiverResolvesMember(t *testing.T) {
+	parsed := support.ParseCLike(`namespace N {
+struct Counter {
+  Token state;
+  int current();
+};
+}
+int N::Counter::current() { state.value++; return state.value; }`, support.CLikeCPP)
+	fn := cppFunctionForTest(t, parsed, "N::Counter::current")
+	if fn.QualifiedOwner != "N::Counter" {
+		t.Fatalf("qualified owner = %q, want N::Counter", fn.QualifiedOwner)
+	}
+	analysis := cppFunctionMutationEvidence(parsedPrecisionFunction(fn))
+	assertCppMutationForTest(t, analysis, targetReceiver, originCaller)
+	if len(analysis.Unresolved) != 0 {
+		t.Fatalf("unresolved = %#v, want namespace/type tokens excluded", analysis.Unresolved)
+	}
+}
+
 func TestCppCommandQueryUsesResolvedPersistenceOwnership(t *testing.T) {
 	parsed := support.ParseCLike(`int current(Repository& repo) {
   repo.save();
@@ -239,4 +351,17 @@ func assertCppMutationForTest(t *testing.T, analysis mutationAnalysis, target st
 		}
 	}
 	t.Fatalf("mutations = %#v, want %s/%s", analysis.Mutations, target, origin)
+}
+
+func assertCppUnresolvedContains(t *testing.T, analysis mutationAnalysis, symbol string, operation string) {
+	t.Helper()
+	if len(analysis.Mutations) != 0 {
+		t.Fatalf("mutations = %#v, want diagnostic-only evidence", analysis.Mutations)
+	}
+	for _, evidence := range analysis.Unresolved {
+		if evidence.Language == "c++" && evidence.Symbol == symbol && evidence.Operation == operation && evidence.Line > 0 && evidence.Reason != "" {
+			return
+		}
+	}
+	t.Fatalf("unresolved = %#v, want c++ %s/%s evidence", analysis.Unresolved, symbol, operation)
 }

@@ -12,15 +12,23 @@ type cppClassSpan struct {
 	bodyEnd  int
 }
 
+type cppNamespaceSpan struct {
+	name     string
+	bodyOpen int
+	bodyEnd  int
+}
+
 var (
 	cppClassHeadPattern   = regexp.MustCompile(`\b(?:class|struct)\s+([A-Za-z_]\w*)[^;{}]*\{`)
+	cppNamespacePattern   = regexp.MustCompile(`\bnamespace\s+([A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)\s*\{`)
 	cppDeclarationPattern = regexp.MustCompile(`(?m)(?:^|[;{}])[ \t]*((?:(?:constexpr|constinit|consteval|static|inline|const|volatile|mutable|thread_local|extern)[ \t]+)*(?:[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)(?:[ \t]*<[^;\n{}=()]+>)?(?:[ \t]*[*&]+[ \t]*|[ \t]+))([A-Za-z_]\w*)[ \t]*(?:=[ \t]*([^;\n]*)|\{([^;\n]*)\}|;)`)
 	cppLambdaPattern      = regexp.MustCompile(`\[([^]\n]*)\][ \t]*(?:\([^)]*\)[ \t]*)?(?:mutable[ \t]*)?(?:noexcept[ \t]*)?\{`)
 	cppSimpleAliasPattern = regexp.MustCompile(`^\s*(?:std::move\s*\(\s*)?&?([A-Za-z_]\w*)\s*\)?\s*$`)
 )
 
 func populateCPPDeclarationMetadata(file *ParsedFile, spans []clikeSpan) {
-	classes := cppClassSpans(file.Masked)
+	namespaces := cppNamespaceSpans(file.Masked)
+	classes := cppClassSpans(file.Masked, namespaces)
 	maskedTop := []byte(file.Masked)
 	for _, span := range spans {
 		blankCPPRange(maskedTop, span.start, span.bodyEnd+1)
@@ -46,6 +54,8 @@ func populateCPPDeclarationMetadata(file *ParsedFile, spans []clikeSpan) {
 		owner := cppQualifiedOwner(fn.Name)
 		if owner == "" {
 			owner = cppOwnerAt(classes, fn.sourceStart)
+		} else if namespace := cppNamespaceOwnerAt(namespaces, fn.sourceStart); namespace != "" && !strings.HasPrefix(owner, namespace+"::") {
+			owner = namespace + "::" + owner
 		}
 		fn.QualifiedOwner = owner
 		fn.Declarations = append(fn.Declarations, cppParameterDeclarations(fn)...)
@@ -68,16 +78,43 @@ func populateCPPDeclarationMetadata(file *ParsedFile, spans []clikeSpan) {
 	}
 }
 
-func cppClassSpans(masked string) []cppClassSpan {
+func cppClassSpans(masked string, namespaces []cppNamespaceSpan) []cppClassSpan {
 	classes := make([]cppClassSpan, 0)
 	for _, match := range cppClassHeadPattern.FindAllStringSubmatchIndex(masked, -1) {
 		open := match[1] - 1
 		end := matchBracketOffset(masked, open)
 		if end > open {
-			classes = append(classes, cppClassSpan{name: masked[match[2]:match[3]], bodyOpen: open, bodyEnd: end})
+			name := masked[match[2]:match[3]]
+			if namespace := cppNamespaceOwnerAt(namespaces, match[0]); namespace != "" {
+				name = namespace + "::" + name
+			}
+			classes = append(classes, cppClassSpan{name: name, bodyOpen: open, bodyEnd: end})
 		}
 	}
 	return classes
+}
+
+func cppNamespaceSpans(masked string) []cppNamespaceSpan {
+	namespaces := make([]cppNamespaceSpan, 0)
+	for _, match := range cppNamespacePattern.FindAllStringSubmatchIndex(masked, -1) {
+		open := match[1] - 1
+		end := matchBracketOffset(masked, open)
+		if end > open {
+			namespaces = append(namespaces, cppNamespaceSpan{name: masked[match[2]:match[3]], bodyOpen: open, bodyEnd: end})
+		}
+	}
+	return namespaces
+}
+
+func cppNamespaceOwnerAt(namespaces []cppNamespaceSpan, offset int) string {
+	owner := ""
+	width := int(^uint(0) >> 1)
+	for _, namespace := range namespaces {
+		if offset > namespace.bodyOpen && offset < namespace.bodyEnd && namespace.bodyEnd-namespace.bodyOpen < width {
+			owner, width = namespace.name, namespace.bodyEnd-namespace.bodyOpen
+		}
+	}
+	return owner
 }
 
 func cppDeclarationsInRange(file *ParsedFile, masked string, base int, kind string, owner string, scopeOpen int, scopeEnd int) []ParsedDeclaration {
@@ -135,7 +172,11 @@ func cppLambdaCaptures(file *ParsedFile, fn *ParsedFunction, body string) []Pars
 				continue
 			}
 			if capture == "=" || capture == "&" {
-				out = append(out, ParsedDeclaration{Name: "*", Kind: "capture", ReferenceShape: map[bool]string{true: "reference"}[capture == "&"], Line: line, ScopeStart: line, ScopeEnd: LineNumberForOffset(file.Source, end)})
+				shape := "value"
+				if capture == "&" {
+					shape = "reference"
+				}
+				out = append(out, ParsedDeclaration{Name: "*", Kind: "capture", ReferenceShape: shape, Line: line, ScopeStart: line, ScopeEnd: LineNumberForOffset(file.Source, end)})
 				continue
 			}
 			shape := "value"
