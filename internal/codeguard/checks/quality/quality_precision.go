@@ -543,29 +543,60 @@ func parsedPrecisionFunctions(parsed *support.ParsedFile) []precisionFunction {
 	}
 	functions := make([]precisionFunction, 0)
 	retainCaptures := parsed.Language == string(support.CLikeTypeScript)
-	var walk func([]*support.ParsedFunction, map[string]mutationBinding)
-	walk = func(items []*support.ParsedFunction, outer map[string]mutationBinding) {
-		for _, item := range items {
-			fn := parsedPrecisionFunction(item)
-			if retainCaptures {
-				fn.CapturedBindings = cloneMutationBindings(outer)
-			}
-			functions = append(functions, fn)
+	var walk func(*support.ParsedFunction, map[string]mutationBinding)
+	walk = func(item *support.ParsedFunction, outer map[string]mutationBinding) {
+		fn := parsedPrecisionFunction(item)
+		if retainCaptures {
+			fn.CapturedBindings = cloneMutationBindings(outer)
+		}
+		functions = append(functions, fn)
+		for _, child := range item.Nested {
 			childBindings := outer
 			if retainCaptures {
-				origins, targets := resolvedMutationBindings(fn)
-				childBindings = make(map[string]mutationBinding, len(origins))
-				for name, origin := range origins {
-					if origin != "" {
-						childBindings[name] = mutationBinding{origin: origin, target: targets[name]}
-					}
-				}
+				childBindings = typeScriptBindingsVisibleAt(fn, child.DefinitionOffset)
 			}
-			walk(item.Nested, childBindings)
+			walk(child, childBindings)
 		}
 	}
-	walk(parsed.Functions, nil)
+	for _, fn := range parsed.Functions {
+		walk(fn, nil)
+	}
 	return functions
+}
+
+func typeScriptBindingsVisibleAt(fn precisionFunction, definitionOffset int) map[string]mutationBinding {
+	bindings := cloneMutationBindings(fn.CapturedBindings)
+	if bindings == nil {
+		bindings = make(map[string]mutationBinding)
+	}
+	for _, param := range fn.Params {
+		if param.Name != "" {
+			bindings[param.Name] = mutationBinding{origin: originCaller, target: targetArgument}
+		}
+	}
+	if fn.ReceiverName != "" {
+		bindings[fn.ReceiverName] = mutationBinding{origin: originCaller, target: targetReceiver}
+	}
+	if fn.Receiver != "" {
+		bindings["this"] = mutationBinding{origin: originCaller, target: targetReceiver}
+	}
+	for _, declaration := range fn.Declarations {
+		if declaration.Offset >= definitionOffset || declaration.ScopeOffsetStart >= definitionOffset || declaration.ScopeOffsetEnd <= definitionOffset {
+			continue
+		}
+		delete(bindings, declaration.Name)
+		if source := declaration.AliasSource; source != "" {
+			if binding, ok := bindings[source]; ok {
+				bindings[declaration.Name] = binding
+			}
+			continue
+		}
+		assignment := support.ParsedAssignment{Name: declaration.Name, Expr: declaration.Initializer, Line: declaration.Line}
+		if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(fn, assignment) {
+			bindings[declaration.Name] = mutationBinding{origin: originLocal, target: targetLocal}
+		}
+	}
+	return bindings
 }
 
 func cloneMutationBindings(bindings map[string]mutationBinding) map[string]mutationBinding {

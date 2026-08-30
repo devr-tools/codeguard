@@ -148,7 +148,7 @@ func cppDeclarationsInRange(file *ParsedFile, masked string, base int, kind stri
 			initializer = "{" + strings.TrimSpace(masked[match[8]:match[9]]) + "}"
 		}
 		offset := base + match[4]
-		start, end := cppLexicalScope(file.Masked, scopeOpen, scopeEnd, offset)
+		start, end := clikeLexicalScope(file.Masked, scopeOpen, scopeEnd, offset)
 		declarations = append(declarations, ParsedDeclaration{
 			Name: name, Type: typ, Kind: kind, ReferenceShape: cppReferenceShape(typ),
 			Line: LineNumberForOffset(file.Source, offset), ScopeStart: LineNumberForOffset(file.Source, start), ScopeEnd: LineNumberForOffset(file.Source, end),
@@ -230,7 +230,7 @@ func cppLambdaCaptures(file *ParsedFile, fn *ParsedFunction, body string) []Pars
 	return out
 }
 
-func cppLexicalScope(masked string, outerOpen int, outerEnd int, offset int) (int, int) {
+func clikeLexicalScope(masked string, outerOpen int, outerEnd int, offset int) (int, int) {
 	start, end := outerOpen, outerEnd
 	stack := make([]int, 0)
 	for i := outerOpen + 1; i < offset && i < outerEnd; i++ {

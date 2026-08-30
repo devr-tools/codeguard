@@ -714,6 +714,113 @@ func TestFunctionHiddenMutationPreservesCapturedOuterLocalOwnership(t *testing.T
 	})
 }
 
+func TestFunctionHiddenMutationUsesTypeScriptLexicalCaptureScope(t *testing.T) {
+	tests := []struct {
+		name       string
+		source     []string
+		findings   int
+		unresolved string
+	}{
+		{
+			name: "disjoint block declaration is not visible",
+			source: []string{
+				"export function prepareUser(repo: Repository, user: User, enabled: boolean) {",
+				"  if (enabled) {",
+				"    const collaborator = repo;",
+				"  }",
+				"  if (!enabled) {",
+				"    function loadUser() {",
+				"      collaborator.save(user);",
+				"      return user;",
+				"    }",
+				"    return loadUser();",
+				"  }",
+				"  return user;",
+				"}",
+				"class Repository { save(_input: User): void {} }",
+				"interface User { name: string }",
+			},
+			unresolved: "1",
+		},
+		{
+			name: "enclosing block declaration is visible",
+			source: []string{
+				"export function prepareUser(repo: Repository, user: User, enabled: boolean) {",
+				"  if (enabled) {",
+				"    const collaborator = repo;",
+				"    function loadUser() {",
+				"      collaborator.save(user);",
+				"      return user;",
+				"    }",
+				"    return loadUser();",
+				"  }",
+				"  return user;",
+				"}",
+				"class Repository { save(_input: User): void {} }",
+				"interface User { name: string }",
+			},
+			findings: 1,
+		},
+		{
+			name: "later declaration is not propagated",
+			source: []string{
+				"export function prepareUser(repo: Repository, user: User) {",
+				"  function loadUser() {",
+				"    collaborator.save(user);",
+				"    return user;",
+				"  }",
+				"  const collaborator = repo;",
+				"  return loadUser();",
+				"}",
+				"class Repository { save(_input: User): void {} }",
+				"interface User { name: string }",
+			},
+			unresolved: "1",
+		},
+		{
+			name: "inner shadow does not replace outer capture",
+			source: []string{
+				"export function prepareUser(repo: Repository, user: User, enabled: boolean) {",
+				"  const collaborator = repo;",
+				"  if (enabled) {",
+				"    const collaborator = new Repository();",
+				"    function loadLocal() {",
+				"      collaborator.save(user);",
+				"      return user;",
+				"    }",
+				"    loadLocal();",
+				"  }",
+				"  function loadOuter() {",
+				"    collaborator.save(user);",
+				"    return user;",
+				"  }",
+				"  return loadOuter();",
+				"}",
+				"class Repository { save(_input: User): void {} }",
+				"interface User { name: string }",
+			},
+			findings: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, "capture.ts"), strings.Join(test.source, "\n"))
+
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+			if got := countRuleFindings(report, "Code Quality", "function.hidden-mutation"); got != test.findings {
+				t.Fatalf("hidden-mutation findings = %d, want %d", got, test.findings)
+			}
+			if test.unresolved == "" {
+				assertUnresolvedDiagnosticAbsent(t, report, "typescript")
+			} else {
+				assertUnresolvedDiagnosticCount(t, report, "typescript", test.unresolved)
+			}
+		})
+	}
+}
+
 func TestFunctionHiddenMutationLeavesUnknownNestedTypeScriptRootUnresolved(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "capture.ts"), strings.Join([]string{
