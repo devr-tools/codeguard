@@ -18,6 +18,7 @@ type cppResolvedOwnership struct {
 var (
 	cppFieldMutationPattern  = regexp.MustCompile(`\b([A-Za-z_]\w*)\s*(?:(?:\.|->)\s*[A-Za-z_]\w*|\[[^]]*\])\s*(?:=\s|\+\+|--|\+=|-=|\*=|/=)`)
 	cppBareMutationPattern   = regexp.MustCompile(`(?:^|[;{}])[ \t]*(?:\*[ \t]*)?([A-Za-z_]\w*)[ \t]*(?:=\s|\+\+|--|\+=|-=|\*=|/=)`)
+	cppPrefixMutationPattern = regexp.MustCompile(`(?:^|[;{}])[ \t]*(?:\+\+|--)[ \t]*(?:\*[ \t]*)?([A-Za-z_]\w*)\b`)
 	cppEscapeStorePattern    = regexp.MustCompile(`\b([A-Za-z_]\w*)\s*(?:(?:\.|->)\s*[A-Za-z_]\w*)?[ \t]*=[ \t]*&?([A-Za-z_]\w*)\b`)
 	cppAutoCallResultPattern = regexp.MustCompile(`^\s*[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*(?:\s*<[^(){};]+>)?\s*\(`)
 )
@@ -70,6 +71,18 @@ func cppFunctionMutationEvidence(fn precisionFunction) mutationAnalysis {
 			resolveMutation(match[1], statement.Line, "assignment", match[1], "shared_state")
 		}
 		for _, match := range cppBareMutationPattern.FindAllStringSubmatch(text, -1) {
+			name := match[1]
+			ownership, ok := resolver.resolve(name, statement.Line, nil, 0)
+			if !ok || ownership.origin == originUnknown || ownership.target == "" {
+				addUnresolved(statement.Line, "assignment", name)
+				continue
+			}
+			if ownership.target != targetReceiver && ownership.target != targetGlobal && ownership.target != targetArgument {
+				continue
+			}
+			resolveMutation(name, statement.Line, "assignment", name, "shared_state")
+		}
+		for _, match := range cppPrefixMutationPattern.FindAllStringSubmatch(text, -1) {
 			name := match[1]
 			ownership, ok := resolver.resolve(name, statement.Line, nil, 0)
 			if !ok || ownership.origin == originUnknown || ownership.target == "" {
@@ -274,13 +287,24 @@ func cppDeclarationExcluded(candidate support.ParsedDeclaration, excluded *suppo
 }
 
 func cppDefaultCaptureOverrides(capture support.ParsedDeclaration, declaration support.ParsedDeclaration) bool {
+	// Globals and members are not captured automatic variables. Member access
+	// remains rooted at the captured this pointer, including under [=].
+	if declaration.Kind == "global" || declaration.Kind == "member" {
+		return false
+	}
+	// A declaration whose lexical scope is the lambda body belongs to the
+	// lambda; the default capture only supplies names from an outer scope.
+	if declaration.Kind == "local" && declaration.Line >= capture.Line &&
+		declaration.ScopeStart >= capture.ScopeStart && declaration.ScopeEnd <= capture.ScopeEnd {
+		return false
+	}
 	captureWidth := capture.ScopeEnd - capture.ScopeStart
 	declarationWidth := declaration.ScopeEnd - declaration.ScopeStart
 	if captureWidth != declarationWidth {
 		return captureWidth < declarationWidth
 	}
 	switch declaration.Kind {
-	case "parameter", "member", "global":
+	case "parameter":
 		return true
 	default:
 		return false

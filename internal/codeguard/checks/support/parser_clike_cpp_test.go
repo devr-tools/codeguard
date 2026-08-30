@@ -39,6 +39,41 @@ int N::Counter::current(Token* inputPtr) {
 	}
 }
 
+func TestCppParserScopesLambdaLocalsAndBuildsNestedNamespaceOwner(t *testing.T) {
+	parsed := ParseCLike(`namespace N {
+namespace M {
+struct Counter {
+  Token state;
+  int current();
+};
+}
+}
+
+int N::M::Counter::current() {
+  auto work = [=]() {
+    Token* p = &state;
+    p->value++;
+  };
+  work();
+  return state.value;
+}`, CLikeCPP)
+	fn := parsed.FunctionByName("N::M::Counter::current")
+	if fn == nil {
+		t.Fatal("nested namespace function missing")
+	}
+	if fn.QualifiedOwner != "N::M::Counter" {
+		t.Fatalf("qualified owner = %q, want N::M::Counter", fn.QualifiedOwner)
+	}
+	member, ok := cppParsedDeclarationForTest(fn.Declarations, "state", "member")
+	if !ok || member.QualifiedOwner != "N::M::Counter" {
+		t.Fatalf("member = %#v, ok=%v, want N::M::Counter-qualified state", member, ok)
+	}
+	local, ok := cppParsedDeclarationForTest(fn.Declarations, "p", "local")
+	if !ok || local.AliasSource != "state" || local.Line < local.ScopeStart || local.ScopeEnd < local.Line {
+		t.Fatalf("lambda local = %#v, ok=%v, want scoped pointer alias to state", local, ok)
+	}
+}
+
 func cppParsedDeclarationForTest(declarations []ParsedDeclaration, name string, kind string) (ParsedDeclaration, bool) {
 	for _, declaration := range declarations {
 		if declaration.Name == name && declaration.Kind == kind {

@@ -103,6 +103,22 @@ func cppNamespaceSpans(masked string) []cppNamespaceSpan {
 			namespaces = append(namespaces, cppNamespaceSpan{name: masked[match[2]:match[3]], bodyOpen: open, bodyEnd: end})
 		}
 	}
+	for i := range namespaces {
+		parent := ""
+		width := int(^uint(0) >> 1)
+		for j := range namespaces {
+			if i == j || namespaces[i].bodyOpen <= namespaces[j].bodyOpen || namespaces[i].bodyEnd >= namespaces[j].bodyEnd {
+				continue
+			}
+			candidateWidth := namespaces[j].bodyEnd - namespaces[j].bodyOpen
+			if candidateWidth < width {
+				parent, width = namespaces[j].name, candidateWidth
+			}
+		}
+		if parent != "" && !strings.HasPrefix(namespaces[i].name, parent+"::") {
+			namespaces[i].name = parent + "::" + namespaces[i].name
+		}
+	}
 	return namespaces
 }
 

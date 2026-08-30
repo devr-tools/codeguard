@@ -211,6 +211,24 @@ func TestCppLambdaDefaultAndNestedCaptureOwnership(t *testing.T) {
 	})
 }
 
+func TestCppLambdaLocalDeclarationOutranksDefaultCapture(t *testing.T) {
+	analysis := cppAnalysisForTest(t, `struct Counter {
+  Token state;
+  int current() {
+    auto work = [=]() {
+      Token* p = &state;
+      p->value++;
+    };
+    work();
+    return state.value;
+  }
+};`, "current")
+	assertCppMutationForTest(t, analysis, targetReceiver, originCaller)
+	if len(analysis.Unresolved) != 0 {
+		t.Fatalf("unresolved = %#v, want lambda local alias resolved to member", analysis.Unresolved)
+	}
+}
+
 func TestCppOriginUnknownCallResultRemainsUnresolved(t *testing.T) {
 	analysis := cppAnalysisForTest(t, `int current() {
   auto item = opaque_factory();
@@ -283,6 +301,18 @@ func TestCppOriginUnknownBareMutationsRemainUnresolved(t *testing.T) {
 	}
 }
 
+func TestCppOriginUnknownBarePrefixMutationsRemainUnresolved(t *testing.T) {
+	for name, operation := range map[string]string{
+		"increment": "++mystery;",
+		"decrement": "--mystery;",
+	} {
+		t.Run(name, func(t *testing.T) {
+			analysis := cppAnalysisForTest(t, `int current() { `+operation+` return 1; }`, "current")
+			assertOnlyUnresolvedMutation(t, analysis, "c++", "mystery", "assignment")
+		})
+	}
+}
+
 func TestCppOriginNamespaceQualifiedReceiverResolvesMember(t *testing.T) {
 	parsed := support.ParseCLike(`namespace N {
 struct Counter {
@@ -299,6 +329,27 @@ int N::Counter::current() { state.value++; return state.value; }`, support.CLike
 	assertCppMutationForTest(t, analysis, targetReceiver, originCaller)
 	if len(analysis.Unresolved) != 0 {
 		t.Fatalf("unresolved = %#v, want namespace/type tokens excluded", analysis.Unresolved)
+	}
+}
+
+func TestCppOriginNestedNamespaceQualifiedReceiverResolvesMember(t *testing.T) {
+	parsed := support.ParseCLike(`namespace N {
+namespace M {
+struct Counter {
+  Token state;
+  int current();
+};
+}
+}
+int N::M::Counter::current() { state.value++; return state.value; }`, support.CLikeCPP)
+	fn := cppFunctionForTest(t, parsed, "N::M::Counter::current")
+	if fn.QualifiedOwner != "N::M::Counter" {
+		t.Fatalf("qualified owner = %q, want N::M::Counter", fn.QualifiedOwner)
+	}
+	analysis := cppFunctionMutationEvidence(parsedPrecisionFunction(fn))
+	assertCppMutationForTest(t, analysis, targetReceiver, originCaller)
+	if len(analysis.Unresolved) != 0 {
+		t.Fatalf("unresolved = %#v, want nested namespace/type tokens excluded", analysis.Unresolved)
 	}
 }
 
