@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.8.3](https://github.com/devr-tools/codeguard/compare/v1.8.2...v1.8.3) (2026-08-30)
+
+
+### Bug Fixes
+
+* avoid conversion shape shadow ([4d23d58](https://github.com/devr-tools/codeguard/commit/4d23d58dfd9259cc85bd5e226de7476148f113b7))
+* bound TypeScript captures to lexical scope ([cb4f157](https://github.com/devr-tools/codeguard/commit/cb4f157189e53087c7e99c2f96c4eb5641001f3b))
+* close C++ scope and namespace gaps ([abdb752](https://github.com/devr-tools/codeguard/commit/abdb752f5ddced9adc64d5c603175c89e158ba84))
+* close structural acceptance parser gaps ([202c57f](https://github.com/devr-tools/codeguard/commit/202c57f6524e0282d2268823a5d3498dac1a1334))
+* close structural evidence compatibility gaps ([7a5210a](https://github.com/devr-tools/codeguard/commit/7a5210a6c7aadd8a9af466c8213f9a2a8fc84b23))
+* close structural origin review findings ([9cfe717](https://github.com/devr-tools/codeguard/commit/9cfe7176a04894ff0c465a194f281ecbae9aa18c))
+* harden C++ structural ownership resolution ([5fb8c7d](https://github.com/devr-tools/codeguard/commit/5fb8c7dc82b9369f90cd63925a4f4153e14b7998))
+* harden Go structural ownership state ([2f2c286](https://github.com/devr-tools/codeguard/commit/2f2c286b2a88e8e4bcf6e936f05c2e9feaf932f7))
+* merge Go field semantics and fallthrough state ([ea8fa30](https://github.com/devr-tools/codeguard/commit/ea8fa3083ed717b4b985e68777728d37dae50514))
+* preserve Go conversion ownership ([cbaa5e9](https://github.com/devr-tools/codeguard/commit/cbaa5e9f1b49daccf2519cf167202c1abf7080a2))
+* refine structural effect grammar ([7c759d2](https://github.com/devr-tools/codeguard/commit/7c759d2f4ac08bd090f566fd613688e6b96283ab))
+* resolve C++ structural mutation ownership ([84f1265](https://github.com/devr-tools/codeguard/commit/84f1265039eb50f14c5431b3c24239e6ce9f6482))
+* resolve Go structural mutation ownership ([085af1a](https://github.com/devr-tools/codeguard/commit/085af1a6fe7a9224fb6467e1487b682018a8cf8a))
+* resolve indexed Go conversions ([394689b](https://github.com/devr-tools/codeguard/commit/394689b280fb16348b852d5b3b9a9eb3e05869ed))
+* resolve structural mutation ownership from scopes ([#172](https://github.com/devr-tools/codeguard/issues/172)) ([cdac600](https://github.com/devr-tools/codeguard/commit/cdac600870c0786718cd01d1dc1a3c94933f8dc4))
+* stabilize structural finding identity ([14fe1d4](https://github.com/devr-tools/codeguard/commit/14fe1d4c6487514fd60c4da00f728a3d9886eebd))
+
 ## [1.8.2](https://github.com/devr-tools/codeguard/compare/v1.8.1...v1.8.2) (2026-08-29)
 
 
