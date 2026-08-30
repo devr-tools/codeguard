@@ -30,6 +30,10 @@ func CurrentState() *State { state := &State{}; sharedState = state; state.Value
 		t.Fatal("CurrentState declaration missing")
 	}
 	fn := goPrecisionFunction(fset, declaration, source)
+	index := newGoPackageIndex()
+	index.addFile("escape.go", fset, file)
+	fn.GoFile = "escape.go"
+	fn.GoPackage = index.packageFor("escape.go", file.Name.Name)
 	evidence, ok := firstReportableMutationEvidence(fn)
 	if !ok || evidence.Target != targetEscaped || evidence.Origin != originShared {
 		t.Fatalf("evidence = %#v, ok=%v; assignments=%#v statements=%#v", evidence, ok, fn.Assignments, fn.Statements)

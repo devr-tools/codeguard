@@ -75,6 +75,10 @@ type precisionFunction struct {
 	Returns                      bool
 	ImplementsInterfaceSignature bool
 	ProvenGlobals                map[string]struct{}
+	GoDecl                       *ast.FuncDecl
+	GoFile                       string
+	GoFSet                       *token.FileSet
+	GoPackage                    *goPackageInfo
 }
 
 func localPrecisionEnabled(env support.Context) bool {
@@ -90,13 +94,15 @@ func excessiveParameterFinding(env support.Context, file string, fn functionMetr
 		core.ConfidenceHigh)}
 }
 
-func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, data []byte) []core.Finding {
+func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, data []byte, pkg *goPackageInfo) []core.Finding {
 	findings := make([]core.Finding, 0)
 	interfaceMethods := goInterfaceMethodSignatures(parsed)
 	provenGlobals := goPackageVariableNames(parsed)
 	ast.Inspect(parsed, func(n ast.Node) bool {
 		if node, ok := n.(*ast.FuncDecl); ok {
 			fn := goPrecisionFunction(fset, node, data)
+			fn.GoFile = file
+			fn.GoPackage = pkg
 			fn.ProvenGlobals = provenGlobals
 			fn.ImplementsInterfaceSignature = interfaceMethods[goInterfaceMethodKey(fn.Name, fn.Params, fn.Signature)]
 			findings = append(findings, precisionFunctionFindings(env, file, fn)...)
@@ -158,6 +164,8 @@ func goPrecisionFunction(fset *token.FileSet, fn *ast.FuncDecl, data []byte) pre
 		Signature:    goResultSignature(fn),
 		Params:       goParsedParams(fn),
 		Returns:      goFuncReturnsValue(fn),
+		GoDecl:       fn,
+		GoFSet:       fset,
 	}
 	if fn.Body == nil {
 		return out
@@ -698,6 +706,14 @@ func hiddenSideEffect(file string, fn precisionFunction) bool {
 		return false
 	}
 	if isAccumulatorBuilderFunctionName(fn.Name) && !hasLikelyExternalMutationCall(fn) {
+		return false
+	}
+	if fn.GoDecl != nil {
+		for _, evidence := range functionMutationEvidence(fn) {
+			if evidence.Target != targetLocal {
+				return true
+			}
+		}
 		return false
 	}
 	localTargets := localMutationTargets(fn)

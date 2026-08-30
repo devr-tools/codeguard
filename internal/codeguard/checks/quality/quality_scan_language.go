@@ -34,12 +34,16 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"", "go"},
 			Run: func() []core.Finding {
+				var index *goPackageIndex
+				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
+					index = buildGoPackageIndex(env, target)
+				}
 				findings := support.ScanGoFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
-					return goFindingsForFile(env, file, data)
+					return goFindingsForFileWithIndex(env, file, data, index)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
 					env.VisitTargetFiles(target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) {
-						addUnresolved(goUnresolvedMutationEvidence(env, file, data))
+						addUnresolved(goUnresolvedMutationEvidenceWithIndex(env, file, data, index))
 					})
 				}
 				return findings
@@ -115,11 +119,31 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 	return languageQualityScan{findings: findings, unresolved: unresolved}
 }
 
+func buildGoPackageIndex(env support.Context, target core.TargetConfig) *goPackageIndex {
+	index := newGoPackageIndex()
+	env.VisitTargetFiles(target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) {
+		fset, parsed, err := support.ParseGoSource(env, file, data)
+		if err == nil {
+			index.addFile(file, fset, parsed)
+		}
+	})
+	return index
+}
+
 func goUnresolvedMutationEvidence(env support.Context, file string, data []byte) []unresolvedMutationEvidence {
+	return goUnresolvedMutationEvidenceWithIndex(env, file, data, nil)
+}
+
+func goUnresolvedMutationEvidenceWithIndex(env support.Context, file string, data []byte, index *goPackageIndex) []unresolvedMutationEvidence {
 	fset, parsed, err := support.ParseGoSource(env, file, data)
 	if err != nil {
 		return nil
 	}
+	if index == nil {
+		index = newGoPackageIndex()
+		index.addFile(file, fset, parsed)
+	}
+	pkg := index.packageFor(file, parsed.Name.Name)
 	provenGlobals := goPackageVariableNames(parsed)
 	var unresolved []unresolvedMutationEvidence
 	ast.Inspect(parsed, func(node ast.Node) bool {
@@ -128,6 +152,8 @@ func goUnresolvedMutationEvidence(env support.Context, file string, data []byte)
 			return true
 		}
 		fn := goPrecisionFunction(fset, declaration, data)
+		fn.GoFile = file
+		fn.GoPackage = pkg
 		fn.ProvenGlobals = provenGlobals
 		analysis := functionMutationAnalysis(fn, "go")
 		unresolved = append(unresolved, analysis.Unresolved...)

@@ -62,6 +62,9 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 }
 
 func functionMutationAnalysis(fn precisionFunction, language string) mutationAnalysis {
+	if fn.GoDecl != nil {
+		return goFunctionMutationEvidence(fn)
+	}
 	origins := map[string]string{}
 	targets := map[string]string{}
 	for name := range fn.ProvenGlobals {

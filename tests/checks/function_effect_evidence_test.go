@@ -54,7 +54,111 @@ func ReadValue() int {
 	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
 	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
 	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
 	assertUnresolvedDiagnosticCount(t, report, "go", "1")
+}
+
+func TestFunctionEffectsGoPackageIndexResolvesCrossFileGlobal(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "state.go"), `package sample
+type State struct{ Value int }
+var sharedState *State
+`)
+	writeFile(t, filepath.Join(dir, "current.go"), `package sample
+func CurrentGlobal() int { sharedState.Value++; return sharedState.Value }
+`)
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+	finding := findFinding(t, report, "Code Quality", "function.hidden-mutation")
+	if finding.Metadata["mutation_target"] != "global" || finding.Metadata["origin"] != "shared" {
+		t.Fatalf("metadata = %v, want cross-file global/shared evidence", finding.Metadata)
+	}
+}
+
+func TestFunctionEffectsGoUnresolvedOperationIsDiagnosticOnly(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "unresolved.go"), `package sample
+func CurrentUnknown() int { mystery.Update(); return 1 }
+`)
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
+	assertUnresolvedDiagnosticCount(t, report, "go", "1")
+}
+
+func TestFunctionEffectsGoScopeAndClosureOrigins(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "globals.go"), `package sample
+type State struct{ Value int }
+var state *State
+`)
+	writeFile(t, filepath.Join(dir, "scopes.go"), `package sample
+import storage "example.com/storage"
+
+func GetLocal() int {
+	state := &State{}
+	state.Value = 1
+	storage.Update()
+	if true { state := &State{}; state.Value = 2 }
+	func() { state := &State{}; state.Value = 3 }()
+	return state.Value
+}
+`)
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+	assertFindingRuleAbsent(t, report, "Code Quality", "quality.hidden-side-effect")
+
+	capturedDir := t.TempDir()
+	writeFile(t, filepath.Join(capturedDir, "closure.go"), `package sample
+type State struct{ Value int }
+func CurrentCaptured(input *State) int { mutate := func() { input.Value = 1 }; mutate(); return input.Value }
+`)
+	capturedReport := runQualityPrecisionScan(t, qualityPrecisionConfig(capturedDir))
+	finding := findFinding(t, capturedReport, "Code Quality", "function.hidden-mutation")
+	if finding.Metadata["mutation_target"] != "argument" || finding.Metadata["origin"] != "caller_owned" {
+		t.Fatalf("metadata = %v, want captured argument/caller-owned evidence", finding.Metadata)
+	}
+}
+
+func TestFunctionEffectsGoReferenceContentOrigins(t *testing.T) {
+	cases := []struct {
+		name    string
+		body    string
+		finding bool
+	}{
+		{name: "value field", body: `input.Name = "local"; return input.Name`},
+		{name: "map field", body: `input.Meta["status"] = "ready"; return input.Meta["status"]`, finding: true},
+		{name: "slice field", body: `input.Tags[0] = "ready"; return input.Tags[0]`, finding: true},
+		{name: "pointer field", body: `input.Node.Name = "ready"; return input.Node.Name`, finding: true},
+		{name: "interface map", body: `input.Any.(map[string]string)["status"] = "ready"; return "ready"`, finding: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, "payload.go"), `package sample
+type Node struct{ Name string }
+type Payload struct {
+	Name string
+	Tags []string
+	Meta map[string]string
+	Node *Node
+	Any any
+}
+func CurrentPayload(input Payload) string { `+tc.body+` }
+`)
+			report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+			if !tc.finding {
+				assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+				assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+				return
+			}
+			finding := findFinding(t, report, "Code Quality", "function.hidden-mutation")
+			if finding.Metadata["mutation_target"] != "argument" || finding.Metadata["origin"] != "caller_owned" {
+				t.Fatalf("metadata = %v, want argument/caller-owned evidence", finding.Metadata)
+			}
+		})
+	}
 }
 
 func assertUnresolvedDiagnosticCount(t *testing.T, report codeguard.Report, language string, count string) {
