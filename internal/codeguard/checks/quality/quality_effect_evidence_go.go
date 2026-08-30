@@ -1205,7 +1205,7 @@ func (resolver *goMutationResolver) setInitializer(scope *goScope, symbol *goSym
 		return
 	}
 	if conversion, ok := expression.(*ast.CallExpr); ok {
-		if shape, isConversion := resolver.conversionShape(scope, conversion); isConversion && shape.referenceBacked() && !resolver.conversionAllocatesFreshStorage(scope, conversion, shape) {
+		if conversionShape, isConversion := resolver.conversionShape(scope, conversion); isConversion && conversionShape.referenceBacked() && !resolver.conversionAllocatesFreshStorage(scope, conversion, conversionShape) {
 			symbol.Origin = originUnknown
 			return
 		}

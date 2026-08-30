@@ -301,3 +301,18 @@ GREEN verification:
 - `git diff --check`: PASS
 
 No crumb scan was required for this review round; the acceptance artifacts and external full-configuration gate analysis remain as recorded above.
+
+## Review fix round 4 — conversion-shape lint shadow
+
+The exact pinned linter reproduced one issue before the fix:
+
+`GOMODCACHE=/private/tmp/codeguard-task4-gomodcache-red GOCACHE=/private/tmp/codeguard-task4-gocache-red GOLANGCI_LINT_CACHE=/private/tmp/codeguard-task4-lintcache-red /private/tmp/golangci-lint-2.12.2-darwin-arm64/golangci-lint run`
+
+- `quality_effect_evidence_go.go:1208:6`: the conversion branch's local `shape` shadowed the function-level `shape` declared at line 1170.
+
+The inner binding is now named `conversionShape`; control flow and all three uses of the value are unchanged.
+
+Verification:
+
+- `GOCACHE=/private/tmp/codeguard-task4-conversion-test-cache szr go test ./internal/codeguard/checks/quality -run 'TestGo.*Conversion' -count=1`: PASS (1 package).
+- `GOMODCACHE=/private/tmp/codeguard-task4-gomodcache-red GOCACHE=/private/tmp/codeguard-task4-gocache-green GOLANGCI_LINT_CACHE=/private/tmp/codeguard-task4-lintcache-green /private/tmp/golangci-lint-2.12.2-darwin-arm64/golangci-lint run`: PASS (`0 issues.`).
