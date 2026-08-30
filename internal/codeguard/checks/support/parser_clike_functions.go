@@ -197,7 +197,13 @@ func cppLambdaCaptures(file *ParsedFile, fn *ParsedFunction, body string) []Pars
 			}
 			shape := "value"
 			capture = strings.TrimSpace(capture)
-			if strings.HasPrefix(capture, "&") {
+			switch {
+			case capture == "*this":
+				shape = "object"
+				capture = "this"
+			case capture == "this":
+				shape = "pointer"
+			case strings.HasPrefix(capture, "&"):
 				shape = "reference"
 				capture = strings.TrimSpace(strings.TrimPrefix(capture, "&"))
 			}
@@ -206,12 +212,19 @@ func cppLambdaCaptures(file *ParsedFile, fn *ParsedFunction, body string) []Pars
 			if eq := topLevelIndex(capture, '='); eq >= 0 {
 				name = strings.TrimSpace(capture[:eq])
 				initializer = strings.TrimSpace(capture[eq+1:])
+				if strings.HasPrefix(initializer, "&") {
+					shape = "pointer"
+				}
 			}
 			name = strings.TrimPrefix(name, "*")
 			if !clikeIdentPattern.MatchString(name) && name != "this" {
 				continue
 			}
-			out = append(out, ParsedDeclaration{Name: name, Kind: "capture", ReferenceShape: shape, AliasSource: cppFirstNonEmpty(initializer, name), Initializer: initializer, Line: line, ScopeStart: line, ScopeEnd: LineNumberForOffset(file.Source, end)})
+			aliasSource := cppAliasSource(initializer)
+			if initializer == "" {
+				aliasSource = name
+			}
+			out = append(out, ParsedDeclaration{Name: name, Kind: "capture", ReferenceShape: shape, AliasSource: aliasSource, Initializer: initializer, Line: line, ScopeStart: line, ScopeEnd: LineNumberForOffset(file.Source, end)})
 		}
 	}
 	return out
@@ -314,13 +327,4 @@ func blankCPPRange(data []byte, start int, end int) {
 			data[i] = ' '
 		}
 	}
-}
-
-func cppFirstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }

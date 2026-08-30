@@ -655,7 +655,7 @@ func TestFunctionHiddenMutationAllowsReactComponentsAndHooksAsBoundaries(t *test
 	}
 }
 
-func TestFunctionHiddenMutationReportsUnresolvedReactNativeCollaboratorCapture(t *testing.T) {
+func TestFunctionHiddenMutationStillWarnsForReactNativeCollaboratorCapture(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps/mobile/src/screens/ProfileScreen.tsx"), strings.Join([]string{
 		"import { Pressable, Text } from 'react-native';",
@@ -672,6 +672,62 @@ func TestFunctionHiddenMutationReportsUnresolvedReactNativeCollaboratorCapture(t
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
+	assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
+}
+
+func TestFunctionHiddenMutationPreservesCapturedOuterLocalOwnership(t *testing.T) {
+	t.Run("parameter alias remains caller owned", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "capture.ts"), strings.Join([]string{
+			"export function prepareUser(repo: Repository, user: User) {",
+			"  const collaborator = repo;",
+			"  function loadUser() {",
+			"    collaborator.save(user);",
+			"    return user;",
+			"  }",
+			"  return loadUser();",
+			"}",
+			"interface Repository { save(input: User): void }",
+			"interface User { name: string }",
+		}, "\n"))
+
+		report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+		assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
+	})
+
+	t.Run("fresh local remains local", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "capture.ts"), strings.Join([]string{
+			"export function buildValues() {",
+			"  const values = new Map<string, string>();",
+			"  function readValues() {",
+			"    values.set('key', 'value');",
+			"    return values;",
+			"  }",
+			"  return readValues();",
+			"}",
+		}, "\n"))
+
+		report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+		assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+		assertUnresolvedDiagnosticAbsent(t, report, "typescript")
+	})
+}
+
+func TestFunctionHiddenMutationLeavesUnknownNestedTypeScriptRootUnresolved(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "capture.ts"), strings.Join([]string{
+		"export function prepareUser(user: User) {",
+		"  function loadUser() {",
+		"    mystery.save(user);",
+		"    return user;",
+		"  }",
+		"  return loadUser();",
+		"}",
+		"interface User { name: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
 	assertUnresolvedDiagnosticCount(t, report, "typescript", "1")
 }

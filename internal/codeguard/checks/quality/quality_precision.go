@@ -46,7 +46,7 @@ var (
 		"misc": {}, "stuff": {},
 	}
 	queryFunctionPrefixPattern = regexp.MustCompile(`^(get|find|list|load|read|lookup|fetch|is|has|can|should|compute|calculate|build|format|parse)`)
-	mutatingCallPattern        = regexp.MustCompile(`(^|[.>:\-_])(?i:add|allocate|append|assign|clear|create|delete|emit|insert|mutate|persist|pop|publish|push|push_back|remove|reverse|save|send|set|sort|splice|store|update|upsert|write)([A-Z_:\-.]|$)`)
+	mutatingCallPattern        = regexp.MustCompile(`(^|[.>:\-_])(?i:add|allocate|append|assign|clear|create|delete|emit|insert|mutate|persist|pop|publish|push|push_back|remove|reverse|save|send|set|sort|splice|store|update|upsert|with|write)([A-Z_:\-.]|$)`)
 	lowLevelOperationPattern   = regexp.MustCompile(`(?i)(\bsql\.|\.query\(|\.exec\(|\bhttp\.|\bfetch\(|\baxios\.|\brequests\.|\bjson\.|\bJSON\.|\bos\.Getenv\b|\bprocess\.env\b|\bfs\.|#include\b)`)
 	primitiveTypePattern       = regexp.MustCompile(`(?i)\b(string|str|int|int64|float|float64|double|decimal|number|boolean|bool|char|long|short)\b`)
 	domainPrimitiveNamePattern = regexp.MustCompile(`(?i)(id|status|state|type|kind|currency|amount|price|email|phone|country|role|permission|tenant|account|customer|order)`)
@@ -78,6 +78,7 @@ type precisionFunction struct {
 	Returns                      bool
 	ImplementsInterfaceSignature bool
 	ProvenGlobals                map[string]struct{}
+	CapturedBindings             map[string]mutationBinding
 	GoDecl                       *ast.FuncDecl
 	GoFile                       string
 	GoFSet                       *token.FileSet
@@ -520,10 +521,10 @@ func unsafeGoNumericConversionTarget(call *ast.CallExpr) string {
 }
 
 func parsedPrecisionFindings(env support.Context, file string, parsed *support.ParsedFile) []core.Finding {
-	functions := parsed.AllFunctions()
+	functions := parsedPrecisionFunctions(parsed)
 	findings := make([]core.Finding, 0, len(functions))
 	for _, fn := range functions {
-		findings = append(findings, precisionFunctionFindings(env, file, parsedPrecisionFunction(fn))...)
+		findings = append(findings, precisionFunctionFindings(env, file, fn)...)
 	}
 	findings = append(findings, parsedDefensiveFindings(env, file, parsed)...)
 	findings = append(findings, parsedMutableGlobalFindings(env, file, parsed)...)
@@ -534,6 +535,48 @@ func parsedPrecisionFindings(env support.Context, file string, parsed *support.P
 	findings = append(findings, sourceNamingFindings(env, file, parsed.Source)...)
 	findings = append(findings, sourceDefensiveInvariantFindings(env, file, parsed.Source)...)
 	return findings
+}
+
+func parsedPrecisionFunctions(parsed *support.ParsedFile) []precisionFunction {
+	if parsed == nil {
+		return nil
+	}
+	functions := make([]precisionFunction, 0)
+	retainCaptures := parsed.Language == string(support.CLikeTypeScript)
+	var walk func([]*support.ParsedFunction, map[string]mutationBinding)
+	walk = func(items []*support.ParsedFunction, outer map[string]mutationBinding) {
+		for _, item := range items {
+			fn := parsedPrecisionFunction(item)
+			if retainCaptures {
+				fn.CapturedBindings = cloneMutationBindings(outer)
+			}
+			functions = append(functions, fn)
+			childBindings := outer
+			if retainCaptures {
+				origins, targets := resolvedMutationBindings(fn)
+				childBindings = make(map[string]mutationBinding, len(origins))
+				for name, origin := range origins {
+					if origin != "" {
+						childBindings[name] = mutationBinding{origin: origin, target: targets[name]}
+					}
+				}
+			}
+			walk(item.Nested, childBindings)
+		}
+	}
+	walk(parsed.Functions, nil)
+	return functions
+}
+
+func cloneMutationBindings(bindings map[string]mutationBinding) map[string]mutationBinding {
+	if len(bindings) == 0 {
+		return nil
+	}
+	clone := make(map[string]mutationBinding, len(bindings))
+	for name, binding := range bindings {
+		clone[name] = binding
+	}
+	return clone
 }
 
 func parsedPrecisionFunction(fn *support.ParsedFunction) precisionFunction {

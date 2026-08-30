@@ -167,8 +167,8 @@ func cppUnresolvedMutationEvidence(data []byte) []unresolvedMutationEvidence {
 func typeScriptUnresolvedMutationEvidence(data []byte) []unresolvedMutationEvidence {
 	parsed := support.ParseCLike(string(data), support.CLikeTypeScript)
 	var unresolved []unresolvedMutationEvidence
-	for _, fn := range parsed.AllFunctions() {
-		analysis := functionMutationAnalysis(parsedPrecisionFunction(fn), "typescript")
+	for _, fn := range parsedPrecisionFunctions(parsed) {
+		analysis := functionMutationAnalysis(fn, "typescript")
 		unresolved = append(unresolved, analysis.Unresolved...)
 	}
 	return unresolved

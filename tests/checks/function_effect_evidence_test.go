@@ -328,6 +328,17 @@ func assertUnresolvedDiagnosticCount(t *testing.T, report codeguard.Report, lang
 	t.Fatalf("expected unresolved-symbol diagnostic language=%q count=%q: %#v", language, count, diagnostics)
 }
 
+func assertUnresolvedDiagnosticAbsent(t *testing.T, report codeguard.Report, language string) {
+	t.Helper()
+	for _, section := range report.Sections {
+		for _, diagnostic := range section.Diagnostics {
+			if diagnostic.ID == "quality.structural-unresolved-symbols" && diagnostic.Metadata["language"] == language {
+				t.Fatalf("unexpected unresolved-symbol diagnostic language=%q: %#v", language, diagnostic)
+			}
+		}
+	}
+}
+
 func TestFunctionEffectsReportOwnedAndObservableMutationEvidence(t *testing.T) {
 	cases := []struct{ name, language, file, source, target, effect, origin string }{
 		{"go argument alias", "go", "mutation.go", `package sample

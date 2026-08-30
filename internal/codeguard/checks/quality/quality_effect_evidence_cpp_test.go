@@ -211,6 +211,72 @@ func TestCppLambdaDefaultAndNestedCaptureOwnership(t *testing.T) {
 	})
 }
 
+func TestCppLambdaPointerCapturesRetainPointeeOwnership(t *testing.T) {
+	tests := map[string]string{
+		"explicit pointer copy": `int current(Token* inputPtr) {
+  auto work = [inputPtr]() { inputPtr->value++; };
+  work();
+  return inputPtr->value;
+}`,
+		"default pointer copy": `int current(Token* inputPtr) {
+  auto work = [=]() { inputPtr->value++; };
+  work();
+  return inputPtr->value;
+}`,
+		"address init capture": `int current(Token& input) {
+  auto work = [ptr=&input]() { ptr->value++; };
+  work();
+  return input.value;
+}`,
+		"nested default pointer copy": `int current(Token* inputPtr) {
+  auto outer = [inputPtr]() {
+    auto inner = [=]() { inputPtr->value++; };
+    inner();
+  };
+  outer();
+  return inputPtr->value;
+}`,
+	}
+	for name, source := range tests {
+		t.Run(name, func(t *testing.T) {
+			analysis := cppAnalysisForTest(t, source, "current")
+			assertCppMutationForTest(t, analysis, targetArgument, originCaller)
+		})
+	}
+}
+
+func TestCppLambdaThisCaptureDistinguishesPointerAndObjectCopy(t *testing.T) {
+	tests := []struct {
+		name    string
+		capture string
+		finding bool
+	}{
+		{name: "this pointer", capture: "this", finding: true},
+		{name: "copied object", capture: "*this"},
+		{name: "nested this pointer", capture: "this", finding: true},
+		{name: "nested copied object", capture: "*this"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			body := `auto work = [` + test.capture + `]() mutable { state.value++; }; work();`
+			if strings.HasPrefix(test.name, "nested") {
+				body = `auto outer = [` + test.capture + `]() mutable { auto inner = [=]() mutable { state.value++; }; inner(); }; outer();`
+			}
+			analysis := cppAnalysisForTest(t, `struct Counter {
+  Token state;
+  int current() { `+body+` return state.value; }
+};`, "current")
+			if test.finding {
+				assertCppMutationForTest(t, analysis, targetReceiver, originCaller)
+				return
+			}
+			if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+				t.Fatalf("analysis = %#v, want *this value-copy mutation to remain local", analysis)
+			}
+		})
+	}
+}
+
 func TestCppLambdaLocalDeclarationOutranksDefaultCapture(t *testing.T) {
 	analysis := cppAnalysisForTest(t, `struct Counter {
   Token state;
@@ -263,6 +329,38 @@ func TestCppOriginObservableEffectsUseTerminalMethodWords(t *testing.T) {
 	read := cppAnalysisForTest(t, `int current(const Upload& upload) { return upload.expiresAt.Format(); }`, "current")
 	if len(read.Mutations) != 0 || len(read.Unresolved) != 0 {
 		t.Fatalf("read analysis = %#v, want receiver field names excluded from effect classification", read)
+	}
+}
+
+func TestCppConstructionShapedMethodsFollowResolvedOwnership(t *testing.T) {
+	caller := cppAnalysisForTest(t, `int current(Builder& input, Builder& builder) {
+  input.SetName("caller");
+  builder.Save();
+  input.WithValue(1);
+  return 1;
+}`, "current")
+	assertCppMutationForTest(t, caller, targetArgument, originCaller)
+	wantDetails := map[string]bool{"input.SetName": false, "builder.Save": false, "input.WithValue": false}
+	for _, mutation := range caller.Mutations {
+		if _, expected := wantDetails[mutation.Detail]; expected {
+			wantDetails[mutation.Detail] = true
+		}
+	}
+	for detail, found := range wantDetails {
+		if !found {
+			t.Fatalf("mutations = %#v, want caller-owned %s evidence", caller.Mutations, detail)
+		}
+	}
+
+	local := cppAnalysisForTest(t, `int current() {
+  Builder builder{};
+  builder.SetName("local");
+  builder.Save();
+  builder.WithValue(1);
+  return 1;
+}`, "current")
+	if len(local.Mutations) != 0 || len(local.Unresolved) != 0 {
+		t.Fatalf("analysis = %#v, want fresh local builder operations suppressed by ownership", local)
 	}
 }
 
@@ -465,6 +563,47 @@ func TestCppOriginUnknownBareMutationsRemainUnresolved(t *testing.T) {
 			analysis := cppAnalysisForTest(t, `int current() { `+operation+` return 1; }`, "current")
 			assertOnlyUnresolvedMutation(t, analysis, "c++", "mystery", "assignment")
 		})
+	}
+}
+
+func TestCppCompactAssignmentsResolveWithoutWhitespace(t *testing.T) {
+	tests := []struct {
+		name       string
+		source     string
+		wantTarget string
+		wantOrigin string
+		unresolved string
+	}{
+		{name: "field", source: `int current(Token& input) { input.value=1; return input.value; }`, wantTarget: targetArgument, wantOrigin: originCaller},
+		{name: "global binding", source: `Token state;
+int current(Token next) { state=next; return state.value; }`, wantTarget: targetGlobal, wantOrigin: originShared},
+		{name: "pointer dereference", source: `int current(Token* out) { *out=Token{}; return out->value; }`, wantTarget: targetArgument, wantOrigin: originCaller},
+		{name: "unknown", source: `int current(Token next) { mystery=next; return 1; }`, unresolved: "mystery"},
+		{name: "local", source: `int current(Token next) { Token state{}; state=next; return state.value; }`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			analysis := cppAnalysisForTest(t, test.source, "current")
+			switch {
+			case test.wantTarget != "":
+				assertCppMutationForTest(t, analysis, test.wantTarget, test.wantOrigin)
+			case test.unresolved != "":
+				assertOnlyUnresolvedMutation(t, analysis, "c++", test.unresolved, "assignment")
+			case len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0:
+				t.Fatalf("analysis = %#v, want compact local assignment only", analysis)
+			}
+		})
+	}
+}
+
+func TestCppAssignmentGrammarRejectsComparisonAndArrowOperators(t *testing.T) {
+	analysis := cppAnalysisForTest(t, `int current(Token& input) {
+  if (input.value==1 || input.value<=2 || input.value>=0 || input.value!=3) { return 1; }
+  auto invalid_arrow_fixture = input.value=>4;
+  return 0;
+}`, "current")
+	if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+		t.Fatalf("analysis = %#v, want comparisons and => excluded from assignment evidence", analysis)
 	}
 }
 

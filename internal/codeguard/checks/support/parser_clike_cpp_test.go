@@ -74,6 +74,43 @@ int N::M::Counter::current() {
 	}
 }
 
+func TestCppParserDistinguishesPointerAndThisCaptureShapes(t *testing.T) {
+	parsed := ParseCLike(`struct Counter {
+  Token state;
+  int current(Token& input, Token* inputPtr) {
+    auto pointerCopy = [inputPtr]() { return inputPtr->value; };
+    auto pointerInit = [ptr=&input]() { return ptr->value; };
+    auto receiverPointer = [this]() { return state.value; };
+    auto receiverCopy = [*this]() { return state.value; };
+    return state.value;
+  }
+};`, CLikeCPP)
+	fn := parsed.FunctionByName("current")
+	if fn == nil {
+		t.Fatal("current missing")
+	}
+	want := map[string]string{"inputPtr": "value", "ptr": "pointer"}
+	for name, shape := range want {
+		capture, ok := cppParsedDeclarationForTest(fn.Declarations, name, "capture")
+		if !ok || capture.ReferenceShape != shape {
+			t.Fatalf("capture %q = %#v, ok=%v, want shape %q", name, capture, ok, shape)
+		}
+	}
+	thisShapes := map[string]bool{"pointer": false, "object": false}
+	for _, declaration := range fn.Declarations {
+		if declaration.Kind == "capture" && declaration.Name == "this" {
+			if _, expected := thisShapes[declaration.ReferenceShape]; expected {
+				thisShapes[declaration.ReferenceShape] = true
+			}
+		}
+	}
+	for shape, found := range thisShapes {
+		if !found {
+			t.Fatalf("this captures = %#v, want %q shape", fn.Declarations, shape)
+		}
+	}
+}
+
 func TestCppParserDoesNotTreatIfConstexprRequiresAsFunction(t *testing.T) {
 	parsed := ParseCLike(`
 struct Awaiter {

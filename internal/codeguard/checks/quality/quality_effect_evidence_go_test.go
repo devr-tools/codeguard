@@ -388,6 +388,36 @@ func ReadValue() int { mystery.Value = 1; return mystery.Value }`, "ReadValue")
 	assertOnlyUnresolvedMutation(t, analysis, "go", "mystery", "assignment")
 }
 
+func TestGoPlainIdentifierReassignmentUsesResolvedBindingOwnership(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		wantTarget string
+		unresolved string
+	}{
+		{name: "global replacement", body: `shared = replacement`, wantTarget: targetGlobal},
+		{name: "global nil", body: `shared = nil`, wantTarget: targetGlobal},
+		{name: "local replacement", body: `local := &Node{}; local = replacement`},
+		{name: "unknown replacement", body: `mystery = replacement`, unresolved: "mystery"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Node struct{ Value int }
+var shared *Node
+func ReadValue(replacement *Node) int { `+test.body+`; return 1 }`, "ReadValue")
+			switch {
+			case test.wantTarget != "":
+				assertGoMutation(t, analysis, test.wantTarget, originShared)
+			case test.unresolved != "":
+				assertOnlyUnresolvedMutation(t, analysis, "go", test.unresolved, "assignment")
+			case len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0:
+				t.Fatalf("analysis = %#v, want local binding reassignment only", analysis)
+			}
+		})
+	}
+}
+
 func TestGoReferenceShapeOriginResolution(t *testing.T) {
 	declarations := `package sample
 type Node struct{ Name string }
@@ -423,6 +453,42 @@ type Payload struct {
 			}
 			assertGoMutation(t, analysis, test.wantTarget, test.wantOrigin)
 		})
+	}
+}
+
+func TestGoConstructionShapedMethodsFollowResolvedOwnership(t *testing.T) {
+	caller := parseGoMutationAnalysisForTest(t, `package sample
+type Builder struct{}
+func ReadValue(input *Builder, builder *Builder) int {
+	input.SetName("caller")
+	builder.Save()
+	input.WithValue(1)
+	return 1
+}`, "ReadValue")
+	assertGoMutation(t, caller, targetArgument, originCaller)
+	wantDetails := map[string]bool{"input.SetName": false, "builder.Save": false, "input.WithValue": false}
+	for _, mutation := range caller.Mutations {
+		if _, expected := wantDetails[mutation.Detail]; expected {
+			wantDetails[mutation.Detail] = true
+		}
+	}
+	for detail, found := range wantDetails {
+		if !found {
+			t.Fatalf("mutations = %#v, want caller-owned %s evidence", caller.Mutations, detail)
+		}
+	}
+
+	local := parseGoMutationAnalysisForTest(t, `package sample
+type Builder struct{}
+func ReadValue() int {
+	builder := &Builder{}
+	builder.SetName("local")
+	builder.Save()
+	builder.WithValue(1)
+	return 1
+}`, "ReadValue")
+	if len(local.Mutations) != 0 || len(local.Unresolved) != 0 {
+		t.Fatalf("analysis = %#v, want fresh local builder operations suppressed by ownership", local)
 	}
 }
 
@@ -652,12 +718,86 @@ type Node struct{ Value int }
 var shared *Node
 func ReadValue(flag bool) int { local := &Node{}; `+test.body+`; return local.Value }`, "ReadValue")
 			if test.wantTarget == "" {
-				if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
-					t.Fatalf("analysis = %#v, want no cross-branch escape proof", analysis)
+				if len(analysis.Unresolved) != 0 {
+					t.Fatalf("unresolved = %#v, want resolved global binding evidence", analysis.Unresolved)
 				}
+				for _, mutation := range analysis.Mutations {
+					if mutation.Target == targetEscaped {
+						t.Fatalf("analysis = %#v, want no cross-branch escape proof", analysis)
+					}
+				}
+				assertGoMutation(t, analysis, targetGlobal, originShared)
 				return
 			}
 			assertGoMutation(t, analysis, test.wantTarget, originShared)
+		})
+	}
+}
+
+func TestGoOrdinaryAliasStateDoesNotLeakAcrossOptionalControlFlow(t *testing.T) {
+	tests := map[string]string{
+		"optional branch":      `if flag { alias = input }; alias.Value = 1`,
+		"optional for loop":    `for flag { alias = input; break }; alias.Value = 1`,
+		"possibly empty range": `for range []int{} { alias = input }; alias.Value = 1`,
+	}
+	for name, body := range tests {
+		t.Run(name, func(t *testing.T) {
+			analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Node struct{ Value int }
+func ReadValue(input *Node, flag bool) int {
+	local := &Node{}
+	alias := local
+	`+body+`
+	return alias.Value
+}`, "ReadValue")
+			if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+				t.Fatalf("analysis = %#v, want pre-control-flow local alias state", analysis)
+			}
+		})
+	}
+}
+
+func TestGoOrdinaryAliasStateMergeIsBranchOrderInvariant(t *testing.T) {
+	bodies := []string{
+		`if flag { alias = input } else { alias = local }`,
+		`if flag { alias = local } else { alias = input }`,
+	}
+	for index, body := range bodies {
+		t.Run(string(rune('A'+index)), func(t *testing.T) {
+			analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Node struct{ Value int }
+func ReadValue(input *Node, flag bool) int {
+	local := &Node{}
+	alias := local
+	`+body+`
+	alias.Value = 1
+	return alias.Value
+}`, "ReadValue")
+			if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+				t.Fatalf("analysis = %#v, want ambiguous branch alias to retain pre-branch local state", analysis)
+			}
+		})
+	}
+}
+
+func TestGoOrdinaryAliasStateMergesWhenEveryBranchProvesCallerOwnership(t *testing.T) {
+	for name, body := range map[string]string{
+		"if":     `if flag { alias = first } else { alias = second }`,
+		"switch": `switch flag { case true: alias = first; default: alias = second }`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			analysis := parseGoMutationAnalysisForTest(t, `package sample
+type Node struct{ Value int }
+func ReadValue(input *Node, flag bool) int {
+	local := &Node{}
+	alias := local
+	first := input
+	second := input
+	`+body+`
+	alias.Value = 1
+	return alias.Value
+}`, "ReadValue")
+			assertGoMutation(t, analysis, targetArgument, originCaller)
 		})
 	}
 }
@@ -680,7 +820,7 @@ func ReadValue(flag bool) int {
 	assertGoMutation(t, analysis, targetEscaped, originShared)
 }
 
-func TestGoReferenceOriginResolutionMarksOnlyPostEscapeMutation(t *testing.T) {
+func TestGoReferenceOriginResolutionReportsGlobalBindingAndOnlyPostEscapeContentMutation(t *testing.T) {
 	analysis := parseGoMutationAnalysisForTest(t, `package sample
 type Node struct{ Value int }
 var shared *Node
@@ -691,9 +831,10 @@ func ReadValue() int {
 	local.Value = 2
 	return local.Value
 }`, "ReadValue")
-	if len(analysis.Mutations) != 1 {
-		t.Fatalf("mutations = %#v, want exactly one post-escape mutation", analysis.Mutations)
+	if len(analysis.Mutations) != 2 {
+		t.Fatalf("mutations = %#v, want global binding plus post-escape content mutation", analysis.Mutations)
 	}
+	assertGoMutation(t, analysis, targetGlobal, originShared)
 	assertGoMutation(t, analysis, targetEscaped, originShared)
 }
 

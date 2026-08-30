@@ -16,8 +16,8 @@ type cppResolvedOwnership struct {
 }
 
 var (
-	cppFieldMutationPattern  = regexp.MustCompile(`\b([A-Za-z_]\w*)\s*(?:(?:\.|->)\s*[A-Za-z_]\w*|\[[^]]*\])\s*(?:=\s|\+\+|--|\+=|-=|\*=|/=)`)
-	cppBareMutationPattern   = regexp.MustCompile(`(?:^|[;{}])[ \t]*(?:\*[ \t]*)?([A-Za-z_]\w*)[ \t]*(?:=\s|\+\+|--|\+=|-=|\*=|/=)`)
+	cppFieldMutationPattern  = regexp.MustCompile(`\b([A-Za-z_]\w*)\s*(?:(?:\.|->)\s*[A-Za-z_]\w*|\[[^]]*\])\s*(?:=(?:[^=>]|\z)|\+\+|--|\+=|-=|\*=|/=)`)
+	cppBareMutationPattern   = regexp.MustCompile(`(?:^|[;{}])[ \t]*(?:\*[ \t]*)?([A-Za-z_]\w*)[ \t]*(?:=(?:[^=>]|\z)|\+\+|--|\+=|-=|\*=|/=)`)
 	cppPrefixMutationPattern = regexp.MustCompile(`(?:^|[;{}])[ \t]*(?:\+\+|--)[ \t]*(?:\*[ \t]*)?([A-Za-z_]\w*)\b`)
 	cppEscapeStorePattern    = regexp.MustCompile(`\b([A-Za-z_]\w*)\s*(?:(?:\.|->)\s*[A-Za-z_]\w*)?[ \t]*=[ \t]*&?([A-Za-z_]\w*)\b`)
 	cppAutoCallResultPattern = regexp.MustCompile(`^\s*[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*(?:\s*<[^(){};]+>)?\s*\(`)
@@ -99,7 +99,7 @@ func cppFunctionMutationEvidence(fn precisionFunction) mutationAnalysis {
 	for _, call := range directCalls(fn) {
 		effect := observableCallEffect(call.Callee)
 		root := mutationCallTarget(call.Callee)
-		if effect == "" && (!mutatingCallPattern.MatchString(call.Callee) || isConstructionOrHydrationCall(call.Callee)) {
+		if effect == "" && !mutatingCallPattern.MatchString(call.Callee) {
 			continue
 		}
 		if root == "" {
@@ -121,9 +121,6 @@ type cppOwnershipResolver struct {
 func (r cppOwnershipResolver) resolve(name string, line int, excluded *support.ParsedDeclaration, depth int) (cppResolvedOwnership, bool) {
 	if depth >= 8 || name == "" {
 		return cppResolvedOwnership{origin: originUnknown, name: name}, false
-	}
-	if name == "this" && r.fn.QualifiedOwner != "" {
-		return cppResolvedOwnership{origin: originCaller, target: targetReceiver, name: name, shape: "pointer"}, true
 	}
 	candidates := make([]support.ParsedDeclaration, 0)
 	for idx := range r.fn.Declarations {
@@ -151,10 +148,24 @@ func (r cppOwnershipResolver) resolve(name string, line int, excluded *support.P
 		if capture.ReferenceShape == "reference" {
 			return r.resolve(name, capture.Line, &capture, depth+1)
 		}
+		if source, sourceOK := r.resolve(name, capture.Line, &capture, depth+1); sourceOK && source.shape == "pointer" {
+			return source, true
+		}
 		return cppResolvedOwnership{origin: originLocal, target: targetLocal, name: name}, true
 	}
 	if len(candidates) == 0 {
+		if name == "this" && r.fn.QualifiedOwner != "" {
+			return cppResolvedOwnership{origin: originCaller, target: targetReceiver, name: name, shape: "pointer"}, true
+		}
 		return cppResolvedOwnership{origin: originUnknown, name: name}, false
+	}
+	if best.Kind == "member" {
+		if capture, ok := r.thisCapture(line, excluded); ok {
+			if capture.ReferenceShape == "object" {
+				return cppResolvedOwnership{origin: originLocal, target: targetLocal, name: name}, true
+			}
+			return cppResolvedOwnership{origin: originCaller, target: targetReceiver, name: name, shape: "pointer"}, true
+		}
 	}
 	return r.resolveDeclaration(best, depth)
 }
@@ -167,11 +178,28 @@ func (r cppOwnershipResolver) resolveDeclaration(declaration support.ParsedDecla
 		}
 		return cppResolvedOwnership{origin: originLocal, target: targetLocal, name: declaration.Name}, true
 	case "capture":
-		if declaration.ReferenceShape != "reference" {
+		if declaration.ReferenceShape == "object" {
+			return cppResolvedOwnership{origin: originLocal, target: targetLocal, name: declaration.Name}, true
+		}
+		if declaration.Initializer != "" && declaration.AliasSource == "" {
 			return cppResolvedOwnership{origin: originLocal, target: targetLocal, name: declaration.Name}, true
 		}
 		source := firstNonEmptyString(declaration.AliasSource, declaration.Name)
-		return r.resolve(source, declaration.Line, &declaration, depth+1)
+		resolved, ok := r.resolve(source, declaration.Line, &declaration, depth+1)
+		if !ok {
+			return resolved, false
+		}
+		if declaration.ReferenceShape == "reference" {
+			return resolved, true
+		}
+		if declaration.ReferenceShape == "pointer" {
+			resolved.shape = "pointer"
+			return resolved, true
+		}
+		if resolved.shape == "pointer" {
+			return resolved, true
+		}
+		return cppResolvedOwnership{origin: originLocal, target: targetLocal, name: declaration.Name}, true
 	case "member":
 		return cppResolvedOwnership{origin: originCaller, target: targetReceiver, name: declaration.Name, shape: declaration.ReferenceShape}, true
 	case "global":
@@ -222,6 +250,20 @@ func (r cppOwnershipResolver) defaultCapture(line int, excluded *support.ParsedD
 			continue
 		}
 		if !found || declaration.ScopeStart >= best.ScopeStart {
+			best, found = declaration, true
+		}
+	}
+	return best, found
+}
+
+func (r cppOwnershipResolver) thisCapture(line int, excluded *support.ParsedDeclaration) (support.ParsedDeclaration, bool) {
+	var best support.ParsedDeclaration
+	found := false
+	for _, declaration := range r.fn.Declarations {
+		if declaration.Kind != "capture" || declaration.Name != "this" || line < declaration.ScopeStart || line > declaration.ScopeEnd || cppDeclarationExcluded(declaration, excluded) {
+			continue
+		}
+		if !found || cppDeclarationMoreSpecific(declaration, best) {
 			best, found = declaration, true
 		}
 	}

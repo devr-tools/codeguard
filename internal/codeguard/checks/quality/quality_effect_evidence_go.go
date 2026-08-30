@@ -832,6 +832,7 @@ func (resolver *goMutationResolver) intersectGoFieldBindings(first map[string]*g
 type goBranchState struct {
 	escapes map[int]int
 	fields  map[string]*goSymbol
+	symbols map[int]goSymbolBindingState
 }
 
 type goSymbolBindingState struct {
@@ -857,20 +858,77 @@ func restoreGoSymbolBinding(symbol *goSymbol, state goSymbolBindingState) {
 	symbol.ContentOf = state.contentOf
 }
 
+func cloneGoSymbolBindings(symbols map[int]*goSymbol) map[int]goSymbolBindingState {
+	bindings := make(map[int]goSymbolBindingState, len(symbols))
+	for id, symbol := range symbols {
+		bindings[id] = snapshotGoSymbolBinding(symbol)
+	}
+	return bindings
+}
+
+func cloneGoSymbolBindingStates(states map[int]goSymbolBindingState) map[int]goSymbolBindingState {
+	clone := make(map[int]goSymbolBindingState, len(states))
+	for id, state := range states {
+		clone[id] = state
+	}
+	return clone
+}
+
+func goSymbolBindingStatesEqual(first goSymbolBindingState, second goSymbolBindingState) bool {
+	return goReferenceShapesEqual(first.shape, second.shape) &&
+		first.origin == second.origin && first.target == second.target &&
+		first.aliasOf == second.aliasOf && first.contentOf == second.contentOf
+}
+
 func (resolver *goMutationResolver) branchState() goBranchState {
-	return goBranchState{escapes: cloneGoEscapeState(resolver.escapedAt), fields: cloneGoFieldBindings(resolver.fields)}
+	return goBranchState{
+		escapes: cloneGoEscapeState(resolver.escapedAt),
+		fields:  cloneGoFieldBindings(resolver.fields),
+		symbols: cloneGoSymbolBindings(resolver.symbols),
+	}
 }
 
 func (resolver *goMutationResolver) restoreBranchState(state goBranchState) {
 	resolver.escapedAt = cloneGoEscapeState(state.escapes)
 	resolver.fields = cloneGoFieldBindings(state.fields)
+	for id, binding := range state.symbols {
+		if symbol := resolver.symbols[id]; symbol != nil {
+			restoreGoSymbolBinding(symbol, binding)
+		}
+	}
 }
 
-func (resolver *goMutationResolver) intersectGoBranchStates(first goBranchState, second goBranchState) goBranchState {
-	return goBranchState{
-		escapes: intersectGoEscapeStates(first.escapes, second.escapes),
-		fields:  resolver.intersectGoFieldBindings(first.fields, second.fields),
+func (resolver *goMutationResolver) mergeGoBranchStates(before goBranchState, states ...goBranchState) goBranchState {
+	if len(states) == 0 {
+		return before
 	}
+	merged := goBranchState{
+		escapes: cloneGoEscapeState(states[0].escapes),
+		fields:  cloneGoFieldBindings(states[0].fields),
+		symbols: cloneGoSymbolBindingStates(before.symbols),
+	}
+	for _, state := range states[1:] {
+		merged.escapes = intersectGoEscapeStates(merged.escapes, state.escapes)
+		merged.fields = resolver.intersectGoFieldBindings(merged.fields, state.fields)
+	}
+	for id := range before.symbols {
+		candidate, exists := states[0].symbols[id]
+		if !exists {
+			continue
+		}
+		equivalent := true
+		for _, state := range states[1:] {
+			other, ok := state.symbols[id]
+			if !ok || !goSymbolBindingStatesEqual(candidate, other) {
+				equivalent = false
+				break
+			}
+		}
+		if equivalent {
+			merged.symbols[id] = candidate
+		}
+	}
+	return merged
 }
 
 func (resolver *goMutationResolver) walkExclusiveBranches(scope *goScope, statements []ast.Stmt, exhaustive bool) {
@@ -884,11 +942,7 @@ func (resolver *goMutationResolver) walkExclusiveBranches(scope *goScope, statem
 	if !exhaustive || len(states) == 0 {
 		states = append(states, before)
 	}
-	merged := states[0]
-	for _, state := range states[1:] {
-		merged = resolver.intersectGoBranchStates(merged, state)
-	}
-	resolver.restoreBranchState(merged)
+	resolver.restoreBranchState(resolver.mergeGoBranchStates(before, states...))
 }
 
 func goCaseFallsThrough(statement ast.Stmt) bool {
@@ -918,11 +972,7 @@ func (resolver *goMutationResolver) walkSwitchBranches(scope *goScope, statement
 	if !exhaustive || len(states) == 0 {
 		states = append(states, before)
 	}
-	merged := states[0]
-	for _, state := range states[1:] {
-		merged = resolver.intersectGoBranchStates(merged, state)
-	}
-	resolver.restoreBranchState(merged)
+	resolver.restoreBranchState(resolver.mergeGoBranchStates(before, states...))
 }
 
 func goBranchesHaveDefault(statements []ast.Stmt) bool {
@@ -959,12 +1009,7 @@ func (resolver *goMutationResolver) walkStatement(scope *goScope, statement ast.
 				case *ast.SelectorExpr, *ast.IndexExpr, *ast.StarExpr:
 					resolver.recordAssignmentMutation(scope, expression, line, resolver.expressionRootName(expression))
 				case *ast.Ident:
-					if value.Tok != token.ASSIGN {
-						path := resolver.resolveExpression(scope, expression)
-						if path.symbol != nil && path.symbol.Kind == goSymbolGlobal {
-							resolver.recordAssignmentMutation(scope, expression, line, path.symbol.Name)
-						}
-					}
+					resolver.recordAssignmentMutation(scope, expression, line, resolver.expressionRootName(expression))
 				}
 			}
 		}
@@ -992,17 +1037,19 @@ func (resolver *goMutationResolver) walkStatement(scope *goScope, statement ast.
 		if value.Else != nil {
 			resolver.walkStatement(control, value.Else)
 		}
-		resolver.restoreBranchState(resolver.intersectGoBranchStates(thenState, resolver.branchState()))
+		resolver.restoreBranchState(resolver.mergeGoBranchStates(beforeBranches, thenState, resolver.branchState()))
 	case *ast.ForStmt:
 		control := resolver.newScope(scope)
 		if value.Init != nil {
 			resolver.walkStatement(control, value.Init)
 		}
 		resolver.walkExpressionCalls(control, value.Cond)
+		beforeLoop := resolver.branchState()
 		resolver.walkStatements(resolver.newScope(control), value.Body.List)
 		if value.Post != nil {
 			resolver.walkStatement(control, value.Post)
 		}
+		resolver.restoreBranchState(beforeLoop)
 	case *ast.RangeStmt:
 		control := resolver.newScope(scope)
 		resolver.walkExpressionCalls(control, value.X)
@@ -1317,7 +1364,7 @@ func (resolver *goMutationResolver) walkCall(scope *goScope, call *ast.CallExpr)
 		if resolver.recordBuiltinMutation(scope, identifier.Name, call.Args, line) {
 			return
 		}
-		if mutatingCallPattern.MatchString(identifier.Name) && !isConstructionOrHydrationCall(identifier.Name) {
+		if mutatingCallPattern.MatchString(identifier.Name) {
 			resolver.addUnresolved(line, "call", identifier.Name, "call target declaration could not be resolved")
 		}
 		return
@@ -1333,7 +1380,7 @@ func (resolver *goMutationResolver) walkCall(scope *goScope, call *ast.CallExpr)
 	callee := goCallName(call.Fun)
 	effect := observableCallEffect(callee)
 	if effect == "" {
-		if !mutatingCallPattern.MatchString(callee) || isConstructionOrHydrationCall(callee) {
+		if !mutatingCallPattern.MatchString(callee) {
 			return
 		}
 		effect = "shared_state"

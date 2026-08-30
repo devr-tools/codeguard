@@ -29,6 +29,11 @@ type mutationAnalysis struct {
 	Unresolved []unresolvedMutationEvidence
 }
 
+type mutationBinding struct {
+	origin string
+	target string
+}
+
 func mutationEvidenceMetadata(evidence mutationEvidence) map[string]string {
 	return map[string]string{
 		"mutation_target": evidence.Target,
@@ -68,55 +73,33 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 	if fn.Language == string(support.CLikeCPP) || language == "c++" || language == "cpp" {
 		return cppFunctionMutationEvidence(fn)
 	}
-	origins := map[string]string{}
-	targets := map[string]string{}
-	for name := range fn.ProvenGlobals {
-		origins[name], targets[name] = originShared, targetGlobal
-	}
-	for _, param := range fn.Params {
-		if param.Name != "" {
-			origins[param.Name], targets[param.Name] = originCaller, targetArgument
-		}
-	}
-	if fn.ReceiverName != "" {
-		origins[fn.ReceiverName], targets[fn.ReceiverName] = originCaller, targetReceiver
-	}
-	if fn.Receiver != "" {
-		origins["this"], targets["this"] = originCaller, targetReceiver
-	}
+	origins, targets := resolvedMutationBindings(fn)
 
-	locals := localMutationTargets(fn)
-	for name := range locals {
-		origins[name], targets[name] = originLocal, targetLocal
+	var analysis mutationAnalysis
+	seen := map[string]struct{}{}
+	add := func(item mutationEvidence) {
+		key := item.Target + "|" + item.Effect + "|" + item.Origin + "|" + item.Detail
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		analysis.Mutations = append(analysis.Mutations, item)
 	}
-	for _, assignment := range directAssignments(fn) {
-		name := strings.TrimSpace(assignment.Name)
-		if name == "" {
-			continue
+	unresolvedSeen := map[string]struct{}{}
+	addUnresolved := func(line int, operation string, symbol string) {
+		key := language + "|" + operation + "|" + symbol + "|" + strconv.Itoa(line)
+		if _, ok := unresolvedSeen[key]; ok {
+			return
 		}
-		if assignmentDeclaresLocal(fn, assignment) {
-			delete(origins, name)
-			delete(targets, name)
-		}
-		if source := assignmentAliasSource(fn, assignment); source != "" && assignmentCanReceiveAlias(fn, assignment) {
-			if origin := origins[source]; origin != "" {
-				origins[name], targets[name] = origin, targets[source]
-			}
-		}
-		if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(fn, assignment) {
-			origins[name], targets[name] = originLocal, targetLocal
-		} else if origins[name] == "" && strings.Contains(assignment.Expr, "(") {
-			origins[name], targets[name] = originUnknown, ""
-		}
+		unresolvedSeen[key] = struct{}{}
+		analysis.Unresolved = append(analysis.Unresolved, unresolvedMutationEvidence{
+			Language:  language,
+			Line:      line,
+			Operation: operation,
+			Symbol:    symbol,
+			Reason:    "symbol ownership could not be resolved",
+		})
 	}
-	for _, pattern := range []*regexp.Regexp{goAliasPattern, cppAliasPattern} {
-		for _, match := range pattern.FindAllStringSubmatch(fn.Body, -1) {
-			if origin := origins[match[2]]; origin != "" {
-				origins[match[1]], targets[match[1]] = origin, targets[match[2]]
-			}
-		}
-	}
-
 	escapedAt := map[string]int{}
 	escapedNames := map[string]bool{}
 	for _, statement := range directStatements(fn) {
@@ -146,31 +129,6 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 				break
 			}
 		}
-	}
-	var analysis mutationAnalysis
-	seen := map[string]struct{}{}
-	add := func(item mutationEvidence) {
-		key := item.Target + "|" + item.Effect + "|" + item.Origin + "|" + item.Detail
-		if _, ok := seen[key]; ok {
-			return
-		}
-		seen[key] = struct{}{}
-		analysis.Mutations = append(analysis.Mutations, item)
-	}
-	unresolvedSeen := map[string]struct{}{}
-	addUnresolved := func(line int, operation string, symbol string) {
-		key := language + "|" + operation + "|" + symbol + "|" + strconv.Itoa(line)
-		if _, ok := unresolvedSeen[key]; ok {
-			return
-		}
-		unresolvedSeen[key] = struct{}{}
-		analysis.Unresolved = append(analysis.Unresolved, unresolvedMutationEvidence{
-			Language:  language,
-			Line:      line,
-			Operation: operation,
-			Symbol:    symbol,
-			Reason:    "symbol ownership could not be resolved",
-		})
 	}
 	for _, match := range bodyFieldMutationPattern.FindAllStringSubmatch(fn.Body, -1) {
 		name := match[1]
@@ -235,12 +193,12 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 		}
 		if effect == "" {
 			if target == "" {
-				if mutatingCallPattern.MatchString(call.Callee) && !isConstructionOrHydrationCall(call.Callee) {
+				if mutatingCallPattern.MatchString(call.Callee) {
 					addUnresolved(call.Line, "call", unresolvedSymbol)
 				}
 				continue
 			}
-			if !mutatingCallPattern.MatchString(call.Callee) || isConstructionOrHydrationCall(call.Callee) {
+			if !mutatingCallPattern.MatchString(call.Callee) {
 				continue
 			}
 			effect = "shared_state"
@@ -252,6 +210,61 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 		add(mutationEvidence{Target: target, Effect: effect, Origin: origin, Line: call.Line, Detail: call.Callee})
 	}
 	return analysis
+}
+
+func resolvedMutationBindings(fn precisionFunction) (map[string]string, map[string]string) {
+	origins := make(map[string]string, len(fn.CapturedBindings))
+	targets := make(map[string]string, len(fn.CapturedBindings))
+	for name, binding := range fn.CapturedBindings {
+		origins[name], targets[name] = binding.origin, binding.target
+	}
+	for name := range fn.ProvenGlobals {
+		origins[name], targets[name] = originShared, targetGlobal
+	}
+	for _, param := range fn.Params {
+		if param.Name != "" {
+			origins[param.Name], targets[param.Name] = originCaller, targetArgument
+		}
+	}
+	if fn.ReceiverName != "" {
+		origins[fn.ReceiverName], targets[fn.ReceiverName] = originCaller, targetReceiver
+	}
+	if fn.Receiver != "" {
+		origins["this"], targets["this"] = originCaller, targetReceiver
+	}
+
+	locals := localMutationTargets(fn)
+	for name := range locals {
+		origins[name], targets[name] = originLocal, targetLocal
+	}
+	for _, assignment := range directAssignments(fn) {
+		name := strings.TrimSpace(assignment.Name)
+		if name == "" {
+			continue
+		}
+		if assignmentDeclaresLocal(fn, assignment) {
+			delete(origins, name)
+			delete(targets, name)
+		}
+		if source := assignmentAliasSource(fn, assignment); source != "" && assignmentCanReceiveAlias(fn, assignment) {
+			if origin := origins[source]; origin != "" {
+				origins[name], targets[name] = origin, targets[source]
+			}
+		}
+		if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(fn, assignment) {
+			origins[name], targets[name] = originLocal, targetLocal
+		} else if origins[name] == "" && strings.Contains(assignment.Expr, "(") {
+			origins[name], targets[name] = originUnknown, ""
+		}
+	}
+	for _, pattern := range []*regexp.Regexp{goAliasPattern, cppAliasPattern} {
+		for _, match := range pattern.FindAllStringSubmatch(fn.Body, -1) {
+			if origin := origins[match[2]]; origin != "" {
+				origins[match[1]], targets[match[1]] = origin, targets[match[2]]
+			}
+		}
+	}
+	return origins, targets
 }
 
 func assignmentAliasSource(fn precisionFunction, assignment support.ParsedAssignment) string {
@@ -301,9 +314,6 @@ func looksLikeLocalObjectAllocation(fn precisionFunction, assignment support.Par
 }
 
 func observableCallEffect(callee string) string {
-	if isConstructionOrHydrationCall(callee) {
-		return ""
-	}
 	identifiers := identifierTokenPattern.FindAllString(callee, -1)
 	if len(identifiers) == 0 {
 		return ""
@@ -356,20 +366,20 @@ func containsWord(words []string, candidates ...string) bool {
 	return false
 }
 
-func isConstructionOrHydrationCall(callee string) bool {
-	lower := strings.ToLower(callee)
-	return containsAny(lower, []string{
-		".scan", ".setname", ".setid", ".setvalue", ".setfield", "proto.", "protobuf",
-		"json.marshal", "json.stringify", "serialize", "metrics.", "metric.", "observe", "recordlatency",
-		"builder.", ".with", ".addfield", ".appendfield",
-	})
-}
-
 func firstReportableMutationEvidence(fn precisionFunction) (mutationEvidence, bool) {
+	var first mutationEvidence
+	found := false
 	for _, evidence := range functionMutationEvidence(fn) {
-		if evidence.Target != targetLocal {
+		if evidence.Target == targetLocal {
+			continue
+		}
+		if !found {
+			first = evidence
+			found = true
+		}
+		if evidence.Target == targetEscaped {
 			return evidence, true
 		}
 	}
-	return mutationEvidence{}, false
+	return first, found
 }
