@@ -46,6 +46,23 @@ func ReadValue() int {
 	assertOnlyUnresolvedMutation(t, analysis, "go", "mystery", "assignment")
 }
 
+func TestFunctionMutationAnalysisRetainsUnknownFactoryResultWithoutFindingEvidence(t *testing.T) {
+	fn := parseGoPrecisionFunctionForTest(t, `package sample
+func ReadValue() int {
+	item := opaqueFactory()
+	item.Field = 1
+	return item.Field
+}`)
+	for idx := range fn.Assignments {
+		if fn.Assignments[idx].Name == "item" {
+			fn.Assignments[idx].Expr = "opaqueFactory()"
+		}
+	}
+	fn.ProvenGlobals = map[string]struct{}{"item": {}}
+	analysis := functionMutationAnalysis(fn, "go")
+	assertOnlyUnresolvedMutation(t, analysis, "go", "item", "assignment")
+}
+
 func TestFunctionMutationAnalysisRetainsUnresolvedCPPRootWithoutFindingEvidence(t *testing.T) {
 	parsed := support.ParseCLike(`int readValue() {
   mystery->value = 1;

@@ -74,6 +74,7 @@ type precisionFunction struct {
 	Body                         string
 	Returns                      bool
 	ImplementsInterfaceSignature bool
+	ProvenGlobals                map[string]struct{}
 }
 
 func localPrecisionEnabled(env support.Context) bool {
@@ -92,9 +93,11 @@ func excessiveParameterFinding(env support.Context, file string, fn functionMetr
 func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, data []byte) []core.Finding {
 	findings := make([]core.Finding, 0)
 	interfaceMethods := goInterfaceMethodSignatures(parsed)
+	provenGlobals := goPackageVariableNames(parsed)
 	ast.Inspect(parsed, func(n ast.Node) bool {
 		if node, ok := n.(*ast.FuncDecl); ok {
 			fn := goPrecisionFunction(fset, node, data)
+			fn.ProvenGlobals = provenGlobals
 			fn.ImplementsInterfaceSignature = interfaceMethods[goInterfaceMethodKey(fn.Name, fn.Params, fn.Signature)]
 			findings = append(findings, precisionFunctionFindings(env, file, fn)...)
 			if node.Body != nil {
@@ -117,6 +120,32 @@ func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, 
 	findings = append(findings, sourceNamingFindings(env, file, string(data))...)
 	findings = append(findings, sourceDefensiveInvariantFindings(env, file, string(data))...)
 	return findings
+}
+
+// goPackageVariableNames provides the bounded declaration proof used by the
+// shared mutation contract before the package-wide Go resolver is applied.
+// Parameters and locals are seeded later and therefore correctly shadow these
+// file-level package declarations.
+func goPackageVariableNames(parsed *ast.File) map[string]struct{} {
+	names := make(map[string]struct{})
+	for _, declaration := range parsed.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok || general.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range general.Specs {
+			value, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for _, name := range value.Names {
+				if name.Name != "" {
+					names[name.Name] = struct{}{}
+				}
+			}
+		}
+	}
+	return names
 }
 
 func goPrecisionFunction(fset *token.FileSet, fn *ast.FuncDecl, data []byte) precisionFunction {

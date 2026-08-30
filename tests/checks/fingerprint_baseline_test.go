@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
@@ -162,10 +164,19 @@ func TestLegacyOnlyBaselineStillSuppresses(t *testing.T) {
 	}
 	assertSectionStatus(t, report, "AI Prompts", "fail")
 
-	entries := codeguard.BaselineEntriesFromReport(report)
-	for i := range entries {
-		entries[i].ContextFingerprint = ""
-	}
+	current := findFindingByRule(t, report, "prompts.secret-interpolation")
+	preV2Sum := sha256.Sum256([]byte(strings.Join([]string{
+		current.RuleID,
+		filepath.ToSlash(current.Path),
+		strconv.Itoa(current.Line),
+		current.Message,
+	}, "|")))
+	entries := []codeguard.BaselineEntry{{
+		Fingerprint: hex.EncodeToString(preV2Sum[:]),
+		RuleID:      current.RuleID,
+		Path:        current.Path,
+		Message:     current.Message,
+	}}
 	baselinePath := filepath.Join(dir, "codeguard-baseline.json")
 	if writeErr := codeguard.WriteBaselineFile(baselinePath, entries); writeErr != nil {
 		t.Fatalf("write baseline: %v", writeErr)
@@ -226,4 +237,42 @@ func TestBaselineFallsBackFromPriorExactFingerprintAfterEvidenceChange(t *testin
 	}
 	assertSectionStatus(t, report, "AI Prompts", "pass")
 	assertSuppressionMatch(t, report, "context")
+}
+
+func TestPreV2ExactOnlyBaselineSuppressesFindingWithoutSourceContext(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "short.go"), []byte("package sample\n"), 0o644); err != nil {
+		t.Fatalf("write short source: %v", err)
+	}
+	cases := []struct {
+		name string
+		path string
+		line int
+	}{
+		{name: "pathless", line: 0},
+		{name: "unreadable", path: "missing.go", line: 3},
+		{name: "invalid line", path: "short.go", line: 99},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			const message = "pre-v2 diagnostic prose"
+			sum := sha256.Sum256([]byte(strings.Join([]string{"test.rule", filepath.ToSlash(tc.path), strconv.Itoa(tc.line), message}, "|")))
+			preV2Exact := hex.EncodeToString(sum[:])
+			entry := core.BaselineEntry{Fingerprint: preV2Exact, RuleID: "test.rule", Path: tc.path, Message: message}
+			sc := runnersupport.Context{
+				Cfg:      core.Config{Targets: []core.TargetConfig{{Name: "repo", Path: dir}}},
+				Baseline: map[string]core.BaselineEntry{preV2Exact: entry},
+			}
+			finding := runnersupport.NewFinding(sc, runnersupport.FindingInput{
+				RuleID: "test.rule", Path: tc.path, Line: tc.line, Message: message,
+			})
+			if finding.ContextFingerprint != finding.Fingerprint || finding.ContentFingerprint != "" {
+				t.Fatalf("fixture unexpectedly has source fallback: %#v", finding)
+			}
+			suppression := runnersupport.MatchSuppression(sc, finding)
+			if suppression == nil || suppression.Kind != runnersupport.SuppressionReasonBaseline || suppression.Match != "exact" || suppression.BaselineFingerprint != preV2Exact {
+				t.Fatalf("suppression = %#v, want pre-v2 exact baseline match", suppression)
+			}
+		})
+	}
 }

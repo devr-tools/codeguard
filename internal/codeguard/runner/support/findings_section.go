@@ -66,6 +66,14 @@ func NewFinding(sc Context, input FindingInput) core.Finding {
 	}
 }
 
+// preV2ExactFingerprint reconstructs the message-based exact identity written
+// before source-derived v2 fingerprints. It is used only as a baseline lookup
+// key; new findings never expose or persist this compatibility identity.
+func preV2ExactFingerprint(ruleID string, normalizedPath string, line int, message string) string {
+	sum := sha256.Sum256([]byte(strings.Join([]string{ruleID, normalizedPath, strconv.Itoa(line), message}, "|")))
+	return hex.EncodeToString(sum[:])
+}
+
 func cloneMetadata(metadata map[string]string) map[string]string {
 	if len(metadata) == 0 {
 		return nil

@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
 func TestFunctionEffectsAllowLocalConstructionAndRepositoryHydration(t *testing.T) {
@@ -30,6 +32,44 @@ type User struct { Name string }; type Rows interface { Scan(...any) error }`},
 			assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
 		})
 	}
+}
+
+func TestFunctionEffectsDoNotPromoteUnknownFactoryResults(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "factory.go"), `package sample
+
+type Item struct{ Field int }
+
+var item *Item
+
+func opaqueFactory() *Item { return nil }
+
+func ReadValue() int {
+	item := opaqueFactory()
+	item.Field = 1
+	return item.Field
+}
+`)
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
+	assertUnresolvedDiagnosticCount(t, report, "go", "1")
+}
+
+func assertUnresolvedDiagnosticCount(t *testing.T, report codeguard.Report, language string, count string) {
+	t.Helper()
+	for _, section := range report.Sections {
+		if section.Name != "Code Quality" {
+			continue
+		}
+		for _, diagnostic := range section.Diagnostics {
+			if diagnostic.ID == "quality.structural-unresolved-symbols" && diagnostic.Metadata["language"] == language && diagnostic.Metadata["count"] == count {
+				return
+			}
+		}
+	}
+	t.Fatalf("expected unresolved-symbol diagnostic language=%q count=%q: %#v", language, count, report.Sections)
 }
 
 func TestFunctionEffectsReportOwnedAndObservableMutationEvidence(t *testing.T) {

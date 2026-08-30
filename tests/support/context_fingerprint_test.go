@@ -194,3 +194,29 @@ func TestFindingFingerprintsIgnoreDiagnosticProseAndMetadata(t *testing.T) {
 		t.Errorf("content fingerprint changed with diagnostic evidence: %q -> %q", before.ContentFingerprint, after.ContentFingerprint)
 	}
 }
+
+func TestFindingExactFingerprintIgnoresMessageWithoutSourceContext(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "short.go"), []byte("package sample\n"), 0o644); err != nil {
+		t.Fatalf("write short source: %v", err)
+	}
+	sc := runnersupport.Context{Cfg: core.Config{Targets: []core.TargetConfig{{Name: "repo", Path: dir}}}}
+	cases := []struct {
+		name string
+		path string
+		line int
+	}{
+		{name: "pathless", line: 0},
+		{name: "unreadable", path: "missing.go", line: 3},
+		{name: "invalid line", path: "short.go", line: 99},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			first := runnersupport.NewFinding(sc, runnersupport.FindingInput{RuleID: "test.rule", Path: tc.path, Line: tc.line, Message: "first prose"})
+			second := runnersupport.NewFinding(sc, runnersupport.FindingInput{RuleID: "test.rule", Path: tc.path, Line: tc.line, Message: "second prose"})
+			if first.Fingerprint != second.Fingerprint || first.ContextFingerprint != second.ContextFingerprint || first.ContentFingerprint != second.ContentFingerprint {
+				t.Fatalf("message changed source-unavailable identity: %#v -> %#v", first, second)
+			}
+		})
+	}
+}

@@ -447,7 +447,7 @@ func TestFunctionHiddenMutationStillWarnsForCollaboratorMutationWithLocalPayload
 	assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
 }
 
-func TestFunctionHiddenMutationStillWarnsForLocalCollaboratorConstruction(t *testing.T) {
+func TestFunctionHiddenMutationRetainsUnresolvedLocalCollaboratorConstruction(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "mutation.ts"), strings.Join([]string{
 		"export function prepareDigest(input: Input) {",
@@ -462,7 +462,8 @@ func TestFunctionHiddenMutationStillWarnsForLocalCollaboratorConstruction(t *tes
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
-	assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+	assertUnresolvedDiagnosticCount(t, report, "typescript", "1")
 }
 
 func TestFunctionHiddenMutationAllowsNextRouteHandlerNames(t *testing.T) {

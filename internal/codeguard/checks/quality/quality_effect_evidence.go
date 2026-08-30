@@ -45,6 +45,7 @@ const (
 	targetLocal    = "local"
 	targetArgument = "argument"
 	targetReceiver = "receiver"
+	targetGlobal   = "global"
 	targetEscaped  = "escaped"
 )
 
@@ -63,6 +64,9 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 func functionMutationAnalysis(fn precisionFunction, language string) mutationAnalysis {
 	origins := map[string]string{}
 	targets := map[string]string{}
+	for name := range fn.ProvenGlobals {
+		origins[name], targets[name] = originShared, targetGlobal
+	}
 	for _, param := range fn.Params {
 		if param.Name != "" {
 			origins[param.Name], targets[param.Name] = originCaller, targetArgument
@@ -84,6 +88,10 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 		if name == "" {
 			continue
 		}
+		if assignmentDeclaresLocal(fn, assignment) {
+			delete(origins, name)
+			delete(targets, name)
+		}
 		if source := assignmentAliasSource(fn, assignment); source != "" && assignmentCanReceiveAlias(fn, assignment) {
 			if origin := origins[source]; origin != "" {
 				origins[name], targets[name] = origin, targets[source]
@@ -92,7 +100,7 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 		if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(fn, assignment) {
 			origins[name], targets[name] = originLocal, targetLocal
 		} else if origins[name] == "" && strings.Contains(assignment.Expr, "(") {
-			origins[name], targets[name] = originUnknown, targetEscaped
+			origins[name], targets[name] = originUnknown, ""
 		}
 	}
 	for _, pattern := range []*regexp.Regexp{goAliasPattern, cppAliasPattern} {
@@ -161,6 +169,9 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 	for _, match := range bodyFieldMutationPattern.FindAllStringSubmatch(fn.Body, -1) {
 		name := match[1]
 		target, origin := targets[name], origins[name]
+		if origin == originUnknown {
+			continue
+		}
 		if origin == originLocal && escapedNames[name] {
 			target, origin = targetEscaped, originShared
 		} else if origin == originLocal || target == "" {
@@ -177,6 +188,10 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 		for _, match := range mutationRootPattern.FindAllStringSubmatch(lhs, -1) {
 			name := match[1]
 			target, origin := targets[name], origins[name]
+			if origin == originUnknown {
+				addUnresolved(statement.Line, "assignment", name)
+				continue
+			}
 			if origin == originLocal {
 				if escapedAt[name] > 0 && statement.Line > escapedAt[name] {
 					target, origin = targetEscaped, originShared
@@ -202,6 +217,9 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 			unresolvedSymbol = call.Callee
 		}
 		target, origin := targets[targetName], origins[targetName]
+		if origin == originUnknown {
+			target = ""
+		}
 		if origin == originLocal {
 			if escapedAt[targetName] > 0 && call.Line > escapedAt[targetName] {
 				target, origin = targetEscaped, originShared

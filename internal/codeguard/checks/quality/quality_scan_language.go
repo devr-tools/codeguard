@@ -56,7 +56,13 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"typescript", "javascript", "ts", "tsx", "js", "jsx"},
 			Run: func() []core.Finding {
-				return typeScriptTargetFindings(ctx, env, target)
+				findings := typeScriptTargetFindings(ctx, env, target)
+				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
+					env.VisitTargetFiles(target, isTypeScriptLikeFile, func(_ string, data []byte) {
+						addUnresolved(typeScriptUnresolvedMutationEvidence(data))
+					})
+				}
+				return findings
 			},
 		},
 		support.LanguageDispatch{
@@ -114,13 +120,16 @@ func goUnresolvedMutationEvidence(env support.Context, file string, data []byte)
 	if err != nil {
 		return nil
 	}
+	provenGlobals := goPackageVariableNames(parsed)
 	var unresolved []unresolvedMutationEvidence
 	ast.Inspect(parsed, func(node ast.Node) bool {
 		declaration, ok := node.(*ast.FuncDecl)
 		if !ok {
 			return true
 		}
-		analysis := functionMutationAnalysis(goPrecisionFunction(fset, declaration, data), "go")
+		fn := goPrecisionFunction(fset, declaration, data)
+		fn.ProvenGlobals = provenGlobals
+		analysis := functionMutationAnalysis(fn, "go")
 		unresolved = append(unresolved, analysis.Unresolved...)
 		return true
 	})
@@ -132,6 +141,16 @@ func cppUnresolvedMutationEvidence(data []byte) []unresolvedMutationEvidence {
 	var unresolved []unresolvedMutationEvidence
 	for _, fn := range parsed.AllFunctions() {
 		analysis := functionMutationAnalysis(parsedPrecisionFunction(fn), "c++")
+		unresolved = append(unresolved, analysis.Unresolved...)
+	}
+	return unresolved
+}
+
+func typeScriptUnresolvedMutationEvidence(data []byte) []unresolvedMutationEvidence {
+	parsed := support.ParseCLike(string(data), support.CLikeTypeScript)
+	var unresolved []unresolvedMutationEvidence
+	for _, fn := range parsed.AllFunctions() {
+		analysis := functionMutationAnalysis(parsedPrecisionFunction(fn), "typescript")
 		unresolved = append(unresolved, analysis.Unresolved...)
 	}
 	return unresolved

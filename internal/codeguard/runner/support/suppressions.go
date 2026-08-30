@@ -48,6 +48,10 @@ func MatchSuppression(sc Context, finding core.Finding) *core.Suppression {
 		if entry, ok := sc.Baseline[finding.Fingerprint]; ok {
 			return &core.Suppression{Kind: SuppressionReasonBaseline, Match: "exact", BaselineFingerprint: entry.Fingerprint}
 		}
+		preV2Exact := preV2ExactFingerprint(finding.RuleID, finding.Path, finding.Line, finding.Message)
+		if entry, ok := sc.Baseline[preV2Exact]; ok {
+			return &core.Suppression{Kind: SuppressionReasonBaseline, Match: "exact", BaselineFingerprint: entry.Fingerprint}
+		}
 		// The context fingerprint deliberately omits the line number, so two
 		// identical findings in the same file (same rule, same normalized
 		// surrounding source, different locations) collide on it. For
