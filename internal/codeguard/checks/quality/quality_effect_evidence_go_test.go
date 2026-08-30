@@ -210,11 +210,59 @@ func Current(input map[string]*Item) int {
 	copied["item"].Value = 1
 	return copied["item"].Value
 }`,
+		"indexed generic slice conversion": `package sample
+type Item struct{ Value int }
+type Set[T any] []T
+func Current(input []Item) int {
+	copied := Set[Item](input)
+	copied[0].Value = 1
+	return copied[0].Value
+}`,
+		"multi-parameter generic map conversion": `package sample
+type Item struct{ Value int }
+type ItemsByKey[K comparable, V any] map[K]V
+func Current(input map[string]*Item) int {
+	copied := ItemsByKey[string, *Item](input)
+	copied["item"].Value = 1
+	return copied["item"].Value
+}`,
 	}
 	for name, source := range tests {
 		t.Run(name, func(t *testing.T) {
 			analysis := parseGoMutationAnalysisForTest(t, source, "Current")
 			assertGoMutation(t, analysis, targetArgument, originCaller)
+		})
+	}
+}
+
+func TestGoStringToByteAndRuneSliceConversionsAllocateFreshStorage(t *testing.T) {
+	tests := map[string]string{
+		"byte slice": `package sample
+func Current(inputString string) byte {
+	copied := []byte(inputString)
+	copied[0] = 'x'
+	return copied[0]
+}`,
+		"rune slice": `package sample
+func Current(inputString string) rune {
+	copied := []rune(inputString)
+	copied[0] = 'x'
+	return copied[0]
+}`,
+		"named string to byte slice": `package sample
+type Text string
+func Current(inputString Text) byte {
+	copied := []byte(inputString)
+	copied[0] = 'x'
+	return copied[0]
+}`,
+	}
+	for name, source := range tests {
+		t.Run(name, func(t *testing.T) {
+			analysis := parseGoMutationAnalysisForTest(t, source, "Current")
+			if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+				t.Fatalf("analysis = %#v, want freshly allocated byte/rune backing storage", analysis)
+			}
 		})
 	}
 }

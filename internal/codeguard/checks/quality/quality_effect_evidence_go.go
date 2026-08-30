@@ -349,6 +349,10 @@ func (resolver *goMutationResolver) typeShape(expression ast.Expr, visiting map[
 	case *ast.Ellipsis:
 		element := resolver.typeShape(value.Elt, visiting)
 		return goReferenceShape{Kind: goShapeSlice, Elem: &element}
+	case *ast.IndexExpr:
+		return resolver.typeShape(value.X, visiting)
+	case *ast.IndexListExpr:
+		return resolver.typeShape(value.X, visiting)
 	case *ast.InterfaceType:
 		return goReferenceShape{Kind: goShapeInterface}
 	case *ast.StructType:
@@ -451,6 +455,10 @@ func (resolver *goMutationResolver) isTypeExpression(scope *goScope, expression 
 		return resolver.isTypeExpression(scope, value.X)
 	case *ast.StarExpr:
 		return resolver.isTypeExpression(scope, value.X)
+	case *ast.IndexExpr:
+		return resolver.isTypeExpression(scope, value.X)
+	case *ast.IndexListExpr:
+		return resolver.isTypeExpression(scope, value.X)
 	case *ast.Ident:
 		return (scope == nil || scope.lookup(value.Name) == nil) && resolver.pkg != nil && resolver.pkg.types[value.Name] != nil
 	default:
@@ -472,11 +480,57 @@ func (resolver *goMutationResolver) freshConversionOperand(scope *goScope, expre
 		if identifier, ok := value.Fun.(*ast.Ident); ok && (identifier.Name == "make" || identifier.Name == "new") {
 			return true
 		}
-		_, conversion := resolver.conversionShape(scope, value)
-		return conversion && resolver.freshConversionOperand(scope, value.Args[0])
+		shape, conversion := resolver.conversionShape(scope, value)
+		return conversion && resolver.conversionAllocatesFreshStorage(scope, value, shape)
 	default:
 		return false
 	}
+}
+
+func (resolver *goMutationResolver) conversionAllocatesFreshStorage(scope *goScope, call *ast.CallExpr, target goReferenceShape) bool {
+	if call == nil || len(call.Args) != 1 {
+		return false
+	}
+	if resolver.freshConversionOperand(scope, call.Args[0]) {
+		return true
+	}
+	if target.Kind != goShapeSlice || target.Elem == nil {
+		return false
+	}
+	source := resolver.expressionShape(scope, call.Args[0])
+	if resolver.underlyingScalar(source.Name) != "string" {
+		return false
+	}
+	switch resolver.underlyingScalar(target.Elem.Name) {
+	case "uint8", "int32":
+		return true
+	default:
+		return false
+	}
+}
+
+func (resolver *goMutationResolver) underlyingScalar(name string) string {
+	seen := make(map[string]bool)
+	for name != "" && !seen[name] {
+		seen[name] = true
+		switch name {
+		case "byte", "uint8":
+			return "uint8"
+		case "rune", "int32":
+			return "int32"
+		case "string":
+			return "string"
+		}
+		if resolver.pkg == nil {
+			return ""
+		}
+		declaration, ok := resolver.pkg.types[name].(*ast.Ident)
+		if !ok {
+			return ""
+		}
+		name = declaration.Name
+	}
+	return ""
 }
 
 func (resolver *goMutationResolver) resolveExpression(scope *goScope, expression ast.Expr) goExpressionPath {
@@ -548,7 +602,7 @@ func (resolver *goMutationResolver) resolveExpression(scope *goScope, expression
 			return path
 		}
 		if shape, ok := resolver.conversionShape(scope, value); ok {
-			if resolver.freshConversionOperand(scope, value.Args[0]) {
+			if resolver.conversionAllocatesFreshStorage(scope, value, shape) {
 				return goExpressionPath{shape: shape}
 			}
 			path := resolver.resolveExpression(scope, value.Args[0])
@@ -1151,7 +1205,7 @@ func (resolver *goMutationResolver) setInitializer(scope *goScope, symbol *goSym
 		return
 	}
 	if conversion, ok := expression.(*ast.CallExpr); ok {
-		if shape, isConversion := resolver.conversionShape(scope, conversion); isConversion && shape.referenceBacked() && !resolver.freshConversionOperand(scope, conversion.Args[0]) {
+		if shape, isConversion := resolver.conversionShape(scope, conversion); isConversion && shape.referenceBacked() && !resolver.conversionAllocatesFreshStorage(scope, conversion, shape) {
 			symbol.Origin = originUnknown
 			return
 		}

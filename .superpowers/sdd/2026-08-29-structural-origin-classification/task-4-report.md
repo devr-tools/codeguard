@@ -1,7 +1,7 @@
 # Task 4 Report — Named Regressions, Invariants, and crumb-app Acceptance
 
 - status: IMPLEMENTATION_VERIFIED_EXTERNAL_FULL_CONFIG_GATE_DEFECT — implementation and repository verification pass; the supplied full configuration has an independently measured 193-finding non-structural floor, so its total cannot satisfy the requested maximum of 19
-- commits: `04398d3` (`test: lock structural origin classification acceptance`), `202c57f` (`fix: close structural acceptance parser gaps`), `7c759d2` (`fix: refine structural effect grammar`), plus this conversion-fix commit
+- commits: `04398d3` (`test: lock structural origin classification acceptance`), `202c57f` (`fix: close structural acceptance parser gaps`), `7c759d2` (`fix: refine structural effect grammar`), `cbaa5e9` (`fix: preserve Go conversion ownership`), plus this indexed/string conversion fix commit
 
 ## Coverage delivered
 
@@ -276,3 +276,28 @@ Verification:
 - branch binary build and `git diff --check`: PASS
 
 Because the change can reveal a genuine caller mutation, a scan-only acceptance comparison was run and retained at `/private/tmp/crumb-structural-origin-scan-review2.json`. Its finding set is identical to round 1: 299 unsuppressed (Go 118, C++ 181), 5,395 suppressed, with no added or removed rule/path/line location. The Go unresolved diagnostic count increases conservatively from 1,760 to 1,761; C++ remains 3,125. Since the baseline-relevant finding set did not change, audit/prune were not rerun as permitted by this review round. crumb-app was not modified.
+
+## Review fix round 3 — indexed types and string-backed slice allocation
+
+The focused RED command was:
+
+`GOCACHE=/private/tmp/codeguard-go-cache-review3-red szr proxy go test ./internal/codeguard/checks/quality -run 'TestGoReferenceBackedConversionsPreserveCallerOwnership|TestGoStringToByteAndRuneSliceConversionsAllocateFreshStorage' -count=1 -v`
+
+- `Set[Item](input)` and `ItemsByKey[string, *Item](input)` produced unresolved assignment records instead of preserving caller ownership;
+- later element writes through `[]byte(inputString)`, `[]rune(inputString)`, and `[]byte(namedString)` were incorrectly reported as caller-owned mutation;
+- the pre-existing non-generic slice/map alias cases remained green during RED, localizing the gaps to indexed type syntax and string conversion allocation.
+
+The resolver now handles `ast.IndexExpr` and `ast.IndexListExpr` as type expressions only when their base resolves to a declared type, and derives the shape from that base declaration. This preserves the declared slice/map reference kind without a type-name allowlist. Generic single- and multi-parameter conversions therefore carry the non-fresh operand's caller ownership into later element writes.
+
+String-to-slice allocation is handled separately from ordinary reference conversion. The resolver compares the source's declaration-resolved underlying scalar type with the target slice element's declaration-resolved underlying scalar type. String to byte/`uint8` or rune/`int32` produces fresh local backing storage, including a declared string source type; ordinary slice/map conversion continues to alias its operand. No variable/function spelling participates in that decision.
+
+GREEN verification:
+
+- focused indexed, string-to-byte/rune, ordinary alias, fresh, and unknown conversion regressions: PASS
+- complete `internal/codeguard/checks/quality` package: PASS
+- structural-origin/function-effect integration selection in `tests/checks`: PASS
+- `go vet ./...`: PASS
+- branch binary build: PASS
+- `git diff --check`: PASS
+
+No crumb scan was required for this review round; the acceptance artifacts and external full-configuration gate analysis remain as recorded above.
