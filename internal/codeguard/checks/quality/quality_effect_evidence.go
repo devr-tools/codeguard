@@ -301,20 +301,39 @@ func looksLikeLocalObjectAllocation(fn precisionFunction, assignment support.Par
 }
 
 func observableCallEffect(callee string) string {
-	lower := strings.ToLower(callee)
 	if isConstructionOrHydrationCall(callee) || readCallPattern.MatchString(callee) {
 		return ""
 	}
-	if containsAny(lower, []string{"publish", "emit", "dispatch", "enqueue"}) {
+	words := identifierWords(terminalCallIdentifier(callee))
+	if containsWord(words, "publish", "emit", "dispatch", "enqueue") {
 		return "event"
 	}
-	if containsAny(lower, []string{"http.post", "http.put", "http.patch", "fetch", "axios", ".send", ".upload"}) {
+	if containsWord(words, "fetch", "axios", "send", "upload") {
 		return "network"
 	}
-	if containsAny(lower, []string{".save", ".insert", ".update", ".upsert", ".delete", ".exec", ".commit", ".rollback", ".write", ".persist", "cache.set", "cache.put"}) {
+	if containsWord(words, "save", "insert", "update", "upsert", "delete", "exec", "commit", "rollback", "write", "persist") {
 		return "persistence"
 	}
 	return ""
+}
+
+func terminalCallIdentifier(callee string) string {
+	identifiers := identifierTokenPattern.FindAllString(callee, -1)
+	if len(identifiers) == 0 {
+		return ""
+	}
+	return identifiers[len(identifiers)-1]
+}
+
+func containsWord(words []string, candidates ...string) bool {
+	for _, word := range words {
+		for _, candidate := range candidates {
+			if word == candidate {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func isConstructionOrHydrationCall(callee string) bool {

@@ -202,7 +202,7 @@ func isTypeScriptNonMethodName(name string) bool {
 func isCPPNonMethodName(name string) bool {
 	switch name {
 	case "if", "for", "while", "switch", "catch", "return", "new", "delete",
-		"sizeof", "alignof", "typeid", "requires":
+		"sizeof", "alignof", "typeid", "requires", "constexpr":
 		return true
 	default:
 		return false

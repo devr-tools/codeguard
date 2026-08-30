@@ -238,6 +238,60 @@ func TestCppOriginUnknownCallResultRemainsUnresolved(t *testing.T) {
 	assertOnlyUnresolvedMutation(t, analysis, "c++", "item", "call")
 }
 
+func TestCppOriginReadOnlyMemberCallsDoNotBecomeMutations(t *testing.T) {
+	cases := map[string]string{
+		"saved member size":     `int current(const Profile& profile) { return profile.savedPlateIds.size(); }`,
+		"added member size":     `int current(const Snapshot& snapshot) { return snapshot.addedCellIds.size(); }`,
+		"saved member contains": `bool current(const Lookups& lookups) { return lookups.savedPlateIds.contains("id"); }`,
+		"saved member empty":    `bool current(const Filter& filter) { return filter.savedPlateIds.empty(); }`,
+	}
+	for name, source := range cases {
+		t.Run(name, func(t *testing.T) {
+			analysis := cppAnalysisForTest(t, source, "current")
+			if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+				t.Fatalf("analysis = %#v, want read-only member call", analysis)
+			}
+		})
+	}
+}
+
+func TestCppOriginObservableEffectsUseTerminalMethodWords(t *testing.T) {
+	event := cppAnalysisForTest(t, `int current(Dispatcher& dispatcher) { dispatcher.tryEnqueue(); return 1; }`, "current")
+	if len(event.Mutations) != 1 || event.Mutations[0].Effect != "event" || event.Mutations[0].Target != targetArgument {
+		t.Fatalf("event analysis = %#v, want caller-owned event mutation", event)
+	}
+	read := cppAnalysisForTest(t, `int current(const Upload& upload) { return upload.expiresAt.Format(); }`, "current")
+	if len(read.Mutations) != 0 || len(read.Unresolved) != 0 {
+		t.Fatalf("read analysis = %#v, want receiver field names excluded from effect classification", read)
+	}
+}
+
+func TestCppConstructorMutationIsExplicitByLanguageSyntax(t *testing.T) {
+	parsed := support.ParseCLike(`
+struct Registry {
+  Counter requestCount;
+  Registry() { requestCount = makeCounter(); }
+};
+`, support.CLikeCPP)
+	fn := parsedPrecisionFunction(cppFunctionForTest(t, parsed, "Registry"))
+	assertCppMutationForTest(t, cppFunctionMutationEvidence(fn), targetReceiver, originCaller)
+	if evidence, ok := hiddenMutationEvidence("registry.cpp", fn); ok {
+		t.Fatalf("constructor produced hidden mutation evidence: %#v", evidence)
+	}
+}
+
+func TestCppQualifiedCommandNameExposesMutation(t *testing.T) {
+	parsed := support.ParseCLike(`
+struct TraceSpan { State node; void setStatus(); };
+void TraceSpan::setStatus() { node.value++; }
+`, support.CLikeCPP)
+	fn := parsedPrecisionFunction(cppFunctionForTest(t, parsed, "TraceSpan::setStatus"))
+	assertCppMutationForTest(t, cppFunctionMutationEvidence(fn), targetReceiver, originCaller)
+	if evidence, ok := hiddenMutationEvidence("tracing.cpp", fn); ok {
+		t.Fatalf("qualified command name produced hidden mutation evidence: %#v", evidence)
+	}
+}
+
 func TestCppOriginResolvesReceiverGlobalShadowingAndEscapes(t *testing.T) {
 	t.Run("receiver member", func(t *testing.T) {
 		analysis := cppAnalysisForTest(t, `struct Counter {

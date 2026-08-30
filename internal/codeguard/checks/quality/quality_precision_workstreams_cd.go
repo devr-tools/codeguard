@@ -32,7 +32,7 @@ const (
 
 var (
 	commandFunctionPrefixPattern = regexp.MustCompile(`^(add|allocate|append|apply|assign|bulk|cancel|capture|choose|clear|cleanup|close|copy|create|delete|disable|do|emit|enable|exchange|expose|export|fill|flip|flash|handle|hydrate|insert|link|log|move|mutate|note|notify|open|persist|publish|record|recompute|remember|remove|reset|retire|revert|rollback|save|send|set|store|submit|toggle|transfer|trigger|update|upsert|upload|walk|write)`)
-	readCallPattern              = regexp.MustCompile(`(?i)(^|[.>:\-_])(count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
+	readCallPattern              = regexp.MustCompile(`(^|[.>:\-_])(?i:count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
 	identifierTokenPattern       = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
 	roleSuffixPattern            = regexp.MustCompile(`(?i)(manager|helper|util|utils|service|processor)$`)
 	durationNamePattern          = regexp.MustCompile(`(?i)(timeout|duration|delay|interval|ttl|latency|elapsed|expiry|expiration|retention)`)
@@ -204,6 +204,9 @@ func hiddenMutationEvidence(file string, fn precisionFunction) (mutationEvidence
 	if isQualityFixturePath(file) {
 		return mutationEvidence{}, false
 	}
+	if isCPPConstructorOrDestructor(fn) {
+		return mutationEvidence{}, false
+	}
 	if explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) || isSecurityOrConfigUtilityFunction(file, fn) {
 		return mutationEvidence{}, false
 	}
@@ -238,6 +241,21 @@ func hiddenMutationEvidence(file string, fn precisionFunction) (mutationEvidence
 		return evidence, true
 	}
 	return mutationEvidence{}, false
+}
+
+func isCPPConstructorOrDestructor(fn precisionFunction) bool {
+	if fn.Language != string(support.CLikeCPP) || fn.QualifiedOwner == "" {
+		return false
+	}
+	owner := fn.QualifiedOwner
+	if cut := strings.LastIndex(owner, "::"); cut >= 0 {
+		owner = owner[cut+2:]
+	}
+	name := fn.Name
+	if cut := strings.LastIndex(name, "::"); cut >= 0 {
+		name = name[cut+2:]
+	}
+	return name == owner || name == "~"+owner
 }
 
 func predicateHasObviousSideEffect(fn precisionFunction) bool {
@@ -420,6 +438,9 @@ func lineHasAssignmentOperator(line string) bool {
 
 func explicitMutationName(name string) bool {
 	lowered := strings.ToLower(strings.TrimSpace(name))
+	if cut := strings.LastIndex(lowered, "::"); cut >= 0 {
+		lowered = lowered[cut+2:]
+	}
 	return commandFunctionPrefixPattern.MatchString(lowered) ||
 		conventionalMutationBoundaryPattern.MatchString(lowered) ||
 		isEventHandlerName(name) ||

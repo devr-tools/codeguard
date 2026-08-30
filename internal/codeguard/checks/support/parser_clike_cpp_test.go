@@ -74,6 +74,30 @@ int N::M::Counter::current() {
 	}
 }
 
+func TestCppParserDoesNotTreatIfConstexprRequiresAsFunction(t *testing.T) {
+	parsed := ParseCLike(`
+struct Awaiter {
+  State state;
+  template <typename Promise>
+  bool await_suspend(Promise continuation) {
+    state.continuation = continuation;
+    if constexpr (requires(Promise& promise) { promise.resumeScheduler(); }) {
+      state.scheduler = continuation.promise().resumeScheduler();
+    }
+    return !state.completed;
+  }
+};
+`, CLikeCPP)
+	for _, function := range parsed.AllFunctions() {
+		if function.Name == "constexpr" {
+			t.Fatalf("if constexpr requires-expression became a function: %#v", function)
+		}
+	}
+	if parsed.FunctionByName("await_suspend") == nil {
+		t.Fatal("await_suspend missing")
+	}
+}
+
 func cppParsedDeclarationForTest(declarations []ParsedDeclaration, name string, kind string) (ParsedDeclaration, bool) {
 	for _, declaration := range declarations {
 		if declaration.Name == name && declaration.Kind == kind {
