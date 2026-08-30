@@ -12,7 +12,7 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func goFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
+func goFindingsForFileWithIndex(env support.Context, file string, data []byte, index *goPackageIndex) []core.Finding {
 	findings := make([]core.Finding, 0)
 
 	formatted, err := format.Source(data)
@@ -50,10 +50,15 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 		}))
 		return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 	}
+	if index == nil {
+		index = newGoPackageIndex()
+		index.addFile(file, fset, parsed)
+	}
+	pkg := index.packageFor(file, parsed.Name.Name)
 	findings = append(findings, importFindings(env, file, fset, parsed)...)
 	findings = append(findings, goFunctionFindings(env, file, fset, parsed)...)
 	if localPrecisionEnabled(env) {
-		findings = append(findings, goPrecisionFindings(env, file, fset, parsed, data)...)
+		findings = append(findings, goPrecisionFindings(env, file, fset, parsed, data, pkg)...)
 		findings = append(findings, goStructuralSmellFindings(env, file, fset, parsed, data)...)
 	}
 	findings = append(findings, goAIQualityFindings(env, file, fset, parsed, data)...)

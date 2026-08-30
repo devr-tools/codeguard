@@ -447,7 +447,7 @@ func TestFunctionHiddenMutationStillWarnsForCollaboratorMutationWithLocalPayload
 	assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
 }
 
-func TestFunctionHiddenMutationStillWarnsForLocalCollaboratorConstruction(t *testing.T) {
+func TestFunctionHiddenMutationRetainsUnresolvedLocalCollaboratorConstruction(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "mutation.ts"), strings.Join([]string{
 		"export function prepareDigest(input: Input) {",
@@ -462,7 +462,8 @@ func TestFunctionHiddenMutationStillWarnsForLocalCollaboratorConstruction(t *tes
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
-	assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+	assertUnresolvedDiagnosticCount(t, report, "typescript", "1")
 }
 
 func TestFunctionHiddenMutationAllowsNextRouteHandlerNames(t *testing.T) {
@@ -654,7 +655,7 @@ func TestFunctionHiddenMutationAllowsReactComponentsAndHooksAsBoundaries(t *test
 	}
 }
 
-func TestFunctionHiddenMutationStillWarnsForReactNativeCollaboratorMutation(t *testing.T) {
+func TestFunctionHiddenMutationStillWarnsForReactNativeCollaboratorCapture(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps/mobile/src/screens/ProfileScreen.tsx"), strings.Join([]string{
 		"import { Pressable, Text } from 'react-native';",
@@ -672,6 +673,170 @@ func TestFunctionHiddenMutationStillWarnsForReactNativeCollaboratorMutation(t *t
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
 
 	assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
+}
+
+func TestFunctionHiddenMutationPreservesCapturedOuterLocalOwnership(t *testing.T) {
+	t.Run("parameter alias remains caller owned", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "capture.ts"), strings.Join([]string{
+			"export function prepareUser(repo: Repository, user: User) {",
+			"  const collaborator = repo;",
+			"  function loadUser() {",
+			"    collaborator.save(user);",
+			"    return user;",
+			"  }",
+			"  return loadUser();",
+			"}",
+			"interface Repository { save(input: User): void }",
+			"interface User { name: string }",
+		}, "\n"))
+
+		report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+		assertFindingRulePresent(t, report, "Code Quality", "function.hidden-mutation")
+	})
+
+	t.Run("fresh local remains local", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "capture.ts"), strings.Join([]string{
+			"export function buildValues() {",
+			"  const values = new Map<string, string>();",
+			"  function readValues() {",
+			"    values.set('key', 'value');",
+			"    return values;",
+			"  }",
+			"  return readValues();",
+			"}",
+		}, "\n"))
+
+		report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+		assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+		assertUnresolvedDiagnosticAbsent(t, report, "typescript")
+	})
+}
+
+func TestFunctionHiddenMutationUsesTypeScriptLexicalCaptureScope(t *testing.T) {
+	tests := []struct {
+		name       string
+		source     []string
+		findings   int
+		unresolved string
+	}{
+		{
+			name: "disjoint block declaration is not visible",
+			source: []string{
+				"export function prepareUser(repo: Repository, user: User, enabled: boolean) {",
+				"  if (enabled) {",
+				"    const collaborator = repo;",
+				"  }",
+				"  if (!enabled) {",
+				"    function loadUser() {",
+				"      collaborator.save(user);",
+				"      return user;",
+				"    }",
+				"    return loadUser();",
+				"  }",
+				"  return user;",
+				"}",
+				"class Repository { save(_input: User): void {} }",
+				"interface User { name: string }",
+			},
+			unresolved: "1",
+		},
+		{
+			name: "enclosing block declaration is visible",
+			source: []string{
+				"export function prepareUser(repo: Repository, user: User, enabled: boolean) {",
+				"  if (enabled) {",
+				"    const collaborator = repo;",
+				"    function loadUser() {",
+				"      collaborator.save(user);",
+				"      return user;",
+				"    }",
+				"    return loadUser();",
+				"  }",
+				"  return user;",
+				"}",
+				"class Repository { save(_input: User): void {} }",
+				"interface User { name: string }",
+			},
+			findings: 1,
+		},
+		{
+			name: "later declaration is not propagated",
+			source: []string{
+				"export function prepareUser(repo: Repository, user: User) {",
+				"  function loadUser() {",
+				"    collaborator.save(user);",
+				"    return user;",
+				"  }",
+				"  const collaborator = repo;",
+				"  return loadUser();",
+				"}",
+				"class Repository { save(_input: User): void {} }",
+				"interface User { name: string }",
+			},
+			unresolved: "1",
+		},
+		{
+			name: "inner shadow does not replace outer capture",
+			source: []string{
+				"export function prepareUser(repo: Repository, user: User, enabled: boolean) {",
+				"  const collaborator = repo;",
+				"  if (enabled) {",
+				"    const collaborator = new Repository();",
+				"    function loadLocal() {",
+				"      collaborator.save(user);",
+				"      return user;",
+				"    }",
+				"    loadLocal();",
+				"  }",
+				"  function loadOuter() {",
+				"    collaborator.save(user);",
+				"    return user;",
+				"  }",
+				"  return loadOuter();",
+				"}",
+				"class Repository { save(_input: User): void {} }",
+				"interface User { name: string }",
+			},
+			findings: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, "capture.ts"), strings.Join(test.source, "\n"))
+
+			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+			if got := countRuleFindings(report, "Code Quality", "function.hidden-mutation"); got != test.findings {
+				t.Fatalf("hidden-mutation findings = %d, want %d", got, test.findings)
+			}
+			if test.unresolved == "" {
+				assertUnresolvedDiagnosticAbsent(t, report, "typescript")
+			} else {
+				assertUnresolvedDiagnosticCount(t, report, "typescript", test.unresolved)
+			}
+		})
+	}
+}
+
+func TestFunctionHiddenMutationLeavesUnknownNestedTypeScriptRootUnresolved(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "capture.ts"), strings.Join([]string{
+		"export function prepareUser(user: User) {",
+		"  function loadUser() {",
+		"    mystery.save(user);",
+		"    return user;",
+		"  }",
+		"  return loadUser();",
+		"}",
+		"interface User { name: string }",
+	}, "\n"))
+
+	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
+	assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
+	assertUnresolvedDiagnosticCount(t, report, "typescript", "1")
 }
 
 func TestFunctionHiddenMutationAllowsConventionalCommandNames(t *testing.T) {

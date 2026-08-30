@@ -16,12 +16,69 @@ func clikeFunctionSpans(masked string, lang CLikeLanguage) []clikeSpan {
 	case CLikeJava:
 		return headSpans(masked, javaMethodHead, nil, false)
 	case CLikeCPP:
-		return headSpans(masked, cppMethodHead, isCPPNonMethodName, false)
+		return cppHeadSpans(masked)
 	case CLikeRust:
 		return rustSpans(masked)
 	default:
 		return typeScriptSpans(masked)
 	}
+}
+
+func cppHeadSpans(masked string) []clikeSpan {
+	spans := make([]clikeSpan, 0, 8)
+	for _, match := range cppMethodHead.FindAllStringSubmatchIndex(masked, -1) {
+		name := masked[match[2]:match[3]]
+		if isCPPNonMethodName(name) {
+			continue
+		}
+		span, ok := resolveCPPSpan(masked, match[0], match[1]-1)
+		if !ok {
+			continue
+		}
+		span.name = name
+		spans = append(spans, span)
+	}
+	return spans
+}
+
+func resolveCPPSpan(masked string, start int, paramsOpen int) (clikeSpan, bool) {
+	span := clikeSpan{start: start, paramsOpen: paramsOpen}
+	paramsClose := matchBracketOffset(masked, paramsOpen)
+	if paramsClose < 0 {
+		return span, false
+	}
+	span.bodyOpen = findCPPBodyOpen(masked, paramsClose+1)
+	if span.bodyOpen < 0 {
+		return span, false
+	}
+	span.bodyEnd = matchBracketOffset(masked, span.bodyOpen)
+	return span, span.bodyEnd > span.bodyOpen
+}
+
+// findCPPBodyOpen skips braced constructor member initializers. A braced
+// initializer is followed by another initializer or by the actual body.
+func findCPPBodyOpen(masked string, offset int) int {
+	for i := offset; i < len(masked); i++ {
+		switch masked[i] {
+		case ';':
+			return -1
+		case '{':
+			initializerEnd := matchBracketOffset(masked, i)
+			if initializerEnd < 0 {
+				return -1
+			}
+			next := initializerEnd + 1
+			for next < len(masked) && (masked[next] == ' ' || masked[next] == '\t' || masked[next] == '\n') {
+				next++
+			}
+			if next < len(masked) && (masked[next] == ',' || masked[next] == '{') {
+				i = initializerEnd
+				continue
+			}
+			return i
+		}
+	}
+	return -1
 }
 
 // headSpans resolves regex head matches into full function spans. The regex
@@ -145,7 +202,7 @@ func isTypeScriptNonMethodName(name string) bool {
 func isCPPNonMethodName(name string) bool {
 	switch name {
 	case "if", "for", "while", "switch", "catch", "return", "new", "delete",
-		"sizeof", "alignof", "typeid", "requires":
+		"sizeof", "alignof", "typeid", "requires", "constexpr":
 		return true
 	default:
 		return false

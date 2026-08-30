@@ -255,7 +255,7 @@ func TestFunctionHiddenMutationAllowsReactHookLocalStateBoundaries(t *testing.T)
 	}
 }
 
-func TestFunctionHiddenMutationStillWarnsForHiddenPersistenceInsideReactHook(t *testing.T) {
+func TestFunctionHiddenMutationStillWarnsForCapturedPersistenceInsideReactHook(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "apps/web/src/hooks/use-user.ts"), strings.Join([]string{
 		"export function useUser(repo: Repository, user: User) {",

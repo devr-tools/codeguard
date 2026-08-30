@@ -2,6 +2,7 @@ package quality
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -13,6 +14,24 @@ type mutationEvidence struct {
 	Origin string
 	Line   int
 	Detail string
+}
+
+type unresolvedMutationEvidence struct {
+	Language  string
+	Line      int
+	Operation string
+	Symbol    string
+	Reason    string
+}
+
+type mutationAnalysis struct {
+	Mutations  []mutationEvidence
+	Unresolved []unresolvedMutationEvidence
+}
+
+type mutationBinding struct {
+	origin string
+	target string
 }
 
 func mutationEvidenceMetadata(evidence mutationEvidence) map[string]string {
@@ -44,48 +63,43 @@ var (
 )
 
 func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
-	origins := map[string]string{}
-	targets := map[string]string{}
-	for _, param := range fn.Params {
-		if param.Name != "" {
-			origins[param.Name], targets[param.Name] = originCaller, targetArgument
-		}
-	}
-	if fn.ReceiverName != "" {
-		origins[fn.ReceiverName], targets[fn.ReceiverName] = originCaller, targetReceiver
-	}
-	if fn.Receiver != "" {
-		origins["this"], targets["this"] = originCaller, targetReceiver
-	}
+	return functionMutationAnalysis(fn, "").Mutations
+}
 
-	locals := localMutationTargets(fn)
-	for name := range locals {
-		origins[name], targets[name] = originLocal, targetLocal
+func functionMutationAnalysis(fn precisionFunction, language string) mutationAnalysis {
+	if fn.GoDecl != nil {
+		return goFunctionMutationEvidence(fn)
 	}
-	for _, assignment := range directAssignments(fn) {
-		name := strings.TrimSpace(assignment.Name)
-		if name == "" {
-			continue
-		}
-		if source := assignmentAliasSource(fn, assignment); source != "" && assignmentCanReceiveAlias(fn, assignment) {
-			if origin := origins[source]; origin != "" {
-				origins[name], targets[name] = origin, targets[source]
-			}
-		}
-		if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(fn, assignment) {
-			origins[name], targets[name] = originLocal, targetLocal
-		} else if origins[name] == "" && strings.Contains(assignment.Expr, "(") {
-			origins[name], targets[name] = originUnknown, targetEscaped
-		}
+	if fn.Language == string(support.CLikeCPP) || language == "c++" || language == "cpp" {
+		return cppFunctionMutationEvidence(fn)
 	}
-	for _, pattern := range []*regexp.Regexp{goAliasPattern, cppAliasPattern} {
-		for _, match := range pattern.FindAllStringSubmatch(fn.Body, -1) {
-			if origin := origins[match[2]]; origin != "" {
-				origins[match[1]], targets[match[1]] = origin, targets[match[2]]
-			}
-		}
-	}
+	origins, targets := resolvedMutationBindings(fn)
 
+	var analysis mutationAnalysis
+	seen := map[string]struct{}{}
+	add := func(item mutationEvidence) {
+		key := item.Target + "|" + item.Effect + "|" + item.Origin + "|" + item.Detail
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		analysis.Mutations = append(analysis.Mutations, item)
+	}
+	unresolvedSeen := map[string]struct{}{}
+	addUnresolved := func(line int, operation string, symbol string) {
+		key := language + "|" + operation + "|" + symbol + "|" + strconv.Itoa(line)
+		if _, ok := unresolvedSeen[key]; ok {
+			return
+		}
+		unresolvedSeen[key] = struct{}{}
+		analysis.Unresolved = append(analysis.Unresolved, unresolvedMutationEvidence{
+			Language:  language,
+			Line:      line,
+			Operation: operation,
+			Symbol:    symbol,
+			Reason:    "symbol ownership could not be resolved",
+		})
+	}
 	escapedAt := map[string]int{}
 	escapedNames := map[string]bool{}
 	for _, statement := range directStatements(fn) {
@@ -116,19 +130,12 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 			}
 		}
 	}
-	var evidence []mutationEvidence
-	seen := map[string]struct{}{}
-	add := func(item mutationEvidence) {
-		key := item.Target + "|" + item.Effect + "|" + item.Origin + "|" + item.Detail
-		if _, ok := seen[key]; ok {
-			return
-		}
-		seen[key] = struct{}{}
-		evidence = append(evidence, item)
-	}
 	for _, match := range bodyFieldMutationPattern.FindAllStringSubmatch(fn.Body, -1) {
 		name := match[1]
 		target, origin := targets[name], origins[name]
+		if origin == originUnknown {
+			continue
+		}
 		if origin == originLocal && escapedNames[name] {
 			target, origin = targetEscaped, originShared
 		} else if origin == originLocal || target == "" {
@@ -145,6 +152,10 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 		for _, match := range mutationRootPattern.FindAllStringSubmatch(lhs, -1) {
 			name := match[1]
 			target, origin := targets[name], origins[name]
+			if origin == originUnknown {
+				addUnresolved(statement.Line, "assignment", name)
+				continue
+			}
 			if origin == originLocal {
 				if escapedAt[name] > 0 && statement.Line > escapedAt[name] {
 					target, origin = targetEscaped, originShared
@@ -153,7 +164,8 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 				}
 			}
 			if target == "" {
-				target, origin = targetGlobal, originShared
+				addUnresolved(statement.Line, "assignment", name)
+				continue
 			}
 			add(mutationEvidence{Target: target, Effect: "shared_state", Origin: origin, Line: statement.Line, Detail: name})
 		}
@@ -164,7 +176,14 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 		if isObjectAssignCall(call) {
 			targetName = firstCallArgName(call)
 		}
+		unresolvedSymbol := targetName
+		if unresolvedSymbol == "" {
+			unresolvedSymbol = call.Callee
+		}
 		target, origin := targets[targetName], origins[targetName]
+		if origin == originUnknown {
+			target = ""
+		}
 		if origin == originLocal {
 			if escapedAt[targetName] > 0 && call.Line > escapedAt[targetName] {
 				target, origin = targetEscaped, originShared
@@ -173,17 +192,79 @@ func functionMutationEvidence(fn precisionFunction) []mutationEvidence {
 			}
 		}
 		if effect == "" {
-			if target == "" || !mutatingCallPattern.MatchString(call.Callee) || isConstructionOrHydrationCall(call.Callee) {
+			if target == "" {
+				if mutatingCallPattern.MatchString(call.Callee) {
+					addUnresolved(call.Line, "call", unresolvedSymbol)
+				}
+				continue
+			}
+			if !mutatingCallPattern.MatchString(call.Callee) {
 				continue
 			}
 			effect = "shared_state"
 		}
 		if target == "" {
-			target, origin = targetGlobal, originShared
+			addUnresolved(call.Line, "call", unresolvedSymbol)
+			continue
 		}
 		add(mutationEvidence{Target: target, Effect: effect, Origin: origin, Line: call.Line, Detail: call.Callee})
 	}
-	return evidence
+	return analysis
+}
+
+func resolvedMutationBindings(fn precisionFunction) (map[string]string, map[string]string) {
+	origins := make(map[string]string, len(fn.CapturedBindings))
+	targets := make(map[string]string, len(fn.CapturedBindings))
+	for name, binding := range fn.CapturedBindings {
+		origins[name], targets[name] = binding.origin, binding.target
+	}
+	for name := range fn.ProvenGlobals {
+		origins[name], targets[name] = originShared, targetGlobal
+	}
+	for _, param := range fn.Params {
+		if param.Name != "" {
+			origins[param.Name], targets[param.Name] = originCaller, targetArgument
+		}
+	}
+	if fn.ReceiverName != "" {
+		origins[fn.ReceiverName], targets[fn.ReceiverName] = originCaller, targetReceiver
+	}
+	if fn.Receiver != "" {
+		origins["this"], targets["this"] = originCaller, targetReceiver
+	}
+
+	locals := localMutationTargets(fn)
+	for name := range locals {
+		origins[name], targets[name] = originLocal, targetLocal
+	}
+	for _, assignment := range directAssignments(fn) {
+		name := strings.TrimSpace(assignment.Name)
+		if name == "" {
+			continue
+		}
+		if assignmentDeclaresLocal(fn, assignment) {
+			delete(origins, name)
+			delete(targets, name)
+		}
+		if source := assignmentAliasSource(fn, assignment); source != "" && assignmentCanReceiveAlias(fn, assignment) {
+			if origin := origins[source]; origin != "" {
+				origins[name], targets[name] = origin, targets[source]
+			}
+		}
+		if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(fn, assignment) {
+			origins[name], targets[name] = originLocal, targetLocal
+		} else if origins[name] == "" && strings.Contains(assignment.Expr, "(") {
+			origins[name], targets[name] = originUnknown, ""
+		}
+	}
+	for _, pattern := range []*regexp.Regexp{goAliasPattern, cppAliasPattern} {
+		for _, match := range pattern.FindAllStringSubmatch(fn.Body, -1) {
+			if origin := origins[match[2]]; origin != "" {
+				origins[match[1]], targets[match[1]] = origin, targets[match[2]]
+			}
+		}
+	}
+	return origins, targets
 }
 
 func assignmentAliasSource(fn precisionFunction, assignment support.ParsedAssignment) string {
@@ -233,36 +314,72 @@ func looksLikeLocalObjectAllocation(fn precisionFunction, assignment support.Par
 }
 
 func observableCallEffect(callee string) string {
-	lower := strings.ToLower(callee)
-	if isConstructionOrHydrationCall(callee) || readCallPattern.MatchString(callee) {
+	identifiers := identifierTokenPattern.FindAllString(callee, -1)
+	if len(identifiers) == 0 {
 		return ""
 	}
-	if containsAny(lower, []string{"publish", "emit", "dispatch", "enqueue"}) {
+	words := identifierWords(identifiers[len(identifiers)-1])
+	if containsWord(words, "publish", "emit", "dispatch", "enqueue") {
 		return "event"
 	}
-	if containsAny(lower, []string{"http.post", "http.put", "http.patch", "fetch", "axios", ".send", ".upload"}) {
+	// Read grammar belongs to the invoked method, not its receiver. A receiver such
+	// as fetchQueue must not turn Enqueue into a read, while RecordPrefetch must not
+	// become an event or persistence effect merely because of an embedded token.
+	if readCallPattern.MatchString(identifiers[len(identifiers)-1]) {
+		return ""
+	}
+	receiverWords := make([]string, 0, len(identifiers)-1)
+	for _, identifier := range identifiers[:len(identifiers)-1] {
+		receiverWords = append(receiverWords, identifierWords(identifier)...)
+	}
+	if containsWord(words, "fetch", "axios", "send", "upload") {
 		return "network"
 	}
-	if containsAny(lower, []string{".save", ".insert", ".update", ".upsert", ".delete", ".exec", ".commit", ".rollback", ".write", ".persist", "cache.set", "cache.put"}) {
+	if containsWord(receiverWords, "http") && containsWord(words, "post", "put", "patch") {
+		return "network"
+	}
+	if containsWord(words, "save", "insert", "update", "upsert", "delete", "exec", "commit", "rollback", "write", "persist") {
+		return "persistence"
+	}
+	if containsWord(receiverWords, "cache") && containsWord(words, "set", "put") {
 		return "persistence"
 	}
 	return ""
 }
 
-func isConstructionOrHydrationCall(callee string) bool {
-	lower := strings.ToLower(callee)
-	return containsAny(lower, []string{
-		".scan", ".setname", ".setid", ".setvalue", ".setfield", "proto.", "protobuf",
-		"json.marshal", "json.stringify", "serialize", "metrics.", "metric.", "observe", "recordlatency",
-		"builder.", ".with", ".addfield", ".appendfield",
-	})
+func terminalCallIdentifier(callee string) string {
+	identifiers := identifierTokenPattern.FindAllString(callee, -1)
+	if len(identifiers) == 0 {
+		return ""
+	}
+	return identifiers[len(identifiers)-1]
+}
+
+func containsWord(words []string, candidates ...string) bool {
+	for _, word := range words {
+		for _, candidate := range candidates {
+			if word == candidate {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func firstReportableMutationEvidence(fn precisionFunction) (mutationEvidence, bool) {
+	var first mutationEvidence
+	found := false
 	for _, evidence := range functionMutationEvidence(fn) {
-		if evidence.Target != targetLocal {
+		if evidence.Target == targetLocal {
+			continue
+		}
+		if !found {
+			first = evidence
+			found = true
+		}
+		if evidence.Target == targetEscaped {
 			return evidence, true
 		}
 	}
-	return mutationEvidence{}, false
+	return first, found
 }

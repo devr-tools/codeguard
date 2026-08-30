@@ -19,6 +19,12 @@ func ParseCLike(source string, lang CLikeLanguage) *ParsedFile {
 	spans := clikeFunctionSpans(masked, lang)
 	file.Functions = buildCLikeFunctions(file, spans, lang)
 	file.Module.EndLine = LineNumberForOffset(source, len(source))
+	switch lang {
+	case CLikeCPP:
+		populateCPPDeclarationMetadata(file, spans)
+	case CLikeTypeScript:
+		populateTypeScriptDeclarationMetadata(file)
+	}
 	return file
 }
 
@@ -68,11 +74,16 @@ func newCLikeFunction(file *ParsedFile, span clikeSpan, lang CLikeLanguage) *Par
 		}
 	}
 	fn := &ParsedFunction{
-		Name:      span.name,
-		StartLine: LineNumberForOffset(file.Source, span.start),
-		EndLine:   LineNumberForOffset(file.Source, span.bodyEnd),
-		Signature: signature,
-		Params:    parseCLikeParams(paramText, lang),
+		Name:             span.name,
+		Language:         string(lang),
+		StartLine:        LineNumberForOffset(file.Source, span.start),
+		EndLine:          LineNumberForOffset(file.Source, span.bodyEnd),
+		Signature:        signature,
+		Params:           parseCLikeParams(paramText, lang),
+		DefinitionOffset: span.start,
+		sourceStart:      span.start,
+		bodyOpen:         span.bodyOpen,
+		bodyEnd:          span.bodyEnd,
 	}
 	if span.bodyOpen >= 0 && span.bodyEnd > span.bodyOpen {
 		populateCLikeBody(file, fn, span, lang)

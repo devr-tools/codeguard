@@ -15,6 +15,18 @@ type ParsedParam struct {
 	Type string
 }
 
+// ParsedDeclaration records bounded declaration and ownership syntax for
+// languages where the lightweight parser cannot rely on a compiler AST.
+type ParsedDeclaration struct {
+	Name, Type, Kind, ReferenceShape string
+	Line, ScopeStart, ScopeEnd       int
+	Offset, ScopeOffsetStart         int
+	ScopeOffsetEnd                   int
+	AliasSource                      string
+	Initializer                      string
+	QualifiedOwner                   string
+}
+
 // ParsedAssignment records "name = expr" style statements inside a scope.
 // Expr is taken from the masked source: string contents are blanked while
 // interpolated expressions (f-strings, template literals) are preserved.
@@ -51,23 +63,31 @@ type ParsedStatement struct {
 
 // ParsedFunction is a lightweight AST node for one function or method.
 type ParsedFunction struct {
-	Name        string
-	StartLine   int
-	EndLine     int
-	Signature   string
-	Params      []ParsedParam
-	Statements  []ParsedStatement
-	Assignments []ParsedAssignment
-	Calls       []ParsedCall
-	Nested      []*ParsedFunction
+	Name             string
+	Language         string
+	StartLine        int
+	EndLine          int
+	Signature        string
+	Params           []ParsedParam
+	Statements       []ParsedStatement
+	Assignments      []ParsedAssignment
+	Calls            []ParsedCall
+	Declarations     []ParsedDeclaration
+	QualifiedOwner   string
+	Nested           []*ParsedFunction
+	DefinitionOffset int
+	sourceStart      int
+	bodyOpen         int
+	bodyEnd          int
 }
 
 // ParsedFile is the result of parsing one source file.
 type ParsedFile struct {
-	Language  string
-	Source    string
-	Masked    string
-	Imports   []ParsedImport
-	Functions []*ParsedFunction
-	Module    *ParsedFunction
+	Language     string
+	Source       string
+	Masked       string
+	Imports      []ParsedImport
+	Declarations []ParsedDeclaration
+	Functions    []*ParsedFunction
+	Module       *ParsedFunction
 }

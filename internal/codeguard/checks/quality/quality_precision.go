@@ -46,7 +46,7 @@ var (
 		"misc": {}, "stuff": {},
 	}
 	queryFunctionPrefixPattern = regexp.MustCompile(`^(get|find|list|load|read|lookup|fetch|is|has|can|should|compute|calculate|build|format|parse)`)
-	mutatingCallPattern        = regexp.MustCompile(`(?i)(^|[.>:\-_])(add|allocate|append|assign|clear|create|delete|emit|insert|mutate|persist|pop|publish|push|push_back|remove|reverse|save|send|set|sort|splice|store|update|upsert|write)([A-Z_:\-.]|$)`)
+	mutatingCallPattern        = regexp.MustCompile(`(^|[.>:\-_])(?i:add|allocate|append|assign|clear|create|delete|emit|insert|mutate|persist|pop|publish|push|push_back|remove|reverse|save|send|set|sort|splice|store|update|upsert|with|write)([A-Z_:\-.]|$)`)
 	lowLevelOperationPattern   = regexp.MustCompile(`(?i)(\bsql\.|\.query\(|\.exec\(|\bhttp\.|\bfetch\(|\baxios\.|\brequests\.|\bjson\.|\bJSON\.|\bos\.Getenv\b|\bprocess\.env\b|\bfs\.|#include\b)`)
 	primitiveTypePattern       = regexp.MustCompile(`(?i)\b(string|str|int|int64|float|float64|double|decimal|number|boolean|bool|char|long|short)\b`)
 	domainPrimitiveNamePattern = regexp.MustCompile(`(?i)(id|status|state|type|kind|currency|amount|price|email|phone|country|role|permission|tenant|account|customer|order)`)
@@ -61,6 +61,7 @@ var (
 
 type precisionFunction struct {
 	Name                         string
+	Language                     string
 	Receiver                     string
 	ReceiverName                 string
 	StartLine                    int
@@ -70,10 +71,18 @@ type precisionFunction struct {
 	Assignments                  []support.ParsedAssignment
 	Calls                        []support.ParsedCall
 	Statements                   []support.ParsedStatement
+	Declarations                 []support.ParsedDeclaration
+	QualifiedOwner               string
 	Nested                       []precisionLineRange
 	Body                         string
 	Returns                      bool
 	ImplementsInterfaceSignature bool
+	ProvenGlobals                map[string]struct{}
+	CapturedBindings             map[string]mutationBinding
+	GoDecl                       *ast.FuncDecl
+	GoFile                       string
+	GoFSet                       *token.FileSet
+	GoPackage                    *goPackageInfo
 }
 
 func localPrecisionEnabled(env support.Context) bool {
@@ -89,12 +98,16 @@ func excessiveParameterFinding(env support.Context, file string, fn functionMetr
 		core.ConfidenceHigh)}
 }
 
-func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, data []byte) []core.Finding {
+func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, data []byte, pkg *goPackageInfo) []core.Finding {
 	findings := make([]core.Finding, 0)
 	interfaceMethods := goInterfaceMethodSignatures(parsed)
+	provenGlobals := goPackageVariableNames(parsed)
 	ast.Inspect(parsed, func(n ast.Node) bool {
 		if node, ok := n.(*ast.FuncDecl); ok {
 			fn := goPrecisionFunction(fset, node, data)
+			fn.GoFile = file
+			fn.GoPackage = pkg
+			fn.ProvenGlobals = provenGlobals
 			fn.ImplementsInterfaceSignature = interfaceMethods[goInterfaceMethodKey(fn.Name, fn.Params, fn.Signature)]
 			findings = append(findings, precisionFunctionFindings(env, file, fn)...)
 			if node.Body != nil {
@@ -119,6 +132,32 @@ func goPrecisionFindings(env support.Context, file string, fset *token.FileSet, 
 	return findings
 }
 
+// goPackageVariableNames provides the bounded declaration proof used by the
+// shared mutation contract before the package-wide Go resolver is applied.
+// Parameters and locals are seeded later and therefore correctly shadow these
+// file-level package declarations.
+func goPackageVariableNames(parsed *ast.File) map[string]struct{} {
+	names := make(map[string]struct{})
+	for _, declaration := range parsed.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok || general.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range general.Specs {
+			value, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for _, name := range value.Names {
+				if name.Name != "" {
+					names[name.Name] = struct{}{}
+				}
+			}
+		}
+	}
+	return names
+}
+
 func goPrecisionFunction(fset *token.FileSet, fn *ast.FuncDecl, data []byte) precisionFunction {
 	out := precisionFunction{
 		Name:         fn.Name.Name,
@@ -129,6 +168,8 @@ func goPrecisionFunction(fset *token.FileSet, fn *ast.FuncDecl, data []byte) pre
 		Signature:    goResultSignature(fn),
 		Params:       goParsedParams(fn),
 		Returns:      goFuncReturnsValue(fn),
+		GoDecl:       fn,
+		GoFSet:       fset,
 	}
 	if fn.Body == nil {
 		return out
@@ -480,10 +521,10 @@ func unsafeGoNumericConversionTarget(call *ast.CallExpr) string {
 }
 
 func parsedPrecisionFindings(env support.Context, file string, parsed *support.ParsedFile) []core.Finding {
-	functions := parsed.AllFunctions()
+	functions := parsedPrecisionFunctions(parsed)
 	findings := make([]core.Finding, 0, len(functions))
 	for _, fn := range functions {
-		findings = append(findings, precisionFunctionFindings(env, file, parsedPrecisionFunction(fn))...)
+		findings = append(findings, precisionFunctionFindings(env, file, fn)...)
 	}
 	findings = append(findings, parsedDefensiveFindings(env, file, parsed)...)
 	findings = append(findings, parsedMutableGlobalFindings(env, file, parsed)...)
@@ -496,20 +537,96 @@ func parsedPrecisionFindings(env support.Context, file string, parsed *support.P
 	return findings
 }
 
+func parsedPrecisionFunctions(parsed *support.ParsedFile) []precisionFunction {
+	if parsed == nil {
+		return nil
+	}
+	functions := make([]precisionFunction, 0)
+	retainCaptures := parsed.Language == string(support.CLikeTypeScript)
+	var walk func(*support.ParsedFunction, map[string]mutationBinding)
+	walk = func(item *support.ParsedFunction, outer map[string]mutationBinding) {
+		fn := parsedPrecisionFunction(item)
+		if retainCaptures {
+			fn.CapturedBindings = cloneMutationBindings(outer)
+		}
+		functions = append(functions, fn)
+		for _, child := range item.Nested {
+			childBindings := outer
+			if retainCaptures {
+				childBindings = typeScriptBindingsVisibleAt(fn, child.DefinitionOffset)
+			}
+			walk(child, childBindings)
+		}
+	}
+	for _, fn := range parsed.Functions {
+		walk(fn, nil)
+	}
+	return functions
+}
+
+func typeScriptBindingsVisibleAt(fn precisionFunction, definitionOffset int) map[string]mutationBinding {
+	bindings := cloneMutationBindings(fn.CapturedBindings)
+	if bindings == nil {
+		bindings = make(map[string]mutationBinding)
+	}
+	for _, param := range fn.Params {
+		if param.Name != "" {
+			bindings[param.Name] = mutationBinding{origin: originCaller, target: targetArgument}
+		}
+	}
+	if fn.ReceiverName != "" {
+		bindings[fn.ReceiverName] = mutationBinding{origin: originCaller, target: targetReceiver}
+	}
+	if fn.Receiver != "" {
+		bindings["this"] = mutationBinding{origin: originCaller, target: targetReceiver}
+	}
+	for _, declaration := range fn.Declarations {
+		if declaration.Offset >= definitionOffset || declaration.ScopeOffsetStart >= definitionOffset || declaration.ScopeOffsetEnd <= definitionOffset {
+			continue
+		}
+		delete(bindings, declaration.Name)
+		if source := declaration.AliasSource; source != "" {
+			if binding, ok := bindings[source]; ok {
+				bindings[declaration.Name] = binding
+			}
+			continue
+		}
+		assignment := support.ParsedAssignment{Name: declaration.Name, Expr: declaration.Initializer, Line: declaration.Line}
+		if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(fn, assignment) {
+			bindings[declaration.Name] = mutationBinding{origin: originLocal, target: targetLocal}
+		}
+	}
+	return bindings
+}
+
+func cloneMutationBindings(bindings map[string]mutationBinding) map[string]mutationBinding {
+	if len(bindings) == 0 {
+		return nil
+	}
+	clone := make(map[string]mutationBinding, len(bindings))
+	for name, binding := range bindings {
+		clone[name] = binding
+	}
+	return clone
+}
+
 func parsedPrecisionFunction(fn *support.ParsedFunction) precisionFunction {
 	body := maskedFunctionBody(fn)
 	return precisionFunction{
-		Name:        fn.Name,
-		StartLine:   fn.StartLine,
-		EndLine:     fn.EndLine,
-		Signature:   fn.Signature,
-		Params:      fn.Params,
-		Assignments: fn.Assignments,
-		Calls:       fn.Calls,
-		Statements:  fn.Statements,
-		Nested:      nestedPrecisionLineRanges(fn),
-		Body:        body,
-		Returns:     strings.Contains(body, "return "),
+		Name:           fn.Name,
+		Language:       fn.Language,
+		StartLine:      fn.StartLine,
+		EndLine:        fn.EndLine,
+		Signature:      fn.Signature,
+		Params:         fn.Params,
+		Assignments:    fn.Assignments,
+		Calls:          fn.Calls,
+		Statements:     fn.Statements,
+		Declarations:   fn.Declarations,
+		QualifiedOwner: fn.QualifiedOwner,
+		Nested:         nestedPrecisionLineRanges(fn),
+		Body:           body,
+		Returns:        strings.Contains(body, "return "),
 	}
 }
 
@@ -669,6 +786,14 @@ func hiddenSideEffect(file string, fn precisionFunction) bool {
 		return false
 	}
 	if isAccumulatorBuilderFunctionName(fn.Name) && !hasLikelyExternalMutationCall(fn) {
+		return false
+	}
+	if fn.GoDecl != nil {
+		for _, evidence := range functionMutationEvidence(fn) {
+			if evidence.Target != targetLocal {
+				return true
+			}
+		}
 		return false
 	}
 	localTargets := localMutationTargets(fn)
