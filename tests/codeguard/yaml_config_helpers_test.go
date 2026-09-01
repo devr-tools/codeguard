@@ -10,6 +10,7 @@ import (
 
 func yamlRoundTripConfig() codeguard.Config {
 	cfg := codeguard.ExampleConfig()
+	cfg.ScanVendoredSource = true
 	cfg.Checks.SupplyChain = true
 	cfg.Checks.QualityRules.LanguageCommands = map[string][]codeguard.CommandCheckConfig{
 		"typescript": {{Name: "tsc", Command: "npx", Args: []string{"tsc", "--noEmit"}}},
@@ -45,7 +46,7 @@ func assertYAMLSchemaMarkers(t *testing.T, path string) {
 		t.Fatalf("read yaml: %v", err)
 	}
 	rendered := string(data)
-	for _, want := range []string{"supply_chain:", "quality_rules:", "max_file_lines:", "language_commands:", "naming:", "allowed_abbreviations:", "role_suffix_warn_threshold:", "ci_rules:", "required_workflow_files:", "hybrid_triage:", "candidate_sections:", "function_contract:", "test_commands:", "rule_packs:"} {
+	for _, want := range []string{"scan_vendored_source: true", "supply_chain:", "quality_rules:", "max_file_lines:", "language_commands:", "naming:", "allowed_abbreviations:", "role_suffix_warn_threshold:", "ci_rules:", "required_workflow_files:", "hybrid_triage:", "candidate_sections:", "function_contract:", "test_commands:", "rule_packs:"} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("written yaml missing %q:\n%s", want, rendered)
 		}
@@ -56,6 +57,9 @@ func assertYAMLRoundTripConfig(t *testing.T, loaded codeguard.Config, want codeg
 	t.Helper()
 	if loaded.Name != want.Name {
 		t.Fatalf("loaded name = %q, want %q", loaded.Name, want.Name)
+	}
+	if loaded.ScanVendoredSource != want.ScanVendoredSource {
+		t.Fatalf("scan_vendored_source = %t, want %t", loaded.ScanVendoredSource, want.ScanVendoredSource)
 	}
 	assertYAMLCommand(t, loaded.Checks.QualityRules.LanguageCommands["typescript"][0].Command, "npx", "loaded command")
 	if loaded.Checks.QualityRules.Naming.RoleSuffixWarnThreshold != want.Checks.QualityRules.Naming.RoleSuffixWarnThreshold {
@@ -77,6 +81,7 @@ func assertYAMLCommand(t *testing.T, got string, want string, label string) {
 
 func snakeCaseYAMLFixture() string {
 	return `name: snake-case-config
+scan_vendored_source: true
 targets:
   - name: repo
     path: .
@@ -143,6 +148,9 @@ output:
 
 func assertSnakeCaseYAMLLoaded(t *testing.T, loaded codeguard.Config) {
 	t.Helper()
+	if !loaded.ScanVendoredSource {
+		t.Fatal("expected scan_vendored_source to load from snake_case yaml")
+	}
 	assertSnakeCaseChecks(t, loaded)
 	assertSnakeCaseAI(t, loaded)
 	assertSnakeCaseRulePack(t, loaded)

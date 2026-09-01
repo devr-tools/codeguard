@@ -94,7 +94,7 @@ func TestFileCorpusBoundsFileListingsAndReportsDiagnostic(t *testing.T) {
 
 	corpus := newFileCorpus()
 	corpus.maxFiles = 2
-	files, err := corpus.list(root, nil)
+	files, err := corpus.list(root, nil, FileWalkOptions{})
 	if err != nil {
 		t.Fatalf("list files: %v", err)
 	}

@@ -13,6 +13,7 @@ import (
 // folder. The path is a runtime option rather than config, so it may point at
 // any local directory the caller intentionally chose.
 func ApplyTargetPath(cfg *core.Config, targetPath string) error {
+	initializeTargetLogicalPaths(cfg)
 	targetPath = strings.TrimSpace(targetPath)
 	if targetPath == "" {
 		return nil
@@ -32,6 +33,11 @@ func ApplyTargetPath(cfg *core.Config, targetPath string) error {
 
 		switch {
 		case samePath(scanPath, targetAbs), isSubpath(scanPath, targetAbs):
+			rel, relErr := filepath.Rel(targetAbs, scanPath)
+			if relErr != nil {
+				return fmt.Errorf("scan path relative to target %q: %w", target.Name, relErr)
+			}
+			target.LogicalPath = joinLogicalPath(target.LogicalPath, rel)
 			target.Path = scanPath
 			matched = append(matched, target)
 		case isSubpath(targetAbs, scanPath):
@@ -51,6 +57,35 @@ func ApplyTargetPath(cfg *core.Config, targetPath string) error {
 
 	cfg.Targets = matched
 	return nil
+}
+
+func initializeTargetLogicalPaths(cfg *core.Config) {
+	for i := range cfg.Targets {
+		if cfg.Targets[i].LogicalPath != "" {
+			continue
+		}
+		path := filepath.Clean(cfg.Targets[i].Path)
+		if !filepath.IsAbs(path) {
+			cfg.Targets[i].LogicalPath = filepath.ToSlash(path)
+			continue
+		}
+		switch base := filepath.Base(path); base {
+		case "vendor", "node_modules", "cdk.out":
+			cfg.Targets[i].LogicalPath = base
+		}
+	}
+}
+
+func joinLogicalPath(base, rel string) string {
+	base = filepath.ToSlash(filepath.Clean(base))
+	rel = filepath.ToSlash(filepath.Clean(rel))
+	if base == "." || base == "" {
+		return rel
+	}
+	if rel == "." || rel == "" {
+		return base
+	}
+	return base + "/" + rel
 }
 
 func absoluteDir(path string) (string, error) {

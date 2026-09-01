@@ -107,6 +107,24 @@ This page lists the current `codeguard` feature surface and the main config entr
 See [Production rollout](production.md) for configuration, safe CI usage,
 review workflow, and exit-code behavior.
 
+## Repository traversal
+
+Full scans always prune directories named `node_modules` and `cdk.out` at any
+depth. Dependency manifests and lockfiles remain in scope for supply-chain,
+license, vulnerability, and lockfile-integrity checks; installed and generated
+source is not treated as first-party code.
+
+Directories named `vendor` are also pruned by default. Repositories that commit
+or patch vendored source can opt in explicitly while retaining the normal
+per-file, corpus-byte, AST, and file-count limits:
+
+```yaml
+scan_vendored_source: true
+```
+
+Configured `exclude` patterns still take precedence, so an explicitly excluded
+vendor subtree remains excluded when vendored-source scanning is enabled.
+
 ## External report ingestion
 
 CodeGuard can import findings from scanners that have already run. It does not

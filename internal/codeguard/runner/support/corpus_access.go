@@ -7,15 +7,20 @@ import (
 	"path/filepath"
 
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
 func includeAll(string) bool { return true }
 
-func (sc Context) corpusFiles(root string) ([]string, error) {
-	if sc.corpus != nil {
-		return sc.corpus.list(root, sc.Cfg.Exclude)
+func (sc Context) corpusFiles(target core.TargetConfig) ([]string, error) {
+	opts := FileWalkOptions{
+		LogicalPath:        target.LogicalPath,
+		ScanVendoredSource: sc.Cfg.ScanVendoredSource,
 	}
-	return WalkFiles(root, sc.Cfg.Exclude, includeAll)
+	if sc.corpus != nil {
+		return sc.corpus.list(target.Path, sc.Cfg.Exclude, opts)
+	}
+	return WalkFilesWithOptions(target.Path, sc.Cfg.Exclude, opts, includeAll)
 }
 
 func (sc Context) corpusRead(root string, rel string) ([]byte, error) {

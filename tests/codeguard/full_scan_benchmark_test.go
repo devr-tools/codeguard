@@ -14,15 +14,26 @@ import (
 func BenchmarkFullScanMixedGoTypeScriptRepository(b *testing.B) {
 	root := buildFullScanBenchmarkRepository(b, 64)
 	for _, tc := range []struct {
-		name         string
-		cacheEnabled bool
-		warmup       bool
+		name               string
+		cacheEnabled       bool
+		warmup             bool
+		scanVendoredSource bool
 	}{
 		{name: "cold", cacheEnabled: false},
 		{name: "warm-cache", cacheEnabled: true, warmup: true},
+		{name: "cold-vendored-source", cacheEnabled: false, scanVendoredSource: true},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
-			cfg := fullScanBenchmarkConfig(root, tc.cacheEnabled)
+			cfg := fullScanBenchmarkConfig(root, tc.cacheEnabled, tc.scanVendoredSource)
+			if tc.scanVendoredSource {
+				report, err := codeguard.RunWithOptions(context.Background(), cfg, codeguard.ScanOptions{Mode: codeguard.ScanModeFull})
+				if err != nil {
+					b.Fatalf("verify vendored benchmark fixture: %v", err)
+				}
+				if !benchmarkReportHasVendorFinding(report) {
+					b.Fatal("vendored benchmark case did not analyze vendored source")
+				}
+			}
 			if tc.warmup {
 				if _, err := codeguard.RunWithOptions(context.Background(), cfg, codeguard.ScanOptions{Mode: codeguard.ScanModeFull}); err != nil {
 					b.Fatalf("warm benchmark cache: %v", err)
@@ -84,16 +95,29 @@ export function execute%d(request: Request%d): number {
 		writeBenchmarkFile(b, filepath.Join(root, "infrastructure", "cdk.out", fmt.Sprintf("asset.%03d", i), "index.js"), generated)
 		writeBenchmarkFile(b, filepath.Join(root, "vendor", "example.com", "dependency", fmt.Sprintf("generated_%03d.go", i)), "package dependency\n")
 	}
+	writeBenchmarkFile(b, filepath.Join(root, "vendor", "example.com", "dependency", "oversized.go"), "package dependency\n"+strings.Repeat("// benchmark vendored source\n", 600))
 	writeBenchmarkFile(b, filepath.Join(root, "go.mod"), "module example.com/fullscanbench\n\ngo 1.23\n")
 	writeBenchmarkFile(b, filepath.Join(root, "package.json"), `{"name":"full-scan-benchmark","private":true}`)
 	return root
 }
 
-func fullScanBenchmarkConfig(root string, cacheEnabled bool) codeguard.Config {
+func benchmarkReportHasVendorFinding(report codeguard.Report) bool {
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if strings.HasPrefix(filepath.ToSlash(finding.Path), "vendor/") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func fullScanBenchmarkConfig(root string, cacheEnabled bool, scanVendoredSource bool) codeguard.Config {
 	enabled := true
 	disabled := false
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "mixed-full-scan-benchmark"
+	cfg.ScanVendoredSource = scanVendoredSource
 	cfg.Targets = []codeguard.TargetConfig{
 		{Name: "go-app", Path: root, Language: "go", Entrypoints: []string{"app"}},
 		{Name: "typescript-infrastructure", Path: root, Language: "typescript", Entrypoints: []string{"infrastructure/src"}},

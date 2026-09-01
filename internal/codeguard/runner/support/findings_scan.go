@@ -69,7 +69,7 @@ func scanTargetFiles(sc Context, target core.TargetConfig, spec fileScanSpec) []
 }
 
 func selectedTargetFiles(sc Context, target core.TargetConfig, include func(string) bool) []string {
-	files, _ := sc.corpusFiles(target.Path)
+	files, _ := sc.corpusFiles(target)
 	selected := make([]string, 0, len(files))
 	for _, file := range files {
 		if include(file) {

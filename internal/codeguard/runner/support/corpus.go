@@ -138,8 +138,8 @@ func newFileCorpus() *fileCorpus {
 // list returns every non-excluded file under root, walking the tree only once
 // per target. Callers apply their own include filter to the returned slice; the
 // walk itself is identical regardless of the filter, so sharing it is safe.
-func (c *fileCorpus) list(root string, excludes []string) ([]string, error) {
-	key := filepath.Clean(root)
+func (c *fileCorpus) list(root string, excludes []string, opts FileWalkOptions) ([]string, error) {
+	key := fmt.Sprintf("%s\x00%s\x00%t", filepath.Clean(root), opts.LogicalPath, opts.ScanVendoredSource)
 	c.mu.Lock()
 	entry, ok := c.targets[key]
 	if !ok {
@@ -150,7 +150,7 @@ func (c *fileCorpus) list(root string, excludes []string) ([]string, error) {
 
 	entry.once.Do(func() {
 		var truncated bool
-		entry.files, truncated, entry.err = walkFilesBounded(root, excludes, includeAll, c.maxFiles)
+		entry.files, truncated, entry.err = walkFilesBounded(root, excludes, opts, includeAll, c.maxFiles)
 		if truncated {
 			c.recordBudget("files", c.maxFiles)
 		}
