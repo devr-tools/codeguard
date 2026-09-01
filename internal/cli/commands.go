@@ -79,6 +79,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	pathAlias := fs.String("path", "", "alias for -folder")
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	includeSuppressed := fs.Bool("include-suppressed", false, "include individual suppressed findings in JSON output")
+	heapProfile := fs.String("memprofile", "", "optional path for rolling Go heap profiles during the scan")
 	interactive := fs.Bool("interactive", false, "prompt for scan inputs in the terminal")
 	if ok, code := parseFlags(fs, args, stderr); !ok {
 		return code
@@ -116,7 +117,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		return exitError
 	}
 
-	if err := executeScan(stdout, cfg, scanMode, strings.TrimSpace(*inputs.baseRef), targetPath, *enableAI, *includeSuppressed); err != nil {
+	if err := executeScan(stdout, stderr, cfg, scanMode, strings.TrimSpace(*inputs.baseRef), targetPath, *enableAI, *includeSuppressed, *heapProfile); err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
 		return exitError
 	}

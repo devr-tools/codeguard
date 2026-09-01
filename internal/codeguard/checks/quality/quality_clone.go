@@ -4,23 +4,52 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strconv"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func cloneFindingsForTarget(env support.Context, target core.TargetConfig) []core.Finding {
+type cloneAnalysisResult struct {
+	findings    []core.Finding
+	diagnostics []core.Diagnostic
+}
+
+type cloneAnalysisBudget struct {
+	maxSourceBytes int
+	maxTokens      int
+	maxWindows     int
+}
+
+var defaultCloneAnalysisBudget = cloneAnalysisBudget{
+	maxSourceBytes: 64 << 20,
+	maxTokens:      2_000_000,
+	maxWindows:     1_000_000,
+}
+
+func cloneFindingsForTarget(env support.Context, target core.TargetConfig) cloneAnalysisResult {
+	return cloneFindingsForTargetWithBudget(env, target, defaultCloneAnalysisBudget)
+}
+
+func cloneFindingsForTargetWithBudget(env support.Context, target core.TargetConfig, budget cloneAnalysisBudget) cloneAnalysisResult {
 	threshold := env.Config.Checks.QualityRules.CloneTokenThreshold
 	if threshold <= 0 {
-		return nil
+		return cloneAnalysisResult{}
 	}
 
-	docs := cloneDocumentsForTarget(env, target)
+	docs, truncated := cloneDocumentsForTargetWithBudget(env, target, budget)
+	result := cloneAnalysisResult{}
 	if len(docs) < 2 {
-		return nil
+		if truncated {
+			result.diagnostics = []core.Diagnostic{cloneBudgetDiagnostic(target, budget)}
+		}
+		return result
 	}
 
-	candidates := detectCloneCandidates(docs, threshold)
+	candidates, windowBudgetReached := detectCloneCandidates(docs, threshold, budget.maxWindows)
+	if truncated || windowBudgetReached {
+		result.diagnostics = []core.Diagnostic{cloneBudgetDiagnostic(target, budget)}
+	}
 	findings := make([]core.Finding, 0, len(candidates)*2)
 	for _, candidate := range candidates {
 		left := docs[candidate.LeftDoc]
@@ -44,12 +73,16 @@ func cloneFindingsForTarget(env support.Context, target core.TargetConfig) []cor
 		)
 		findings = append(findings, warnFinding(env, "quality.duplicate-code", right.Path, rightLine, 1, message))
 	}
-	return findings
+	result.findings = findings
+	return result
 }
 
-func cloneDocumentsForTarget(env support.Context, target core.TargetConfig) []cloneDocument {
+func cloneDocumentsForTargetWithBudget(env support.Context, target core.TargetConfig, budget cloneAnalysisBudget) ([]cloneDocument, bool) {
 	docs := make([]cloneDocument, 0)
 	include := cloneIncludeForLanguage(target.Language)
+	totalSourceBytes := 0
+	totalTokens := 0
+	truncated := false
 	// Clone detection builds cross-file state (the document list) rather than
 	// per-file findings, so it must visit every file directly. Routing it
 	// through the per-file findings cache would skip the tokenizer on a cache
@@ -57,19 +90,46 @@ func cloneDocumentsForTarget(env support.Context, target core.TargetConfig) []cl
 	env.VisitTargetFiles(target, func(rel string) bool {
 		return include(rel) && !cloneExcludedPath(target.Language, rel)
 	}, func(file string, data []byte) {
-		tokens := tokenizeNormalizedCloneText(string(data))
+		if totalTokens >= budget.maxTokens || totalSourceBytes+len(data) > budget.maxSourceBytes {
+			truncated = true
+			return
+		}
+		tokens, tokenLimitReached := tokenizeNormalizedCloneTextBounded(string(data), budget.maxTokens-totalTokens)
+		if tokenLimitReached {
+			truncated = true
+		}
 		if len(tokens) > 0 {
 			docs = append(docs, cloneDocument{Path: file, Tokens: tokens})
+			totalSourceBytes += len(data)
+			totalTokens += len(tokens)
 		}
 	})
-	return docs
+	return docs, truncated
 }
 
-func detectCloneCandidates(docs []cloneDocument, threshold int) []cloneCandidate {
-	index := cloneWindowIndex(docs, threshold)
+func cloneBudgetDiagnostic(target core.TargetConfig, budget cloneAnalysisBudget) core.Diagnostic {
+	return core.Diagnostic{
+		ID:    "quality.duplicate-code-budget",
+		Level: "info",
+		Kind:  "analysis",
+		Message: fmt.Sprintf(
+			"duplicate-code analysis for target %q reached its bounded corpus budget; add repository-specific generated paths to exclude if needed",
+			target.Name,
+		),
+		Metadata: map[string]string{
+			"target":           target.Name,
+			"max_source_bytes": strconv.Itoa(budget.maxSourceBytes),
+			"max_tokens":       strconv.Itoa(budget.maxTokens),
+			"max_windows":      strconv.Itoa(budget.maxWindows),
+		},
+	}
+}
+
+func detectCloneCandidates(docs []cloneDocument, threshold int, maxWindows int) ([]cloneCandidate, bool) {
+	index, truncated := cloneWindowIndexBounded(docs, threshold, maxWindows)
 	candidates := collectCloneCandidates(index, docs, threshold)
 	sortCloneCandidates(candidates, docs)
-	return candidates
+	return candidates, truncated
 }
 
 // cloneWindowMultiplier is the odd multiplier for the polynomial rolling
@@ -95,7 +155,7 @@ const (
 // normalized tokens), and unequal windows that collide are discarded by the
 // token-by-token verification in sharedCloneLength, so the resulting clone
 // candidates are identical to the old per-window byte hashing.
-func cloneWindowIndex(docs []cloneDocument, threshold int) cloneIndex {
+func cloneWindowIndexBounded(docs []cloneDocument, threshold int, maxOccurrences int) (cloneIndex, bool) {
 	index := make(cloneIndex)
 	hasWindow := false
 	for _, doc := range docs {
@@ -105,7 +165,10 @@ func cloneWindowIndex(docs []cloneDocument, threshold int) cloneIndex {
 		}
 	}
 	if !hasWindow {
-		return index
+		return index, false
+	}
+	if maxOccurrences <= 0 {
+		return index, true
 	}
 	// top = multiplier^(threshold-1), the weight of the token leaving the
 	// window on each slide.
@@ -113,6 +176,7 @@ func cloneWindowIndex(docs []cloneDocument, threshold int) cloneIndex {
 	for i := 0; i < threshold-1; i++ {
 		top *= cloneWindowMultiplier
 	}
+	occurrences := 0
 	for docIdx, doc := range docs {
 		if len(doc.Tokens) < threshold {
 			continue
@@ -121,13 +185,21 @@ func cloneWindowIndex(docs []cloneDocument, threshold int) cloneIndex {
 		for i := 0; i < threshold; i++ {
 			hash = hash*cloneWindowMultiplier + doc.Tokens[i].Hash
 		}
+		if occurrences >= maxOccurrences {
+			return index, true
+		}
 		index[hash] = append(index[hash], cloneOccurrence{DocIndex: docIdx, TokenIndex: 0})
+		occurrences++
 		for tokenIdx := 1; tokenIdx+threshold <= len(doc.Tokens); tokenIdx++ {
+			if occurrences >= maxOccurrences {
+				return index, true
+			}
 			hash = (hash-doc.Tokens[tokenIdx-1].Hash*top)*cloneWindowMultiplier + doc.Tokens[tokenIdx+threshold-1].Hash
 			index[hash] = append(index[hash], cloneOccurrence{DocIndex: docIdx, TokenIndex: tokenIdx})
+			occurrences++
 		}
 	}
-	return index
+	return index, false
 }
 
 func collectCloneCandidates(index cloneIndex, docs []cloneDocument, threshold int) []cloneCandidate {

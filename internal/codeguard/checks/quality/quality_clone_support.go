@@ -64,10 +64,18 @@ func cloneIncludeForLanguage(language string) func(string) bool {
 	}
 }
 
-func tokenizeNormalizedCloneText(source string) []cloneToken {
-	matches := cloneTokenPattern.FindAllStringIndex(source, -1)
+func tokenizeNormalizedCloneTextBounded(source string, maxTokens int) ([]cloneToken, bool) {
+	matchLimit := maxTokens
+	if maxTokens >= 0 {
+		matchLimit++
+	}
+	matches := cloneTokenPattern.FindAllStringIndex(source, matchLimit)
 	if len(matches) == 0 {
-		return nil
+		return nil, false
+	}
+	truncated := maxTokens >= 0 && len(matches) > maxTokens
+	if truncated {
+		matches = matches[:maxTokens]
 	}
 	tokens := make([]cloneToken, 0, len(matches))
 	line := 1
@@ -82,7 +90,7 @@ func tokenizeNormalizedCloneText(source string) []cloneToken {
 		tokens = append(tokens, cloneToken{Value: value, Hash: cloneTokenHash(value), Line: line})
 		prev = match[1]
 	}
-	return tokens
+	return tokens, truncated
 }
 
 // FNV-1a constants (hash/fnv is not used directly so token hashing can fold

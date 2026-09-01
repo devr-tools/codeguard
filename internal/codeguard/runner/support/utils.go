@@ -17,6 +17,7 @@ import (
 // are far smaller than this; oversized inputs are almost always generated blobs
 // or vendored bundles that are not useful to scan.
 const maxScanFileBytes = 32 << 20 // 32 MiB
+const maxScanFileCount = 100_000
 
 func SummarizeSections(sections []core.SectionResult) core.ReportSummary {
 	var summary core.ReportSummary
@@ -36,7 +37,13 @@ func SummarizeSections(sections []core.SectionResult) core.ReportSummary {
 }
 
 func WalkFiles(root string, excludes []string, include func(string) bool) ([]string, error) {
+	files, _, err := walkFilesBounded(root, excludes, include, maxScanFileCount)
+	return files, err
+}
+
+func walkFilesBounded(root string, excludes []string, include func(string) bool, maxFiles int) ([]string, bool, error) {
 	var files []string
+	truncated := false
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -67,11 +74,15 @@ func WalkFiles(root string, excludes []string, include func(string) bool) ([]str
 			return nil
 		}
 		if include(rel) {
+			if len(files) >= maxFiles {
+				truncated = true
+				return fs.SkipAll
+			}
 			files = append(files, rel)
 		}
 		return nil
 	})
-	return files, err
+	return files, truncated, err
 }
 
 // CountLines reports how many lines data spans without allocating. It
