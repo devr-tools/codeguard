@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.9.0](https://github.com/devr-tools/codeguard/compare/v1.8.3...v1.9.0) (2026-09-01)
+
+
+### Features
+
+* **scanner:** support bounded vendored source scans ([11e8b3e](https://github.com/devr-tools/codeguard/commit/11e8b3e8b0cbbdb0d0a773bc13998930f8ef9c85))
+
+
+### Bug Fixes
+
+* **ci:** document safe test profile read ([cc307b2](https://github.com/devr-tools/codeguard/commit/cc307b23868aeb69ddff56b4782d1243680a592c))
+* **scanner:** bound and accelerate full scans ([fad10f2](https://github.com/devr-tools/codeguard/commit/fad10f29a77fbacd30777b1d6809088105dbe3e7))
+* **scanner:** bound memory and accelerate full scans ([#174](https://github.com/devr-tools/codeguard/issues/174)) ([24cb12c](https://github.com/devr-tools/codeguard/commit/24cb12ca53e13fc7fd011d62263b94ebf5e1c6e3))
+
 ## [1.8.3](https://github.com/devr-tools/codeguard/compare/v1.8.2...v1.8.3) (2026-08-30)
 
 
