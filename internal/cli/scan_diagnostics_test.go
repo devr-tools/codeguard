@@ -35,7 +35,7 @@ func TestWriteHeapProfileCreatesUsableProfile(t *testing.T) {
 	if err := writeHeapProfile(path); err != nil {
 		t.Fatalf("write heap profile: %v", err)
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // test-owned path under t.TempDir
 	if err != nil {
 		t.Fatalf("read heap profile: %v", err)
 	}
