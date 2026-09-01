@@ -3,10 +3,12 @@ package cli
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
@@ -58,16 +60,20 @@ func parseScanMode(mode string) (service.ScanMode, error) {
 	return scanMode, nil
 }
 
-func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string, targetPath string, enableAI bool, includeSuppressed bool) error {
-	report, err := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
+func executeScan(stdout io.Writer, stderr io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string, targetPath string, enableAI bool, includeSuppressed bool, heapProfilePath string) error {
+	monitor := newScanMonitor(stderr, time.Now())
+	stopMonitoring := startScanMonitoring(monitor, strings.TrimSpace(heapProfilePath), scanHeartbeatInterval)
+	report, scanErr := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
 		Mode:              scanMode,
 		BaseRef:           baseRef,
 		TargetPath:        targetPath,
 		EnableAI:          enableAI,
 		IncludeSuppressed: includeSuppressed,
+		OnSectionComplete: monitor.writeSectionComplete,
 	})
-	if err != nil {
-		return err
+	monitorErr := stopMonitoring()
+	if scanErr != nil {
+		return scanErr
 	}
 	if err := writeScanMetadata(stdout, cfg.Output.Format, scanMode, baseRef); err != nil {
 		return err
@@ -76,10 +82,11 @@ func executeScan(stdout io.Writer, cfg service.Config, scanMode service.ScanMode
 		return fmt.Errorf("write report: %w", err)
 	}
 	writePerformanceUpgradeHint(stdout, cfg)
+	var findingsErr error
 	if report.Summary.FailedSections > 0 {
-		return fmt.Errorf("one or more sections failed")
+		findingsErr = fmt.Errorf("one or more sections failed")
 	}
-	return nil
+	return errors.Join(findingsErr, monitorErr)
 }
 
 func scanTargetPath(folderPath string, pathAlias string) (string, error) {

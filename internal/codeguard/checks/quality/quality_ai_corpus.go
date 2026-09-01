@@ -29,7 +29,10 @@ func listAITargetFiles(env support.Context, target core.TargetConfig, include fu
 		}
 		return files
 	}
-	files, err := runnersupport.WalkFiles(target.Path, env.Config.Exclude, include)
+	files, err := runnersupport.WalkFilesWithOptions(target.Path, env.Config.Exclude, runnersupport.FileWalkOptions{
+		LogicalPath:        target.LogicalPath,
+		ScanVendoredSource: env.Config.ScanVendoredSource,
+	}, include)
 	if err != nil {
 		return nil
 	}

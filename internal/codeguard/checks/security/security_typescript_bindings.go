@@ -13,9 +13,46 @@ var (
 	tsDefaultImportPattern    = regexp.MustCompile(`(?m)^\s*import\s+([A-Za-z_$][\w$]*)\s*from\s*["'](?:node:)?%s["']`)
 	tsNamedRequirePattern     = regexp.MustCompile(`(?m)^\s*(?:const|let|var)\s+{\s*([^}]+)\s*}\s*=\s*require\(\s*["'](?:node:)?%s["']\s*\)`)
 	tsNamespaceRequirePattern = regexp.MustCompile(`(?m)^\s*(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*require\(\s*["'](?:node:)?%s["']\s*\)`)
+	tsFixedModulePatterns     = buildTypeScriptFixedModulePatterns()
 )
 
+type typeScriptModulePatternKey struct {
+	template *regexp.Regexp
+	module   string
+}
+
+// buildTypeScriptFixedModulePatterns compiles the small, closed set of module
+// patterns used by the scanner once. Runtime-derived module names deliberately
+// bypass this map so source text cannot grow a process-wide cache.
+func buildTypeScriptFixedModulePatterns() map[typeScriptModulePatternKey]*regexp.Regexp {
+	patterns := []*regexp.Regexp{
+		tsNamedImportPattern,
+		tsNamespaceImportPattern,
+		tsDefaultImportPattern,
+		tsNamedRequirePattern,
+		tsNamespaceRequirePattern,
+	}
+	cache := make(map[typeScriptModulePatternKey]*regexp.Regexp, len(patterns)*2)
+	for _, module := range []string{"child_process", "vm"} {
+		for _, pattern := range patterns {
+			key := typeScriptModulePatternKey{template: pattern, module: module}
+			cache[key] = compileDynamicPattern(strings.ReplaceAll(pattern.String(), "%s", regexp.QuoteMeta(module)))
+		}
+	}
+	return cache
+}
+
+func typeScriptModulePattern(pattern *regexp.Regexp, module string) *regexp.Regexp {
+	if compiled := tsFixedModulePatterns[typeScriptModulePatternKey{template: pattern, module: module}]; compiled != nil {
+		return compiled
+	}
+	return compileDynamicPattern(strings.ReplaceAll(pattern.String(), "%s", regexp.QuoteMeta(module)))
+}
+
 func collectTypeScriptNamedModuleBindings(source string, module string, allowed []string) map[string]string {
+	if !strings.Contains(source, module) {
+		return map[string]string{}
+	}
 	allowedSet := make(map[string]struct{}, len(allowed))
 	for _, name := range allowed {
 		allowedSet[name] = struct{}{}
@@ -31,9 +68,12 @@ func collectTypeScriptNamedModuleBindings(source string, module string, allowed 
 }
 
 func collectTypeScriptNamespaceBindings(source string, module string) map[string]struct{} {
+	if !strings.Contains(source, module) {
+		return map[string]struct{}{}
+	}
 	namespaces := make(map[string]struct{})
 	for _, pattern := range []*regexp.Regexp{tsNamespaceImportPattern, tsDefaultImportPattern, tsNamespaceRequirePattern} {
-		re := compileDynamicPattern(strings.ReplaceAll(pattern.String(), "%s", regexp.QuoteMeta(module)))
+		re := typeScriptModulePattern(pattern, module)
 		for _, match := range re.FindAllStringSubmatch(source, -1) {
 			if len(match) > 1 {
 				namespaces[match[1]] = struct{}{}
@@ -46,7 +86,7 @@ func collectTypeScriptNamespaceBindings(source string, module string) map[string
 func collectTypeScriptBindingSpecs(source string, module string, patterns ...*regexp.Regexp) []string {
 	specs := make([]string, 0)
 	for _, pattern := range patterns {
-		re := compileDynamicPattern(strings.ReplaceAll(pattern.String(), "%s", regexp.QuoteMeta(module)))
+		re := typeScriptModulePattern(pattern, module)
 		for _, match := range re.FindAllStringSubmatch(source, -1) {
 			if len(match) > 1 {
 				specs = append(specs, splitTypeScriptBindingSpecs(match[1])...)

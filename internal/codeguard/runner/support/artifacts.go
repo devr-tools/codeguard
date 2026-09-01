@@ -63,7 +63,7 @@ func (store *ArtifactStore) List() []core.Artifact {
 // graphs) always observe every file. It reuses the shared per-scan corpus, so
 // files are still walked and read only once across the whole scan.
 func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
-	files, _ := sc.corpusFiles(target.Path)
+	files, _ := sc.corpusFiles(target)
 	for _, file := range files {
 		if !include(file) {
 			continue
@@ -81,7 +81,7 @@ func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string)
 // VisitTargetFiles iterates). Callers apply their own include filter to the
 // result.
 func ListTargetFiles(sc Context, target core.TargetConfig) ([]string, error) {
-	return sc.corpusFiles(target.Path)
+	return sc.corpusFiles(target)
 }
 
 // ReadTargetFile returns the bytes of target-root-relative rel via the shared

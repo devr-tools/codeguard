@@ -1,6 +1,7 @@
 package support
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -11,6 +12,12 @@ import (
 	"sync"
 
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
+)
+
+var (
+	errCorpusReadBudget  = errors.New("scan corpus read budget exhausted")
+	errCorpusGoASTBudget = errors.New("scan corpus Go AST budget exhausted")
 )
 
 // readCappedFile reads path but refuses to buffer more than maxScanFileBytes,
@@ -43,15 +50,40 @@ func readCappedFile(path string) ([]byte, error) {
 // Each cached slot carries its own sync.Once, so concurrent callers racing on a
 // cold slot compute it exactly once and every caller observes the same result.
 type fileCorpus struct {
-	mu          sync.Mutex
-	targets     map[string]*targetListing
-	reads       map[string]*fileRead
-	asts        map[string]*goParse
-	scripts     map[string]*scriptParse
-	scriptBytes int
-	scriptCount int
-	scriptParse chan struct{}
+	mu              sync.Mutex
+	targets         map[string]*targetListing
+	maxFiles        int
+	reads           map[string]*fileRead
+	readBytes       int
+	maxReadBytes    int
+	maxReadEntries  int
+	readExhausted   bool
+	readWork        chan struct{}
+	readFile        func(string) ([]byte, error)
+	asts            map[string]*goParse
+	goASTBytes      int
+	maxGoASTBytes   int
+	maxGoASTEntries int
+	goASTExhausted  bool
+	goParseWork     chan struct{}
+	scripts         map[string]*scriptParse
+	scriptBytes     int
+	scriptCount     int
+	scriptParse     chan struct{}
+	diagnostics     []core.Diagnostic
+	diagnosticSeen  map[string]struct{}
 }
+
+// The corpus is an optimization, not the owner of repository contents. Bound
+// its retained source and Go AST working sets so a full scan can keep making
+// progress under GOMEMLIMIT instead of pinning every file until report output.
+// Once a budget is reached, later uncached work is skipped and surfaced as an
+// informational scan diagnostic rather than repeatedly allocating overflow
+// data in concurrent check sections.
+const maxCorpusReadBytes = 128 << 20
+const maxCorpusGoASTSourceBytes = 64 << 20
+const maxCorpusReadEntries = 50_000
+const maxCorpusGoASTEntries = 25_000
 
 // maxTreeSitterScanBytes bounds the source represented by retained script
 // trees during one scan. Parsing is also serialized because the pure-Go
@@ -86,19 +118,28 @@ type scriptParse struct {
 
 func newFileCorpus() *fileCorpus {
 	return &fileCorpus{
-		targets:     map[string]*targetListing{},
-		reads:       map[string]*fileRead{},
-		asts:        map[string]*goParse{},
-		scripts:     map[string]*scriptParse{},
-		scriptParse: make(chan struct{}, 1),
+		targets:         map[string]*targetListing{},
+		maxFiles:        maxScanFileCount,
+		reads:           map[string]*fileRead{},
+		maxReadBytes:    maxCorpusReadBytes,
+		maxReadEntries:  maxCorpusReadEntries,
+		readWork:        make(chan struct{}, 2),
+		readFile:        readCappedFile,
+		asts:            map[string]*goParse{},
+		maxGoASTBytes:   maxCorpusGoASTSourceBytes,
+		maxGoASTEntries: maxCorpusGoASTEntries,
+		goParseWork:     make(chan struct{}, 2),
+		scripts:         map[string]*scriptParse{},
+		scriptParse:     make(chan struct{}, 1),
+		diagnosticSeen:  make(map[string]struct{}),
 	}
 }
 
 // list returns every non-excluded file under root, walking the tree only once
 // per target. Callers apply their own include filter to the returned slice; the
 // walk itself is identical regardless of the filter, so sharing it is safe.
-func (c *fileCorpus) list(root string, excludes []string) ([]string, error) {
-	key := filepath.Clean(root)
+func (c *fileCorpus) list(root string, excludes []string, opts FileWalkOptions) ([]string, error) {
+	key := fmt.Sprintf("%s\x00%s\x00%t", filepath.Clean(root), opts.LogicalPath, opts.ScanVendoredSource)
 	c.mu.Lock()
 	entry, ok := c.targets[key]
 	if !ok {
@@ -108,7 +149,11 @@ func (c *fileCorpus) list(root string, excludes []string) ([]string, error) {
 	c.mu.Unlock()
 
 	entry.once.Do(func() {
-		entry.files, entry.err = WalkFiles(root, excludes, includeAll)
+		var truncated bool
+		entry.files, truncated, entry.err = walkFilesBounded(root, excludes, opts, includeAll, c.maxFiles)
+		if truncated {
+			c.recordBudget("files", c.maxFiles)
+		}
 	})
 	return entry.files, entry.err
 }
@@ -119,13 +164,36 @@ func (c *fileCorpus) read(root string, rel string) ([]byte, error) {
 	c.mu.Lock()
 	entry, ok := c.reads[key]
 	if !ok {
+		if c.readExhausted || len(c.reads) >= c.maxReadEntries {
+			c.readExhausted = true
+			c.recordBudgetLocked("read_entries", c.maxReadEntries)
+			c.mu.Unlock()
+			return nil, errCorpusReadBudget
+		}
 		entry = &fileRead{}
 		c.reads[key] = entry
 	}
 	c.mu.Unlock()
 
 	entry.once.Do(func() {
-		entry.data, entry.err = readCappedFile(filepath.Join(root, rel))
+		c.readWork <- struct{}{}
+		entry.data, entry.err = c.readFile(filepath.Join(root, rel))
+		<-c.readWork
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if entry.err == nil && c.readBytes+len(entry.data) <= c.maxReadBytes {
+			c.readBytes += len(entry.data)
+			return
+		}
+		if entry.err == nil {
+			entry.data = nil
+			entry.err = errCorpusReadBudget
+			c.readExhausted = true
+			c.recordBudgetLocked("read_bytes", c.maxReadBytes)
+		}
+		if c.reads[key] == entry {
+			delete(c.reads, key)
+		}
 	})
 	return entry.data, entry.err
 }
@@ -140,17 +208,64 @@ func (c *fileCorpus) parseGo(path string, data []byte) (*token.FileSet, *ast.Fil
 	c.mu.Lock()
 	entry, ok := c.asts[key]
 	if !ok {
+		if c.goASTExhausted || len(c.asts) >= c.maxGoASTEntries || c.goASTBytes+len(data) > c.maxGoASTBytes {
+			c.goASTExhausted = true
+			if len(c.asts) >= c.maxGoASTEntries {
+				c.recordBudgetLocked("go_ast_entries", c.maxGoASTEntries)
+			} else {
+				c.recordBudgetLocked("go_ast_bytes", c.maxGoASTBytes)
+			}
+			c.mu.Unlock()
+			return nil, nil, errCorpusGoASTBudget
+		}
 		entry = &goParse{}
 		c.asts[key] = entry
+		c.goASTBytes += len(data)
 	}
 	c.mu.Unlock()
 
 	entry.once.Do(func() {
+		c.goParseWork <- struct{}{}
+		defer func() { <-c.goParseWork }()
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, path, data, parser.ParseComments)
 		entry.fset, entry.file, entry.err = fset, file, err
 	})
 	return entry.fset, entry.file, entry.err
+}
+
+func (c *fileCorpus) recordBudget(kind string, limit int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.recordBudgetLocked(kind, limit)
+}
+
+func (c *fileCorpus) recordBudgetLocked(kind string, limit int) {
+	if _, exists := c.diagnosticSeen[kind]; exists {
+		return
+	}
+	c.diagnosticSeen[kind] = struct{}{}
+	c.diagnostics = append(c.diagnostics, core.Diagnostic{
+		ID:      "scan.corpus-budget",
+		Level:   "info",
+		Kind:    "analysis",
+		Message: "repository analysis reached a bounded corpus budget; remaining uncached work was skipped",
+		Metadata: map[string]string{
+			"budget": kind,
+			"limit":  fmt.Sprintf("%d", limit),
+		},
+	})
+}
+
+func (c *fileCorpus) takeDiagnostics() []core.Diagnostic {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	diagnostics := append([]core.Diagnostic(nil), c.diagnostics...)
+	c.diagnostics = nil
+	return diagnostics
 }
 
 // parseScript returns a shared tree-sitter syntax tree for the given script

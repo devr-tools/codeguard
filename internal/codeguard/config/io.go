@@ -210,6 +210,7 @@ func resolveRelativePaths(cfg *core.Config, baseDir string) {
 		if targetPath == "" || filepath.IsAbs(targetPath) {
 			continue
 		}
+		cfg.Targets[i].LogicalPath = filepath.ToSlash(filepath.Clean(targetPath))
 		cfg.Targets[i].Path = filepath.Join(baseDir, targetPath)
 	}
 }

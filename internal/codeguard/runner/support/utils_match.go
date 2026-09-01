@@ -32,10 +32,29 @@ func IsSDKFacadeFile(path string) bool {
 }
 
 func ShouldExclude(rel string, excludes []string) bool {
+	return shouldExclude(rel, excludes, FileWalkOptions{})
+}
+
+func shouldExclude(rel string, excludes []string, opts FileWalkOptions) bool {
+	if isDefaultDependencyOrBuildPath(rel, opts.ScanVendoredSource) {
+		return true
+	}
 	defaults := []string{".git/**", ".gocache/**", ".gomodcache/**", ".codeguard/**", "dist/**"}
 	for _, pattern := range append(defaults, excludes...) {
 		if MatchPattern(pattern, rel) {
 			return true
+		}
+	}
+	return false
+}
+
+func isDefaultDependencyOrBuildPath(rel string, scanVendoredSource bool) bool {
+	for _, segment := range strings.Split(filepath.ToSlash(rel), "/") {
+		switch segment {
+		case "node_modules", "cdk.out":
+			return true
+		case "vendor":
+			return !scanVendoredSource
 		}
 	}
 	return false

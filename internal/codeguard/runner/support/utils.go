@@ -17,6 +17,12 @@ import (
 // are far smaller than this; oversized inputs are almost always generated blobs
 // or vendored bundles that are not useful to scan.
 const maxScanFileBytes = 32 << 20 // 32 MiB
+const maxScanFileCount = 100_000
+
+type FileWalkOptions struct {
+	LogicalPath        string
+	ScanVendoredSource bool
+}
 
 func SummarizeSections(sections []core.SectionResult) core.ReportSummary {
 	var summary core.ReportSummary
@@ -36,12 +42,26 @@ func SummarizeSections(sections []core.SectionResult) core.ReportSummary {
 }
 
 func WalkFiles(root string, excludes []string, include func(string) bool) ([]string, error) {
+	return WalkFilesWithOptions(root, excludes, FileWalkOptions{}, include)
+}
+
+func WalkFilesWithOptions(root string, excludes []string, opts FileWalkOptions, include func(string) bool) ([]string, error) {
+	files, _, err := walkFilesBounded(root, excludes, opts, include, maxScanFileCount)
+	return files, err
+}
+
+func walkFilesBounded(root string, excludes []string, opts FileWalkOptions, include func(string) bool, maxFiles int) ([]string, bool, error) {
 	var files []string
+	truncated := false
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if path == root {
+			logicalRoot := filepath.ToSlash(filepath.Clean(opts.LogicalPath))
+			if logicalRoot != "." && shouldExclude(logicalRoot, excludes, opts) {
+				return fs.SkipAll
+			}
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)
@@ -49,7 +69,9 @@ func WalkFiles(root string, excludes []string, include func(string) bool) ([]str
 			return err
 		}
 		rel = filepath.ToSlash(rel)
-		if ShouldExclude(rel, excludes) {
+		logicalRel := joinLogicalPath(opts.LogicalPath, rel)
+		if shouldExclude(rel, excludes, opts) ||
+			(logicalRel != rel && shouldExclude(logicalRel, excludes, opts)) {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -67,11 +89,15 @@ func WalkFiles(root string, excludes []string, include func(string) bool) ([]str
 			return nil
 		}
 		if include(rel) {
+			if len(files) >= maxFiles {
+				truncated = true
+				return fs.SkipAll
+			}
 			files = append(files, rel)
 		}
 		return nil
 	})
-	return files, err
+	return files, truncated, err
 }
 
 // CountLines reports how many lines data spans without allocating. It

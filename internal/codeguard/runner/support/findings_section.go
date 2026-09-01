@@ -99,6 +99,9 @@ func FinalizeSection(sc Context, id string, name string, findings []core.Finding
 }
 
 func FinalizeSectionWithDiagnostics(sc Context, id string, name string, findings []core.Finding, diagnostics []core.Diagnostic) core.SectionResult {
+	if sc.corpus != nil {
+		diagnostics = append(diagnostics, sc.corpus.takeDiagnostics()...)
+	}
 	section := core.SectionResult{ID: id, Name: name, Status: core.StatusPass}
 	active := make([]core.Finding, 0, len(findings))
 	for _, finding := range findings {

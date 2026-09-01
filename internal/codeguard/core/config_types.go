@@ -12,10 +12,13 @@ type Config struct {
 	ExternalReports []ExternalReportConfig `json:"external_reports,omitempty" yaml:"external_reports,omitempty"`
 	Output          OutputConfig           `json:"output" yaml:"output"`
 	Exclude         []string               `json:"exclude,omitempty" yaml:"exclude,omitempty"`
-	Baseline        BaselineConfig         `json:"baseline,omitempty" yaml:"baseline,omitempty"`
-	Waivers         []WaiverConfig         `json:"waivers,omitempty" yaml:"waivers,omitempty"`
-	Cache           CacheConfig            `json:"cache,omitempty" yaml:"cache,omitempty"`
-	Parsers         ParsersConfig          `json:"parsers,omitempty" yaml:"parsers,omitempty"`
+	// ScanVendoredSource includes source beneath directories named vendor.
+	// Installed node_modules and generated cdk.out trees remain excluded.
+	ScanVendoredSource bool           `json:"scan_vendored_source,omitempty" yaml:"scan_vendored_source,omitempty"`
+	Baseline           BaselineConfig `json:"baseline,omitempty" yaml:"baseline,omitempty"`
+	Waivers            []WaiverConfig `json:"waivers,omitempty" yaml:"waivers,omitempty"`
+	Cache              CacheConfig    `json:"cache,omitempty" yaml:"cache,omitempty"`
+	Parsers            ParsersConfig  `json:"parsers,omitempty" yaml:"parsers,omitempty"`
 }
 
 // ExternalReportConfig describes a report file produced by another scanner.
@@ -56,6 +59,9 @@ type TargetConfig struct {
 	Path        string   `json:"path" yaml:"path"`
 	Language    string   `json:"language" yaml:"language"`
 	Entrypoints []string `json:"entrypoints,omitempty" yaml:"entrypoints,omitempty"`
+	// LogicalPath preserves the target's repository-relative path when a
+	// folder-scoped scan replaces Path with a narrower filesystem root.
+	LogicalPath string `json:"-" yaml:"-"`
 }
 
 type CheckConfig struct {
