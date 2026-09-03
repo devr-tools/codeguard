@@ -215,6 +215,22 @@ JSON:
 }
 ```
 
+### Config provenance
+
+Every config codeguard writes (`codeguard init`, `WriteConfigFile`) records the
+release that produced it as a top-level `codeguard_version`. Loading reports
+what the file says rather than the running binary, so a config written by a
+different release is visible on inspection.
+
+The stamp is provenance only: it is never validated, so a config written by an
+older or newer release always loads, and it is excluded from the per-file cache
+fingerprints, so a release upgrade does not discard cached findings.
+
+```yaml
+codeguard_version: v1.9.0
+name: my-repo
+```
+
 ### Minimum confidence policy
 
 Drop findings the scanner is not confident enough about, globally or per

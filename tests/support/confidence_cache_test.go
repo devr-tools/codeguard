@@ -53,3 +53,24 @@ func TestSectionConfigHashesStillTrackFindingRelevantSettings(t *testing.T) {
 		t.Fatal("changing parsers.treesitter must change the security fingerprint")
 	}
 }
+
+// The codeguard version stamp is provenance, not a scan input: it must not
+// change any per-file cache fingerprint, or every release upgrade would
+// silently discard every cached finding.
+func TestVersionStampDoesNotInvalidateCachedFindings(t *testing.T) {
+	catalog := map[string]core.RuleMetadata{
+		"security.demo": {ID: "security.demo", Section: "Security", DefaultLevel: "fail"},
+	}
+	base := core.Config{Name: "cache"}
+	baseline := runnersupport.SectionConfigHashes(base, catalog)
+
+	stamped := base
+	stamped.CodeguardVersion = "99.0.0"
+	changed := runnersupport.SectionConfigHashes(stamped, catalog)
+
+	for family, want := range baseline {
+		if got := changed[family]; got != want {
+			t.Fatalf("config fingerprint for family %q changed with the version stamp; cached findings would be discarded", family)
+		}
+	}
+}

@@ -1,12 +1,17 @@
 package core
 
 type Config struct {
-	Name      string           `json:"name" yaml:"name"`
-	Profile   string           `json:"profile,omitempty" yaml:"profile,omitempty"`
-	Targets   []TargetConfig   `json:"targets" yaml:"targets"`
-	Checks    CheckConfig      `json:"checks" yaml:"checks"`
-	AI        AIConfig         `json:"ai,omitempty" yaml:"ai,omitempty"`
-	RulePacks []RulePackConfig `json:"rule_packs,omitempty" yaml:"rule_packs,omitempty"`
+	// CodeguardVersion records which codeguard release last wrote this file.
+	// It is stamped on write and never validated: a config written by an older
+	// or newer release must always still load, so the field is provenance for
+	// a human reading the file, not a compatibility gate.
+	CodeguardVersion string           `json:"codeguard_version,omitempty" yaml:"codeguard_version,omitempty"`
+	Name             string           `json:"name" yaml:"name"`
+	Profile          string           `json:"profile,omitempty" yaml:"profile,omitempty"`
+	Targets          []TargetConfig   `json:"targets" yaml:"targets"`
+	Checks           CheckConfig      `json:"checks" yaml:"checks"`
+	AI               AIConfig         `json:"ai,omitempty" yaml:"ai,omitempty"`
+	RulePacks        []RulePackConfig `json:"rule_packs,omitempty" yaml:"rule_packs,omitempty"`
 	// ExternalReports imports findings produced by already-run scanners. CodeGuard
 	// only reads these files; it never executes the configured tools.
 	ExternalReports []ExternalReportConfig `json:"external_reports,omitempty" yaml:"external_reports,omitempty"`
