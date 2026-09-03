@@ -43,7 +43,7 @@ func SectionConfigHashes(cfg core.Config, catalog map[string]core.RuleMetadata, 
 	// v4: findings gained ContentFingerprint, so cached per-file findings need
 	// to be regenerated with the path-insensitive fingerprint.
 	prefix := "section-config-v4|" + strings.Join(extras, "|") + "|"
-	checks := cfg.Checks
+	checks := findingRelevantChecks(cfg.Checks)
 	return map[string]string{
 		// quality reads both QualityRules and DesignRules, and its AI-quality
 		// findings depend on the AI config. quality, performance, and security
@@ -58,6 +58,18 @@ func SectionConfigHashes(cfg core.Config, catalog map[string]core.RuleMetadata, 
 		"contracts":   sectionFingerprint(prefix, "contracts", catalog, checks.ContractRules),
 		"":            sectionFingerprint(prefix, "all", catalog, cfg.AI, checks, cfg.Parsers),
 	}
+}
+
+// findingRelevantChecks strips settings that cannot change any per-file
+// finding, so they never invalidate cached findings. The minimum-confidence
+// policy and confidence demotion are applied when a section is finalized —
+// after the cache — so a threshold change re-renders a scan rather than
+// re-running one, including for sections that fall back to the all-checks
+// fingerprint.
+func findingRelevantChecks(checks core.CheckConfig) core.CheckConfig {
+	checks.MinConfidence = core.ConfidencePolicyConfig{}
+	checks.ConfidenceDemotion = false
+	return checks
 }
 
 // sectionConfigFamily maps a per-file cache section id to the config family

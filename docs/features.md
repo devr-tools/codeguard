@@ -215,6 +215,48 @@ JSON:
 }
 ```
 
+### Minimum confidence policy
+
+Drop findings the scanner is not confident enough about, globally or per
+section, and optionally report low-confidence failures as warnings. Omitting
+the block admits every finding, which is the default behavior. Section keys are
+the ids reported in scan output (the same names `checks.disabled` accepts).
+
+Both settings are applied when a section is finalized, after the per-file
+findings cache, so changing a threshold re-renders a scan rather than
+re-running one, and neither changes a finding's fingerprint or its baseline
+match. Every removed finding is counted per rule as `confidence_filtered` and
+per section as `confidence_filtered_count`.
+
+YAML:
+
+```yaml
+checks:
+  min_confidence:
+    default: medium
+    sections:
+      security: high
+      quality: low
+  confidence_demotion: true
+```
+
+JSON:
+
+```json
+{
+  "checks": {
+    "min_confidence": {
+      "default": "medium",
+      "sections": {
+        "security": "high",
+        "quality": "low"
+      }
+    },
+    "confidence_demotion": true
+  }
+}
+```
+
 ### Enable AI change risk
 
 YAML:

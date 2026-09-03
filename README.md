@@ -14,7 +14,7 @@
 
 `codeguard` is a standalone Go service and CLI for repository checks across code quality, production reliability, data correctness, design boundaries, security, CI/CD hygiene, AI prompt governance, and repo-specific policy rules.
 
-It now supports repository exclusions, baselines, waivers, changed-lines diff scans, SARIF output, GitHub annotations, custom rule packs, natural-language custom rules through an optional AI runtime, policy profiles, scan caching, doctor checks, rule discovery from the CLI, native TypeScript/Python quality, design, security, reliability, and data-correctness heuristics, and language-specific command checks.
+It now supports repository exclusions, baselines, waivers, changed-lines diff scans, SARIF output, GitHub annotations, custom rule packs, natural-language custom rules through an optional AI runtime, policy profiles, per-section minimum-confidence policy, scan caching, doctor checks, rule discovery from the CLI, native TypeScript/Python quality, design, security, reliability, and data-correctness heuristics, and language-specific command checks.
 
 For a user-facing glossary of every check family and subsection, see [docs/checks.md](docs/checks.md).
 

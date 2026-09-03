@@ -13,4 +13,18 @@ type TargetConfig = core.TargetConfig
 type CheckConfig = core.CheckConfig
 
 type ParsersConfig = core.ParsersConfig
+
+// ConfidencePolicyConfig is the minimum-confidence policy applied to findings,
+// with one default level and optional per-section overrides.
+type ConfidencePolicyConfig = core.ConfidencePolicyConfig
+
+// Confidence levels a finding can carry, and the values accepted by
+// checks.min_confidence. An empty confidence must be read as medium rather than
+// as a weak finding: it means the check did not state one.
+const (
+	ConfidenceHigh   = core.ConfidenceHigh
+	ConfidenceMedium = core.ConfidenceMedium
+	ConfidenceLow    = core.ConfidenceLow
+)
+
 type ExternalReportConfig = core.ExternalReportConfig

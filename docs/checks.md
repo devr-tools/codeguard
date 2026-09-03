@@ -426,6 +426,29 @@ Tree-sitter parsing (opt-in):
 - oversized files (> 256 KiB), parse failures, and error-heavy trees fall
   back to the regex path per file
 
+Confidence policy (opt-in):
+- every finding carries a confidence of `high`, `medium`, or `low`; an
+  unspecified confidence is treated as `medium`. Structural analyses set
+  `high` (source-to-sink taint, tree-sitter rule paths), while regex line
+  scans generally leave it unspecified
+- `checks.min_confidence.default` drops findings below the given level, and
+  `checks.min_confidence.sections.<section>` overrides it for one section.
+  Section keys are the ids reported in scan output and accepted by
+  `checks.disabled` (supply chain is `supply_chain`). Omitting the block, or
+  setting `low`, admits every finding — the default behavior
+- removed findings are never silent: each is counted per rule as
+  `confidence_filtered` in the `rule_stats` artifact, reported per section as
+  `confidence_filtered_count`, and listed with reason `confidence` under
+  `--include-suppressed`. They are excluded from `suppression_ratio`, which
+  keeps meaning "findings teams work around"
+- `checks.confidence_demotion: true` reports a `low`-confidence finding on a
+  failing rule as a warning instead. It never promotes and never applies to
+  `medium` or `high`. Off by default
+- filtering and demotion are applied when a section is finalized, after the
+  per-file findings cache, so changing either setting re-renders a scan
+  instead of re-running one, and neither affects a finding's fingerprint or
+  its baseline match
+
 ## Quality
 
 Purpose:
