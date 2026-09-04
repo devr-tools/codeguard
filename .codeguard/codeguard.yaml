@@ -1,3 +1,4 @@
+codeguard_version: v1.9.0
 name: codeguard-repo-ci
 exclude:
   - .claude/**

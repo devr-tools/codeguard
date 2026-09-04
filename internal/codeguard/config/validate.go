@@ -44,6 +44,7 @@ func Validate(cfg core.Config) error {
 		validatePerformanceRules(cfg.Checks.PerformanceRules),
 		validateSecretsRules(cfg.Checks.SecurityRules.Secrets),
 		validateParsers(cfg.Parsers),
+		validateConfidencePolicy(cfg.Checks.MinConfidence),
 		validateRulePacks(cfg.RulePacks),
 		validateExternalReports(cfg.ExternalReports),
 	)
@@ -139,6 +140,27 @@ func validateParsers(parsers core.ParsersConfig) error {
 	default:
 		return fmt.Errorf("parsers.treesitter must be %q or %q", core.TreeSitterModeOff, core.TreeSitterModeAuto)
 	}
+}
+
+// validateConfidencePolicy rejects unknown confidence levels and unknown
+// section keys. An empty level is "unspecified" and stays valid, so a config may
+// name a section without pinning it.
+func validateConfidencePolicy(policy core.ConfidencePolicyConfig) error {
+	if strings.TrimSpace(policy.Default) != "" && core.NormalizedConfidence(policy.Default) == "" {
+		return fmt.Errorf("checks.min_confidence.default must be %q, %q, or %q",
+			core.ConfidenceLow, core.ConfidenceMedium, core.ConfidenceHigh)
+	}
+	for section, level := range policy.Sections {
+		if !core.KnownSectionKey(section) {
+			return fmt.Errorf("checks.min_confidence.sections has unknown section %q; known sections are %s",
+				section, strings.Join(core.SectionKeys(), ", "))
+		}
+		if strings.TrimSpace(level) != "" && core.NormalizedConfidence(level) == "" {
+			return fmt.Errorf("checks.min_confidence.sections[%q] must be %q, %q, or %q",
+				section, core.ConfidenceLow, core.ConfidenceMedium, core.ConfidenceHigh)
+		}
+	}
+	return nil
 }
 
 func validateNameAndProfile(cfg core.Config) error {

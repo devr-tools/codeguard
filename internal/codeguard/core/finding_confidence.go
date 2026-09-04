@@ -26,3 +26,36 @@ func NormalizedConfidence(value string) string {
 		return ""
 	}
 }
+
+// Confidence ranks, ordered so a higher rank is more trustworthy. Unspecified
+// confidence ranks as medium, matching how consumers are documented to treat
+// an empty value.
+const (
+	confidenceRankLow = iota + 1
+	confidenceRankMedium
+	confidenceRankHigh
+)
+
+// ConfidenceRank maps a confidence value onto its comparable rank. Empty and
+// unrecognized values rank as medium.
+func ConfidenceRank(value string) int {
+	switch NormalizedConfidence(value) {
+	case ConfidenceHigh:
+		return confidenceRankHigh
+	case ConfidenceLow:
+		return confidenceRankLow
+	default:
+		return confidenceRankMedium
+	}
+}
+
+// MeetsConfidence reports whether a finding's confidence satisfies a minimum
+// threshold. An empty or unrecognized threshold admits every finding, so an
+// unconfigured policy cannot filter anything.
+func MeetsConfidence(confidence string, threshold string) bool {
+	normalized := NormalizedConfidence(threshold)
+	if normalized == "" {
+		return true
+	}
+	return ConfidenceRank(confidence) >= ConfidenceRank(normalized)
+}

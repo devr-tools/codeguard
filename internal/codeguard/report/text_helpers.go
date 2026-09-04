@@ -3,6 +3,7 @@ package report
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -83,6 +84,11 @@ func writeTextSection(w io.Writer, section core.SectionResult) error {
 			return err
 		}
 	}
+	if section.ConfidenceFilteredCount > 0 {
+		if _, err := fmt.Fprintf(w, "\n  confidence filtered: %d\n", section.ConfidenceFilteredCount); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -103,9 +109,17 @@ func groupTextFindings(findings []core.Finding) []textFindingGroup {
 	}
 	out := make([]textFindingGroup, 0, len(order))
 	for _, name := range order {
+		grouped := groups[name]
+		// Presentation only: the most trustworthy findings in a group are read
+		// first. The sort is stable, so equal-confidence findings keep scan
+		// order, and section.Findings itself is never reordered — machine
+		// surfaces such as JSON and SARIF keep exact scan order.
+		sort.SliceStable(grouped, func(i, j int) bool {
+			return core.ConfidenceRank(grouped[i].Confidence) > core.ConfidenceRank(grouped[j].Confidence)
+		})
 		out = append(out, textFindingGroup{
 			name:     name,
-			findings: groups[name],
+			findings: grouped,
 		})
 	}
 	return out
