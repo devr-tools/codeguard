@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.10.0](https://github.com/devr-tools/codeguard/compare/v1.9.0...v1.10.0) (2026-09-04)
+
+
+### Features
+
+* **config:** add a minimum-confidence policy for findings ([53c7e5d](https://github.com/devr-tools/codeguard/commit/53c7e5d2cabb1d45213a9cb54d0619d92f42b009))
+* **config:** minimum-confidence policy and config version stamp ([#178](https://github.com/devr-tools/codeguard/issues/178)) ([d9def6e](https://github.com/devr-tools/codeguard/commit/d9def6e847399c456078c6007ea907837f93f319))
+* **config:** stamp the codeguard version into written configs ([7d8ccd4](https://github.com/devr-tools/codeguard/commit/7d8ccd48898bbfec61ed0b34d5194146bb950e02))
+
 ## [1.9.0](https://github.com/devr-tools/codeguard/compare/v1.8.3...v1.9.0) (2026-09-01)
 
 
