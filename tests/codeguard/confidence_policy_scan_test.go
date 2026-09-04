@@ -19,9 +19,9 @@ func confidenceScanConfig(t testing.TB) codeguard.Config {
 	for i := 0; i < 6; i++ {
 		var src strings.Builder
 		src.WriteString("package repo\n\n")
-		src.WriteString(fmt.Sprintf("func Long%02d() int {\n", i))
+		fmt.Fprintf(&src, "func Long%02d() int {\n", i)
 		for line := 0; line < 12; line++ {
-			src.WriteString(fmt.Sprintf("\tv%d := %d\n\t_ = v%d\n", line, line, line))
+			fmt.Fprintf(&src, "\tv%d := %d\n\t_ = v%d\n", line, line, line)
 		}
 		src.WriteString("\treturn 0\n}\n")
 		path := filepath.Join(dir, fmt.Sprintf("file%02d.go", i))

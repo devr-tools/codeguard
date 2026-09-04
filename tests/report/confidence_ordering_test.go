@@ -2,6 +2,7 @@ package report_test
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -15,24 +16,12 @@ func orderingFinding(ruleID string, title string, line int, confidence string) c
 		Level:      "warn",
 		Severity:   "warn",
 		Section:    "Security",
-		Message:    "finding at line " + itoa(line),
-		Why:        "finding at line " + itoa(line),
+		Message:    "finding at line " + strconv.Itoa(line),
+		Why:        "finding at line " + strconv.Itoa(line),
 		Path:       "app/main.go",
 		Line:       line,
 		Confidence: confidence,
 	}
-}
-
-func itoa(value int) string {
-	digits := ""
-	if value == 0 {
-		return "0"
-	}
-	for value > 0 {
-		digits = string(rune('0'+value%10)) + digits
-		value /= 10
-	}
-	return digits
 }
 
 func renderText(t testing.TB, report codeguard.Report) string {
@@ -79,7 +68,7 @@ func TestTextReportOrdersFindingsByConfidenceWithinGroup(t *testing.T) {
 	}, 0))
 
 	positions := lineOrder(t, rendered, "line 20", "line 30", "line 10")
-	if !(positions[0] < positions[1] && positions[1] < positions[2]) {
+	if positions[0] >= positions[1] || positions[1] >= positions[2] {
 		t.Fatalf("findings not ordered high, medium, low:\n%s", rendered)
 	}
 }
@@ -93,7 +82,7 @@ func TestTextReportConfidenceSortIsStable(t *testing.T) {
 	}, 0))
 
 	positions := lineOrder(t, rendered, "line 30", "line 10", "line 20")
-	if !(positions[0] < positions[1] && positions[1] < positions[2]) {
+	if positions[0] >= positions[1] || positions[1] >= positions[2] {
 		t.Fatalf("equal-confidence findings were reordered:\n%s", rendered)
 	}
 }
