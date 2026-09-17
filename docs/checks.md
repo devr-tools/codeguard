@@ -1481,6 +1481,12 @@ Rules:
 | `supply_chain.cargo.missing-package-license` | Rust / Cargo manifests | always on when `checks.supply_chain` is enabled |
 | `supply_chain.cargo.non-hermetic-source` | Rust / Cargo manifests | always on when `checks.supply_chain` is enabled |
 
+Notes on lockfile drift precision:
+- `lockfile-drift` reports a dependency only when the lockfile was understood. A lockfile that yields no recognizable packages is treated as unparsed and skipped rather than reported as "every dependency is missing"; an empty lockfile is distinguished from an unparsed one by its format's own header (an npm `lockfileVersion`, a Cargo/Poetry/uv header-only file, a file holding nothing but comments).
+- `yarn.lock` is read in both the Yarn v1 (`version "1.2.3"`) and Yarn 2+ Berry (`version: 1.2.3`) spellings. Berry protocol selectors are understood: `npm:` ranges are compared against the manifest, while `workspace:`, `link:`, `portal:`, `file:`, `patch:` and git/URL resolutions count as present but are not compared against a registry range.
+- `pnpm-lock.yaml` is read in both the `name@1.2.3` (lockfile v6+) and `/name/1.2.3` (v5 and earlier) key shapes.
+- Python package names are compared after PEP 503 normalization (lowercase, and each run of `-`, `_` or `.` collapsed to `-`), so a `pyproject.toml` entry for `Jinja2` or `typing_extensions` matches the `jinja2` / `typing-extensions` entry Poetry and uv write. npm, Cargo, Go and Conan names are compared exactly, because in those ecosystems case and separators identify different packages.
+
 Notes on Cargo precision:
 - `cargo.missing-package-license` looks only at the manifest package metadata (`package.license` in `Cargo.toml`); it does not infer intent from README text or dependency licenses.
 - `cargo.non-hermetic-source` warns on `path = ...`, `branch = ...`, or `git = ...` without `rev = ...` in dependency specs. A git dependency pinned to an exact `rev` stays silent.
