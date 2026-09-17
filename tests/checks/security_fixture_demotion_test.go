@@ -35,7 +35,12 @@ func fixtureDemotionReport(t *testing.T, dir string, demote *bool) codeguard.Rep
 	return report
 }
 
-func TestSecurityFixturePathsKeepProviderCredentialFindings(t *testing.T) {
+// TestSecurityFixturePathsDemoteProviderCredentialsToReview pins the core
+// trade-off: a credential-shaped literal in a test path is moved to the review
+// tier (warn, medium confidence) rather than suppressed. A real leaked key does
+// not stop being real because of the file it lives in, so the finding must stay
+// reportable and baselinable — it simply no longer fails CI on a fixture.
+func TestSecurityFixturePathsDemoteProviderCredentialsToReview(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -45,9 +50,28 @@ func TestSecurityFixturePathsKeepProviderCredentialFindings(t *testing.T) {
 		{"testdata dir", "testdata/creds.txt"},
 		{"fixtures dir", "fixtures/creds.txt"},
 		{"dunder fixtures dir", "src/__fixtures__/creds.ts"},
+		{"dunder tests dir", "src/__tests__/creds.ts"},
+		{"mocks dir", "src/__mocks__/creds.ts"},
+		{"tests dir", "tests/creds.txt"},
+		{"singular test dir", "test/creds.txt"},
+		{"spec dir", "spec/creds.txt"},
+		{"e2e dir", "e2e/creds.txt"},
+		{"cypress dir", "cypress/creds.js"},
 		{"go test file", "pkg/handler_test.go"},
 		{"ts test file", "web/app.test.ts"},
-		{"python test file", "scripts/util_test.py"},
+		{"tsx test file", "web/app.test.tsx"},
+		{"js spec file", "web/app.spec.js"},
+		{"jsx spec file", "web/app.spec.jsx"},
+		{"mjs test file", "web/app.test.mjs"},
+		{"storybook file", "web/Button.stories.tsx"},
+		{"python test suffix", "scripts/util_test.py"},
+		{"pytest prefix", "scripts/test_util.py"},
+		{"pytest conftest", "scripts/conftest.py"},
+		{"ruby spec file", "lib/user_spec.rb"},
+		{"java test class", "src/AccountTest.java"},
+		{"csharp test class", "src/AccountTests.cs"},
+		{"rust test file", "crates/router_test.rs"},
+		{"cpp test file", "src/engine_test.cc"},
 		{"ts spec file", "src/api.spec.ts"},
 		{"json fixture", "fixtures/auth.json"},
 		{"cpp fixture", "testdata/auth_test.cpp"},
@@ -60,15 +84,91 @@ func TestSecurityFixturePathsKeepProviderCredentialFindings(t *testing.T) {
 			writeFile(t, filepath.Join(dir, filepath.FromSlash(tc.path)), "key = \""+cred("AKIA", "1234567890ABCDEF")+"\"\n")
 
 			report := fixtureDemotionReport(t, dir, nil)
-			assertSectionStatus(t, report, "Security", "fail")
-			assertFindingLevel(t, report, "Security", "security.hardcoded-credential", "fail")
-			assertFindingConfidence(t, report, "Security", "security.hardcoded-credential", "high")
+			assertFindingLevel(t, report, "Security", "security.hardcoded-credential", "warn")
+			assertFindingConfidence(t, report, "Security", "security.hardcoded-credential", "medium")
 			finding := findFinding(t, report, "Security", "security.hardcoded-credential")
-			if finding.Metadata["classification"] != "confirmed" {
-				t.Fatalf("classification = %q, want confirmed", finding.Metadata["classification"])
+			if finding.Metadata["classification"] != "ambiguous_fixture" {
+				t.Fatalf("classification = %q, want ambiguous_fixture", finding.Metadata["classification"])
+			}
+			if !strings.HasSuffix(finding.Message, " (ambiguous credential-shaped fixture)") {
+				t.Fatalf("message missing ambiguous fixture suffix: %q", finding.Message)
 			}
 		})
 	}
+}
+
+// TestSecurityDocumentationCredentialStaysVisible covers the documentation
+// scope. A credential pasted into a committed .md is a real and common leak
+// vector, so it is demoted rather than dropped; only the value evidence (see
+// the vendor-placeholder test) can silence it.
+func TestSecurityDocumentationCredentialStaysVisible(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "docs", "okta-authentication.md"), "Send the header:\n\n    Authorization: Bearer 7f3b91c0d4e58a62b1d09f4c\n")
+
+	report := fixtureDemotionReport(t, dir, nil)
+	assertFindingLevel(t, report, "Security", "security.hardcoded-credential", "warn")
+	finding := findFinding(t, report, "Security", "security.hardcoded-credential")
+	if !strings.HasSuffix(finding.Message, " (ambiguous credential-shaped documentation example)") {
+		t.Fatalf("message missing documentation suffix: %q", finding.Message)
+	}
+}
+
+// TestSecurityVendorDocumentedPlaceholderIsDiagnostic covers the one value
+// class that is recognized regardless of path: literals a vendor publishes in
+// its own documentation as non-secrets. They are world-readable by design, so a
+// match can never be a leak and reusing one gains an attacker nothing.
+func TestSecurityVendorDocumentedPlaceholderIsDiagnostic(t *testing.T) {
+	t.Parallel()
+	for _, path := range []string{"src/config.go", "docs/setup.md", "pkg/config_test.go"} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, filepath.FromSlash(path)), "key = \""+cred("AKIAIOSFODNN7", "EXAMPLE")+"\"\n")
+
+			report := fixtureDemotionReport(t, dir, nil)
+			assertFindingRuleAbsent(t, report, "Security", "security.hardcoded-credential")
+			assertSyntheticFixtureDiagnostic(t, report)
+		})
+	}
+}
+
+// TestSecurityFixtureCredentialWithSyntheticBodyIsDiagnostic checks that
+// suppression inside a fixture path needs positive evidence about the VALUE,
+// not just the path.
+func TestSecurityFixtureCredentialWithSyntheticBodyIsDiagnostic(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		value string
+	}{
+		{"filler run", cred("AKIA", "0000000000000000")},
+		{"fake marker", cred("AKIA", "FAKE000000000000")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, "pkg", "client_test.go"), "package pkg\n\nvar key = \""+tc.value+"\"\n")
+
+			report := fixtureDemotionReport(t, dir, nil)
+			assertFindingRuleAbsent(t, report, "Security", "security.hardcoded-credential")
+			assertSyntheticFixtureDiagnostic(t, report)
+		})
+	}
+}
+
+// TestSecurityFixtureUnroutableHostCredentialIsDiagnostic covers a credential
+// aimed at a reserved or loopback host: it cannot authenticate against anything
+// real, so pairing it with a fixture path is enough to silence it.
+func TestSecurityFixtureUnroutableHostCredentialIsDiagnostic(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "pkg", "store_test.go"), "package pkg\n\nvar dsn = \"postgres://app:p4ssw0rdish@127.0.0.1:5432/app\"\n")
+
+	report := fixtureDemotionReport(t, dir, nil)
+	assertFindingRuleAbsent(t, report, "Security", "security.hardcoded-credential")
+	assertSyntheticFixtureDiagnostic(t, report)
 }
 
 func TestSecurityFixtureDemotionSkipsNonFixturePaths(t *testing.T) {
@@ -81,24 +181,40 @@ func TestSecurityFixtureDemotionSkipsNonFixturePaths(t *testing.T) {
 	assertFindingLevel(t, report, "Security", "security.hardcoded-credential", "fail")
 	assertFindingConfidence(t, report, "Security", "security.hardcoded-credential", "high")
 	finding := findFinding(t, report, "Security", "security.hardcoded-credential")
-	if strings.Contains(finding.Message, "(fixture path)") {
-		t.Fatalf("non-fixture finding unexpectedly demoted: %q", finding.Message)
+	if finding.Metadata["classification"] != "confirmed" {
+		t.Fatalf("classification = %q, want confirmed", finding.Metadata["classification"])
 	}
 }
 
+// TestSecurityFixtureDemotionDisabledKeepsOldBehavior exercises the operator
+// escape hatch: with security_rules.demote_fixture_findings off, every match is
+// reported exactly as the detector produced it.
 func TestSecurityFixtureDemotionDisabledKeepsOldBehavior(t *testing.T) {
 	t.Parallel()
+	for _, path := range []string{"testdata/creds.txt", "docs/setup.md"} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, filepath.FromSlash(path)), "key = \""+cred("AKIA", "1234567890ABCDEF")+"\"\n")
+
+			report := fixtureDemotionReport(t, dir, boolPtr(false))
+			assertSectionStatus(t, report, "Security", "fail")
+			assertFindingLevel(t, report, "Security", "security.hardcoded-credential", "fail")
+			assertFindingConfidence(t, report, "Security", "security.hardcoded-credential", "high")
+		})
+	}
+}
+
+// TestSecurityFixtureDemotionDisabledKeepsVendorPlaceholders proves the toggle
+// also restores the vendor-placeholder matches, so nothing the detector found is
+// hidden from an operator who asked for strict reporting.
+func TestSecurityFixtureDemotionDisabledKeepsVendorPlaceholders(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "testdata", "creds.txt"), "key = \""+cred("AKIA", "1234567890ABCDEF")+"\"\n")
+	writeFile(t, filepath.Join(dir, "pkg", "config_test.go"), "package pkg\n\nvar key = \""+cred("AKIAIOSFODNN7", "EXAMPLE")+"\"\n")
 
 	report := fixtureDemotionReport(t, dir, boolPtr(false))
-	assertSectionStatus(t, report, "Security", "fail")
 	assertFindingLevel(t, report, "Security", "security.hardcoded-credential", "fail")
-	assertFindingConfidence(t, report, "Security", "security.hardcoded-credential", "high")
-	finding := findFinding(t, report, "Security", "security.hardcoded-credential")
-	if strings.Contains(finding.Message, "(fixture path)") {
-		t.Fatalf("finding demoted with toggle off: %q", finding.Message)
-	}
 }
 
 func TestSecurityFixtureDemotionMarksNameBasedSecret(t *testing.T) {
@@ -155,24 +271,8 @@ func TestSecurityLikelySyntheticFixtureIsDiagnosticNotFinding(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "testdata", "auth.go"), "package testdata\nconst FakePassword = \"fixture-password-local\"\n")
 
 	report := fixtureDemotionReport(t, dir, nil)
-	var section *codeguard.SectionResult
-	for i := range report.Sections {
-		if report.Sections[i].Name == "Security" {
-			section = &report.Sections[i]
-			break
-		}
-	}
-	if section == nil {
-		t.Fatal("Security section missing")
-	}
-	for _, finding := range section.Findings {
-		if finding.RuleID == "security.hardcoded-secret" {
-			t.Fatalf("synthetic fixture became baselinable finding: %#v", finding)
-		}
-	}
-	if len(section.Diagnostics) != 1 || section.Diagnostics[0].Kind != "likely_synthetic_fixture" {
-		t.Fatalf("diagnostics = %#v, want likely synthetic fixture", section.Diagnostics)
-	}
+	assertFindingRuleAbsent(t, report, "Security", "security.hardcoded-secret")
+	assertSyntheticFixtureDiagnostic(t, report)
 }
 
 func TestSecurityFixtureSymbolDoesNotSuppressRealSecretValue(t *testing.T) {
@@ -195,4 +295,23 @@ func TestSecuritySyntheticTokensRequireValueComponents(t *testing.T) {
 
 	report := fixtureDemotionReport(t, dir, nil)
 	assertFindingRulePresent(t, report, "Security", "security.hardcoded-secret")
+}
+
+// assertSyntheticFixtureDiagnostic asserts the Security section carries a
+// likely-synthetic-fixture diagnostic, which is how a suppressed credential
+// stays auditable instead of vanishing.
+func assertSyntheticFixtureDiagnostic(t *testing.T, report codeguard.Report) {
+	t.Helper()
+	for _, section := range report.Sections {
+		if section.Name != "Security" {
+			continue
+		}
+		for _, diagnostic := range section.Diagnostics {
+			if diagnostic.Kind == "likely_synthetic_fixture" {
+				return
+			}
+		}
+		t.Fatalf("diagnostics = %#v, want a likely_synthetic_fixture entry", section.Diagnostics)
+	}
+	t.Fatal("Security section missing")
 }

@@ -58,6 +58,15 @@ groups:
           - rule: security.cors-wildcard
             line: 3
       - path: cors-wildcard/clean/headers.yaml
+      # Documentation is its own demotion scope: a credential in a committed
+      # .md is still reported (at the review tier) because a pasted-in real
+      # token is a common leak vector, while a vendor's published example is
+      # recognized by value and drops to a diagnostic.
+      - path: credential-docs/vulnerable/authentication.md
+        must_fire:
+          - rule: security.hardcoded-credential
+            line: 5
+      - path: credential-docs/clean/quickstart.md
       - path: dockerfile-root/vulnerable/Dockerfile
         must_fire:
           - rule: security.dockerfile-root
@@ -86,6 +95,14 @@ groups:
             line: 6
       - path: cors-wildcard/clean/specific_origin.go
       - path: cors-wildcard/clean/comment_mention.go
+      # Fixture-path classification: a test path demotes a credential finding
+      # but never suppresses it, so a production-looking value in a _test.go
+      # file must still be reported.
+      - path: credential-fixture-path/vulnerable/session_store_test.go
+        must_fire:
+          - rule: security.hardcoded-credential
+            line: 8
+      - path: credential-fixture-path/clean/local_dsn_test.go
       - path: hardcoded-credential/vulnerable/providers.go
         must_fire:
           - rule: security.hardcoded-credential
@@ -108,6 +125,7 @@ groups:
             line: 9
       - path: hardcoded-credential/clean/placeholders.go
       - path: hardcoded-credential/clean/comment_mention.go
+      - path: hardcoded-credential/clean/vendor_examples.go
       - path: hardcoded-secret/vulnerable/basic.go
         must_fire:
           - rule: security.hardcoded-secret
@@ -216,6 +234,14 @@ groups:
     language: python
     root: testdata/python
     files:
+      # pytest marks tests by file-name PREFIX (test_*.py), which a
+      # suffix-only path check cannot express. The clean fixture only stays
+      # silent if that prefix is recognized as a fixture scope.
+      - path: credential-fixture-path/vulnerable/test_billing_client.py
+        must_fire:
+          - rule: security.hardcoded-credential
+            line: 4
+      - path: credential-fixture-path/clean/test_fixtures.py
       - path: debug-enabled/vulnerable/flask_debug.py
         must_fire:
           - rule: security.debug-enabled
@@ -323,6 +349,9 @@ groups:
     language: typescript
     root: testdata/typescript
     files:
+      # .spec.tsx is one of the Jest/Vitest conventions the widened fixture
+      # path signals cover; without it this fake-marked token would fail.
+      - path: credential-fixture-path/clean/checkout.spec.tsx
       - path: dynamic-code/vulnerable/eval.ts
         must_fire:
           - rule: security.typescript.dynamic-code
