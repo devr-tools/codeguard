@@ -58,6 +58,12 @@ func walkFilesBounded(root string, excludes []string, opts FileWalkOptions, incl
 			return err
 		}
 		if path == root {
+			// The dependency/build policy is applied to the target's logical
+			// (repository-relative) root as well, so a target pointed straight
+			// at a dependency or output tree is skipped rather than scanned
+			// wholesale. shouldExclude already honours a "!" re-include, which
+			// is the escape hatch for a repository that really does keep source
+			// under one of those names.
 			logicalRoot := filepath.ToSlash(filepath.Clean(opts.LogicalPath))
 			if logicalRoot != "." && shouldExclude(logicalRoot, excludes, opts) {
 				return fs.SkipAll
@@ -70,12 +76,12 @@ func walkFilesBounded(root string, excludes []string, opts FileWalkOptions, incl
 		}
 		rel = filepath.ToSlash(rel)
 		logicalRel := joinLogicalPath(opts.LogicalPath, rel)
-		if shouldExclude(rel, excludes, opts) ||
-			(logicalRel != rel && shouldExclude(logicalRel, excludes, opts)) {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
+		switch walkEntryDecision(path, rel, logicalRel, d.IsDir(), excludes, opts) {
+		case walkSkipDir:
+			return filepath.SkipDir
+		case walkSkipFile:
 			return nil
+		case walkInclude:
 		}
 		if d.IsDir() {
 			return nil
@@ -98,6 +104,59 @@ func walkFilesBounded(root string, excludes []string, opts FileWalkOptions, incl
 		return nil
 	})
 	return files, truncated, err
+}
+
+// walkDecision is the exclusion verdict for one walked entry.
+type walkDecision int
+
+const (
+	walkInclude walkDecision = iota
+	walkSkipFile
+	walkSkipDir
+)
+
+// walkEntryDecision decides whether a walked entry is scanned, skipped, or
+// pruned along with its whole subtree.
+//
+// rel is the path relative to the directory being walked; logicalRel is the
+// same file's repository-relative path when the target root is a subdirectory.
+// The built-in default exclusions are matched against rel ONLY, never against
+// logicalRel: matching them against the repository path would let an ancestor
+// of the target root poison everything beneath it, so a target configured at
+// services/app/dist would find nothing at all. (An excluded ancestor is still
+// honoured - walkFilesBounded checks the logical root separately and skips the
+// walk outright.) User-configured excludes are matched against both forms,
+// since they may be written against either.
+func walkEntryDecision(path string, rel string, logicalRel string, isDir bool, excludes []string, opts FileWalkOptions) walkDecision {
+	if matchesReinclude(rel, excludes) || matchesReinclude(logicalRel, excludes) {
+		return walkInclude
+	}
+	if isDefaultDependencyOrBuildPath(rel, opts.ScanVendoredSource) ||
+		matchesUserExclude(rel, excludes) ||
+		(logicalRel != rel && matchesUserExclude(logicalRel, excludes)) {
+		if isDir {
+			// A directory is normally pruned wholesale, which is what keeps the
+			// exclusions cheap. It must not be pruned when a re-include could
+			// match inside it: "!packages/ui/dist/**" would never be reached if
+			// the walk skipped packages/ui/dist first.
+			if reincludeCoversSubtree(rel, logicalRel, excludes) {
+				return walkInclude
+			}
+			return walkSkipDir
+		}
+		return walkSkipFile
+	}
+	// Ambiguous build-output names (build, out, bin, obj, target, coverage) are
+	// pruned only when a sibling manifest corroborates them; see
+	// utils_build_output.go for why a name match alone is not enough.
+	if isDir && isCorroboratedBuildOutputDir(path) && !reincludeCoversSubtree(rel, logicalRel, excludes) {
+		return walkSkipDir
+	}
+	return walkInclude
+}
+
+func reincludeCoversSubtree(rel string, logicalRel string, excludes []string) bool {
+	return reincludeMayCoverSubtree(rel, excludes) || reincludeMayCoverSubtree(logicalRel, excludes)
 }
 
 // CountLines reports how many lines data spans without allocating. It

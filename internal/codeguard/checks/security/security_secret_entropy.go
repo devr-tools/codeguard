@@ -1,7 +1,6 @@
 package security
 
 import (
-	"bytes"
 	"math"
 	"strings"
 
@@ -123,17 +122,6 @@ func maskSecret(value string) string {
 		return strings.Repeat("*", len(runes))
 	}
 	return string(runes[:4]) + "…" + string(runes[len(runes)-4:])
-}
-
-// looksBinary reports whether data appears to be binary (contains a NUL byte in
-// its leading window). Binary files are skipped: scanning them wastes time and
-// produces noise rather than real credential findings.
-func looksBinary(data []byte) bool {
-	limit := len(data)
-	if limit > binarySniffBytes {
-		limit = binarySniffBytes
-	}
-	return bytes.IndexByte(data[:limit], 0) >= 0
 }
 
 // shannonEntropy returns the Shannon entropy of s in bits per character. ASCII
