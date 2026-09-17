@@ -108,9 +108,21 @@ It is therefore the final precedence layer. Accepted names are `quality`,
 invalid.
 
 When `use_recommended_defaults` is absent or `false`, section behavior is
-unchanged from earlier configurations. Profiles are independent: they adjust
-their own thresholds and policy settings, but do not select the recommended
-baseline.
+unchanged from earlier configurations. Profiles do not select the recommended
+baseline — but a profile may enable sections of its own on top of it (for
+example `enterprise` enables `supply_chain`, and `ai-safe` enables `prompts`
+and `security`). Those activations apply wherever the profile is resolved:
+`profile:` in a config file, `-profile` on the command line, and the
+no-config-file scan path. `checks.disabled` is still applied last, so it is
+the way to turn a profile's section back off.
+
+A scan run with **no config file at all** (`codeguard scan -folder <path>`
+with no discoverable `codeguard.yaml`) resolves the built-in defaults with
+`use_recommended_defaults` behavior applied, plus any `-profile`. It does not
+use the config `codeguard init` writes, so none of the repository-shape policy
+in that starter config — required workflow/release/automation files, workflow
+content markers, required gates, `allowed_test_paths`, or the `design_rules`
+package-layering toggles — is in effect on that path.
 
 `performance` is opt-in and covers N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, unbounded concurrency, memory-pressure and framework-aware smells, Rust loop-smell heuristics, diff-mode complexity regressions, and measurement gates (size budgets, benchmark regression); see [Performance](#performance) for the rule list and the migration note for the former `quality.*` ids.
 
@@ -325,7 +337,11 @@ Built-in profiles:
 - `ai-safe`
 
 The comparison below is generated from the profile definitions and verified by
-the configuration tests.
+the configuration tests. The `Baseline` column is the built-in default policy —
+what a repository gets for any key it omits — and each profile column is that
+baseline with the profile overlaid. The configuration `codeguard init` writes
+is a richer, opinionated *starter* config on top of the same baseline; it is
+not what an omitted key resolves to.
 
 <!-- BEGIN GENERATED: policy-profile-comparison -->
 | Setting | Baseline | Startup | Strict | Enterprise | AI-safe |
@@ -339,8 +355,9 @@ the configuration tests.
 | `design_rules.max_methods_per_type` | 8 | 10 | 6 | 6 | 8 |
 | `design_rules.max_interface_methods` | 5 | 8 | 4 | 4 | 5 |
 | `security_rules.govulncheck_mode` | auto | auto | required | required | required |
-| `ci_rules.required_release_files` | .goreleaser.yaml | — | .goreleaser.yaml | .goreleaser.yaml | .goreleaser.yaml |
-| `ci_rules.required_automation_paths` | Makefile | Makefile | Makefile | Makefile<br>.github/workflows/ci.yml | Makefile |
+| `ci_rules.required_release_files` | — | — | — | .goreleaser.yaml | — |
+| `ci_rules.required_automation_paths` | — | — | — | Makefile<br>.github/workflows/ci.yml | — |
+| `ci_rules.required_gates` | — | — | test | test<br>security | — |
 | `contracts` | scan-mode | scan-mode | true | true | scan-mode |
 | `reliability` | false | false | true | true | true |
 | `data` | false | false | false | true | true |
@@ -1564,6 +1581,18 @@ Config keys:
 }
 ```
 
+Defaults: the four Go package-layering toggles
+(`require_cmd_through_internal_cli`, `forbid_internal_import_cmd`,
+`forbid_service_import_internal`, `forbid_service_import_cmd`) are **off by
+default**. They describe one specific repository layout — `cmd/` delegating to
+`internal/cli`, and a `pkg/` facade that must not reach into `internal/` or
+`cmd/` — and report at fail level, and a `pkg/` package importing its own
+module's `internal/` is ordinary Go. Set them to `true` to enforce that layout;
+the config `codeguard init` writes does, and so does this repository's own
+self-scan config. The remaining design rules (import cycles, god modules,
+high-impact changes, the numeric thresholds, generic package names) stay on by
+default.
+
 Current behavior:
 
 - fails on configured layer, domain, data-ownership, capability, public-surface, and production/test boundary violations
@@ -1917,10 +1946,30 @@ Config keys:
 }
 ```
 
+Defaults: every list above is **empty by default**, and each rule treats an
+empty list as "not configured" and reports nothing. codeguard cannot know which
+workflow filenames, release artifacts, command strings, or test directories a
+repository uses, so none of them are enforced until the repository states them.
+The only CI default is `require_workflow_dir: true`, since enabling
+`checks.ci` is itself the assertion that the repository wants pipeline policy
+checked and every other CI rule reads `.github/workflows`.
+
+`allowed_test_paths` in particular must stay unset for a repository with
+co-located tests — idiomatic Go `_test.go` files, `*.spec.ts` beside the
+source, or pytest `test_*.py` inside the package. Setting it to `["tests/**"]`
+means "every test file outside `tests/` is a failure".
+
+The configuration `codeguard init` writes is a *starter* config, not the
+defaults: it states codeguard's own conventions (`.github/workflows/ci.yml`,
+a `test` gate, `actions/checkout` + `go test ./...` markers,
+`.goreleaser.yaml`, `Makefile`, `tests/**`) so they are visible and editable.
+Delete or replace the keys that do not describe your repository.
+
 Current behavior:
-- fails when required workflow, release, or automation files are missing
-- fails when required workflow content markers are missing
-- fails when detected Go, Python, TypeScript, C++, Rust, Java, C#, or Ruby test files live outside the configured test directories
+- fails when a configured required workflow, release, or automation file is missing
+- fails when a configured workflow content marker is missing
+- fails when a configured CI gate (`required_gates`) is absent from the repository's workflows; skipped entirely when the repository has no workflow files
+- fails when detected Go, Python, TypeScript, C++, Rust, Java, C#, or Ruby test files live outside `allowed_test_paths` — inactive while that list is unset
 
 ### Test quality
 

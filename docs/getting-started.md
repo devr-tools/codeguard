@@ -48,9 +48,24 @@ codeguard explain prompts.secret-interpolation
 codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 ```
 
-`codeguard init` writes `codeguard.yaml` by default.
+`codeguard init` writes `codeguard.yaml` by default. That file is a *starter*
+config: it is complete and opinionated, and it states CodeGuard's own
+conventions (a `.github/workflows/ci.yml`, a `test` gate, `.goreleaser.yaml`,
+`Makefile`, tests under `tests/**`, and the `cmd/` → `internal/cli` package
+layering). Edit or delete the keys that do not describe your repository.
 
-Use `codeguard scan -folder <path>` when you want to scan only one folder. `-path <path>` is accepted as an alias. If no config file exists and you did not pass `-config`, folder scans use CodeGuard's built-in default config; add `-profile startup`, `-profile strict`, `-profile enterprise`, or `-profile ai-safe` to choose a default profile.
+Use `codeguard scan -folder <path>` when you want to scan only one folder.
+`-path <path>` is accepted as an alias. If no config file exists and you did
+not pass `-config`, a folder scan runs the built-in defaults with the
+recommended check sections enabled — Code Quality, Design Patterns, Security,
+AI Prompts and CI/CD, plus the sections CodeGuard selects by scan mode (Agent
+Context on full scans, API Contracts on diff scans). This is *not* the config
+`codeguard init` writes: the defaults assert nothing about your repository's
+shape, so none of the required-file, workflow-content, test-layout or
+package-layering policy above is enforced until you configure it. Add
+`-profile startup`, `-profile strict`, `-profile enterprise`, or `-profile
+ai-safe` to overlay a policy profile, which may also enable further sections
+(for example `enterprise` adds Supply Chain and Delivery).
 
 After upgrading CodeGuard, run `codeguard waivers audit -config codeguard.yaml` to identify waiver cleanup candidates. CodeGuard stores audit snapshots with version, config fingerprint, scan scope, and matched finding fingerprints; it only marks a waiver as stale after upgrade when prior comparable evidence shows the waiver matched findings before and matches none now. JSON output is available with `-format json`.
 

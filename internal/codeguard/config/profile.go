@@ -31,6 +31,8 @@ var profileCatalog = map[string]profileSpec{
 			cfg.Checks.DesignRules.MaxDeclsPerFile = 16
 			cfg.Checks.DesignRules.MaxMethodsPerType = 10
 			cfg.Checks.DesignRules.MaxInterfaceMethods = 8
+			// Clears the starter config's release-file policy when a generated
+			// config uses this profile; the conservative baseline sets none.
 			cfg.Checks.CIRules.RequiredReleaseFiles = nil
 			cfg.Checks.SecurityRules.GovulncheckMode = "auto"
 		},
@@ -91,6 +93,12 @@ func applyStrictProfile(cfg *core.Config) {
 	cfg.Checks.DesignRules.MaxMethodsPerType = 6
 	cfg.Checks.DesignRules.MaxInterfaceMethods = 4
 	cfg.Checks.SecurityRules.GovulncheckMode = "required"
+	// "Hard gates" has to be stated, not inherited: the conservative baseline
+	// configures no required CI gate. "test" is resolved semantically across
+	// ecosystems (go/npm/pnpm/yarn/pytest/cargo/dotnet/mvn/gradle or a job
+	// named test) and is skipped entirely when the repository has no workflow
+	// files, so it is safe to assert for a profile that asks for hard gates.
+	cfg.Checks.CIRules.RequiredGates = []string{"test"}
 	cfg.Checks.Contracts = boolPtr(true)
 	cfg.Checks.Reliability = boolPtr(true)
 	cfg.Checks.Change = boolPtr(true)
@@ -157,11 +165,14 @@ func profileComparisonColumns() []profileComparisonColumn {
 	}
 }
 
+// profileComparisonConfigs renders from the DEFAULTS path, not the starter
+// config: the table documents the policy a repository gets by selecting a
+// profile and omitting keys. Using ExampleConfig here would report the
+// starter config's opinions as though they were defaults.
 func profileComparisonConfigs(profiles []profileComparisonColumn) []core.Config {
 	configs := make([]core.Config, len(profiles))
-	configs[0] = ExampleConfig()
-	for i := 1; i < len(profiles); i++ {
-		configs[i], _ = ExampleConfigForProfile(profiles[i].name)
+	for i := range profiles {
+		configs[i] = defaultConfigForProfile(profiles[i].name)
 	}
 	return configs
 }
@@ -213,6 +224,9 @@ func writeProfileComparisonRows(b *strings.Builder, configs []core.Config) {
 	})
 	writeProfileComparisonRow(b, "`ci_rules.required_automation_paths`", configs, func(cfg core.Config) string {
 		return profileStringSlice(cfg.Checks.CIRules.RequiredAutomationPaths)
+	})
+	writeProfileComparisonRow(b, "`ci_rules.required_gates`", configs, func(cfg core.Config) string {
+		return profileStringSlice(cfg.Checks.CIRules.RequiredGates)
 	})
 	writeProfileComparisonRow(b, "`contracts`", configs, func(cfg core.Config) string {
 		if cfg.Checks.Contracts == nil {
