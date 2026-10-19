@@ -6,9 +6,19 @@ import (
 	"strings"
 )
 
-var bunCoordinatePattern = regexp.MustCompile(`(?:@[-a-zA-Z0-9_.]+/)?[-a-zA-Z0-9_.]+@[0-9][0-9A-Za-z.+_-]*`)
+var (
+	bunCoordinatePattern = regexp.MustCompile(`(?:@[-a-zA-Z0-9_.]+/)?[-a-zA-Z0-9_.]+@[0-9][0-9A-Za-z.+_-]*`)
+	// packageBlockLockHeaderPattern matches the only lines Cargo, Poetry and uv
+	// write into a lockfile that pins nothing: the format version, uv's
+	// revision/requires-python, Poetry's [metadata] block, and the explicit
+	// empty `package = []`.
+	packageBlockLockHeaderPattern = regexp.MustCompile(`^(?:\[metadata\]|version\s*=\s*\d+|revision\s*=\s*\d+|lock-version\s*=|content-hash\s*=|requires-python\s*=|packages?\s*=\s*\[\s*\])`)
+)
 
-func parseGoSumState(data []byte) lockfileState {
+// parseGoSumState reads go.sum. The format carries no header, so recognition
+// rests on having read at least one `module version hash` line (or on the file
+// being empty, which is a real go.sum for a dependency-free module).
+func parseGoSumState(data []byte) (lockfileState, bool) {
 	state := newLockfileState()
 	for _, rawLine := range strings.Split(string(data), "\n") {
 		fields := strings.Fields(strings.TrimSpace(rawLine))
@@ -16,14 +26,23 @@ func parseGoSumState(data []byte) lockfileState {
 			addLockfilePackage(state, fields[0], strings.TrimSuffix(fields[1], "/go.mod"))
 		}
 	}
-	return state
+	return state, len(state.packages) > 0 || lockfileHasNoContent(data)
 }
 
-func parsePackageBlockLockState(data []byte) lockfileState {
+// parsePackageBlockLockState reads the TOML `[[package]]` table layout shared
+// by Cargo.lock, poetry.lock and uv.lock.
+//
+// A `[[package]]` table is the structural marker that the file is one of these.
+// A file with none is treated as empty — rather than unparsed — only when every
+// substantive line in it is a known header key, which a truncated or
+// conflict-marked lockfile would fail, so a real-but-unreadable lockfile cannot
+// slip through as "empty" and be reported as total drift.
+func parsePackageBlockLockState(data []byte) (lockfileState, bool) {
 	state := newLockfileState()
 	currentName := ""
 	currentVersion := ""
 	inPackage := false
+	sawPackageTable := false
 	flush := func() {
 		if currentName != "" {
 			addLockfilePackage(state, currentName, currentVersion)
@@ -37,6 +56,7 @@ func parsePackageBlockLockState(data []byte) lockfileState {
 		case line == "[[package]]":
 			flush()
 			inPackage = true
+			sawPackageTable = true
 		case inPackage && strings.HasPrefix(line, "name") && strings.Contains(line, "="):
 			currentName = parseTOMLAssignmentValue(line)
 		case inPackage && strings.HasPrefix(line, "version") && strings.Contains(line, "="):
@@ -47,10 +67,30 @@ func parsePackageBlockLockState(data []byte) lockfileState {
 		}
 	}
 	flush()
-	return state
+	return state, sawPackageTable || packageBlockLockHeaderOnly(data)
 }
 
-func parseBunLockState(data []byte) lockfileState {
+// packageBlockLockHeaderOnly reports whether the file contains nothing but
+// comments and the header keys these lockfile formats emit when they pin no
+// packages, which makes it a genuinely empty lockfile rather than one this
+// parser failed to read.
+func packageBlockLockHeaderOnly(data []byte) bool {
+	for _, rawLine := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if !packageBlockLockHeaderPattern.MatchString(line) {
+			return false
+		}
+	}
+	return true
+}
+
+// parseBunLockState scrapes `name@version` coordinates out of bun.lock (JSONC,
+// which is not valid JSON, hence the scrape). Having found a coordinate is the
+// only evidence that the scrape worked.
+func parseBunLockState(data []byte) (lockfileState, bool) {
 	state := newLockfileState()
 	seen := map[string]struct{}{}
 	quoted := quotedStringPattern.FindAllStringSubmatch(string(data), -1)
@@ -62,7 +102,7 @@ func parseBunLockState(data []byte) lockfileState {
 	for _, token := range tokens {
 		addBunCoordinate(state, seen, token)
 	}
-	return state
+	return state, len(state.packages) > 0 || lockfileHasNoContent(data)
 }
 
 func addBunCoordinate(state lockfileState, seen map[string]struct{}, token string) {
