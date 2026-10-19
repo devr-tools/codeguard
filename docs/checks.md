@@ -1789,6 +1789,37 @@ Config keys (under `checks.security_rules.secrets`):
 - `entropy` enables the high-entropy heuristic (off by default); tune `min_length`
   (default 20), `threshold` in bits/char (default 4.5), and `level` (default `warn`).
 
+#### Fixture and documentation classification
+
+Credential-shaped literals in test fixtures and documentation are graded rather than
+either failed or exempted, because a real key committed to a `_test.go` file is still a
+leaked key. Each match is classified from two independent kinds of evidence — where the
+file lives, and what the value looks like:
+
+| Classification | Reported as | When |
+| --- | --- | --- |
+| `confirmed` | the detector's own level (`fail` for credentials/private keys) | production paths, and PEM key material or high-entropy hits anywhere |
+| `ambiguous_fixture` | `warn`, `medium` confidence for provider/connection-string formats and `low` for the name-based heuristic, message annotated | a test-fixture or documentation path with no synthetic evidence about the value |
+| `likely_synthetic_fixture` | an informational `security.credential-fixture` diagnostic, not a finding | the value itself is demonstrably filler |
+
+A path signal never suppresses a finding on its own — suppression always needs positive
+evidence about the value: a vendor's own published documentation placeholder (for
+example AWS's `AKIAIOSFODNN7EXAMPLE`, recognized on **any** path since it is a
+world-readable non-secret), an explicit `EXAMPLE`/`FAKE`/`REDACTED` marker or repeated
+filler run in the body, or a credential aimed at a reserved (RFC 2606) or loopback host.
+
+Fixture paths are recognized by directory segment (`testdata`, `test`, `tests`,
+`__tests__`, `spec`, `fixtures`, `__fixtures__`, `mocks`, `__mocks__`, `e2e`, `cypress`,
+`stories`, …), by file-name suffix (`_test.go`, `_test.py`, `_spec.rb`, `_test.rs`,
+`_test.cc`, `.test.ts`/`.tsx`/`.js`/`.jsx`/`.mjs`, `.spec.*`, `.stories.*`), by file-name
+*prefix* (pytest's `test_*.py`, `conftest.py`), and by the case-sensitive JVM/.NET
+convention (`AccountTest.java`, `AccountTests.cs`). Documentation paths are `docs/`,
+`doc/`, `examples/`, `samples/` and the prose extensions `.md`, `.mdx`, `.rst`, `.adoc`.
+
+Set `security_rules.demote_fixture_findings` to `false` to turn all of this off and have
+every match reported exactly as the detector produced it. `allow_paths` remains the way
+to silence a path completely.
+
 Invalid `allow_patterns`/`custom_patterns` entries are rejected by config validation. If
 an unvalidated config reaches the scan anyway (e.g. through the SDK), the unusable
 pattern is skipped and reported as a `security.secrets-config` (**fail**) finding rather

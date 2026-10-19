@@ -111,6 +111,7 @@ func secretResultsForFile(env support.Context, file string, data []byte, scanner
 	}
 	content := string(data)
 	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	demote := fixtureDemotionEnabled(env.Config)
 	matches := scanner.ScanContent(content)
 	findings := make([]core.Finding, 0, len(matches))
 	diagnostics := make([]core.Diagnostic, 0)
@@ -120,14 +121,15 @@ func secretResultsForFile(env support.Context, file string, data []byte, scanner
 			line = lines[match.Line-1]
 		}
 		assessment := classifyFixtureCandidate(file, line, match)
+		if !demote {
+			assessment = fixtureAssessment{Classification: fixtureConfirmed, Scope: assessment.Scope, Evidence: []string{"policy:fixture_demotion_disabled"}}
+		}
 		if assessment.Classification == fixtureLikelySynthetic {
 			diagnostics = append(diagnostics, core.Diagnostic{ID: "security.credential-fixture", Level: "info", Kind: string(assessment.Classification), Message: "likely synthetic credential fixture", Path: file, Evidence: assessment.Evidence, Metadata: secretMetadata(match)})
 			continue
 		}
 		if assessment.Classification == fixtureAmbiguous {
-			match.Level = "warn"
-			match.Confidence = core.ConfidenceLow
-			match.Message += " (ambiguous credential-shaped fixture)"
+			applyAmbiguousFixtureDemotion(&match, assessment)
 		}
 		metadata := secretMetadata(match)
 		if metadata == nil {
@@ -147,6 +149,38 @@ func secretResultsForFile(env support.Context, file string, data []byte, scanner
 		}))
 	}
 	return findings, diagnostics
+}
+
+// fixtureDemotionEnabled reports whether security_rules.demote_fixture_findings
+// permits evidence-based demotion. It defaults to on (config/defaults_rules.go
+// sets it explicitly); turning it off makes every match report exactly as the
+// detector produced it, which is the escape hatch for teams that want a hard
+// fail on any credential-shaped literal anywhere in the tree.
+func fixtureDemotionEnabled(cfg core.Config) bool {
+	if flag := cfg.Checks.SecurityRules.DemoteFixtureFindings; flag != nil {
+		return *flag
+	}
+	return true
+}
+
+// applyAmbiguousFixtureDemotion moves a credential-shaped finding to the review
+// tier: warn, so it cannot block CI, but still a real finding that is reported,
+// baselinable, and exported to SARIF. Provider-format and connection-string
+// matches keep medium confidence because their structure is certain and only
+// the intent is in doubt; the name-based heuristic drops to low because both
+// its structure and its intent are weak.
+func applyAmbiguousFixtureDemotion(match *Match, assessment fixtureAssessment) {
+	match.Level = "warn"
+	if match.RuleID == hardcodedCredentialRule {
+		match.Confidence = core.ConfidenceMedium
+	} else {
+		match.Confidence = core.ConfidenceLow
+	}
+	if assessment.Scope == scopeDocumentation {
+		match.Message += " (ambiguous credential-shaped documentation example)"
+		return
+	}
+	match.Message += " (ambiguous credential-shaped fixture)"
 }
 
 func secretMetadata(match Match) map[string]string {

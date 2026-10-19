@@ -73,11 +73,13 @@ func TestSecuritySecretsAllowPathsSkipsFixtures(t *testing.T) {
 	}, "go")
 	assertSectionStatus(t, allowed, "Security", "pass")
 
-	// Without the allowlist the provider-shaped credential remains strict even
-	// in a fixture path; path evidence alone cannot demote it.
+	// Without the allowlist the provider-shaped credential is still reported —
+	// the fixture path moves it to the review tier (warn) but never silences
+	// it, so allow_paths stays the only way to get full suppression.
 	blocked := secretsScanConfig(t, dir, nil, "go")
-	assertSectionStatus(t, blocked, "Security", "fail")
+	assertSectionStatus(t, blocked, "Security", "warn")
 	assertFindingRulePresent(t, blocked, "Security", "security.hardcoded-credential")
+	assertFindingLevel(t, blocked, "Security", "security.hardcoded-credential", "warn")
 }
 
 func TestSecuritySecretsAllowPatternsSkipsLine(t *testing.T) {
