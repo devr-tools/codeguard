@@ -93,6 +93,11 @@ func environmentBranchLine(text string) int {
 	return 0
 }
 
+// branchKeywords replaces `\b(if|switch|case|when)\b`, which ran on every
+// source line; containsWordAny applies the same ASCII word boundaries without
+// entering the regexp engine.
+var branchKeywords = []string{"if", "switch", "case", "when"}
+
 func environmentBranchLineIsDeploymentDecision(line string) bool {
 	if !environmentBranchPattern.MatchString(line) {
 		return false
@@ -103,7 +108,7 @@ func environmentBranchLineIsDeploymentDecision(line string) bool {
 	}) {
 		return true
 	}
-	if !regexp.MustCompile(`\b(if|switch|case|when)\b`).MatchString(lowered) {
+	if !containsWordAny(lowered, branchKeywords) {
 		return false
 	}
 	return containsAny(lowered, []string{" env", "env.", "env[", "environment", "deployment"}) &&
