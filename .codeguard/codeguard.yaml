@@ -54,6 +54,14 @@ checks:
   design_rules:
     max_decls_per_file: 60
     god_module_threshold: 32
+    # Package-layering policy is off by default (it describes one specific
+    # repository layout). codeguard's own layering invariants are cmd/ ->
+    # internal/cli and a pkg/codeguard facade that owns the only internal/
+    # imports, so the self-scan states them explicitly.
+    require_cmd_through_internal_cli: true
+    forbid_internal_import_cmd: true
+    forbid_service_import_internal: true
+    forbid_service_import_cmd: true
   performance_rules:
     hot_package_importer_threshold: 32
     rebuild_amplifier_threshold: 40
@@ -75,10 +83,18 @@ checks:
     # below 85 (the repo currently scores 100; see docs/checks.md).
     legibility_warn_threshold: 85
   ci_rules:
+    # Every ci_rules list is empty by default: codeguard cannot know another
+    # repository's workflow filenames, release artifacts or test layout. This
+    # repository's conventions are therefore stated here in full.
+    #
+    # The tests/-only convention is enforced by review; internal/** and cmd/**
+    # are allowed here because a handful of in-package tests predate the rule.
     allowed_test_paths:
       - tests/**
       - internal/**
       - cmd/**
+    required_gates:
+      - test
     require_workflow_dir: true
     required_workflow_files:
       - .github/workflows/ci.yml
