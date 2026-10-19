@@ -48,6 +48,14 @@ func writeZeroConfigFixture(t *testing.T, root string) {
 	// ref is SHA-pinned so ci.mutable-deployment-reference stays out of it.
 	writeScanTestFile(t, filepath.Join(root, ".github", "workflows", "ci.yml"),
 		"name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: make check\n")
+	// A genuine, non-house-style defect, so the "still detects something"
+	// half of this pair cannot pass vacuously. Every other file here is
+	// deliberately clean apart from codeguard's own conventions, and those
+	// rules are correctly off under the conservative defaults - so without a
+	// real finding the fixture would report nothing and the assertion would
+	// stop meaning anything.
+	writeScanTestFile(t, filepath.Join(root, "internal", "calc", "digest.go"),
+		"package calc\n\nimport (\n\t\"crypto/md5\"\n\t\"encoding/hex\"\n)\n\n// Digest hashes a value with MD5, which is a security.weak-hash finding.\nfunc Digest(value string) string {\n\tsum := md5.Sum([]byte(value))\n\treturn hex.EncodeToString(sum[:])\n}\n")
 	writeScanTestFile(t, filepath.Join(root, "README.md"), "# Zero config\n\nRun `make check`.\n")
 	writeScanTestFile(t, filepath.Join(root, "AGENTS.md"), "# Agent Notes\n\n## Build & test\n- `make check` runs the suite.\n")
 }

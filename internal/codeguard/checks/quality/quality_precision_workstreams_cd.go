@@ -32,15 +32,24 @@ const (
 var (
 	readCallPattern        = regexp.MustCompile(`(^|[.>:\-_])(?i:count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
 	identifierTokenPattern = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
+	roleSuffixPattern      = regexp.MustCompile(`(?i)(manager|helper|util|utils|service|processor)$`)
 	durationNamePattern    = regexp.MustCompile(`(?i)(timeout|duration|delay|interval|ttl|latency|elapsed|expiry|expiration|retention)`)
 	sizeNamePattern        = regexp.MustCompile(`(?i)(size|limit|length|capacity|bytes?|mb|kb|gb)`)
 	moneyNamePattern       = regexp.MustCompile(`(?i)(amount|price|cost|fee|total|subtotal|balance|money)`)
 	unitSuffixPattern      = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|minor|bps|basispoints?|usd|eur|gbp|aud|cad)$`)
 	collectionTypePattern  = regexp.MustCompile(`(?i)(\[\]|\[\s*\]|array|list|slice|map|dict|record|set|vector|collection|iterable|sequence|promise<[^>]*\[\])`)
-	scalarTypePattern      = regexp.MustCompile(`(?i)\b(bool|boolean|char|double|float|float64|int|int32|int64|number|string|str|uint|uint64)\b`)
-	paramMutationPattern   = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
-	returnLinePattern      = regexp.MustCompile(`(?m)^\s*return(?:\s+([^;\n]+))?`)
-	partialReturnPattern   = regexp.MustCompile(`(?i)\breturn\s+[^;\n,]+,\s*(err|error)\b|\breturn\s+\{[^}\n]*(data|result|value)[^}\n]*(err|error)[^}\n]*\}`)
+	goSliceTypePattern     = regexp.MustCompile(`^\[[^\]]*\]\s*(.+)$`)
+	scriptArrayTypePattern = regexp.MustCompile(`^(.+?)\s*\[\s*\]$`)
+	// Ordered generic containers only; keyed containers are filtered first.
+	genericCollectionTypePattern = regexp.MustCompile(`(?i)^(?:[\w.:]*\b)?(array|list|slice|vec|vector|set|collection|iterable|sequence|readonlyarray|deque|queue|stack|span|arraylist|immutablelist)\s*[<\[]\s*([^<>\[\]]+?)\s*[>\]]$`)
+	keyedContainerTypePattern    = regexp.MustCompile(`(?i)(^|\b)(map\s*\[|record\s*<|dict\s*[<\[]|dictionary\s*<|hashmap\s*<|treemap\s*<|btreemap\s*<|unordered_map\s*<|multimap\s*<|counter\s*[<\[]|defaultdict\s*[<\[]|mapping\s*[<\[])`)
+	unitPluralExclusionPattern   = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|minor|bps|basispoints?|usd|eur|gbp|aud|cad)$`)
+	scalarTypePattern            = regexp.MustCompile(`(?i)\b(bool|boolean|char|double|float|float64|int|int32|int64|number|string|str|uint|uint64)\b`)
+	numericScalarTypePattern     = regexp.MustCompile(`(?i)\b(double|float|float32|float64|int|int8|int16|int32|int64|number|uint|uint8|uint16|uint32|uint64|uintptr|bigint|decimal|long|short|size_t|ssize_t|byte|rune|duration)\b`)
+	paramMutationPattern         = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
+	returnLinePattern            = regexp.MustCompile(`(?m)^\s*return(?:\s+([^;\n]+))?`)
+	partialReturnPattern         = regexp.MustCompile(`(?i)\breturn\s+[^;\n,]+,\s*(err|error)\b|\breturn\s+\{[^}\n]*(data|result|value)[^}\n]*(err|error)[^}\n]*\}`)
+	identifierWordSplitPattern   = regexp.MustCompile(`[_\-\s]+`)
 )
 
 func additionalPrecisionFunctionFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -906,6 +915,20 @@ func isPredicateName(name string) bool {
 	return false
 }
 
+// cardinalityMismatch reports a name whose grammatical number contradicts the
+// shape of its value. It recognises exactly two situations, both of which are
+// wrong independently of any repository's vocabulary:
+//
+//   - a plural name on a scalar value ("names string"); and
+//   - a singular name that is the element type of the collection it holds
+//     ("user []User").
+//
+// It deliberately does NOT report every singular name on a collection type.
+// Measured over four repositories, that formulation produced 586 findings and
+// no true positives: byte strings ("payload []byte"), argv vectors ("command
+// []string"), maps keyed by id ("index map[string]Ref"), comparison pairs
+// ("left, right []Source"), Latin plurals ("criteria []string"), and mass
+// nouns ("evidence map[string]any") are all correctly singular.
 func cardinalityMismatch(file string, fn precisionFunction, name string, typ string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
 	if base == "" || conventionalCardinalityName(base) || configuredPluralDomainAbbreviation(base) || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
@@ -917,26 +940,149 @@ func cardinalityMismatch(file string, fn precisionFunction, name string, typ str
 	if strings.Contains(typ, "{") || strings.Contains(typ, "}") {
 		return false
 	}
-	if strings.Contains(strings.ToLower(typ), "record<") && !isPluralName(base) {
-		return false
+	if isPluralName(base) {
+		return pluralNameOnScalar(typ)
 	}
-	plural := isPluralName(base)
-	collection := collectionTypePattern.MatchString(typ) || strings.Contains(typ, "[") || strings.Contains(typ, "]")
-	scalar := !collection && scalarTypePattern.MatchString(typ)
-	if collection && (strings.HasSuffix(base, "s") || strings.HasSuffix(base, "list") || strings.HasSuffix(base, "set") || strings.HasSuffix(base, "map")) {
-		return false
-	}
-	if plural && scalar && !collection {
-		return true
-	}
-	return !plural && collection && !strings.Contains(base, "map") && !strings.Contains(base, "list") && !strings.Contains(base, "set")
+	return singularNameOfElementType(base, typ)
 }
 
-func isPluralName(name string) bool {
-	if unitSuffixPattern.MatchString(name) {
+// pluralNameOnScalar reports a plural name bound to a single non-numeric,
+// non-boolean scalar, e.g. "recipients string".
+//
+// Numeric scalars are excluded on purpose: a plural noun on a number names a
+// count of things, which is correct English and pervasive ("maxLines int",
+// "minFailures int", "samples int", "rawTokens int"). Booleans are excluded
+// because a plural noun on a flag names a mode ("lineNumbers bool",
+// "applyPatches bool", "allTargets bool"); whether such a flag should read as
+// a predicate is naming.boolean-not-predicate's question, not this rule's.
+// Enabling this direction without those two carve-outs added 481 counts and
+// 13 flags across the measured repositories and no true positives. Variadic
+// parameters are collections rather than scalars, so "needles ...string" is
+// excluded too.
+func pluralNameOnScalar(typ string) bool {
+	trimmed := strings.TrimSpace(typ)
+	if trimmed == "" || variadicParamType(trimmed) {
 		return false
 	}
-	return strings.HasSuffix(name, "s") && !strings.HasSuffix(name, "ss") && !strings.HasSuffix(name, "us")
+	if collectionTypePattern.MatchString(trimmed) || strings.Contains(trimmed, "[") || strings.Contains(trimmed, "]") {
+		return false
+	}
+	if numericScalarTypePattern.MatchString(trimmed) || isBooleanNameCandidate(trimmed) {
+		return false
+	}
+	return scalarTypePattern.MatchString(trimmed)
+}
+
+// variadicParamType recognises variadic parameter spellings, which denote a
+// collection without any bracket syntax: Go "...string", C# "params string",
+// C++ "Args&&...".
+func variadicParamType(typ string) bool {
+	return strings.HasPrefix(typ, "...") || strings.HasSuffix(typ, "...") ||
+		strings.HasPrefix(strings.ToLower(typ), "params ")
+}
+
+// singularNameOfElementType reports whether base is the (singular) name of the
+// element type of the collection typ, e.g. "user" for "[]User" or "scenario"
+// for "Array<Scenario>". That coincidence is the one high-precision signal
+// that a collection has been named as though it held a single value.
+//
+// Keyed containers are excluded: naming a map after what it maps to
+// ("index map[string]Ref", "cache map[string]*Entry") is idiomatic. So are
+// primitive element types: "[]byte" and "[]rune" are byte and character
+// strings rather than collections of bytes, and "[]string" is routinely a
+// single composite value such as an argv vector.
+func singularNameOfElementType(base string, typ string) bool {
+	element, ok := collectionElementType(typ)
+	if !ok {
+		return false
+	}
+	if primitiveTypeName(element) {
+		return false
+	}
+	return base == element || base+"s" == element || base+"es" == element
+}
+
+// collectionElementType extracts the element type of an ordered collection,
+// lower-cased and stripped of package, namespace, and pointer decoration. It
+// returns ok=false for keyed containers and for anything it cannot resolve.
+func collectionElementType(typ string) (string, bool) {
+	trimmed := strings.TrimSpace(strings.Trim(typ, "*&"))
+	if trimmed == "" || keyedContainerTypePattern.MatchString(trimmed) {
+		return "", false
+	}
+	var element string
+	switch {
+	case goSliceTypePattern.MatchString(trimmed):
+		element = goSliceTypePattern.FindStringSubmatch(trimmed)[1]
+	case scriptArrayTypePattern.MatchString(trimmed):
+		element = scriptArrayTypePattern.FindStringSubmatch(trimmed)[1]
+	case genericCollectionTypePattern.MatchString(trimmed):
+		element = genericCollectionTypePattern.FindStringSubmatch(trimmed)[2]
+	default:
+		return "", false
+	}
+	element = strings.TrimSpace(strings.Trim(element, "*&"))
+	if element == "" || strings.ContainsAny(element, "[]<>(),|") {
+		return "", false
+	}
+	if idx := strings.LastIndexAny(element, ".:"); idx >= 0 {
+		element = element[idx+1:]
+	}
+	element = strings.ToLower(strings.TrimSpace(element))
+	if element == "" {
+		return "", false
+	}
+	return element, true
+}
+
+func primitiveTypeName(element string) bool {
+	switch element {
+	case "byte", "rune", "bool", "boolean", "char", "string", "str", "int", "int8", "int16",
+		"int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
+		"float", "float32", "float64", "double", "number", "bigint", "any", "unknown",
+		"object", "error", "void":
+		return true
+	default:
+		return false
+	}
+}
+
+// isPluralName reports whether a name reads as grammatically plural.
+//
+// NOTE: this used to delegate the unit check to unitSuffixPattern, which lists
+// a bare "s" (for "seconds") among its alternatives. Every name ending in "s"
+// therefore looked like a unit-suffixed name, and every name not ending in "s"
+// failed the plural test outright, so the function returned false for every
+// input and the plural-name-on-scalar half of naming.cardinality-mismatch had
+// never fired. It now uses a unit pattern without the bare second alias, and
+// strips a trailing ordinal digit so that "outputs1" reads as plural.
+func isPluralName(name string) bool {
+	trimmed := strings.TrimRight(name, "0123456789")
+	if trimmed == "" {
+		trimmed = name
+	}
+	if unitPluralExclusionPattern.MatchString(trimmed) || singularSNameExclusion(trimmed) {
+		return false
+	}
+	return strings.HasSuffix(trimmed, "s")
+}
+
+// singularSNameExclusion covers names that end in "s" while being singular.
+// The suffix rules carry most of it (-ss, -us, -is, -as, -os: address, status,
+// analysis, alias, macos); the short set holds the residue that no suffix rule
+// separates from a real plural.
+func singularSNameExclusion(name string) bool {
+	for _, suffix := range []string{"ss", "us", "is", "as", "os"} {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	switch name {
+	case "series", "species", "news", "lens", "dns", "tls", "cors", "https", "aws", "nats", "cms", "jws", "jwks":
+		return true
+	default:
+		return false
+	}
 }
 
 func implementationLeakName(name string) bool {

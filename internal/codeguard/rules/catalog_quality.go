@@ -152,8 +152,8 @@ var qualityCatalog = map[string]core.RuleMetadata{
 		DefaultLevel:   "warn",
 		ExecutionModel: core.RuleExecutionModelGoNative,
 		Title:          "Dependency direction",
-		Description:    "Warns when non-CLI packages import CLI-only implementation details.",
-		HowToFix:       "Move shared logic into reusable packages and keep internal or CLI details out of library code.",
+		Description:    "Warns when a Go package imports an internal tree it is outside of, which Go's internal-visibility rule does not permit. Same-module internal imports (cmd, pkg facades, external test packages) are legal and are not reported.",
+		HowToFix:       "Import the internal tree only from the package it is scoped to and its descendants, or promote the shared code out of internal.",
 	},
 	"quality.command-check": {
 		ID:             "quality.command-check",
@@ -417,7 +417,7 @@ var qualityCatalog = map[string]core.RuleMetadata{
 		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
 		LanguageCoverage: core.FixedRuleLanguageCoverage(core.RuleLanguageGo, core.RuleLanguagePython, core.RuleLanguageTypeScript, core.RuleLanguageJavaScript, core.RuleLanguageCPP),
 		Title:            "Cardinality mismatch",
-		Description:      "Warns when plural names are used for scalar values or singular names are used for collection-like values.",
+		Description:      "Warns when a plural name holds a single non-numeric, non-boolean scalar, or when a singular name holds a collection of the type it is named after (user []User). Counts (maxLines), flags (lineNumbers), byte strings, argv vectors, keyed maps, and mass nouns are not reported.",
 		HowToFix:         "Align the identifier with the value shape, such as user for one value or users for a collection.",
 	},
 	"naming.implementation-leak": {

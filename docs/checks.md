@@ -1423,7 +1423,7 @@ These rules live outside the repository-wide `Change Safety` section in report o
 | Naming | `naming.boolean-not-predicate` | warn | Boolean variables, parameters, or boolean-returning functions do not read like predicates. |
 | Naming | `naming.domain-vocabulary-drift` | warn | Configured glossary concepts appear under multiple terms in the same source. |
 | Naming | `naming.unknown-abbreviation` | warn | Identifiers contain abbreviations that are not common or configured for the repository. |
-| Naming | `naming.cardinality-mismatch` | warn | Plural names are used for scalar values or singular names for collection-like values. |
+| Naming | `naming.cardinality-mismatch` | warn | A plural name holds a single non-numeric, non-boolean scalar, or a singular name holds a collection of the type it is named after (`user []User`). Counts, flags, byte strings, argv vectors, and keyed maps are not reported. |
 | Naming | `naming.implementation-leak` | warn | Domain-facing names encode infrastructure details such as SQL, HTTP, Redis, Kafka, or ORM. |
 | Naming | `naming.missing-unit` | warn | Numeric duration, size, or money names omit a unit suffix. |
 | Naming | `naming.role-suffix-overuse` | warn | A file repeatedly uses vague suffixes such as Manager, Helper, Util, Service, or Processor. |
@@ -1453,17 +1453,17 @@ These rules live outside the repository-wide `Change Safety` section in report o
 | Defensive programming | `defensive.unsafe-numeric-conversion` | warn | A narrowing or sign-changing numeric conversion can truncate, wrap, or lose precision. |
 | Defensive programming | `defensive.unvalidated-boundary-input` | warn | Handler, API, event, or filesystem input is consumed without validation evidence. |
 | Defensive programming | `defensive.invalid-state-representable` | warn | Booleans or raw status strings can represent impossible state combinations. |
-| Defensive programming | `defensive.null-assumption` | warn | Nullable boundary values are dereferenced without a nil/null guard. |
+| Defensive programming | `defensive.null-assumption` | warn | A value whose declared type says it may be absent (`?`, `| null`, `| None`, `Optional`, `Maybe`, `std::optional`) is dereferenced without a guard. A bare pointer is the pass-by-reference idiom, not a nullability declaration, and is not reported. Confidence `low`. |
 | Defensive programming | `defensive.integer-overflow` | warn | Arithmetic on count, size, or length input lacks an overflow bound check. |
 | Defensive programming | `defensive.sequence-collision-risk` | warn | External ID allocation derives the next value from current count; bounded unique-collision retry is treated as mitigation, not full resolution. |
 | Defensive programming | `defensive.bounds-assumption` | warn | Indexed access assumes collection bounds without a nearby length check. |
-| Defensive programming | `defensive.unsafe-default` | warn | A config/env fallback can fail open or disable a safety control. |
+| Defensive programming | `defensive.unsafe-default` | warn | A config/env fallback can fail open or disable a safety control. Confidence `low`. |
 | Defensive programming | `defensive.non-exhaustive-branch` | warn | Enum-like state/kind/type branching lacks default or exhaustive handling. |
 | Defensive programming | `defensive.unchecked-external-response` | warn | External responses are consumed without checking status, ok, or transport errors. |
 | Defensive programming | `defensive.missing-schema-validation` | warn | Decoded JSON, events, or request payloads are used without schema or invariant validation. |
 | Defensive programming | `defensive.missing-resource-limit` | warn | Boundary reads or uploads lack explicit size, count, or time limits. |
 | Defensive programming | `defensive.invalid-state-transition` | warn | State transitions write terminal states without checking allowed prior state. |
-| Defensive programming | `defensive.fail-open-authorization` | warn | Authorization failure paths default to allow or success. |
+| Defensive programming | `defensive.fail-open-authorization` | warn | Authorization failure paths default to allow or success. A `return nil` alongside a non-nil error is fail-closed and is not reported. Confidence `medium`. |
 | Structural smell | `smell.god-object` | warn | A local type/class accumulates many methods, fields, and responsibility clusters. |
 | Structural smell | `smell.feature-envy` | warn | A function or method mostly interrogates one external collaborator instead of its own receiver/context. |
 | Structural smell | `smell.middle-man` | warn | A type/class mostly forwards calls to one collaborator without policy, translation, or ownership. |
