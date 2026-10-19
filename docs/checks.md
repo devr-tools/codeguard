@@ -245,6 +245,42 @@ Config keys:
 
 Current behavior:
 - excluded paths are not scanned by any check family
+- an entry prefixed with `!` is a **re-include**: it cancels exclusion for
+  matching paths, including the built-in defaults below
+  (`"exclude": ["!packages/ui/dist/**"]`)
+
+### Built-in default exclusions
+
+CodeGuard always skips dependency trees, tool caches, and generated build
+output. These are matched by path *segment*, so they apply at any depth (a
+monorepo's `services/*/dist` is skipped, not just a root-level `dist`):
+
+- version control and CodeGuard state: `.git`, `.hg`, `.svn`, `.codeguard`
+- dependencies: `node_modules`, `bower_components`, `site-packages`, `venv`,
+  `.venv`, `.pub-cache`, `Pods`, `Carthage`, and `vendor` (see
+  `scan_vendored_source` to opt vendored source back in)
+- framework/bundler output: `dist`, `.next`, `.nuxt`, `.svelte-kit`, `.angular`,
+  `.astro`, `.docusaurus`, `.output`, `.vercel`, `.netlify`, `cdk.out`
+- caches: `.cache`, `.gocache`, `.gomodcache`, `.turbo`, `.parcel-cache`,
+  `.vite`, `.webpack`, `.gradle`, `.terraform`, `.build`, `.dart_tool`,
+  `.sass-cache`, `.mypy_cache`, `.pytest_cache`, `.ruff_cache`, `.tox`, `.nox`,
+  `.eggs`, `.ipynb_checkpoints`
+- generated artifacts: `__pycache__`, `*.egg-info`, `htmlcov`, `.nyc_output`,
+  and minified bundles/source maps (`*.min.js`, `*.min.css`, `*.bundle.js`,
+  `*.js.map`, `*.css.map`)
+- binary files (detected by content, not name) are skipped by every per-file
+  line/regex detector
+
+Directory names that are build output in most repositories but real source in
+some — `build`, `out`, `bin`, `obj`, `target`, `coverage`, `_build` — are **not**
+excluded on the name alone. They are skipped only when a sibling manifest proves
+the directory is that build system's output (for example `target/` next to
+`Cargo.toml` or `pom.xml`, `bin/` and `obj/` next to a `.csproj`, `build/` next
+to `CMakeLists.txt` or `build.gradle`). A Go package named `build`, a Rust crate's
+`src/bin`, or a Python `coverage` source package therefore stays scanned.
+
+Use a `!` re-include if one of the unconditional defaults hides real source in
+your repository.
 
 ## Waivers
 

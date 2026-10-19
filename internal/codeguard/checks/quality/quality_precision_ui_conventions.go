@@ -282,18 +282,47 @@ func moduleStatementLooksTopLevel(statement support.ParsedStatement) bool {
 }
 
 func scriptSourceLineAtModuleScope(source string, targetIdx int) bool {
+	// PERF: this is called once per candidate symbol and only ever reads lines
+	// up to targetIdx, so splitting the whole file into a []string each time
+	// was ~10% of a full scan's allocations. eachSourceLine walks lazily.
 	depth := 0
-	lines := strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
-	for idx, line := range lines {
+	atModuleScope := true
+	eachSourceLine(source, func(idx int, line string) bool {
 		if idx == targetIdx {
-			return depth == 0 && len(line) == len(strings.TrimLeft(line, " \t"))
+			atModuleScope = depth == 0 && len(line) == len(strings.TrimLeft(line, " \t"))
+			return false
 		}
 		depth += braceDelta(maskCommentSuffix(line))
 		if depth < 0 {
 			depth = 0
 		}
+		return true
+	})
+	return atModuleScope
+}
+
+// eachSourceLine walks source line by line with exactly the normalization of
+// strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n") — a trailing
+// carriage return is dropped only where it preceded a newline, so a lone "\r"
+// at end of file survives, as it does there — without building the slice.
+// visit returns false to stop the walk.
+func eachSourceLine(source string, visit func(idx int, line string) bool) {
+	for start, idx := 0, 0; ; idx++ {
+		offset := strings.IndexByte(source[start:], '\n')
+		if offset < 0 {
+			visit(idx, source[start:])
+			return
+		}
+		end := start + offset
+		line := source[start:end]
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			line = line[:len(line)-1]
+		}
+		if !visit(idx, line) {
+			return
+		}
+		start = end + 1
 	}
-	return true
 }
 
 func maskCommentSuffix(line string) string {

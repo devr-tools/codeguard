@@ -8,6 +8,19 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
+// PERF: constant patterns that used to be compiled inside per-function and
+// per-line detectors. See quality_pattern_cache.go.
+var (
+	parserLookupContractCall  = regexp.MustCompile(`(?i)\b(parse|assert|guard|ensure|decode)[A-Z_][A-Za-z0-9_]*(?:Input|Payload|Body|Params|Query|Record|Request|Event|Config)?\s*\(`)
+	nullableArraySuffixUnion  = regexp.MustCompile(`\]\s*\|\s*(null|undefined|none)\b`)
+	nullableTypeUnionPattern  = regexp.MustCompile(`(^|\|)\s*(null|undefined|none)\b|\b(null|undefined|none)\s*\|`)
+	overflowSizeTermPattern   = regexp.MustCompile(`(?i)\b(count|size|length|len|capacity|offset|total|bytes)\b`)
+	overflowArithmeticPattern = regexp.MustCompile(`[A-Za-z_][\w$]*\s*(\*|\+|<<)\s*[A-Za-z0-9_]`)
+	numericKeyOnlyPattern     = regexp.MustCompile(`^\d+$`)
+	authorizeFailOpenPattern  = regexp.MustCompile(`(?is)(?:if\s+)?(?:\w+\s*:=\s*)?authorize\([^)]*\)\s*;\s*err\s*!=\s*nil\s*\{[^}]*return\s+(true|nil)`)
+	errFailOpenReturnPattern  = regexp.MustCompile(`(?is)err\s*!=\s*nil\s*\{[^}]*return\s+(true|nil)`)
+)
+
 const (
 	defensiveUnvalidatedBoundaryInputRuleID  = "defensive.unvalidated-boundary-input"
 	defensiveInvalidStateRepresentableRuleID = "defensive.invalid-state-representable"
@@ -244,7 +257,7 @@ func validatedBoundaryInputPattern(fn precisionFunction, loweredBody string) boo
 	if strings.Contains(loweredBody, "nextresponse.") && containsAny(loweredBody, []string{"return nextresponse", ".json(", "redirect("}) && containsAny(loweredBody, []string{"if (!", "if (!", "if(", "if "}) {
 		return true
 	}
-	if regexp.MustCompile(`(?i)\b(parse|assert|guard|ensure|decode)[A-Z_][A-Za-z0-9_]*(?:Input|Payload|Body|Params|Query|Record|Request|Event|Config)?\s*\(`).MatchString(functionRawBody(fn)) {
+	if parserLookupContractCall.MatchString(functionRawBody(fn)) {
 		return true
 	}
 	return false
@@ -327,10 +340,10 @@ func nullableParam(param support.ParsedParam) bool {
 		return false
 	}
 	if strings.HasSuffix(strings.TrimSpace(typ), "[]") &&
-		!regexp.MustCompile(`\]\s*\|\s*(null|undefined|none)\b`).MatchString(typ) {
+		!nullableArraySuffixUnion.MatchString(typ) {
 		return false
 	}
-	return regexp.MustCompile(`(^|\|)\s*(null|undefined|none)\b|\b(null|undefined|none)\s*\|`).MatchString(typ) ||
+	return nullableTypeUnionPattern.MatchString(typ) ||
 		strings.Contains(typ, "?")
 }
 
@@ -351,12 +364,12 @@ func nullableParamGuarded(loweredBody string, name string) bool {
 		return true
 	}
 	quotedName := regexp.QuoteMeta(name)
-	return regexp.MustCompile(`if\s*\(\s*!\s*`+quotedName+`\s*\)\s*(?:return|throw|continue|break)\b`).MatchString(loweredBody) ||
+	return cachedPattern(`if\s*\(\s*!\s*`+quotedName+`\s*\)\s*(?:return|throw|continue|break)\b`).MatchString(loweredBody) ||
 		nullableParamHasBlockExitGuard(loweredBody, quotedName)
 }
 
 func nullableParamHasBlockExitGuard(loweredBody string, quotedName string) bool {
-	guardStart := regexp.MustCompile(`if\s*\(\s*!\s*` + quotedName + `\s*\)\s*\{`).FindStringIndex(loweredBody)
+	guardStart := cachedPattern(`if\s*\(\s*!\s*` + quotedName + `\s*\)\s*\{`).FindStringIndex(loweredBody)
 	if guardStart == nil {
 		return false
 	}
@@ -397,7 +410,7 @@ func nullableStatementUsesOnlyNullSafeOperators(statement string, name string) b
 	// check. Do not treat an arbitrary typeof occurrence elsewhere in the
 	// function as a null guard.
 	quotedName := regexp.QuoteMeta(name)
-	return regexp.MustCompile(`typeof\s+` + quotedName + `\s*={2,3}\s*['"](?:string|number|boolean|bigint|symbol|function)['"]\s*\?[^:]*\b` + quotedName + `(?:\.|\[)`).MatchString(statement)
+	return cachedPattern(`typeof\s+` + quotedName + `\s*={2,3}\s*['"](?:string|number|boolean|bigint|symbol|function)['"]\s*\?[^:]*\b` + quotedName + `(?:\.|\[)`).MatchString(statement)
 }
 
 func firstUseLine(fn precisionFunction, name string) int {
@@ -417,13 +430,13 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 	if containsAny(loweredBody, []string{"maxint", "math.max", "checked", "saturating", "overflow", "limits<", "safeint"}) {
 		return 0, false
 	}
-	if !regexp.MustCompile(`(?i)\b(count|size|length|len|capacity|offset|total|bytes)\b`).MatchString(loweredBody) {
+	if !overflowSizeTermPattern.MatchString(loweredBody) {
 		return 0, false
 	}
 	if !resourceAllocationArithmeticContext(loweredBody) {
 		return 0, false
 	}
-	arithmetic := regexp.MustCompile(`[A-Za-z_][\w$]*\s*(\*|\+|<<)\s*[A-Za-z0-9_]`)
+	arithmetic := overflowArithmeticPattern
 	for _, statement := range fn.Statements {
 		if arithmetic.MatchString(firstNonEmptyString(statement.Raw, statement.Text)) {
 			return statement.Line, true
@@ -584,7 +597,7 @@ func indexExpressionLooksSequenceAccess(target string, key string, raw string) b
 	if containsAny(loweredRaw, []string{"record<", "map<", "dictionary", "dict", "object.", "hasown", " in ", ".has("}) {
 		return false
 	}
-	if regexp.MustCompile(`^\d+$`).MatchString(loweredKey) {
+	if numericKeyOnlyPattern.MatchString(loweredKey) {
 		return true
 	}
 	if sequenceIndexKeyPattern.MatchString(strings.TrimSpace(strings.Trim(key, `"'`))) {
@@ -781,7 +794,7 @@ func failOpenAuthorizationLine(fn precisionFunction, loweredBody string) (int, b
 	if !containsAny(strings.ToLower(fn.Name), []string{"auth", "allow", "permission", "policy"}) && !containsAny(loweredBody, []string{"authorize", "permission", "authz", "policy"}) {
 		return 0, false
 	}
-	if authFailOpenPattern.MatchString(loweredBody) || regexp.MustCompile(`(?is)(?:if\s+)?(?:\w+\s*:=\s*)?authorize\([^)]*\)\s*;\s*err\s*!=\s*nil\s*\{[^}]*return\s+(true|nil)`).MatchString(loweredBody) || regexp.MustCompile(`(?is)err\s*!=\s*nil\s*\{[^}]*return\s+(true|nil)`).MatchString(loweredBody) {
+	if authFailOpenPattern.MatchString(loweredBody) || authorizeFailOpenPattern.MatchString(loweredBody) || errFailOpenReturnPattern.MatchString(loweredBody) {
 		return fn.StartLine, true
 	}
 	return 0, false

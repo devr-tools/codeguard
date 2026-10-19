@@ -6,6 +6,7 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 var concatenatedLiteralPattern = regexp.MustCompile(`(["'])([^"']*)["']\s*\+\s*["']([^"']*)(["'])`)
@@ -17,7 +18,6 @@ var concatenatedLiteralPattern = regexp.MustCompile(`(["'])([^"']*)["']\s*\+\s*[
 const (
 	maxScanFileBytes = 5 << 20  // skip files larger than 5 MiB
 	maxScanLineBytes = 64 << 10 // scan at most the first 64 KiB of any line
-	binarySniffBytes = 8 << 10  // bytes inspected when detecting binary content
 )
 
 // ScanContent runs the secret/credential scan over file content and returns the
@@ -102,7 +102,11 @@ func located(m *Match, lineNo int) []Match {
 }
 
 func secretResultsForFile(env support.Context, file string, data []byte, scanner Scanner) ([]core.Finding, []core.Diagnostic) {
-	if scanner.SkipPath(file) || len(data) > maxScanFileBytes || looksBinary(data) {
+	// The binary check is retained here as well as in the shared scan path
+	// (runnersupport.LooksBinary, applied in ScanTargetFiles) because
+	// secretResultsForFile is reachable from callers that do not go through the
+	// corpus scan; the shared helper is the single definition of the heuristic.
+	if scanner.SkipPath(file) || len(data) > maxScanFileBytes || runnersupport.LooksBinary(data) {
 		return nil, nil
 	}
 	content := string(data)

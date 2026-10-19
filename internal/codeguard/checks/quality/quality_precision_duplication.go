@@ -10,7 +10,10 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-var domainKnowledgeLiteralPattern = regexp.MustCompile(`"([^"]{2,80})"|'([^']{2,80})'|\b\d+(?:\.\d+)?\b`)
+var (
+	domainKnowledgeLiteralPattern = regexp.MustCompile(`"([^"]{2,80})"|'([^']{2,80})'|\b\d+(?:\.\d+)?\b`)
+	enumOrTypeLiteralLinePattern  = regexp.MustCompile(`^\s*["'][A-Za-z0-9_-]+["']\s*,?\s*$`)
+)
 
 func parsedDuplicatedKnowledgeFindings(env support.Context, file string, parsed *support.ParsedFile) []core.Finding {
 	return sourceDuplicatedKnowledgeFindings(env, file, parsed.Source)
@@ -77,7 +80,7 @@ func duplicatedKnowledgeLineIsEnumOrTypeLiteral(line string) bool {
 	if strings.Contains(line, "|") && containsAny(lowered, []string{"type ", "=", `"`, `'`}) {
 		return true
 	}
-	return regexp.MustCompile(`^\s*["'][A-Za-z0-9_-]+["']\s*,?\s*$`).MatchString(line)
+	return enumOrTypeLiteralLinePattern.MatchString(line)
 }
 
 func domainKnowledgeLiterals(line string) []string {

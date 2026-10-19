@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"unicode"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -31,19 +30,17 @@ const (
 )
 
 var (
-	readCallPattern            = regexp.MustCompile(`(^|[.>:\-_])(?i:count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
-	identifierTokenPattern     = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
-	roleSuffixPattern          = regexp.MustCompile(`(?i)(manager|helper|util|utils|service|processor)$`)
-	durationNamePattern        = regexp.MustCompile(`(?i)(timeout|duration|delay|interval|ttl|latency|elapsed|expiry|expiration|retention)`)
-	sizeNamePattern            = regexp.MustCompile(`(?i)(size|limit|length|capacity|bytes?|mb|kb|gb)`)
-	moneyNamePattern           = regexp.MustCompile(`(?i)(amount|price|cost|fee|total|subtotal|balance|money)`)
-	unitSuffixPattern          = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|minor|bps|basispoints?|usd|eur|gbp|aud|cad)$`)
-	collectionTypePattern      = regexp.MustCompile(`(?i)(\[\]|\[\s*\]|array|list|slice|map|dict|record|set|vector|collection|iterable|sequence|promise<[^>]*\[\])`)
-	scalarTypePattern          = regexp.MustCompile(`(?i)\b(bool|boolean|char|double|float|float64|int|int32|int64|number|string|str|uint|uint64)\b`)
-	paramMutationPattern       = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
-	returnLinePattern          = regexp.MustCompile(`(?m)^\s*return(?:\s+([^;\n]+))?`)
-	partialReturnPattern       = regexp.MustCompile(`(?i)\breturn\s+[^;\n,]+,\s*(err|error)\b|\breturn\s+\{[^}\n]*(data|result|value)[^}\n]*(err|error)[^}\n]*\}`)
-	identifierWordSplitPattern = regexp.MustCompile(`[_\-\s]+`)
+	readCallPattern        = regexp.MustCompile(`(^|[.>:\-_])(?i:count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
+	identifierTokenPattern = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
+	durationNamePattern    = regexp.MustCompile(`(?i)(timeout|duration|delay|interval|ttl|latency|elapsed|expiry|expiration|retention)`)
+	sizeNamePattern        = regexp.MustCompile(`(?i)(size|limit|length|capacity|bytes?|mb|kb|gb)`)
+	moneyNamePattern       = regexp.MustCompile(`(?i)(amount|price|cost|fee|total|subtotal|balance|money)`)
+	unitSuffixPattern      = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|minor|bps|basispoints?|usd|eur|gbp|aud|cad)$`)
+	collectionTypePattern  = regexp.MustCompile(`(?i)(\[\]|\[\s*\]|array|list|slice|map|dict|record|set|vector|collection|iterable|sequence|promise<[^>]*\[\])`)
+	scalarTypePattern      = regexp.MustCompile(`(?i)\b(bool|boolean|char|double|float|float64|int|int32|int64|number|string|str|uint|uint64)\b`)
+	paramMutationPattern   = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
+	returnLinePattern      = regexp.MustCompile(`(?m)^\s*return(?:\s+([^;\n]+))?`)
+	partialReturnPattern   = regexp.MustCompile(`(?i)\breturn\s+[^;\n,]+,\s*(err|error)\b|\breturn\s+\{[^}\n]*(data|result|value)[^}\n]*(err|error)[^}\n]*\}`)
 )
 
 func additionalPrecisionFunctionFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -159,13 +156,15 @@ func sourceNamingFindings(env support.Context, file string, source string) []cor
 		return nil
 	}
 	findings := make([]core.Finding, 0, 3)
-	if finding, ok := glossaryDriftFinding(env, file, source); ok {
+	// PERF: all three detectors tokenize the same source. Scan it at most once.
+	idents := &sourceIdentifiers{source: source}
+	if finding, ok := glossaryDriftFinding(env, file, idents); ok {
 		findings = append(findings, finding)
 	}
-	if finding, ok := roleSuffixOveruseFinding(env, file, source); ok {
+	if finding, ok := roleSuffixOveruseFinding(env, file, idents); ok {
 		findings = append(findings, finding)
 	}
-	if finding, ok := crossLayerInconsistencyFinding(env, file, source); ok {
+	if finding, ok := crossLayerInconsistencyFinding(env, file, idents); ok {
 		findings = append(findings, finding)
 	}
 	return findings
@@ -517,9 +516,12 @@ func nextResponseNullableGuardHelper(fn precisionFunction) bool {
 	return strings.Contains(body, "return null") && hasNextResponseBody
 }
 
+// PERF: compiled once; this detector runs per function.
+var lookupFunctionNamePattern = regexp.MustCompile(`^(as|exists|extract|find|get|lookup|parse|read|resolve|to)`)
+
 func nullableParserLookupContract(fn precisionFunction) bool {
 	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
-	if !regexp.MustCompile(`^(as|exists|extract|find|get|lookup|parse|read|resolve|to)`).MatchString(loweredName) {
+	if !lookupFunctionNamePattern.MatchString(loweredName) {
 		return false
 	}
 	body := strings.ToLower(fn.Body)
@@ -990,18 +992,23 @@ func numericExpr(expr string) bool {
 }
 
 func unknownAbbreviation(env support.Context, name string) string {
-	allowed := allowedAbbreviations(env)
 	for _, word := range splitIdentifierWords(name) {
 		candidate := strings.ToLower(strings.Trim(word, "_$"))
 		if candidate == "" || len(candidate) < 2 {
 			continue
 		}
-		if _, ok := allowed[candidate]; ok {
+		// PERF: allowedAbbreviations rebuilds a ~45-entry map from config on
+		// every call, and this runs for every identifier in every function.
+		// The two tests commute — a candidate is reported only when it is
+		// suspicious AND not allowed — so apply the cheap one first and touch
+		// the map only for the handful of candidates that could be reported.
+		if !isSuspiciousShortening(candidate) {
 			continue
 		}
-		if isSuspiciousShortening(candidate) {
-			return word
+		if _, ok := allowedAbbreviations(env)[candidate]; ok {
+			continue
 		}
+		return word
 	}
 	return ""
 }
@@ -1027,18 +1034,19 @@ func isSuspiciousShortening(word string) bool {
 	}
 }
 
-func glossaryDriftFinding(env support.Context, file string, source string) (core.Finding, bool) {
+func glossaryDriftFinding(env support.Context, file string, idents *sourceIdentifiers) (core.Finding, bool) {
 	for concept, entry := range env.Config.Checks.QualityRules.Naming.Glossary {
 		preferred := strings.ToLower(strings.TrimSpace(concept))
 		terms := append([]string{preferred}, entry.Avoid...)
 		seen := map[string]int{}
-		for _, ident := range identifiersInSource(source) {
+		identWords := idents.wordsPerIdentifier()
+		for i, ident := range idents.all() {
 			for _, term := range terms {
 				normalized := strings.ToLower(strings.TrimSpace(term))
 				if normalized == "" {
 					continue
 				}
-				if identifierContainsWord(ident.name, normalized) {
+				if wordsContain(identWords[i], normalized) {
 					seen[normalized] = ident.line
 				}
 			}
@@ -1052,7 +1060,7 @@ func glossaryDriftFinding(env support.Context, file string, source string) (core
 	return core.Finding{}, false
 }
 
-func roleSuffixOveruseFinding(env support.Context, file string, source string) (core.Finding, bool) {
+func roleSuffixOveruseFinding(env support.Context, file string, idents *sourceIdentifiers) (core.Finding, bool) {
 	normalizedFile := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
 	if isSeedOrScriptSourcePath(file) || isPackageAPIRouterPath(file) ||
 		strings.Contains(normalizedFile, "/infra/") || strings.HasPrefix(normalizedFile, "infra/") {
@@ -1069,8 +1077,11 @@ func roleSuffixOveruseFinding(env support.Context, file string, source string) (
 		threshold = 4
 	}
 	seen := map[string]int{}
-	for _, ident := range identifiersInSource(source) {
-		if roleSuffixPattern.MatchString(ident.name) {
+	for _, ident := range idents.all() {
+		// hasRoleSuffix replaces `(?i)(manager|helper|util|utils|service|
+		// processor)$`: without (?m) that anchor is end-of-text, and an
+		// identifier holds no newline, so a suffix test is exactly equivalent.
+		if hasRoleSuffix(ident.name) {
 			seen[ident.name] = ident.line
 		}
 	}
@@ -1081,8 +1092,8 @@ func roleSuffixOveruseFinding(env support.Context, file string, source string) (
 		fmt.Sprintf("file uses %d vague role suffix names such as Manager/Helper/Util/Service/Processor", len(seen)), core.ConfidenceMedium), true
 }
 
-func crossLayerInconsistencyFinding(env support.Context, file string, source string) (core.Finding, bool) {
-	if strings.Contains(source, "userDeletionRequest") {
+func crossLayerInconsistencyFinding(env support.Context, file string, idents *sourceIdentifiers) (core.Finding, bool) {
+	if strings.Contains(idents.source, "userDeletionRequest") {
 		return core.Finding{}, false
 	}
 	groups := [][]string{
@@ -1091,15 +1102,21 @@ func crossLayerInconsistencyFinding(env support.Context, file string, source str
 		{"order", "purchase", "transaction"},
 	}
 	layerTerms := []string{"api", "request", "response", "dto", "entity", "record", "row", "model", "repository", "domain"}
-	idents := identifiersInSource(source)
+	// PERF: each identifier is split into words ONCE (shared with the other
+	// naming detectors). The nested loops below ask up to 3*(10+4) membership
+	// questions per identifier, and each one used to re-split the identifier
+	// from scratch — this single detector was ~15% of a full scan's CPU and
+	// ~20% of its allocations.
+	identWords := idents.wordsPerIdentifier()
 	for _, group := range groups {
 		seen := map[string]int{}
-		for _, ident := range idents {
-			if !containsAnyIdentifierWord(ident.name, layerTerms) {
+		for i, ident := range idents.all() {
+			words := identWords[i]
+			if !wordsContainAny(words, layerTerms) {
 				continue
 			}
 			for _, term := range group {
-				if identifierContainsWord(ident.name, term) {
+				if wordsContain(words, term) {
 					seen[term] = ident.line
 				}
 			}
@@ -1110,80 +1127,6 @@ func crossLayerInconsistencyFinding(env support.Context, file string, source str
 		}
 	}
 	return core.Finding{}, false
-}
-
-type identifierAtLine struct {
-	name string
-	line int
-}
-
-func identifiersInSource(source string) []identifierAtLine {
-	matches := identifierTokenPattern.FindAllStringIndex(source, -1)
-	out := make([]identifierAtLine, 0, len(matches))
-	line := 1
-	previousMatchStart := 0
-	for _, match := range matches {
-		line += strings.Count(source[previousMatchStart:match[0]], "\n")
-		out = append(out, identifierAtLine{
-			name: source[match[0]:match[1]],
-			line: line,
-		})
-		previousMatchStart = match[0]
-	}
-	return out
-}
-
-func splitIdentifierWords(name string) []string {
-	trimmed := strings.Trim(name, "_$")
-	if trimmed == "" {
-		return nil
-	}
-	var words []string
-	for _, part := range identifierWordSplitPattern.Split(trimmed, -1) {
-		if part == "" {
-			continue
-		}
-		words = append(words, splitCamelWords(part)...)
-	}
-	return words
-}
-
-func splitCamelWords(part string) []string {
-	if part == "" {
-		return nil
-	}
-	runes := []rune(part)
-	start := 0
-	out := make([]string, 0, 3)
-	for idx := 1; idx < len(runes); idx++ {
-		prev := runes[idx-1]
-		cur := runes[idx]
-		nextLower := idx+1 < len(runes) && unicode.IsLower(runes[idx+1])
-		if unicode.IsLower(prev) && unicode.IsUpper(cur) || unicode.IsUpper(prev) && unicode.IsUpper(cur) && nextLower {
-			out = append(out, string(runes[start:idx]))
-			start = idx
-		}
-	}
-	out = append(out, string(runes[start:]))
-	return out
-}
-
-func identifierContainsWord(identifier string, word string) bool {
-	for _, candidate := range splitIdentifierWords(identifier) {
-		if strings.EqualFold(candidate, word) {
-			return true
-		}
-	}
-	return false
-}
-
-func containsAnyIdentifierWord(identifier string, words []string) bool {
-	for _, word := range words {
-		if identifierContainsWord(identifier, word) {
-			return true
-		}
-	}
-	return false
 }
 
 func firstSeenLine(seen map[string]int) int {

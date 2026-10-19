@@ -57,6 +57,12 @@ type structuralFunction struct {
 	Body      string
 }
 
+// PERF: compiled once; these run per function body.
+var (
+	nestedSwitchPattern    = regexp.MustCompile(`(?is)\bswitch\b.*\bswitch\b`)
+	branchThenWritePattern = regexp.MustCompile(`(?is)\b(?:if|switch)\b.*\b(?:save|update|delete|send|publish|emit|write)\b`)
+)
+
 func goStructuralSmellFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, data []byte) []core.Finding {
 	classes, functions := goStructuralModel(fset, parsed, data)
 	return structuralSmellFindings(env, file, string(data), "go", classes, functions)
@@ -457,7 +463,7 @@ func ownAccessCount(fn structuralFunction) int {
 }
 
 func accessCount(body string, name string) int {
-	pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\s*(?:\.|->)`)
+	pattern := cachedPattern(`\b` + regexp.QuoteMeta(name) + `\s*(?:\.|->)`)
 	return len(pattern.FindAllStringIndex(body, -1))
 }
 
@@ -723,7 +729,7 @@ func closedDomainDiscriminatorDispatch(source string) bool {
 	lowered := strings.ToLower(source)
 	return strings.Contains(lowered, "switch") &&
 		containsAny(lowered, []string{"type searchtype", ": searchtype", "detectsearchtype", "type:", "kind:"}) &&
-		!regexp.MustCompile(`(?is)\bswitch\b.*\bswitch\b`).MatchString(lowered)
+		!nestedSwitchPattern.MatchString(lowered)
 }
 
 func centralizedEnumDispatchContext(file string, source string) bool {
@@ -733,7 +739,7 @@ func centralizedEnumDispatchContext(file string, source string) bool {
 		return true
 	}
 	if containsAny(lowered, []string{"label:", "labels", "record<", " as const", "satisfies record", "displayname", "display_name"}) &&
-		!regexp.MustCompile(`(?is)\b(?:if|switch)\b.*\b(?:save|update|delete|send|publish|emit|write)\b`).MatchString(lowered) {
+		!branchThenWritePattern.MatchString(lowered) {
 		return true
 	}
 	return false
