@@ -647,12 +647,25 @@ func dataClumpFindings(env support.Context, file string, functions []structuralF
 		}
 		groups[key] = append(groups[key], occurrence{line: fn.StartLine, fn: fn.Name})
 	}
+	// One finding per file, so when several parameter groups qualify the
+	// choice must not come from map iteration order - that reported a
+	// different group, line and message between runs on the same file. Report
+	// the worst clump (most functions), tie-broken by group key so the result
+	// is total.
+	best := ""
 	for key, occurrences := range groups {
-		if len(occurrences) >= 3 {
-			return []core.Finding{precisionWarnFinding(env, smellDataClumpRuleID, file, occurrences[2].line,
-				fmt.Sprintf("parameter group [%s] appears in %d functions; extract a value object/options type", key, len(occurrences)),
-				core.ConfidenceHigh)}
+		if len(occurrences) < 3 {
+			continue
 		}
+		if best == "" || len(occurrences) > len(groups[best]) || (len(occurrences) == len(groups[best]) && key < best) {
+			best = key
+		}
+	}
+	if best != "" {
+		occurrences := groups[best]
+		return []core.Finding{precisionWarnFinding(env, smellDataClumpRuleID, file, occurrences[2].line,
+			fmt.Sprintf("parameter group [%s] appears in %d functions; extract a value object/options type", best, len(occurrences)),
+			core.ConfidenceHigh)}
 	}
 	return nil
 }

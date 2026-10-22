@@ -32,7 +32,6 @@ const (
 var (
 	readCallPattern        = regexp.MustCompile(`(^|[.>:\-_])(?i:count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
 	identifierTokenPattern = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
-	roleSuffixPattern      = regexp.MustCompile(`(?i)(manager|helper|util|utils|service|processor)$`)
 	durationNamePattern    = regexp.MustCompile(`(?i)(timeout|duration|delay|interval|ttl|latency|elapsed|expiry|expiration|retention)`)
 	sizeNamePattern        = regexp.MustCompile(`(?i)(size|limit|length|capacity|bytes?|mb|kb|gb)`)
 	moneyNamePattern       = regexp.MustCompile(`(?i)(amount|price|cost|fee|total|subtotal|balance|money)`)
@@ -49,7 +48,6 @@ var (
 	paramMutationPattern         = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
 	returnLinePattern            = regexp.MustCompile(`(?m)^\s*return(?:\s+([^;\n]+))?`)
 	partialReturnPattern         = regexp.MustCompile(`(?i)\breturn\s+[^;\n,]+,\s*(err|error)\b|\breturn\s+\{[^}\n]*(data|result|value)[^}\n]*(err|error)[^}\n]*\}`)
-	identifierWordSplitPattern   = regexp.MustCompile(`[_\-\s]+`)
 )
 
 func additionalPrecisionFunctionFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
