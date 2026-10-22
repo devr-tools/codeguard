@@ -26,11 +26,6 @@ func IsPublicPackageFile(path string) bool {
 	return strings.HasPrefix(normalized, "pkg/")
 }
 
-func IsSDKFacadeFile(path string) bool {
-	normalized := filepath.ToSlash(path)
-	return strings.HasPrefix(normalized, "pkg/codeguard/")
-}
-
 // ShouldExclude reports whether a target-root-relative path is skipped by the
 // built-in defaults or by the user's exclude list.
 func ShouldExclude(rel string, excludes []string) bool {

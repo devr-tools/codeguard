@@ -92,6 +92,10 @@ func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig
 	defaultInt(&dst.GodModuleThreshold, def.GodModuleThreshold)
 	defaultInt(&dst.HighImpactChangeThreshold, def.HighImpactChangeThreshold)
 	defaultStringSlice(&dst.ForbiddenPackageNames, def.ForbiddenPackageNames)
+	// sdk_facade_paths has no baseline value on purpose: the facade is a
+	// property of the repository being scanned, so an unset list means
+	// "discover it from the layout" rather than "use codeguard's own".
+	defaultStringSlice(&dst.SDKFacadePaths, def.SDKFacadePaths)
 	applyDefaultBoolPtrs(
 		&dst.DetectImportCycles,
 		&dst.DetectGodModules,
