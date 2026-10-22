@@ -1,7 +1,6 @@
 package security
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -9,7 +8,13 @@ import (
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
-var concatenatedLiteralPattern = regexp.MustCompile(`(["'])([^"']*)["']\s*\+\s*["']([^"']*)(["'])`)
+// concatenatedLiteralPattern folds `"abc" + "def"` into `"abcdef"` so a secret
+// split across literals is still detected. It is gated on the '+' the pattern
+// requires: it runs on every scanned line, and profiling showed it as the third
+// largest block of regexp time in the package.
+var concatenatedLiteralPattern = newGatedPattern("concatenated-literal",
+	`(["'])([^"']*)["']\s*\+\s*["']([^"']*)(["'])`,
+	exactGate("+"))
 
 // Bounds that keep the scan cheap and resistant to pathological (and untrusted)
 // input such as minified bundles or deliberately oversized lines. codeguard runs
@@ -50,8 +55,10 @@ func (s Scanner) ScanContent(content string) []Match {
 }
 
 func foldConcatenatedLiterals(line string) string {
-	for concatenatedLiteralPattern.MatchString(line) {
-		line = concatenatedLiteralPattern.ReplaceAllString(line, `$1$2$3$4`)
+	// The gate is exact-only, so the ascii argument is unused here; false is
+	// the conservative value (it can only widen a gate, never narrow one).
+	for concatenatedLiteralPattern.matchString(line, false) {
+		line = concatenatedLiteralPattern.re.ReplaceAllString(line, `$1$2$3$4`)
 	}
 	return line
 }
