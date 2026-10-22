@@ -40,6 +40,35 @@ type GovulncheckResult struct {
 	Diagnostics []core.Diagnostic
 }
 
+// SDKFacade identifies the package(s) that make up the scanned repository's
+// published API surface. It is resolved per target from
+// design_rules.sdk_facade_paths, or discovered from the repository layout when
+// that is unset - never from a path literal baked into codeguard.
+type SDKFacade interface {
+	// MatchesFile reports whether a target-root-relative path is inside the
+	// facade.
+	MatchesFile(rel string) bool
+	// MatchesImport reports whether a Go import path refers to the facade.
+	MatchesImport(importPath string) bool
+}
+
+type emptySDKFacade struct{}
+
+func (emptySDKFacade) MatchesFile(string) bool   { return false }
+func (emptySDKFacade) MatchesImport(string) bool { return false }
+
+// SDKFacadeForTarget resolves env's facade for target, returning a matcher
+// that matches nothing when the hook is unwired.
+func SDKFacadeForTarget(env Context, target core.TargetConfig) SDKFacade {
+	if env.SDKFacadeFor == nil {
+		return emptySDKFacade{}
+	}
+	if facade := env.SDKFacadeFor(target); facade != nil {
+		return facade
+	}
+	return emptySDKFacade{}
+}
+
 type Context struct {
 	Config           core.Config
 	AIEnabled        bool
@@ -78,13 +107,16 @@ type Context struct {
 	IsInternalOrCmdFile            func(path string) bool
 	IsCmdFile                      func(path string) bool
 	IsPublicPackageFile            func(path string) bool
-	IsSDKFacadeFile                func(path string) bool
-	IsPromptFile                   func(rel string) bool
-	RunGovulncheck                 func(ctx context.Context, dir string, cmdName string) GovulncheckResult
-	RunCPPFormat                   func(ctx context.Context, dir string, cfg core.CPPToolingConfig, files []string) CPPToolResult
-	RunCPPSyntax                   func(ctx context.Context, dir string, cfg core.CPPToolingConfig) CPPToolResult
-	RunCommandCheck                func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error)
-	RunCommandCheckWithEnv         func(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error)
-	RunDiffCommandCheck            func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error)
-	NormalizedSeverity             func(level string) string
+	// SDKFacadeFor resolves the scanned repository's published facade package
+	// for one target. Nil in unit-test contexts; use SDKFacadeForTarget, which
+	// degrades to a matcher that matches nothing.
+	SDKFacadeFor           func(target core.TargetConfig) SDKFacade
+	IsPromptFile           func(rel string) bool
+	RunGovulncheck         func(ctx context.Context, dir string, cmdName string) GovulncheckResult
+	RunCPPFormat           func(ctx context.Context, dir string, cfg core.CPPToolingConfig, files []string) CPPToolResult
+	RunCPPSyntax           func(ctx context.Context, dir string, cfg core.CPPToolingConfig) CPPToolResult
+	RunCommandCheck        func(ctx context.Context, dir string, check core.CommandCheckConfig) (string, error)
+	RunCommandCheckWithEnv func(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error)
+	RunDiffCommandCheck    func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error)
+	NormalizedSeverity     func(level string) string
 }

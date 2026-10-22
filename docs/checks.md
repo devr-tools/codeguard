@@ -1606,6 +1606,7 @@ Config keys:
       "forbid_internal_import_cmd": true,
       "forbid_service_import_internal": true,
       "forbid_service_import_cmd": true,
+      "sdk_facade_paths": ["pkg/myapp"],
       "max_decls_per_file": 12,
       "max_methods_per_type": 8,
       "max_interface_methods": 5,
@@ -1627,13 +1628,44 @@ Defaults: the four Go package-layering toggles
 (`require_cmd_through_internal_cli`, `forbid_internal_import_cmd`,
 `forbid_service_import_internal`, `forbid_service_import_cmd`) are **off by
 default**. They describe one specific repository layout — `cmd/` delegating to
-`internal/cli`, and a `pkg/` facade that must not reach into `internal/` or
-`cmd/` — and report at fail level, and a `pkg/` package importing its own
-module's `internal/` is ordinary Go. Set them to `true` to enforce that layout;
-the config `codeguard init` writes does, and so does this repository's own
+`internal/cli`, and a `pkg/` facade that must not reach into `cmd/` — and
+report at fail level, and a `pkg/` package importing its own module's
+`internal/` is ordinary Go. Set them to `true` to enforce that layout; the
+config `codeguard init` writes does, and so does this repository's own
 self-scan config. The remaining design rules (import cycles, god modules,
 high-impact changes, the numeric thresholds, generic package names) stay on by
 default.
+
+### `sdk_facade_paths` — which package is your public facade
+
+Two of the layering rules need to know which package is the repository's
+published API surface — the one public package whose job is to wrap the
+module's internals:
+
+- `design.service-import-internal` does **not** fire inside the facade. A
+  facade importing `internal/` is the point of a facade.
+- `design.cmd-through-internal-cli` fires when a `cmd/` package imports the
+  facade instead of going through `internal/cli`.
+
+`sdk_facade_paths` is a list of target-root-relative package directories, for
+example `["pkg/myapp"]`. A glob tail is accepted and trimmed, so `"pkg/myapp"`
+and `"pkg/myapp/**"` mean the same thing; absolute paths and `..` are rejected.
+
+**When it is unset, the facade is discovered from the repository layout: every
+directory directly under `pkg/` counts as facade.** That default is
+deliberately permissive. Within a single Go module, `pkg/<anything>` importing
+`<module>/internal/...` is legal, idiomatic Go, so treating a public package as
+a non-facade costs a fail-level finding on correct code. Set
+`sdk_facade_paths` when your repository really does distinguish one facade from
+other public packages and you want `design.service-import-internal` enforced on
+the rest.
+
+`design.service-import-cmd` has no facade exemption at all: a public package
+importing `cmd/` is a layering inversion under any layout, the facade included.
+
+`design.cmd-through-internal-cli` matches the facade import by module path when
+the target has a readable `go.mod` (`<module>/pkg/<facade>` and anything under
+it), and falls back to a path-segment match otherwise.
 
 Current behavior:
 

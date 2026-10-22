@@ -44,12 +44,16 @@ func baseDefaultDesignRules() core.DesignRulesConfig {
 	return core.DesignRulesConfig{
 		// Package-layering policy: off by default. These four rules encode one
 		// specific repository layout (cmd/ delegating to internal/cli, a pkg/
-		// facade that must not reach into internal/ or cmd/) and report at
-		// fail level. `design.cmd-through-internal-cli` additionally only ever
-		// matches an import of ".../pkg/codeguard", so it cannot fire outside
-		// this repository at all. A repository that wants the layering
-		// enforced states it in design_rules; the starter config and the
-		// self-scan config both do.
+		// facade that must not reach into cmd/) and report at fail level. A
+		// repository that wants the layering enforced states it in
+		// design_rules; the starter config and the self-scan config both do.
+		//
+		// Which package counts as the facade is resolved per repository (see
+		// design_rules.sdk_facade_paths and SDKFacadeResolver); it used to be
+		// the literal "pkg/codeguard", which exempted this repository from
+		// design.service-import-internal while every other repository was held
+		// to it, and made design.cmd-through-internal-cli unable to fire
+		// anywhere else.
 		RequireCmdThroughInternalCLI: boolPtr(false),
 		ForbidInternalImportCmd:      boolPtr(false),
 		ForbidServiceImportInternal:  boolPtr(false),

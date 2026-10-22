@@ -62,6 +62,12 @@ checks:
     forbid_internal_import_cmd: true
     forbid_service_import_internal: true
     forbid_service_import_cmd: true
+    # Which package is the facade is a property of the repository being
+    # scanned, not a literal in codeguard's source. Unset, it is discovered
+    # (every directory under pkg/); stating it keeps the layering rule strict
+    # for any future pkg/ package that is not the SDK facade.
+    sdk_facade_paths:
+      - pkg/codeguard
   performance_rules:
     hot_package_importer_threshold: 32
     rebuild_amplifier_threshold: 40
