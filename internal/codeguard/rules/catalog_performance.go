@@ -205,7 +205,7 @@ var performanceCatalog = map[string]core.RuleMetadata{
 		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
 		LanguageCoverage: core.FixedRuleLanguageCoverage(core.RuleLanguageCPP),
 		Title:            "C++ stream flush inside loop",
-		Description:      "Warns when std::endl or std::flush is written inside a C++ loop, defeating stream buffering and often dominating hot-path latency (performance_rules.detect_hot_path_patterns). Ordinary newline writes such as '\n' are not flagged.",
+		Description:      "Warns when std::endl or std::flush is written inside a C++ loop, defeating stream buffering and often dominating hot-path latency (performance_rules.detect_hot_path_patterns). Ordinary newline writes such as a plain newline character are not flagged.",
 		HowToFix:         "Write a newline and flush once after the loop, unless immediate delivery is required.",
 	},
 	"performance.cpp.sleep-in-loop": {
