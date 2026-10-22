@@ -41,7 +41,7 @@ This keeps the runner tree organized with the same directory-first style as `int
 ## Current check behavior
 
 - `quality` enforces parseability, `gofmt` cleanliness, AST-derived maintainability thresholds, cyclomatic complexity, and dependency-direction checks
-- `design` enforces configurable layer boundaries between `cmd/`, `internal/`, and reusable `pkg/codeguard/` packages, plus principle checks for separation of concerns, clean-code naming, and SOLID-oriented heuristics
+- `design` enforces configurable layer boundaries between `cmd/`, `internal/`, and the scanned repository's public `pkg/` facade (`design_rules.sdk_facade_paths`, or discovered from the layout), plus principle checks for separation of concerns, clean-code naming, and SOLID-oriented heuristics
 - `prompts` discovers prompt-oriented files and enforces configurable checks for secret interpolation and unsafe instruction patterns
 - `ci` enforces configurable repository policy for workflow directories, workflow files, workflow contents, release files, and automation entrypoints
 - `security` runs local heuristic scanning first and can optionally run `govulncheck` in `off`, `auto`, or `required` mode with per-vulnerability findings when output is available

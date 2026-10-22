@@ -43,6 +43,12 @@ func boolValueOrTrue(ptr *bool) bool {
 	return *ptr
 }
 
+// boolValue reads an optional bool, treating an unset (nil) pointer as false.
+// Use it when reading a baseline value whose "not stated" answer is off.
+func boolValue(ptr *bool) bool {
+	return ptr != nil && *ptr
+}
+
 // defaultStringSlice fills a string-slice setting with a copy of its default
 // when unset.
 func defaultStringSlice(dst *[]string, def []string) {

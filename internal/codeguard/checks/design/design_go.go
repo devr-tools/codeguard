@@ -12,14 +12,17 @@ import (
 )
 
 func goTargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
+	// Resolved once per target rather than per file: it reads go.mod and lists
+	// pkg/ on the first call.
+	facade := support.SDKFacadeForTarget(env, target)
 	return env.ScanTargetFiles(target, "design", func(rel string) bool {
 		return strings.HasSuffix(rel, ".go")
 	}, func(file string, data []byte) []core.Finding {
-		return goFindingsForFile(env, file, data)
+		return goFindingsForFile(env, facade, file, data)
 	})
 }
 
-func goFindingsForFile(env support.Context, file string, data []byte) []core.Finding {
+func goFindingsForFile(env support.Context, facade support.SDKFacade, file string, data []byte) []core.Finding {
 	fset, parsed, err := support.ParseGoSource(env, file, data)
 	if err != nil {
 		return nil
@@ -31,7 +34,7 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 	methodCounts, interfaceFindings := typeFindings(env, file, fset, parsed)
 	findings = append(findings, interfaceFindings...)
 	findings = append(findings, methodFindings(env, file, methodCounts)...)
-	findings = append(findings, importFindings(env, file, fset, parsed)...)
+	findings = append(findings, importFindings(env, facade, file, fset, parsed)...)
 	return findings
 }
 
@@ -122,23 +125,31 @@ func methodFindings(env support.Context, file string, methodCounts map[string]in
 	return findings
 }
 
-func importFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
+func importFindings(env support.Context, facade support.SDKFacade, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
 	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each import appends a variable number
 	normalized := filepath.ToSlash(file)
 	for _, imp := range parsed.Imports {
 		pathValue := strings.Trim(imp.Path.Value, `"`)
 		pos := fset.Position(imp.Pos())
-		findings = append(findings, cmdImportFindings(env, file, normalized, pathValue, pos)...)
-		findings = append(findings, publicPackageImportFindings(env, file, normalized, pathValue, pos)...)
+		findings = append(findings, cmdImportFindings(env, facade, file, normalized, pathValue, pos)...)
+		findings = append(findings, publicPackageImportFindings(env, facade, file, normalized, pathValue, pos)...)
 	}
 	return findings
 }
 
-func cmdImportFindings(env support.Context, file string, normalized string, pathValue string, pos token.Position) []core.Finding {
+// cmdImportFindings reports a cmd/ package reaching for the repository's own
+// public facade instead of the internal CLI layer.
+//
+// The facade used to be the literal "/pkg/codeguard", so this rule could only
+// ever fire inside codeguard's own tree - it shipped as a fail-level default
+// that was a guaranteed no-op for every other user. It now resolves the
+// facade from the scanned repository, module-qualified when a go.mod is
+// readable so an unrelated third-party package of the same name cannot match.
+func cmdImportFindings(env support.Context, facade support.SDKFacade, file string, normalized string, pathValue string, pos token.Position) []core.Finding {
 	if !*env.Config.Checks.DesignRules.RequireCmdThroughInternalCLI {
 		return nil
 	}
-	if !env.IsCmdFile(normalized) || !strings.Contains(pathValue, "/pkg/codeguard") || strings.Contains(pathValue, "/internal/") {
+	if !env.IsCmdFile(normalized) || !facade.MatchesImport(pathValue) || strings.Contains(pathValue, "/internal/") {
 		return nil
 	}
 	return []core.Finding{env.NewFinding(support.FindingInput{
@@ -151,13 +162,19 @@ func cmdImportFindings(env support.Context, file string, normalized string, path
 	})}
 }
 
-func publicPackageImportFindings(env support.Context, file string, normalized string, pathValue string, pos token.Position) []core.Finding {
-	if !env.IsPublicPackageFile(normalized) || env.IsSDKFacadeFile(normalized) {
+func publicPackageImportFindings(env support.Context, facade support.SDKFacade, file string, normalized string, pathValue string, pos token.Position) []core.Finding {
+	if !env.IsPublicPackageFile(normalized) {
 		return nil
 	}
 
 	findings := make([]core.Finding, 0, 2)
-	if *env.Config.Checks.DesignRules.ForbidServiceImportInternal && strings.Contains(pathValue, "/internal/") {
+	// The facade exemption applies to the internal-import rule only. A public
+	// package wrapping internal/ is the whole point of a facade, and within a
+	// single Go module it is legal, idiomatic code - so the exemption has to be
+	// generous or the rule reports correct code at fail level. Importing cmd/
+	// is a layering inversion under any layout, facade included, so that rule
+	// keeps no exemption.
+	if *env.Config.Checks.DesignRules.ForbidServiceImportInternal && !facade.MatchesFile(normalized) && strings.Contains(pathValue, "/internal/") {
 		findings = append(findings, env.NewFinding(support.FindingInput{
 			RuleID:  "design.service-import-internal",
 			Level:   "fail",

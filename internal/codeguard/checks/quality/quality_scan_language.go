@@ -34,8 +34,9 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
 					index = buildGoPackageIndex(env, target)
 				}
+				modules := newGoModuleResolver(target.Path)
 				findings := support.ScanGoFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
-					return goFindingsForFileWithIndex(env, file, data, index)
+					return goFindingsForFileWithIndex(env, file, data, index, &modules)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
 					env.VisitTargetFiles(target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) {

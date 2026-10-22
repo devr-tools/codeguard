@@ -174,5 +174,5 @@ func parseConanLockState(data []byte) (lockfileState, bool) {
 		}
 		addLockfilePackage(state, dep.Name, dep.Version)
 	}
-	return state, len(state.packages) > 0
+	return state, len(state.packages) > 0 || lockfileHasNoContent(data)
 }

@@ -159,14 +159,20 @@ func TestSecurityCheckUsesSemanticTypeScriptAnalyzerForRequirePropertyAlias(t *t
 	assertFindingRulePresent(t, report, "Security", "security.typescript.shell-execution")
 }
 
-func TestSecuritySemanticAnalyzerScansNodeModulesWithinTarget(t *testing.T) {
+// Installed dependency trees are excluded from scans, and that policy is
+// applied to the logical target root as well (see
+// TestWalkFilesAppliesDependencyPolicyToLogicalTargetRoot in tests/security),
+// so the semantic analyzer never reaches node_modules. Replaces an earlier test
+// that asserted the opposite for a capability the scanner hardening removed.
+func TestSecuritySemanticAnalyzerSkipsNodeModulesUnderOrdinaryTarget(t *testing.T) {
 	requireTypeScriptSemanticRuntime(t)
 
 	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "src", "index.ts"), "export const ok = 1;\n")
 	writeFile(t, filepath.Join(dir, "node_modules", "local-package", "index.ts"), "const agent = { rejectUnauthorized: false };\n")
 
 	cfg := codeguard.ExampleConfig()
-	cfg.Name = "security-typescript-semantic-node-modules"
+	cfg.Name = "security-typescript-semantic-skips-node-modules"
 	cfg.Targets = []codeguard.TargetConfig{{Name: "web", Path: dir, Language: "typescript"}}
 	cfg.Checks.Security = true
 	cfg.Checks.Design = false
@@ -179,10 +185,8 @@ func TestSecuritySemanticAnalyzerScansNodeModulesWithinTarget(t *testing.T) {
 		t.Fatalf("run: %v", err)
 	}
 
-	assertSectionStatus(t, report, "Security", "fail")
-	assertFindingRulePresent(t, report, "Security", "security.typescript.insecure-tls")
+	assertFindingRuleAbsent(t, report, "Security", "security.typescript.insecure-tls")
 }
-
 func requireTypeScriptSemanticRuntime(t *testing.T) {
 	t.Helper()
 
