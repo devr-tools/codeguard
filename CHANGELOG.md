@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.10.1](https://github.com/devr-tools/codeguard/compare/v1.10.0...v1.10.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* **config:** separate the init starter config from the defaults baseline ([49cbaf0](https://github.com/devr-tools/codeguard/commit/49cbaf0efc0e088f60e2a372bd0d2d4a1e745216))
+* **design:** resolve the SDK facade per repository instead of hardcoding pkg/codeguard ([e13daf6](https://github.com/devr-tools/codeguard/commit/e13daf6743b85a3ad8b179ea526ff502440d67cc))
+* **quality:** make clone and data-clump selection deterministic ([394550b](https://github.com/devr-tools/codeguard/commit/394550bb2d9599d0b9cc6d910a26009e3f5a427d))
+* **quality:** narrow three false-positive-dominated quality rules ([ce16feb](https://github.com/devr-tools/codeguard/commit/ce16feb8c41b236257280b724e8fbd532ac1815c))
+* **rules:** add fix templates for the five catalogued performance rules ([6a0fd31](https://github.com/devr-tools/codeguard/commit/6a0fd311b4cd1900363e91e7d69195175efb79ce))
+* **rules:** add the five orphan performance rules to the catalog ([47a4cd1](https://github.com/devr-tools/codeguard/commit/47a4cd13bcdae801e589e2f583e0a3f4b0a96e7b))
+* **rules:** stop an escaped newline rendering as a line break in explain ([10bac0d](https://github.com/devr-tools/codeguard/commit/10bac0da161844bf9456ebe25503e5e31284f74e))
+* **scan:** serve over-budget corpus work uncached instead of skipping it ([d1653bf](https://github.com/devr-tools/codeguard/commit/d1653bfb36de0f97be329926266dd9b53cce654c))
+* **scan:** widen default exclusions and guard every line scanner against binary content ([e8f519c](https://github.com/devr-tools/codeguard/commit/e8f519c49217dd4b11ceb192e51a7de66731acc3))
+* **security:** grade hardcoded-credential findings in fixtures and docs ([d889052](https://github.com/devr-tools/codeguard/commit/d889052efd0e14b7c4abebd55a45a3a494314dd2))
+* **supply-chain:** stop lockfile-drift false positives from mis-parsed lockfiles ([114b30c](https://github.com/devr-tools/codeguard/commit/114b30c42ecfc7c240214de35af84c5013d2708b))
+
+
+### Performance Improvements
+
+* **quality:** stop recompiling regexes and re-splitting identifiers per call ([7939211](https://github.com/devr-tools/codeguard/commit/79392113ce2ea95fbe1654ed79cd81c8a93f3cb8))
+* **security:** gate the per-line security regexes behind literal pre-checks ([5f15b5f](https://github.com/devr-tools/codeguard/commit/5f15b5fcac5e2b25a94709a549797df33acf1ef2))
+
 ## [1.10.0](https://github.com/devr-tools/codeguard/compare/v1.9.0...v1.10.0) (2026-09-04)
 
 
