@@ -193,10 +193,13 @@ func validateTargets(targets []core.TargetConfig) error {
 func validateOutput(output core.OutputConfig) error {
 	switch strings.TrimSpace(strings.ToLower(output.Format)) {
 	case "", "text", "json", "sarif", "github", "github-comment", "cyclonedx", "cyclonedx-json":
-		return nil
 	default:
 		return errors.New("output format must be one of text, json, sarif, github, github-comment, cyclonedx, cyclonedx-json")
 	}
+	if _, ok := core.NormalizedFailOn(output.FailOn); !ok {
+		return fmt.Errorf("output.fail_on must be one of %s", strings.Join(core.FailOnValues(), ", "))
+	}
+	return nil
 }
 
 func validateWaivers(waivers []core.WaiverConfig) error {

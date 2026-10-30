@@ -26,6 +26,12 @@ func ColorForWriter(w io.Writer) bool {
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("TERM")), "dumb") {
 		return false
 	}
+	return IsTerminal(w)
+}
+
+// IsTerminal reports whether w is a terminal (char device). Pipes, files, and
+// in-memory writers are not.
+func IsTerminal(w io.Writer) bool {
 	f, ok := w.(*os.File)
 	if !ok {
 		return false

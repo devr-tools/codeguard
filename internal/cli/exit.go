@@ -9,8 +9,8 @@ import (
 const (
 	// exitOK indicates the command completed successfully.
 	exitOK = 0
-	// exitError indicates the command failed, or a scan/patch reported one or
-	// more failed sections.
+	// exitError indicates the command failed, or a scan/patch result failed
+	// its exit policy (output.fail_on / -fail-on; see core.ReportGateError).
 	exitError = 1
 )
 
