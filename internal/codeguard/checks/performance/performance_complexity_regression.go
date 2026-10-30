@@ -112,7 +112,12 @@ func (s fileRegressionScan) functionFinding(env support.Context, fn *ast.FuncDec
 		// itself predates this change (e.g. an existing loop was wrapped).
 		line = firstChangedLineInSpan(s.changed, start, end)
 	}
-	return warnFinding(env, complexityRegressionRuleID, s.rel, line, 0,
-		fmt.Sprintf("function %s: loop nesting depth increased from %d to %d in this change; verify the added iteration is not over unbounded data",
-			goFunctionKey(fn), baseDepth, headDepth)), true
+	return support.NewWarnFinding(env, support.WarnFindingInput{
+		RuleID: complexityRegressionRuleID,
+		Path:   s.rel,
+		Line:   line,
+		Column: 0,
+		Message: fmt.Sprintf("function %s: loop nesting depth increased from %d to %d in this change; verify the added iteration is not over unbounded data",
+			goFunctionKey(fn), baseDepth, headDepth),
+	}), true
 }

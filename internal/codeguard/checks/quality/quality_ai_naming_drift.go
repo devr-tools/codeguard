@@ -98,8 +98,13 @@ func namingDriftFinding(env support.Context, file string, source string, dominan
 	if divergent < 2 || divergent <= matching {
 		return nil
 	}
-	return []core.Finding{warnFinding(env, "quality.ai.naming-drift", file, firstDivergent.line, 1,
-		fmt.Sprintf("identifier %q diverges from the repository's dominant %s naming convention", firstDivergent.name, dominant))}
+	return []core.Finding{newQualityWarnFinding(env, support.WarnFindingInput{
+		RuleID:  "quality.ai.naming-drift",
+		Path:    file,
+		Line:    firstDivergent.line,
+		Column:  1,
+		Message: fmt.Sprintf("identifier %q diverges from the repository's dominant %s naming convention", firstDivergent.name, dominant),
+	})}
 }
 
 func goDeclaredNames(source string) []nameAt {

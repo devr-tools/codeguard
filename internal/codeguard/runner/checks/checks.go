@@ -6,6 +6,8 @@ import (
 	"go/ast"
 	"go/token"
 	"runtime"
+	"runtime/debug"
+	"strings"
 	"sync"
 
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -40,9 +42,13 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			results[i] = safeRun(def.id, def.name, func() core.SectionResult {
+			result, panicked := SafeRun(def.id, def.name, func() core.SectionResult {
 				return def.run(ctx, sc, checkEnv)
 			})
+			if panicked {
+				notifyRecoveredSection(sc, result)
+			}
+			results[i] = result
 		}()
 	}
 	wg.Wait()
@@ -82,28 +88,92 @@ func withSynchronizedSectionCallback(sc runnersupport.Context) runnersupport.Con
 	return sc
 }
 
-// safeRun executes one check section, recovering from any panic so that a single
-// failing check (e.g. an index-out-of-range while parsing an untrusted file)
-// degrades to a diagnostic warning for that section instead of aborting the
-// entire scan. On panic it returns a section bearing a single warning finding
-// and the remaining sections still run.
-func safeRun(id string, name string, fn func() core.SectionResult) (result core.SectionResult) {
+// SectionPanicDiagnosticID identifies the diagnostic a section reports when it
+// crashed instead of completing.
+const SectionPanicDiagnosticID = "scan.section.panic"
+
+// sectionPanicStackFrames bounds the stack excerpt kept on the diagnostic: the
+// frames nearest the panic locate the bug, and a full goroutine dump would
+// swamp the JSON/SARIF report it travels in.
+const sectionPanicStackFrames = 8
+
+// SafeRun executes one check section, recovering from any panic so that a
+// single crashing check (e.g. an index-out-of-range while parsing an untrusted
+// file) does not abort the entire scan; the remaining sections still run.
+//
+// A crashed section has not checked anything, so it must never read as clean.
+// The outcome is an operational fail-level core.Diagnostic and a failing
+// section status for every section, not only gate-critical ones: which
+// sections gate is the caller's policy, and a scanner that cannot say what it
+// skipped cannot let any of them pass. It is a diagnostic rather than a finding
+// on purpose: findings can be baselined, waived, or confidence-filtered, and a
+// crash silenced that way would keep passing CI on every later run.
+//
+// panicked reports whether fn panicked; Build uses it to stream the synthetic
+// result, since the section never reached FinalizeSection itself.
+func SafeRun(id string, name string, fn func() core.SectionResult) (result core.SectionResult, panicked bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			result = core.SectionResult{
-				ID:     id,
-				Name:   name,
-				Status: core.StatusWarn,
-				Findings: []core.Finding{{
-					RuleID:  "checks.section.panic",
-					Level:   "warning",
-					Section: id,
-					Message: fmt.Sprintf("%s check did not complete: internal error (%v)", name, r),
-				}},
-			}
+			result = sectionPanicResult(id, name, r, debug.Stack())
+			panicked = true
 		}
 	}()
-	return fn()
+	return fn(), false
+}
+
+func sectionPanicResult(id string, name string, recovered any, stack []byte) core.SectionResult {
+	return core.SectionResult{
+		ID:       id,
+		Name:     name,
+		Status:   core.StatusFail,
+		Findings: []core.Finding{},
+		Diagnostics: []core.Diagnostic{{
+			ID:          SectionPanicDiagnosticID,
+			Level:       string(core.StatusFail),
+			Kind:        "internal-error",
+			Message:     fmt.Sprintf("%s check crashed and did not complete, so its results are missing; this is a codeguard bug, please report it with the diagnostic evidence", name),
+			Operational: true,
+			Evidence:    panicStackExcerpt(stack, sectionPanicStackFrames),
+			Metadata: map[string]string{
+				"section": id,
+				"panic":   fmt.Sprint(recovered),
+			},
+		}},
+	}
+}
+
+// panicStackExcerpt keeps the innermost frames below the panic as
+// "function location" strings. debug.Stack() output is a goroutine header and
+// then function-line/file-line pairs; everything up to and including the
+// runtime panic frame is recovery machinery, not the bug.
+func panicStackExcerpt(stack []byte, maxFrames int) []string {
+	lines := strings.Split(strings.TrimSpace(string(stack)), "\n")
+	if len(lines) > 0 && strings.HasPrefix(lines[0], "goroutine ") {
+		lines = lines[1:]
+	}
+	start := 0
+	for i := 0; i+1 < len(lines); i += 2 {
+		if strings.HasPrefix(lines[i], "panic(") || strings.HasPrefix(lines[i], "runtime.gopanic(") {
+			start = i + 2
+		}
+	}
+	excerpt := make([]string, 0, maxFrames)
+	for i := start; i+1 < len(lines) && len(excerpt) < maxFrames; i += 2 {
+		excerpt = append(excerpt, strings.TrimSpace(lines[i])+" "+strings.TrimSpace(lines[i+1]))
+	}
+	return excerpt
+}
+
+// notifyRecoveredSection streams a crashed section's synthetic result to the
+// OnSectionComplete callback, keeping its once-per-section contract. A panic in
+// the callback is swallowed: re-raising it from a worker goroutine would crash
+// the whole scan, which is what SafeRun exists to prevent.
+func notifyRecoveredSection(sc runnersupport.Context, result core.SectionResult) {
+	if sc.Opts.OnSectionComplete == nil {
+		return
+	}
+	defer func() { _ = recover() }()
+	sc.Opts.OnSectionComplete(result)
 }
 
 // contractsEnabled resolves the contracts toggle: an explicit config value
@@ -167,6 +237,9 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 		},
 		ScanTargetFiles: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFiles(sc, target, sectionID, include, evaluator)
+		},
+		ScanTargetFilesWithDependencies: func(target core.TargetConfig, sectionID string, include func(string) bool, deps checkSupport.FileScanDependencies, evaluator func(string, []byte) []core.Finding) []core.Finding {
+			return runnersupport.ScanTargetFilesWithDependencies(sc, target, sectionID, include, deps, evaluator)
 		},
 		ParseGoFile: func(path string, data []byte) (*token.FileSet, *ast.File, error) {
 			return runnersupport.ParseGoFile(sc, path, data)

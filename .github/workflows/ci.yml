@@ -66,12 +66,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run go test directly
-        shell: bash
-        run: |
-          set -o pipefail
-          go test ./... 2>&1 | grep -v '\[no test files\]'
-
       - name: Run test suite
         run: make test
 
@@ -84,10 +78,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # make codeguard-ci: CI intentionally runs the stable Marketplace action instead of the in-repo binary.
-      - uses: devr-tools/codeguard@05b9c78421bb7cd13a953f5441a6cd8f7a58815f
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          config: .codeguard/codeguard.yaml
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build and run in-repo CodeGuard
+        run: make codeguard-ci
 
   build:
     name: build

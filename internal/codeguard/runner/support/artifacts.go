@@ -63,6 +63,8 @@ func (store *ArtifactStore) List() []core.Artifact {
 // graphs) always observe every file. It reuses the shared per-scan corpus, so
 // files are still walked and read only once across the whole scan.
 func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
+	// Walk errors are recorded by the shared corpus as a failing
+	// scan.target-walk diagnostic; the partial listing is still visited.
 	files, _ := sc.corpusFiles(target)
 	for _, file := range files {
 		if !include(file) {
@@ -70,6 +72,7 @@ func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string)
 		}
 		data, err := sc.corpusRead(target.Path, file)
 		if err != nil {
+			sc.corpus.recordReadError(target.Path, file, err)
 			continue
 		}
 		visit(file, data)

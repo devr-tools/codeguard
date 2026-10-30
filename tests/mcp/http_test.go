@@ -77,7 +77,7 @@ func startHTTPServer(t *testing.T, token string) string {
 func startHTTPServerWithConfig(t *testing.T, token string, configPath string) string {
 	t.Helper()
 	addr := freeTCPAddr(t)
-	cmd := exec.Command(os.Args[0], "-test.run=TestMCPServeHTTPHelperProcess")
+	cmd := exec.Command(testBinary(t), "-test.run=TestMCPServeHTTPHelperProcess")
 	cmd.Env = append(os.Environ(),
 		"GO_WANT_MCP_HTTP_HELPER_PROCESS=1",
 		"CODEGUARD_TEST_HTTP_ADDR="+addr,

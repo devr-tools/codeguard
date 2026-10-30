@@ -90,6 +90,7 @@ func ApplyUnifiedDiff(ctx context.Context, cfg core.Config, diffText string) err
 func applyUnifiedDiff(ctx context.Context, dir string, diffText string) error {
 	ctx, cancel := context.WithTimeout(ctx, gitCommandTimeout)
 	defer cancel()
+	// codeguard:ignore security.shell-execution -- constant git argv; the patch text reaches git on stdin, never as an argument
 	cmd := exec.CommandContext(ctx, "git", "apply", "--recount", "--whitespace=nowarn")
 	cmd.Dir = dir
 	cmd.Stdin = strings.NewReader(diffText)

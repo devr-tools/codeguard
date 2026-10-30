@@ -32,8 +32,8 @@ checks:
   quality: true
   performance: true
   design: true
-  security: false
-  prompts: false
+  security: true
+  prompts: true
   ci: true
   supply_chain: true
   quality_rules:
@@ -132,5 +132,71 @@ checks:
     required_automation_paths:
       - Makefile
       - scripts/commit.sh
+waivers:
+  # Security self-scan exceptions. Each waiver names one rule and one path
+  # class. Secret, private-key, and taint rules are deliberately NOT waived by
+  # path: a real credential committed to a test is still a leak, so those stay
+  # line-bound (inline codeguard:ignore with a reason) or visible as review
+  # warnings. Production exec call sites are covered by their existing
+  # justified //nolint:gosec directives (see docs/checks.md "Inline
+  # suppressions").
+  #
+  # Tests drive fixed binaries (git, go, python3, the test binary itself) to
+  # build fixture repositories. This mirrors .golangci.yml, which already
+  # excludes gosec from tests/.
+  - rule: security.shell-execution
+    path: tests/**
+    reason: test harnesses invoke fixed binaries to build fixtures; mirrors the golangci gosec exclusion for tests/
+  # The OWASP-gap pattern rules match string contents by design, and the
+  # tests for those detectors hold their vulnerable inputs as Go strings.
+  - rule: security.weak-hash
+    path: tests/**
+    reason: detector fixtures written as Go string literals
+  - rule: security.weak-cipher
+    path: tests/**
+    reason: detector fixtures written as Go string literals
+  - rule: security.cors-wildcard
+    path: tests/**
+    reason: detector fixtures written as Go string literals
+  - rule: security.bind-all-interfaces
+    path: tests/**
+    reason: detector fixtures written as Go string literals
+  - rule: security.weak-hash
+    path: internal/**/*_test.go
+    reason: in-package detector fixtures written as Go string literals
+  - rule: security.weak-cipher
+    path: internal/**/*_test.go
+    reason: in-package detector fixtures written as Go string literals
+  - rule: security.cors-wildcard
+    path: internal/**/*_test.go
+    reason: in-package detector fixtures written as Go string literals
+  - rule: security.bind-all-interfaces
+    path: internal/**/*_test.go
+    reason: in-package detector fixtures written as Go string literals
+  # The scanner test asserts exact line numbers inside a multi-line fixture
+  # string, so a line-bound inline directive cannot be added without changing
+  # what it tests. The file holds only header-only and FAKE-bodied PEM blocks.
+  - rule: security.private-key
+    path: internal/codeguard/checks/security/security_secret_patterns_test.go
+    reason: synthetic PEM markers inside a line-number-sensitive scanner fixture
+  # Rule reference and design docs quote the patterns each rule detects.
+  - rule: security.shell-execution
+    path: docs/**
+    reason: documentation code samples illustrating the rule
+  - rule: security.bind-all-interfaces
+    path: docs/**
+    reason: documentation quotes the pattern and the deliberate public MCP HTTP example
+  - rule: security.cors-wildcard
+    path: docs/**
+    reason: documentation quotes the pattern the rule detects
+  - rule: security.debug-enabled
+    path: docs/**
+    reason: documentation quotes the pattern the rule detects
+  # The Devin pack hosts the MCP server for a cloud client; it requires an
+  # auth token (and warns without one) and its README says to front it with
+  # TLS/ingress.
+  - rule: security.bind-all-interfaces
+    path: examples/hooks/devin/**
+    reason: cloud-reachable MCP HTTP server is the documented purpose of this example; auth token plus TLS ingress required
 output:
   format: text

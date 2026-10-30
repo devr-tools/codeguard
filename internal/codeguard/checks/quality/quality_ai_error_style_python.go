@@ -50,8 +50,13 @@ func pythonErrorStyleDriftFindings(env support.Context, file string, source stri
 	}
 	findings := make([]core.Finding, 0, counts.bareExcepts)
 	for _, line := range regexLineMatches(pythonBareExceptPattern, source) {
-		findings = append(findings, warnFinding(env, "quality.ai.error-style-drift", file, line, 1,
-			"bare except clause diverges from the repository's typed exception handling style"))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.ai.error-style-drift",
+			Path:    file,
+			Line:    line,
+			Column:  1,
+			Message: "bare except clause diverges from the repository's typed exception handling style",
+		}))
 	}
 	return findings
 }

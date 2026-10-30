@@ -192,5 +192,11 @@ func (s *tsPerformanceScan) isStringConcat(line string, rawLine string) bool {
 }
 
 func (s *tsPerformanceScan) addFinding(tsRuleID string, jsRuleID string, lineNo int, message string) {
-	s.findings = append(s.findings, warnFinding(s.env, support.RuleIDForScript(s.file, tsRuleID, jsRuleID), s.file, lineNo, 1, message))
+	s.findings = append(s.findings, support.NewWarnFinding(s.env, support.WarnFindingInput{
+		RuleID:  support.RuleIDForScript(s.file, tsRuleID, jsRuleID),
+		Path:    s.file,
+		Line:    lineNo,
+		Column:  1,
+		Message: message,
+	}))
 }

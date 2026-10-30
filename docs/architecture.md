@@ -51,7 +51,7 @@ This keeps the runner tree organized with the same directory-first style as `int
 - exclusions remove files or paths from scanning before checks run
 - waivers and inline suppressions allow time-bounded exceptions
 - baselines suppress known findings so new regressions are the only gate failures
-- cached file findings are keyed by file hash plus config hash so repeat scans skip unchanged files
+- cached file findings are keyed by file hash plus config hash so repeat scans skip unchanged files; evaluators that read other files declare them (`checks/support.FileScanDependencies`), and a per-directory digest of those inputs - sibling package sources, go.mod/go.work, resolved target state such as the SDK facade - is computed once per pass and stored with each entry
 - a per-scan file corpus (`internal/codeguard/runner/support/corpus.go`) memoizes the target directory walk, individual file reads, and Go/tree-sitter parses so each file is walked, read, and parsed at most once per scan no matter how many sections inspect it; the quality AI checks share it through the `ListTargetFiles`/`ReadTargetFile`/`ParseGoFile` context hooks rather than re-reading the tree
 - diff mode can scope file findings down to changed lines derived from `git diff`
 - report serialization supports plain text, structured JSON, SARIF, and GitHub workflow annotations

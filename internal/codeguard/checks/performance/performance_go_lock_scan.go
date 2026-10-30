@@ -1,6 +1,10 @@
 package performance
 
-import "go/ast"
+import (
+	"go/ast"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
+)
 
 func scanStructuredStmt(scan *goLockHeldScan, stmt ast.Stmt, held map[string]struct{}) bool {
 	switch node := stmt.(type) {
@@ -91,8 +95,13 @@ func reportBlockingNodes(scan *goLockHeldScan, root ast.Node, held map[string]st
 			return false
 		}
 		scan.seen[pos.Line] = struct{}{}
-		scan.findings = append(scan.findings, warnFinding(scan.env, "performance.go.lock-held-across-blocking-call", scan.file, pos.Line, pos.Column,
-			"mutex held across a blocking call can serialize callers and amplify tail latency; copy the needed state and release the lock before the call"))
+		scan.findings = append(scan.findings, support.NewWarnFinding(scan.env, support.WarnFindingInput{
+			RuleID:  "performance.go.lock-held-across-blocking-call",
+			Path:    scan.file,
+			Line:    pos.Line,
+			Column:  pos.Column,
+			Message: "mutex held across a blocking call can serialize callers and amplify tail latency; copy the needed state and release the lock before the call",
+		}))
 		return false
 	})
 }

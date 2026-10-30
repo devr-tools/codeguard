@@ -68,6 +68,10 @@ type fileCorpus struct {
 	scriptParse         chan struct{}
 	diagnostics         []core.Diagnostic
 	diagnosticSeen      map[string]struct{}
+	readErrorCount      int
+	// walkFailures are reported on every section that finalizes after them,
+	// unlike diagnostics, which are handed to the first section only.
+	walkFailures []core.Diagnostic
 }
 
 // The corpus is an optimization, not the owner of repository contents, so its
@@ -193,6 +197,9 @@ func (c *fileCorpus) list(root string, excludes []string, opts FileWalkOptions) 
 		entry.files, truncated, entry.err = walkFilesBounded(root, excludes, opts, includeAll, c.maxFiles)
 		if truncated {
 			c.recordWalkTruncation(root, c.maxFiles)
+		}
+		if entry.err != nil {
+			c.recordWalkError(root, entry.err)
 		}
 	})
 	return entry.files, entry.err
@@ -373,6 +380,88 @@ func (c *fileCorpus) recordWalkTruncation(root string, limit int) {
 	})
 }
 
+// recordWalkError reports a target walk that failed. filepath.WalkDir stops at
+// the first error, so the listing is at best partial and at worst empty; an
+// empty listing yields no findings, which would otherwise read as a clean pass
+// for every file-driven section. It is a failing operational diagnostic for
+// that reason. The listing is memoized per target, so this is recorded once
+// per target per scan, and takeDiagnostics then hands it to every section that
+// finalizes afterwards (see walkFailures).
+func (c *fileCorpus) recordWalkError(root string, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := "walk\x00" + filepath.Clean(root)
+	if _, exists := c.diagnosticSeen[key]; exists {
+		return
+	}
+	c.diagnosticSeen[key] = struct{}{}
+	c.walkFailures = append(c.walkFailures, core.Diagnostic{
+		ID:          "scan.target-walk",
+		Level:       "fail",
+		Kind:        "infrastructure",
+		Message:     fmt.Sprintf("could not walk target %s: %v; files under it were not scanned", root, err),
+		Path:        root,
+		Operational: true,
+		Metadata: map[string]string{
+			"degradation":       "unscanned",
+			"findings_affected": "yes",
+		},
+	})
+}
+
+// maxReadErrorDiagnostics bounds how many per-file read failures are reported
+// individually, so a target full of unreadable files cannot flood the report.
+const maxReadErrorDiagnostics = 20
+
+// recordReadError reports a file that the walk listed but that could not then
+// be read, so it was dropped from every check that asked for it. It warns
+// rather than fails: the rest of the target was scanned. Each file is reported
+// once per scan; past maxReadErrorDiagnostics a single summary diagnostic notes
+// that further failures were not itemised.
+func (c *fileCorpus) recordReadError(root string, rel string, err error) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := "read\x00" + filepath.Clean(root) + "\x00" + rel
+	if _, exists := c.diagnosticSeen[key]; exists {
+		return
+	}
+	c.diagnosticSeen[key] = struct{}{}
+	c.readErrorCount++
+	if c.readErrorCount > maxReadErrorDiagnostics {
+		if _, exists := c.diagnosticSeen["read-limit"]; exists {
+			return
+		}
+		c.diagnosticSeen["read-limit"] = struct{}{}
+		c.diagnostics = append(c.diagnostics, core.Diagnostic{
+			ID:          "scan.file-read",
+			Level:       "warn",
+			Kind:        "infrastructure",
+			Message:     fmt.Sprintf("more than %d files could not be read; further read failures are not listed individually", maxReadErrorDiagnostics),
+			Operational: true,
+			Metadata: map[string]string{
+				"degradation":       "unscanned",
+				"findings_affected": "yes",
+			},
+		})
+		return
+	}
+	c.diagnostics = append(c.diagnostics, core.Diagnostic{
+		ID:          "scan.file-read",
+		Level:       "warn",
+		Kind:        "infrastructure",
+		Message:     fmt.Sprintf("could not read %s: %v; the file was not scanned", rel, err),
+		Path:        filepath.ToSlash(filepath.Join(root, rel)),
+		Operational: true,
+		Metadata: map[string]string{
+			"degradation":       "unscanned",
+			"findings_affected": "yes",
+		},
+	})
+}
+
 func (c *fileCorpus) retainedBytesForLocked(kind string) int {
 	if kind == "go_ast_bytes" || kind == "go_ast_entries" {
 		return c.goASTBytes
@@ -395,6 +484,10 @@ func (c *fileCorpus) takeDiagnostics() []core.Diagnostic {
 	defer c.mu.Unlock()
 	diagnostics := append([]core.Diagnostic(nil), c.diagnostics...)
 	c.diagnostics = nil
+	// Walk failures are not drained: every section that finalizes after one is
+	// recorded may have consumed the failed listing, so each must report it
+	// rather than leave all but the first looking like a clean pass.
+	diagnostics = append(diagnostics, c.walkFailures...)
 	return diagnostics
 }
 

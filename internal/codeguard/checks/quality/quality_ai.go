@@ -23,8 +23,13 @@ func goAIQualityFindings(env support.Context, file string, fset *token.FileSet, 
 			}
 			if rhsIdent, ok := assign.Rhs[idx].(*ast.Ident); ok && rhsIdent.Name == "err" {
 				pos := fset.Position(lhs.Pos())
-				findings = append(findings, warnFinding(env, "quality.ai.swallowed-error", file, pos.Line, pos.Column,
-					"error is assigned to the blank identifier and effectively ignored"))
+				findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+					RuleID:  "quality.ai.swallowed-error",
+					Path:    file,
+					Line:    pos.Line,
+					Column:  pos.Column,
+					Message: "error is assigned to the blank identifier and effectively ignored",
+				}))
 			}
 		}
 		return true
@@ -37,8 +42,13 @@ func goAIQualityFindings(env support.Context, file string, fset *token.FileSet, 
 				continue
 			}
 			pos := fset.Position(comment.Pos())
-			findings = append(findings, warnFinding(env, "quality.ai.narrative-comment", file, pos.Line, pos.Column,
-				"comment narrates the code instead of explaining intent or constraints"))
+			findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+				RuleID:  "quality.ai.narrative-comment",
+				Path:    file,
+				Line:    pos.Line,
+				Column:  pos.Column,
+				Message: "comment narrates the code instead of explaining intent or constraints",
+			}))
 		}
 	}
 	return findings
@@ -48,16 +58,26 @@ func pythonAIQualityFindings(env support.Context, file string, data []byte) []co
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
 	findings := make([]core.Finding, 0)
 	for _, line := range regexLineMatches(aiPythonPassExceptPattern, source) {
-		findings = append(findings, warnFinding(env, "quality.ai.swallowed-error", file, line, 1,
-			"except block swallows the error without handling or re-raising it"))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.ai.swallowed-error",
+			Path:    file,
+			Line:    line,
+			Column:  1,
+			Message: "except block swallows the error without handling or re-raising it",
+		}))
 	}
 	for idx, line := range strings.Split(source, "\n") {
 		text := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "#"))
 		if !isNarrativeComment(text) {
 			continue
 		}
-		findings = append(findings, warnFinding(env, "quality.ai.narrative-comment", file, idx+1, 1,
-			"comment narrates the code instead of explaining intent or constraints"))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.ai.narrative-comment",
+			Path:    file,
+			Line:    idx + 1,
+			Column:  1,
+			Message: "comment narrates the code instead of explaining intent or constraints",
+		}))
 	}
 	return findings
 }
@@ -65,8 +85,13 @@ func pythonAIQualityFindings(env support.Context, file string, data []byte) []co
 func typeScriptAIQualityFindings(ctx typeScriptScanContext) []core.Finding {
 	findings := make([]core.Finding, 0)
 	for _, line := range regexLineMatches(aiEmptyCatchPattern, ctx.source) {
-		findings = append(findings, warnFinding(ctx.env, "quality.ai.swallowed-error", ctx.file, line, 1,
-			support.ScriptLabelForPath(ctx.file)+" catch block swallows the error without handling it"))
+		findings = append(findings, newQualityWarnFinding(ctx.env, support.WarnFindingInput{
+			RuleID:  "quality.ai.swallowed-error",
+			Path:    ctx.file,
+			Line:    line,
+			Column:  1,
+			Message: support.ScriptLabelForPath(ctx.file) + " catch block swallows the error without handling it",
+		}))
 	}
 	inJSDoc := false
 	for idx, line := range strings.Split(ctx.source, "\n") {
@@ -85,8 +110,13 @@ func typeScriptAIQualityFindings(ctx typeScriptScanContext) []core.Finding {
 		if !ok || !isNarrativeComment(text) {
 			continue
 		}
-		findings = append(findings, warnFinding(ctx.env, "quality.ai.narrative-comment", ctx.file, idx+1, 1,
-			support.ScriptLabelForPath(ctx.file)+" comment narrates the code instead of explaining intent or constraints"))
+		findings = append(findings, newQualityWarnFinding(ctx.env, support.WarnFindingInput{
+			RuleID:  "quality.ai.narrative-comment",
+			Path:    ctx.file,
+			Line:    idx + 1,
+			Column:  1,
+			Message: support.ScriptLabelForPath(ctx.file) + " comment narrates the code instead of explaining intent or constraints",
+		}))
 	}
 	return findings
 }

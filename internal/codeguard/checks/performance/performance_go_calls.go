@@ -17,7 +17,13 @@ func goLoopCallFindings(env support.Context, file string, fset *token.FileSet, p
 
 	findings := make([]core.Finding, 0)
 	warn := func(ruleID string, pos token.Position, message string) {
-		findings = append(findings, warnFinding(env, ruleID, file, pos.Line, pos.Column, message))
+		findings = append(findings, support.NewWarnFinding(env, support.WarnFindingInput{
+			RuleID:  ruleID,
+			Path:    file,
+			Line:    pos.Line,
+			Column:  pos.Column,
+			Message: message,
+		}))
 	}
 
 	walkASTWithStack(parsed, func(node ast.Node, stack []ast.Node) bool {

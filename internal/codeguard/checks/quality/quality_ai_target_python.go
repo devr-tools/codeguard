@@ -97,8 +97,13 @@ func pythonImportFindings(env support.Context, root string, file string, source 
 			if pythonImportResolvable(root, file, module, input.catalog, input.localModules) {
 				continue
 			}
-			findings = append(findings, warnFinding(env, "quality.ai.hallucinated-import", file, idx+1, 1,
-				fmt.Sprintf("import %q does not resolve against the standard library, declared dependencies, or local modules", module)))
+			findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+				RuleID:  "quality.ai.hallucinated-import",
+				Path:    file,
+				Line:    idx + 1,
+				Column:  1,
+				Message: fmt.Sprintf("import %q does not resolve against the standard library, declared dependencies, or local modules", module),
+			}))
 		}
 	}
 	return findings

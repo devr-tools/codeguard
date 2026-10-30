@@ -27,7 +27,7 @@ var (
 
 // cachedPattern compiles expr at most once per distinct expression. It panics
 // on an invalid expression exactly like the regexp.MustCompile calls it
-// replaces, so a malformed interpolation still surfaces through safeRun.
+// replaces, so a malformed interpolation still surfaces through SafeRun.
 func cachedPattern(expr string) *regexp.Regexp {
 	if cached, ok := dynamicPatternCache.Load(expr); ok {
 		return cached.(*regexp.Regexp)

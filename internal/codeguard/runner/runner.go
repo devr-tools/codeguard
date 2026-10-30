@@ -38,6 +38,11 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	if err := config.Validate(cfg); err != nil {
 		return core.Report{}, err
 	}
+	// A missing target would otherwise walk as empty, and an empty walk reports
+	// every file-driven section as a clean pass.
+	if err := config.ValidateTargetPaths(cfg); err != nil {
+		return core.Report{}, err
+	}
 
 	sc, err := runnersupport.NewContext(ctx, cfg, opts)
 	if err != nil {

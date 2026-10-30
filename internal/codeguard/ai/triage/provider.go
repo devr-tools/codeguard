@@ -57,10 +57,14 @@ func incrementMockCountFile() {
 		return
 	}
 	current := 0
+	// The counter path comes from the operator's own environment and only
+	// ever receives an integer; it lets tests count mock provider calls.
+	// codeguard:ignore security.taint.go -- operator-controlled env path for mock-provider test instrumentation
 	if data, err := os.ReadFile(path); err == nil { //nolint:gosec // mock instrumentation; path from CODEGUARD_AI_TRIAGE_COUNT_FILE env
 		if parsed, parseErr := strconv.Atoi(strings.TrimSpace(string(data))); parseErr == nil {
 			current = parsed
 		}
 	}
+	// codeguard:ignore security.taint.go -- operator-controlled env path for mock-provider test instrumentation
 	_ = os.WriteFile(path, []byte(strconv.Itoa(current+1)), 0o600) //nolint:gosec // mock instrumentation; path from CODEGUARD_AI_TRIAGE_COUNT_FILE env
 }
