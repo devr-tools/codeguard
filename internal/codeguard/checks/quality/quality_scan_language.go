@@ -61,8 +61,8 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 			Run: func() []core.Finding {
 				findings := typeScriptTargetFindings(ctx, env, target)
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
-					env.VisitTargetFiles(target, isTypeScriptLikeFile, func(_ string, data []byte) {
-						addUnresolved(typeScriptUnresolvedMutationEvidence(data))
+					env.VisitTargetFiles(target, isTypeScriptLikeFile, func(file string, data []byte) {
+						addUnresolved(typeScriptUnresolvedMutationEvidence(env, file, data))
 					})
 				}
 				return findings
@@ -83,8 +83,8 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 					return cppFindingsForFile(env, file, data)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
-					env.VisitTargetFiles(target, func(file string) bool { return support.IsCPPPath(file, true) }, func(_ string, data []byte) {
-						addUnresolved(cppUnresolvedMutationEvidence(data))
+					env.VisitTargetFiles(target, func(file string) bool { return support.IsCPPPath(file, true) }, func(file string, data []byte) {
+						addUnresolved(cppUnresolvedMutationEvidence(env, file, data))
 					})
 				}
 				return findings
@@ -179,8 +179,8 @@ func goUnresolvedMutationEvidenceWithIndex(env support.Context, file string, dat
 	return unresolved
 }
 
-func cppUnresolvedMutationEvidence(data []byte) []unresolvedMutationEvidence {
-	parsed := support.ParseCLike(string(data), support.CLikeCPP)
+func cppUnresolvedMutationEvidence(env support.Context, file string, data []byte) []unresolvedMutationEvidence {
+	parsed := support.ParseCLikeSource(env, file, data, support.CLikeCPP)
 	var unresolved []unresolvedMutationEvidence
 	for _, fn := range parsed.AllFunctions() {
 		analysis := cppFunctionMutationEvidence(parsedPrecisionFunction(fn))
@@ -189,8 +189,8 @@ func cppUnresolvedMutationEvidence(data []byte) []unresolvedMutationEvidence {
 	return unresolved
 }
 
-func typeScriptUnresolvedMutationEvidence(data []byte) []unresolvedMutationEvidence {
-	parsed := support.ParseCLike(string(data), support.CLikeTypeScript)
+func typeScriptUnresolvedMutationEvidence(env support.Context, file string, data []byte) []unresolvedMutationEvidence {
+	parsed := support.ParseCLikeSource(env, file, data, support.CLikeTypeScript)
 	var unresolved []unresolvedMutationEvidence
 	for _, fn := range parsedPrecisionFunctions(parsed) {
 		analysis := functionMutationAnalysis(fn, "typescript")

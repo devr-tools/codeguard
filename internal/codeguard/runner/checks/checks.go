@@ -244,6 +244,9 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 		ParseGoFile: func(path string, data []byte) (*token.FileSet, *ast.File, error) {
 			return runnersupport.ParseGoFile(sc, path, data)
 		},
+		ParseCLikeFile: func(path string, data []byte, lang checkSupport.CLikeLanguage) *checkSupport.ParsedFile {
+			return runnersupport.ParseCLikeFile(sc, path, data, lang)
+		},
 		ParseScriptFile: scriptFileParser(sc),
 		NewFinding: func(input checkSupport.FindingInput) core.Finding {
 			return runnersupport.NewFinding(sc, runnersupport.FindingInput{

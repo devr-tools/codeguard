@@ -1,10 +1,7 @@
 package support
 
 import (
-	"os"
-	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -85,15 +82,11 @@ func MatchSuppression(sc Context, finding core.Finding) *core.Suppression {
 	if len(MatchingWaivers(sc, finding)) > 0 {
 		return &core.Suppression{Kind: SuppressionReasonWaiver}
 	}
-	fullPath := findingFullPath(sc, finding.Path)
-	if fullPath == "" {
+	index := inlineSuppressionsFor(sc, finding.Path)
+	if index == nil {
 		return nil
 	}
-	directives, err := parseInlineSuppressions(fullPath)
-	if err != nil {
-		return nil
-	}
-	if directive, ok := matchInlineSuppression(sc, finding, directives); ok {
+	if directive, ok := index.match(sc, finding); ok {
 		return &core.Suppression{Kind: "inline", Match: directive.match}
 	}
 	return nil
@@ -121,68 +114,10 @@ func MatchingWaivers(sc Context, finding core.Finding) []WaiverMatch {
 	return matches
 }
 
-func findingFullPath(sc Context, rel string) string {
-	if rel == "" {
-		return ""
-	}
-	for _, target := range sc.Cfg.Targets {
-		candidate := filepath.Join(target.Path, filepath.FromSlash(rel))
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-	return ""
-}
-
-func matchInlineSuppression(sc Context, finding core.Finding, directives []inlineSuppression) (inlineSuppression, bool) {
-	for _, directive := range directives {
-		if directive.ruleID != "*" && directive.ruleID != finding.RuleID {
-			continue
-		}
-		if suppressionExpired(directive.expires, sc.Today) {
-			continue
-		}
-		if directive.exactLine {
-			if finding.Line == directive.line {
-				return directive, true
-			}
-			continue
-		}
-		if finding.Line == 0 || finding.Line == directive.line || finding.Line == directive.line+1 {
-			return directive, true
-		}
-	}
-	return inlineSuppression{}, false
-}
-
 func suppressionExpired(expires string, today time.Time) bool {
 	if expires == "" {
 		return false
 	}
 	parsed, err := time.Parse("2006-01-02", expires)
 	return err == nil && parsed.Before(DateOnly(today))
-}
-
-func parseInlineSuppressions(path string) ([]inlineSuppression, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // path resolved via findingFullPath against the scan context
-	if err != nil {
-		return nil, err
-	}
-	lines := strings.Split(string(data), "\n")
-	goSource := strings.EqualFold(filepath.Ext(path), ".go")
-	out := make([]inlineSuppression, 0)
-	for idx, line := range lines {
-		matches := inlineIgnorePattern.FindAllStringSubmatch(line, -1)
-		for _, match := range matches {
-			out = append(out, inlineSuppression{
-				ruleID:  match[1],
-				line:    idx + 1,
-				expires: match[2],
-			})
-		}
-		if goSource {
-			out = append(out, gosecJustifiedSuppressions(line, idx+1)...)
-		}
-	}
-	return out, nil
 }

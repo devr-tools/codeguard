@@ -62,7 +62,12 @@ type fileCorpus struct {
 	maxGoASTEntries     int
 	goASTBudgetExceeded bool
 	goParseWork         chan struct{}
+	clike               map[string]*clikeParse
+	clikeBytes          int
+	maxCLikeBytes       int
+	maxCLikeEntries     int
 	scripts             map[string]*scriptParse
+	suppressions        inlineSuppressionCache
 	scriptBytes         int
 	scriptCount         int
 	scriptParse         chan struct{}
@@ -98,6 +103,17 @@ const maxCorpusReadBytes = 128 << 20
 const maxCorpusGoASTBytes = 256 << 20
 const maxCorpusReadEntries = 50_000
 const maxCorpusGoASTEntries = 25_000
+const maxCorpusCLikeBytes = 256 << 20
+const maxCorpusCLikeEntries = 25_000
+
+// clikeBytesPerSourceByte is the measured heap cost of a retained
+// support.ParsedFile per byte of source: the normalized source and its masked
+// copy, plus per-statement, call, assignment, and declaration records.
+// Measured at 4.4-4.6x over two TypeScript trees (1.8k files / 18.9 MB and
+// 5.4k files / 38.3 MB of a Next.js app); rounded up. With the default budget
+// that retains parses of roughly 50 MB of C-like source per scan; past it,
+// files are parsed per call as they were before this cache existed.
+const clikeBytesPerSourceByte = 5
 
 // goASTBytesPerSourceByte is the measured heap cost of a retained
 // ParseComments AST (plus its FileSet) per byte of source.
@@ -107,6 +123,7 @@ const goASTBytesPerSourceByte = 9
 // budget only costs speed, so a small cache is always safe.
 const minCorpusReadBytes = 8 << 20
 const minCorpusGoASTBytes = 16 << 20
+const minCorpusCLikeBytes = 16 << 20
 
 // corpusRetentionBudget scales a default retention budget down to its share of
 // an explicit GOMEMLIMIT. It never scales up: the defaults are chosen for a CI
@@ -145,6 +162,9 @@ type fileRead struct {
 	once sync.Once
 	data []byte
 	err  error
+	// retained is set, under fileCorpus.mu, once data has been read and
+	// admitted to the cache; cachedRead serves only retained slots.
+	retained bool
 }
 
 type goParse struct {
@@ -152,6 +172,11 @@ type goParse struct {
 	fset *token.FileSet
 	file *ast.File
 	err  error
+}
+
+type clikeParse struct {
+	once sync.Once
+	file *checkSupport.ParsedFile
 }
 
 type scriptParse struct {
@@ -173,6 +198,9 @@ func newFileCorpus() *fileCorpus {
 		maxGoASTBytes:   corpusRetentionBudget(maxCorpusGoASTBytes, minCorpusGoASTBytes, 4),
 		maxGoASTEntries: maxCorpusGoASTEntries,
 		goParseWork:     make(chan struct{}, 2),
+		clike:           map[string]*clikeParse{},
+		maxCLikeBytes:   corpusRetentionBudget(maxCorpusCLikeBytes, minCorpusCLikeBytes, 4),
+		maxCLikeEntries: maxCorpusCLikeEntries,
 		scripts:         map[string]*scriptParse{},
 		scriptParse:     make(chan struct{}, 1),
 		diagnosticSeen:  make(map[string]struct{}),
@@ -231,6 +259,7 @@ func (c *fileCorpus) read(root string, rel string) ([]byte, error) {
 		defer c.mu.Unlock()
 		if entry.err == nil && c.readBytes+len(entry.data) <= c.maxReadBytes {
 			c.readBytes += len(entry.data)
+			entry.retained = true
 			return
 		}
 		// The slot is dropped either because the read failed or because keeping
@@ -249,6 +278,27 @@ func (c *fileCorpus) read(root string, rel string) ([]byte, error) {
 		}
 	})
 	return entry.data, entry.err
+}
+
+// cachedRead returns the bytes of root/rel only if the corpus already retains
+// a successful read of them; it never reads from disk and never admits a new
+// entry, so it cannot change the corpus budget. A nil corpus holds nothing.
+func (c *fileCorpus) cachedRead(root string, rel string) ([]byte, bool) {
+	if c == nil {
+		return nil, false
+	}
+	key := filepath.Clean(root) + "\x00" + rel
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// Only a completed, retained read is served. A slot that is still being
+	// read is skipped rather than waited on (touching its sync.Once from here
+	// could consume it before the reader runs), and the caller falls back to
+	// its own read.
+	entry, ok := c.reads[key]
+	if !ok || !entry.retained {
+		return nil, false
+	}
+	return entry.data, true
 }
 
 // readUncached performs the file read itself. Reads stay serialized through
@@ -296,6 +346,50 @@ func (c *fileCorpus) parseGo(path string, data []byte) (*token.FileSet, *ast.Fil
 		entry.fset, entry.file, entry.err = c.parseGoUncached(path, data)
 	})
 	return entry.fset, entry.file, entry.err
+}
+
+// parseCLike returns a shared, read-only support.ParsedFile for the given
+// source, mirroring parseGo: the key is path, language, and content hash, so
+// patched (diff-mode) content and a file parsed under two dialects each get
+// their own slot. ParseCLike takes no other options, so those three fully
+// determine the result. Several sections parse every TypeScript file (quality
+// per-file metrics and precision, quality unresolved-mutation evidence, design
+// local abstraction), and this cache turns those into one parse per file per
+// scan.
+//
+// Callers must treat the returned tree as immutable: it is shared by sections
+// running on different goroutines. The check packages only read it (they copy
+// fields into their own structs), and the cache-equivalence tests compare a
+// cached tree against a fresh parse after the checks have run over it.
+//
+// Past the retention budget the parse is still performed and returned, just
+// not kept, so exceeding the budget costs CPU, never findings.
+func (c *fileCorpus) parseCLike(path string, data []byte, lang checkSupport.CLikeLanguage) *checkSupport.ParsedFile {
+	key := path + "\x00" + string(lang) + "\x00" + hashBytes(data)
+	retained := len(data) * clikeBytesPerSourceByte
+	c.mu.Lock()
+	entry, ok := c.clike[key]
+	if !ok {
+		// Overflow is deliberately silent, unlike the read and Go AST budgets:
+		// before this cache existed every C-like parse was uncached, so an
+		// over-budget parse is exactly the historical behavior and there is
+		// no degradation to report.
+		if len(c.clike) < c.maxCLikeEntries && c.clikeBytes+retained <= c.maxCLikeBytes {
+			entry = &clikeParse{}
+			c.clike[key] = entry
+			c.clikeBytes += retained
+		}
+		if entry == nil {
+			c.mu.Unlock()
+			return checkSupport.ParseCLike(string(data), lang)
+		}
+	}
+	c.mu.Unlock()
+
+	entry.once.Do(func() {
+		entry.file = checkSupport.ParseCLike(string(data), lang)
+	})
+	return entry.file
 }
 
 // parseGoUncached runs the parse itself. It keeps the goParseWork gate so the
