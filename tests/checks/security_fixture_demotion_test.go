@@ -253,7 +253,7 @@ func TestSecurityFixtureKeepsHighEntropyStringStrict(t *testing.T) {
 func TestSecurityFixtureDemotionKeepsPrivateKeyAtFail(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "testdata", "key.pem"), "-----BEGIN RSA PRIVATE KEY-----\nabcdef\n-----END RSA PRIVATE KEY-----\n")
+	writeFile(t, filepath.Join(dir, "testdata", "key.pem"), "-----BEGIN RSA PRIVATE KEY-----\nabcdef\n-----END RSA PRIVATE KEY-----\n") // codeguard:ignore security.private-key -- synthetic PEM written to a temp dir to prove key material is never demoted
 
 	report := fixtureDemotionReport(t, dir, nil)
 	// Private key material is dangerous wherever it lives; it is never demoted.

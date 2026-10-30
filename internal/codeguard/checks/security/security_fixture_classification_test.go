@@ -9,7 +9,7 @@ func TestClassifyFixtureCandidateRequiresCombinedEvidence(t *testing.T) {
 		want                                 fixtureClassification
 	}{
 		// Key material and the entropy heuristic are never path-demoted.
-		{"private key in fixture", "fixtures/key.pem", "-----BEGIN PRIVATE KEY-----", "private_key", privateKeyRule, fixtureConfirmed},
+		{"private key in fixture", "fixtures/key.pem", "-----BEGIN PRIVATE KEY-----", "private_key", privateKeyRule, fixtureConfirmed}, // codeguard:ignore security.private-key -- header-only PEM marker under test, no key body
 		{"high entropy in test", "src/auth.test.ts", `const token = "k7Jx9PqL2mNvB4wR8tZc3aYd5eHfUgQ1"`, "high_entropy", highEntropyRule, fixtureConfirmed},
 
 		// A provider-format credential in a test path is demoted, not

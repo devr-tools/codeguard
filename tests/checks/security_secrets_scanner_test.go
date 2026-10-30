@@ -37,7 +37,7 @@ func gateSamples() []string {
 		`h := "` + cred("Authorization: Bearer ", "abcdefghijklmnop0123456789") + `"`,
 		`client_secret = '` + cred("abcdefghij", "klmnop1234") + `'`,
 		`apiKey = "` + cred("supersecret", "value1234") + `"`,
-		`-----BEGIN RSA PRIVATE KEY-----`,
+		`-----BEGIN RSA PRIVATE KEY-----`, // codeguard:ignore security.private-key -- header-only PEM marker the scanner must detect
 	}
 }
 

@@ -19,7 +19,7 @@ var (
 		foldGate("access-control-allow-origin"))
 	bindAllPattern = newGatedPattern("bind-all-interfaces",
 		`\b0\.0\.0\.0\b`,
-		exactGate("0.0.0.0"))
+		exactGate("0.0.0.0")) // codeguard:ignore security.bind-all-interfaces -- the detector's own gate literal
 	dockerfileUserRoot = newGatedPattern("dockerfile-root",
 		`(?i)^\s*USER\s+root\b`,
 		foldGate("root"))
@@ -36,7 +36,7 @@ var (
 		foldGate("md5", "sha1", "sha-1"))
 	weakCipherPattern = newGatedPattern("weak-cipher",
 		`(?i)crypto/(?:des|rc4)|cipher\.getinstance\s*\(\s*"(?:des|desede|rc4|[^"]*ecb[^"]*)"|createcipheriv\s*\(\s*['"](?:des|des-ede3|rc4|aes-\d+-ecb)|\bnew\s+(?:DESCryptoServiceProvider|RC2CryptoServiceProvider|TripleDESCryptoServiceProvider)\b|\bMODE_ECB\b`,
-		foldGate("crypto/des", "crypto/rc4", "cipher.getinstance", "createcipheriv", "cryptoserviceprovider", "mode_ecb"))
+		foldGate("crypto/des", "crypto/rc4", "cipher.getinstance", "createcipheriv", "cryptoserviceprovider", "mode_ecb")) // codeguard:ignore security.weak-cipher -- the detector's own gate literals
 	deserializePattern = newGatedPattern("insecure-deserialization",
 		`(?i)\b(?:pickle|cpickle)\.loads?\s*\(|\bmarshal\.loads\s*\(|\byaml\.load\s*\(|\.readObject\s*\(|\bnew\s+ObjectInputStream\b|\bXMLDecoder\b|\bMarshal\.load\s*\(|\bunserialize\s*\(`,
 		foldGate("pickle.load", "marshal.load", "yaml.load", ".readobject", "objectinputstream", "xmldecoder", "unserialize"))
@@ -63,7 +63,7 @@ func appendOWASPExtraLineFindings(env support.Context, file string, lineNo int, 
 		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.cors-wildcard", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "wildcard CORS origin '*' allows any site to read responses"}))
 	}
 	if bodyScanned && bindAllPattern.matchString(body, line.ascii) {
-		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.bind-all-interfaces", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "service binds to 0.0.0.0 (all network interfaces)"}))
+		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.bind-all-interfaces", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "service binds to 0.0.0.0 (all network interfaces)"})) // codeguard:ignore security.bind-all-interfaces -- finding message text
 	}
 	if debugEnabledPattern.matchString(line.masked, line.ascii) {
 		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.debug-enabled", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "debug mode enabled; disable in production"}))
@@ -74,7 +74,7 @@ func appendOWASPExtraLineFindings(env support.Context, file string, lineNo int, 
 	if bodyScanned && weakCipherPattern.matchString(body, line.ascii) {
 		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.weak-cipher", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "weak or insecure cipher (DES/RC4/ECB) should be replaced"}))
 	}
-	if isInsecureDeserialization(line.raw, line.ascii) {
+	if isInsecureDeserialization(line) {
 		findings = append(findings, env.NewFinding(support.FindingInput{RuleID: "security.insecure-deserialization", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "insecure deserialization of potentially untrusted data"}))
 	}
 	if isDockerfile(file) && dockerfileUserRoot.matchString(line.raw, line.ascii) {
@@ -110,11 +110,18 @@ func stripMaskedTrailingComment(raw string, masked string) string {
 // excluding explicitly-safe YAML loaders (RE2 has no negative lookahead, so the
 // safe case is filtered in code). The ToLower below is reached only for lines
 // the gate already admitted, so the allocation is rare.
-func isInsecureDeserialization(line string, ascii bool) bool {
-	if !deserializePattern.matchString(line, ascii) {
+//
+// Every alternative of deserializePattern is a call or type name, never a
+// string value, so it is matched against the masked line: a loader named in a
+// string literal or comment (a detector's own pattern table, a fix-template
+// example, a test fixture held in a Go string) is not a call. Languages
+// without a masker see the raw line, as before. The safe-loader filter reads
+// the raw line because the Loader argument can be spelled as a string.
+func isInsecureDeserialization(line sourceLine) bool {
+	if !deserializePattern.matchString(line.masked, line.ascii) {
 		return false
 	}
-	lower := strings.ToLower(line)
+	lower := strings.ToLower(line.raw)
 	if strings.Contains(lower, "yaml.load") && (strings.Contains(lower, "safeloader") || strings.Contains(lower, "csafeloader")) {
 		return false
 	}
