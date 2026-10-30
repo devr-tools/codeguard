@@ -23,7 +23,7 @@ type samplingMessage struct {
 
 func startStdioSamplingServer(t *testing.T, cfg string) (*exec.Cmd, io.WriteCloser, io.ReadCloser) {
 	t.Helper()
-	cmd := exec.Command(os.Args[0], "-test.run=TestMCPServeHelperProcess", "--", cfg)
+	cmd := exec.Command(testBinary(t), "-test.run=TestMCPServeHelperProcess", "--", cfg)
 	cmd.Env = append(os.Environ(), "GO_WANT_MCP_HELPER_PROCESS=1")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

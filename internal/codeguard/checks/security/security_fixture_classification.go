@@ -56,7 +56,9 @@ var syntheticValueMarkers = []string{
 var unroutableCredentialHosts = []string{"example.com", "example.org", "example.net", "example.test", "localhost", "127.0.0.1", "::1"}
 
 // fillerRunPattern matches a run of one repeated character long enough to be a
-// stand-in body ("AKIA0000000000000000", "ghp_xxxxxx...").
+// stand-in body (an AKIA prefix followed by sixteen zeros, "ghp_" followed by
+// a run of x). The examples are spelled out rather than written as literals so
+// this production file does not itself carry a provider-shaped credential.
 var fillerRunPattern = regexp.MustCompile(`(0{8,}|x{8,}|a{8,}|z{8,}|1{8,}|\*{8,}|\.{8,}|-{8,}|_{8,})`)
 
 // classifyFixtureCandidate grades one secret match into a reporting tier.
