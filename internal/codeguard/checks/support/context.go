@@ -50,12 +50,16 @@ type SDKFacade interface {
 	MatchesFile(rel string) bool
 	// MatchesImport reports whether a Go import path refers to the facade.
 	MatchesImport(importPath string) bool
+	// CacheKey fingerprints the resolved facade, so per-file findings that
+	// depend on it are invalidated when go.mod or the pkg/ layout changes.
+	CacheKey() string
 }
 
 type emptySDKFacade struct{}
 
 func (emptySDKFacade) MatchesFile(string) bool   { return false }
 func (emptySDKFacade) MatchesImport(string) bool { return false }
+func (emptySDKFacade) CacheKey() string          { return "" }
 
 // SDKFacadeForTarget resolves env's facade for target, returning a matcher
 // that matches nothing when the hook is unwired.
@@ -91,7 +95,12 @@ type Context struct {
 	// direct read.
 	ReadTargetFile  func(target core.TargetConfig, rel string) ([]byte, error)
 	ScanTargetFiles func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding
-	ParseGoFile     func(path string, data []byte) (*token.FileSet, *ast.File, error)
+	// ScanTargetFilesWithDependencies is ScanTargetFiles for evaluators that
+	// read more than the scanned file; see FileScanDependencies. Call it via
+	// the package-level ScanTargetFilesWithDependencies helper, which falls
+	// back to ScanTargetFiles when this hook is nil.
+	ScanTargetFilesWithDependencies func(target core.TargetConfig, sectionID string, include func(string) bool, deps FileScanDependencies, evaluator func(string, []byte) []core.Finding) []core.Finding
+	ParseGoFile                     func(path string, data []byte) (*token.FileSet, *ast.File, error)
 	// ParseScriptFile parses one supported non-Go file through the tree-sitter
 	// substrate. It is nil unless parsers.treesitter is "auto"; checks treat
 	// nil (and any error) as "use the native fallback path".
