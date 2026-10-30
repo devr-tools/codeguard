@@ -56,7 +56,7 @@ func assertSemanticOpenAIRequest(t *testing.T, r *http.Request) {
 	)
 }
 
-func repoRoot(t *testing.T) string {
+func repoRoot(t testing.TB) string {
 	t.Helper()
 	wd, err := os.Getwd()
 	if err != nil {
