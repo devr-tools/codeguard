@@ -135,6 +135,11 @@ func errorStyleDriftFinding(env support.Context, file string, dominant string, c
 	if counts[fileDominant] < 2 || counts[dominant] > 0 {
 		return nil
 	}
-	return []core.Finding{warnFinding(env, "quality.ai.error-style-drift", file, 1, 1,
-		fmt.Sprintf("%s style %q diverges from the repository's dominant style %q", label, fileDominant, dominant))}
+	return []core.Finding{newQualityWarnFinding(env, support.WarnFindingInput{
+		RuleID:  "quality.ai.error-style-drift",
+		Path:    file,
+		Line:    1,
+		Column:  1,
+		Message: fmt.Sprintf("%s style %q diverges from the repository's dominant style %q", label, fileDominant, dominant),
+	})}
 }

@@ -41,19 +41,6 @@ func goFindingsForFile(env support.Context, file string, data []byte) []core.Fin
 	return goPerformanceFindings(env, file, fset, parsed)
 }
 
-// warnFinding builds a warn-level finding; every performance rule reports at
-// warn severity with the unspecified/medium confidence default.
-func warnFinding(env support.Context, args ...any) core.Finding {
-	return env.NewFinding(support.FindingInput{
-		RuleID:  args[0].(string),
-		Level:   "warn",
-		Path:    args[1].(string),
-		Line:    args[2].(int),
-		Column:  args[3].(int),
-		Message: args[4].(string),
-	})
-}
-
 func isTypeScriptLikeFile(rel string) bool {
 	return support.IsTypeScriptLikeFile(rel)
 }
