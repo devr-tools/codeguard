@@ -259,6 +259,10 @@ type PromptRulesConfig struct {
 	PathContains              []string `json:"path_contains,omitempty" yaml:"path_contains,omitempty"`
 	ForbidSecretInterpolation *bool    `json:"forbid_secret_interpolation,omitempty" yaml:"forbid_secret_interpolation,omitempty"`
 	ForbidUnsafeInstructions  *bool    `json:"forbid_unsafe_instructions,omitempty" yaml:"forbid_unsafe_instructions,omitempty"`
+	// RequireMCPRemoteAuth reports remote MCP servers declared without an
+	// auth header. Defaults to true; disable it when servers authenticate
+	// through OAuth discovery, which leaves no trace in the config file.
+	RequireMCPRemoteAuth *bool `json:"require_mcp_remote_auth,omitempty" yaml:"require_mcp_remote_auth,omitempty"`
 }
 
 type CIRulesConfig struct {
