@@ -24,7 +24,12 @@ import (
 // regardless of completion order.
 func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 	sc = withSynchronizedSectionCallback(sc)
-	checkEnv := buildCheckContext(ctx, sc)
+	// One base-file reader per scan: sections share its memo and its single
+	// `git cat-file --batch` process per target, which Close reaps once every
+	// section has returned.
+	baseFiles := runnersupport.NewBaseFileReader(ctx, sc.Opts.BaseRef)
+	defer baseFiles.Close()
+	checkEnv := buildCheckContext(ctx, sc, baseFiles)
 
 	enabled := make([]sectionDef, 0, len(sectionRegistry))
 	for _, def := range sectionRegistry {
@@ -201,7 +206,7 @@ func contextEnabled(sc runnersupport.Context) bool {
 // captured by the git-backed callbacks (ListChangedFiles, ReadBaseFile), whose
 // closure signatures carry no context of their own; they are only invoked
 // while Build's sections run, so the scan ctx is the correct lifetime.
-func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSupport.Context {
+func buildCheckContext(ctx context.Context, sc runnersupport.Context, baseFiles *runnersupport.BaseFileReader) checkSupport.Context {
 	// One resolver per scan: it memoizes a go.mod read and a directory listing
 	// per target, and sections consult it concurrently.
 	facades := runnersupport.NewSDKFacadeResolver(sc.Cfg)
@@ -215,9 +220,7 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 		ListChangedFiles: func(target core.TargetConfig) ([]core.ChangedFile, error) {
 			return runnersupport.ListChangedFiles(ctx, sc, target)
 		},
-		ReadBaseFile: func(target core.TargetConfig, rel string) ([]byte, error) {
-			return runnersupport.ReadBaseFile(ctx, sc, target, rel)
-		},
+		ReadBaseFile: baseFiles.Read,
 		ChangedFiles: runnersupport.ChangedDiffFiles(sc),
 		VisitTargetFiles: func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
 			runnersupport.VisitTargetFiles(sc, target, include, visit)
