@@ -64,6 +64,10 @@ func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "invalid config: %v\n", err)
 		return exitError
 	}
+	if err := service.ValidateTargetPaths(cfg); err != nil {
+		_, _ = fmt.Fprintf(stderr, "invalid config: %v\n", err)
+		return exitError
+	}
 
 	_, _ = fmt.Fprintln(stdout, "config valid")
 	return exitOK

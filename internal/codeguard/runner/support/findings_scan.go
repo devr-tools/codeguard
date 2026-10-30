@@ -47,6 +47,7 @@ func scanTargetFiles(sc Context, target core.TargetConfig, spec fileScanSpec) []
 	scanOne := func(file string) []core.Finding {
 		data, err := sc.corpusRead(target.Path, file)
 		if err != nil {
+			sc.corpus.recordReadError(target.Path, file, err)
 			return nil
 		}
 		// Binary content produces only noise: a line/regex detector run over
@@ -77,6 +78,9 @@ func scanTargetFiles(sc Context, target core.TargetConfig, spec fileScanSpec) []
 }
 
 func selectedTargetFiles(sc Context, target core.TargetConfig, include func(string) bool) []string {
+	// A walk error is not dropped: the shared corpus records it as a failing
+	// scan.target-walk diagnostic, which the section's finalize attaches. The
+	// partial listing is still scanned.
 	files, _ := sc.corpusFiles(target)
 	selected := make([]string, 0, len(files))
 	for _, file := range files {

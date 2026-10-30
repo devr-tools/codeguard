@@ -22,6 +22,27 @@ codeguard explain quality.ai.semantic-runtime
 Use `codeguard rules` to discover what exists and `codeguard explain <rule-id>` to
 understand why a specific finding failed and what remediation path it expects.
 
+### Target paths and scan diagnostics
+
+Every `targets[].path` must name an existing, readable directory. A relative
+path resolves against the directory holding the config file. `codeguard
+validate` and `codeguard scan` both reject a missing, unreadable, or
+non-directory target path with an error and a non-zero exit, rather than
+scanning nothing and reporting a clean pass. The SDK's `ValidateConfig` checks
+config shape only and does not touch the filesystem. Call `ValidateTargetPaths`
+to run the path check from the SDK. `Run` performs it automatically.
+
+Problems found during the walk itself are reported as section diagnostics,
+not findings, so they cannot be baselined or waived:
+
+- `scan.target-walk` (fail): the walk of a target stopped on an error, such
+  as an unreadable subdirectory, so files under it were not scanned. Every
+  section that finalizes after the failure reports it and fails.
+- `scan.file-read` (warn): a file the walk listed could not be read and was
+  skipped. The first 20 such files are listed individually and the rest are
+  summarised.
+- `scan.file-limit` (warn): the walk stopped at the file-count limit.
+
 ## Check glossary
 
 This glossary is the quick map of every built-in check family and the main subsections users will see in reports, rule IDs, and config.
