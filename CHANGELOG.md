@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.11.0](https://github.com/devr-tools/codeguard/compare/v1.10.1...v1.11.0) (2026-10-30)
+
+
+### Features
+
+* **security:** honor justified gosec directives for shell-execution ([f7f8423](https://github.com/devr-tools/codeguard/commit/f7f84237b9fe60d6e1918c5953da86aba7069a33))
+
+
+### Bug Fixes
+
+* **action:** make the sticky PR comment actually post ([b2c9020](https://github.com/devr-tools/codeguard/commit/b2c902061e1acb19876c3600aa9e0c2b0fe2f8c9))
+* **cache:** key per-file findings on the cross-file inputs they read ([5bed0ad](https://github.com/devr-tools/codeguard/commit/5bed0ad3a17c535ce30fca3c49e8d6c58c30c7fe))
+* **prompts:** govern only config files under mcp/ directories ([87f3fcc](https://github.com/devr-tools/codeguard/commit/87f3fcc66f14559b26a4d03b63ca21e022359d44))
+* **runner:** fail scans whose target path is missing or unreadable ([00a6a48](https://github.com/devr-tools/codeguard/commit/00a6a48128981a1151b7a2abdb2f1a3e87812a0d))
+* **runner:** fail the scan when a check section panics ([35349a5](https://github.com/devr-tools/codeguard/commit/35349a58c7097869618a3d48bacb1271fa808ec4))
+* **security:** match insecure-deserialization on masked source ([ae38101](https://github.com/devr-tools/codeguard/commit/ae381014aac296b562fc1d0816b0ab7b9905005f))
+* **security:** stop scanArgLiterals panicking on a lone-quote argument ([a6b1615](https://github.com/devr-tools/codeguard/commit/a6b1615fd25cba4bafba73dcdfb4944465ebc4f8))
+* stop codeguard silently passing on broken scans (high-priority review fixes) ([#189](https://github.com/devr-tools/codeguard/issues/189)) ([4104604](https://github.com/devr-tools/codeguard/commit/4104604a5dc1682812f74de65ae5dba37f758b6e))
+
+
+### Performance Improvements
+
+* **quality:** compute TS/JS module-scope flags in a single pass ([310df11](https://github.com/devr-tools/codeguard/commit/310df11c3e512e46c9ccd31b8fb7246d7ed447e7))
+* **quality:** cut self-scan time ~46% by fixing three profiled hot paths ([#191](https://github.com/devr-tools/codeguard/issues/191)) ([7660755](https://github.com/devr-tools/codeguard/commit/76607555b72a9d9e86b188046a4f1643abfc16fe))
+* **quality:** gate the style-profile regexes behind literal pre-checks ([4852024](https://github.com/devr-tools/codeguard/commit/485202487ff709d238be642d4986e97bd051d778))
+* **quality:** replace the clone tokenizer regex with a byte lexer ([1e24245](https://github.com/devr-tools/codeguard/commit/1e24245bdbba2de2c71d3f30c25b4d3df0c51d60))
+
 ## [1.10.1](https://github.com/devr-tools/codeguard/compare/v1.10.0...v1.10.1) (2026-10-30)
 
 
