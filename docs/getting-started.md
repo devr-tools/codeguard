@@ -132,7 +132,7 @@ func main() {
 - Policy profiles such as `startup`, `strict`, `enterprise`, and `ai-safe`
 - Cached file-hash scan results for faster repeat runs
 - `doctor` checks for config, Git, govulncheck, targets, and cache setup
-- `text`, `json`, `sarif`, and `github` report formats
+- `text`, `json`, `sarif`, `github`, `github-comment`, and `cyclonedx` report formats
 - Diff-mode filtering down to changed lines when Git history is available
 - Production rollout tools such as baselines, waivers, diff scans, and rule metadata discovery
 

@@ -74,7 +74,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	fs.SetOutput(stderr)
 	flags := registerScanRunFlags(fs)
 	inputs := scanInputs{configPath: flags.configPath, mode: flags.mode, baseRef: flags.baseRef}
-	format := fs.String("format", "", "optional output format override: text, json, sarif, github, cyclonedx")
+	format := fs.String("format", "", "optional output format override: text, json, sarif, github, github-comment, cyclonedx")
 	folderPath := fs.String("folder", "", "folder path to scan instead of all configured targets")
 	pathAlias := fs.String("path", "", "alias for -folder")
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
@@ -128,7 +128,7 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	fs := flag.NewFlagSet("validate-patch", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", service.DefaultConfigPath(), "config file or directory path")
-	format := fs.String("format", "", "optional output format override: text, json, sarif, github, cyclonedx")
+	format := fs.String("format", "", "optional output format override: text, json, sarif, github, github-comment, cyclonedx")
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	profile := fs.String("profile", "", "optional policy profile override")
 	var overrides configOverrideValues
