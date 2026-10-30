@@ -637,9 +637,9 @@ func isPublicSurfaceFile(env support.Context, rel string) bool {
 	lower := strings.ToLower(normalizePath(rel))
 	base := path.Base(lower)
 	ext := strings.ToLower(filepath.Ext(lower))
-	if env.IsSDKFacadeFile != nil && env.IsSDKFacadeFile(rel) {
-		return true
-	}
+	// The SDK facade used to be tested here too; it is a strict subset of
+	// IsPublicPackageFile ("pkg/"), so the call only ever duplicated the next
+	// one. Dropping it also keeps this predicate target-free.
 	if env.IsPublicPackageFile != nil && env.IsPublicPackageFile(rel) {
 		return true
 	}

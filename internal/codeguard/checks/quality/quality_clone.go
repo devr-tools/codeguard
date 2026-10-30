@@ -209,12 +209,30 @@ func collectCloneCandidates(index cloneIndex, docs []cloneDocument, threshold in
 	// into a scan of just the (usually tiny) bucket for that file pair.
 	byPair := make(map[[2]int][]cloneCandidate)
 	comparisons := 0
-	for _, occurrences := range index {
-		if addClonePairs(byPair, occurrences, docs, threshold, &comparisons) {
+	// Walk the index in a fixed order. Collection stops early once
+	// maxClonePairComparisons or maxCloneCandidates is reached, so the
+	// iteration order decides *which* window hashes are examined before the
+	// cap - and Go randomizes map iteration, which made the surviving
+	// candidate set differ between runs on the same input. sortCloneCandidates
+	// orders the result but cannot recover what was never collected. Any fixed
+	// order fixes this; the key order is the cheapest one available.
+	for _, hash := range sortedCloneIndexKeys(index) {
+		if addClonePairs(byPair, index[hash], docs, threshold, &comparisons) {
 			break
 		}
 	}
 	return flattenCloneCandidates(byPair)
+}
+
+// sortedCloneIndexKeys returns the index's window hashes in ascending order so
+// candidate collection visits them deterministically.
+func sortedCloneIndexKeys(index cloneIndex) []uint64 {
+	keys := make([]uint64, 0, len(index))
+	for hash := range index {
+		keys = append(keys, hash)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	return keys
 }
 
 // addClonePairs reports whether candidate collection has reached a safety

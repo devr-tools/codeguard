@@ -216,29 +216,42 @@ type RiskScoringConfig struct {
 }
 
 type DesignRulesConfig struct {
-	RequireCmdThroughInternalCLI *bool                           `json:"require_cmd_through_internal_cli,omitempty" yaml:"require_cmd_through_internal_cli,omitempty"`
-	ForbidInternalImportCmd      *bool                           `json:"forbid_internal_import_cmd,omitempty" yaml:"forbid_internal_import_cmd,omitempty"`
-	ForbidServiceImportInternal  *bool                           `json:"forbid_service_import_internal,omitempty" yaml:"forbid_service_import_internal,omitempty"`
-	ForbidServiceImportCmd       *bool                           `json:"forbid_service_import_cmd,omitempty" yaml:"forbid_service_import_cmd,omitempty"`
-	MaxDeclsPerFile              int                             `json:"max_decls_per_file" yaml:"max_decls_per_file"`
-	MaxMethodsPerType            int                             `json:"max_methods_per_type" yaml:"max_methods_per_type"`
-	MaxInterfaceMethods          int                             `json:"max_interface_methods" yaml:"max_interface_methods"`
-	DetectImportCycles           *bool                           `json:"detect_import_cycles,omitempty" yaml:"detect_import_cycles,omitempty"`
-	DetectGodModules             *bool                           `json:"detect_god_modules,omitempty" yaml:"detect_god_modules,omitempty"`
-	GodModuleThreshold           int                             `json:"god_module_threshold" yaml:"god_module_threshold"`
-	DetectHighImpactChanges      *bool                           `json:"detect_high_impact_changes,omitempty" yaml:"detect_high_impact_changes,omitempty"`
-	HighImpactChangeThreshold    int                             `json:"high_impact_change_threshold" yaml:"high_impact_change_threshold"`
-	ForbiddenPackageNames        []string                        `json:"forbidden_package_names,omitempty" yaml:"forbidden_package_names,omitempty"`
-	LanguageCommands             map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
-	LanguageDiffCommands         map[string][]CommandCheckConfig `json:"language_diff_commands,omitempty" yaml:"language_diff_commands,omitempty"`
-	RequireBoundaryAssignment    *bool                           `json:"require_boundary_assignment,omitempty" yaml:"require_boundary_assignment,omitempty"`
-	Layers                       []DesignLayerConfig             `json:"layers,omitempty" yaml:"layers,omitempty"`
-	Domains                      []DesignDomainConfig            `json:"domains,omitempty" yaml:"domains,omitempty"`
-	Capabilities                 []DesignCapabilityConfig        `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
-	PublicSurfaces               []DesignPublicSurfaceConfig     `json:"public_surfaces,omitempty" yaml:"public_surfaces,omitempty"`
-	ProductionTest               *DesignProductionTestConfig     `json:"production_test,omitempty" yaml:"production_test,omitempty"`
-	Reachability                 *DesignReachabilityConfig       `json:"reachability,omitempty" yaml:"reachability,omitempty"`
-	Stability                    *DesignStabilityConfig          `json:"stability,omitempty" yaml:"stability,omitempty"`
+	RequireCmdThroughInternalCLI *bool `json:"require_cmd_through_internal_cli,omitempty" yaml:"require_cmd_through_internal_cli,omitempty"`
+	ForbidInternalImportCmd      *bool `json:"forbid_internal_import_cmd,omitempty" yaml:"forbid_internal_import_cmd,omitempty"`
+	ForbidServiceImportInternal  *bool `json:"forbid_service_import_internal,omitempty" yaml:"forbid_service_import_internal,omitempty"`
+	ForbidServiceImportCmd       *bool `json:"forbid_service_import_cmd,omitempty" yaml:"forbid_service_import_cmd,omitempty"`
+	// SDKFacadePaths names the package directories that make up this
+	// repository's published API surface ("pkg/<name>"), relative to the target
+	// root. The facade is the one public package that is *meant* to wrap the
+	// module's internals, so it is exempt from
+	// design.service-import-internal, and it is the import that
+	// design.cmd-through-internal-cli watches for in cmd/ packages.
+	//
+	// Unset means "discover it": every directory directly under pkg/ is treated
+	// as facade. That is deliberately permissive, because within a single Go
+	// module pkg/<anything> importing internal/ is legal, idiomatic Go, and
+	// guessing wrong costs a fail-level finding on correct code. A repository
+	// that wants the strict reading names its facade here.
+	SDKFacadePaths            []string                        `json:"sdk_facade_paths,omitempty" yaml:"sdk_facade_paths,omitempty"`
+	MaxDeclsPerFile           int                             `json:"max_decls_per_file" yaml:"max_decls_per_file"`
+	MaxMethodsPerType         int                             `json:"max_methods_per_type" yaml:"max_methods_per_type"`
+	MaxInterfaceMethods       int                             `json:"max_interface_methods" yaml:"max_interface_methods"`
+	DetectImportCycles        *bool                           `json:"detect_import_cycles,omitempty" yaml:"detect_import_cycles,omitempty"`
+	DetectGodModules          *bool                           `json:"detect_god_modules,omitempty" yaml:"detect_god_modules,omitempty"`
+	GodModuleThreshold        int                             `json:"god_module_threshold" yaml:"god_module_threshold"`
+	DetectHighImpactChanges   *bool                           `json:"detect_high_impact_changes,omitempty" yaml:"detect_high_impact_changes,omitempty"`
+	HighImpactChangeThreshold int                             `json:"high_impact_change_threshold" yaml:"high_impact_change_threshold"`
+	ForbiddenPackageNames     []string                        `json:"forbidden_package_names,omitempty" yaml:"forbidden_package_names,omitempty"`
+	LanguageCommands          map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
+	LanguageDiffCommands      map[string][]CommandCheckConfig `json:"language_diff_commands,omitempty" yaml:"language_diff_commands,omitempty"`
+	RequireBoundaryAssignment *bool                           `json:"require_boundary_assignment,omitempty" yaml:"require_boundary_assignment,omitempty"`
+	Layers                    []DesignLayerConfig             `json:"layers,omitempty" yaml:"layers,omitempty"`
+	Domains                   []DesignDomainConfig            `json:"domains,omitempty" yaml:"domains,omitempty"`
+	Capabilities              []DesignCapabilityConfig        `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
+	PublicSurfaces            []DesignPublicSurfaceConfig     `json:"public_surfaces,omitempty" yaml:"public_surfaces,omitempty"`
+	ProductionTest            *DesignProductionTestConfig     `json:"production_test,omitempty" yaml:"production_test,omitempty"`
+	Reachability              *DesignReachabilityConfig       `json:"reachability,omitempty" yaml:"reachability,omitempty"`
+	Stability                 *DesignStabilityConfig          `json:"stability,omitempty" yaml:"stability,omitempty"`
 }
 
 type PromptRulesConfig struct {

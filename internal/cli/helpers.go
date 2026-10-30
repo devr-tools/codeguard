@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/config"
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
@@ -57,7 +58,12 @@ func loadScanConfigWithFallback(path string, profile string, targetPath string, 
 		return service.Config{}, err
 	}
 
-	cfg, err = exampleConfigForProfile(profile)
+	// No config file: resolve the built-in defaults, NOT the `codeguard init`
+	// starter config. The starter states codeguard's own conventions, so using
+	// it here made a first run on an unseen repository fail on this repo's
+	// workflow filenames, `go test ./...` marker, tests/ layout and cmd//pkg
+	// layering.
+	cfg, err = config.DefaultScanConfig(profile)
 	if err != nil {
 		return service.Config{}, err
 	}
@@ -65,6 +71,17 @@ func loadScanConfigWithFallback(path string, profile string, targetPath string, 
 	cfg.Cache.Enabled = &disable
 	cfg.Cache.Path = ""
 	return cfg, nil
+}
+
+// starterConfigForProfile returns the rich, opinionated config `codeguard
+// init` writes into a repository. It is only correct for init: the user reads
+// and edits the result. A scan must never fall back to it — see
+// config.DefaultScanConfig.
+func starterConfigForProfile(profile string) (service.Config, error) {
+	if strings.TrimSpace(profile) == "" {
+		return service.ExampleConfig(), nil
+	}
+	return service.ExampleConfigForProfile(profile)
 }
 
 func applyProfileOverride(cfg service.Config, profile string) (service.Config, error) {
@@ -76,11 +93,4 @@ func applyProfileOverride(cfg service.Config, profile string) (service.Config, e
 		}
 	}
 	return cfg, nil
-}
-
-func exampleConfigForProfile(profile string) (service.Config, error) {
-	if strings.TrimSpace(profile) == "" {
-		return service.ExampleConfig(), nil
-	}
-	return service.ExampleConfigForProfile(profile)
 }

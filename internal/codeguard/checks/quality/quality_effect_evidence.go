@@ -122,7 +122,7 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 		if origin != originLocal {
 			continue
 		}
-		storePattern := regexp.MustCompile(`\b([A-Za-z_$][\w$]*)(?:\.[A-Za-z_$][\w$]*)?\s*=\s*` + regexp.QuoteMeta(name) + `\b`)
+		storePattern := cachedPattern(`\b([A-Za-z_$][\w$]*)(?:\.[A-Za-z_$][\w$]*)?\s*=\s*` + regexp.QuoteMeta(name) + `\b`)
 		for _, match := range storePattern.FindAllStringSubmatch(fn.Body, -1) {
 			if origins[match[1]] != originLocal {
 				escapedNames[name] = true
@@ -272,7 +272,7 @@ func assignmentAliasSource(fn precisionFunction, assignment support.ParsedAssign
 		return match[1]
 	}
 	name := regexp.QuoteMeta(strings.TrimSpace(assignment.Name))
-	match := regexp.MustCompile(`\b` + name + `\s*(?::?=)\s*&?([A-Za-z_$][\w$]*)\b`).FindStringSubmatch(assignmentStatement(fn, assignment.Line))
+	match := cachedPattern(`\b` + name + `\s*(?::?=)\s*&?([A-Za-z_$][\w$]*)\b`).FindStringSubmatch(assignmentStatement(fn, assignment.Line))
 	if len(match) == 2 {
 		return match[1]
 	}
@@ -285,9 +285,9 @@ func assignmentDeclaresLocal(fn precisionFunction, assignment support.ParsedAssi
 	if name == "" {
 		return false
 	}
-	return regexp.MustCompile(`\b`+name+`\s*:=`).MatchString(statement) ||
-		regexp.MustCompile(`(?i)\b(?:const|let|var|auto)\s+`+name+`\b`).MatchString(statement) ||
-		regexp.MustCompile(`\b[A-Za-z_$][\w$:<>, ]*\s*&\s*`+name+`\b`).MatchString(statement)
+	return cachedPattern(`\b`+name+`\s*:=`).MatchString(statement) ||
+		cachedPattern(`(?i)\b(?:const|let|var|auto)\s+`+name+`\b`).MatchString(statement) ||
+		cachedPattern(`\b[A-Za-z_$][\w$:<>, ]*\s*&\s*`+name+`\b`).MatchString(statement)
 }
 
 func assignmentCanReceiveAlias(fn precisionFunction, assignment support.ParsedAssignment) bool {
@@ -295,7 +295,7 @@ func assignmentCanReceiveAlias(fn precisionFunction, assignment support.ParsedAs
 		return true
 	}
 	name := regexp.QuoteMeta(strings.TrimSpace(assignment.Name))
-	return regexp.MustCompile(`(?m)\b(?:var|let|const|auto)\s+` + name + `\b`).MatchString(fn.Body)
+	return cachedPattern(`(?m)\b(?:var|let|const|auto)\s+` + name + `\b`).MatchString(fn.Body)
 }
 
 func looksLikeLocalObjectAllocation(fn precisionFunction, assignment support.ParsedAssignment) bool {
@@ -307,10 +307,10 @@ func looksLikeLocalObjectAllocation(fn precisionFunction, assignment support.Par
 	}
 	lowerStatement := strings.ToLower(assignmentStatement(fn, assignment.Line))
 	name := regexp.QuoteMeta(strings.ToLower(strings.TrimSpace(assignment.Name)))
-	return regexp.MustCompile(`\b`+name+`\s*:=\s*(?:&|make\s*\()`).MatchString(lowerStatement) ||
-		regexp.MustCompile(`\b`+name+`\s*=\s*new\b`).MatchString(lowerStatement) ||
-		regexp.MustCompile(`\b[A-Za-z_$][\w$:<>, ]+\s+`+name+`\s*\{`).MatchString(lowerStatement) ||
-		regexp.MustCompile(`\b`+name+`\s*:=\s*(?:new|create|build)[a-z0-9_$]*\s*\(`).MatchString(lowerStatement)
+	return cachedPattern(`\b`+name+`\s*:=\s*(?:&|make\s*\()`).MatchString(lowerStatement) ||
+		cachedPattern(`\b`+name+`\s*=\s*new\b`).MatchString(lowerStatement) ||
+		cachedPattern(`\b[A-Za-z_$][\w$:<>, ]+\s+`+name+`\s*\{`).MatchString(lowerStatement) ||
+		cachedPattern(`\b`+name+`\s*:=\s*(?:new|create|build)[a-z0-9_$]*\s*\(`).MatchString(lowerStatement)
 }
 
 func observableCallEffect(callee string) string {

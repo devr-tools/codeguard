@@ -48,6 +48,12 @@ var (
 	queryFunctionPrefixPattern = regexp.MustCompile(`^(get|find|list|load|read|lookup|fetch|is|has|can|should|compute|calculate|build|format|parse)`)
 	mutatingCallPattern        = regexp.MustCompile(`(^|[.>:\-_])(?i:add|allocate|append|assign|clear|create|delete|emit|insert|mutate|persist|pop|publish|push|push_back|remove|reverse|save|send|set|sort|splice|store|update|upsert|with|write)([A-Z_:\-.]|$)`)
 	lowLevelOperationPattern   = regexp.MustCompile(`(?i)(\bsql\.|\.query\(|\.exec\(|\bhttp\.|\bfetch\(|\baxios\.|\brequests\.|\bjson\.|\bJSON\.|\bos\.Getenv\b|\bprocess\.env\b|\bfs\.|#include\b)`)
+	// lowLevelOperationLiterals must stay a superset of every branch above: a
+	// string containing none of them cannot match the pattern.
+	lowLevelOperationLiterals = []string{
+		"sql.", ".query(", ".exec(", "http.", "fetch(", "axios.", "requests.",
+		"json.", "os.getenv", "process.env", "fs.", "#include",
+	}
 	primitiveTypePattern       = regexp.MustCompile(`(?i)\b(string|str|int|int64|float|float64|double|decimal|number|boolean|bool|char|long|short)\b`)
 	domainPrimitiveNamePattern = regexp.MustCompile(`(?i)(id|status|state|type|kind|currency|amount|price|email|phone|country|role|permission|tenant|account|customer|order)`)
 	mutableGlobalLinePattern   = regexp.MustCompile(`(?m)^\s*(?:export\s+)?(?:let|var)\s+[A-Za-z_$][\w$]*\s*=|^\s*[A-Za-z_]\w*\s*=`)
@@ -806,7 +812,13 @@ func hiddenSideEffect(file string, fn precisionFunction) bool {
 }
 
 func mixedAbstractionLevel(fn precisionFunction) bool {
-	if fn.EndLine-fn.StartLine < 5 || !lowLevelOperationPattern.MatchString(fn.Body) {
+	// PERF: lowLevelOperationPattern is a (?i) alternation whose branches all
+	// start with \b, which defeats RE2's literal-prefix scan, and it runs over
+	// every function body. Gate it on the literals it requires first — a body
+	// containing none of them cannot match (see the secret scanner's
+	// builtinGatePasses for the same technique).
+	if fn.EndLine-fn.StartLine < 5 || !containsAnyFold(fn.Body, lowLevelOperationLiterals) ||
+		!lowLevelOperationPattern.MatchString(fn.Body) {
 		return false
 	}
 	for _, call := range fn.Calls {

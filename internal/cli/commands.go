@@ -21,7 +21,7 @@ func runInit(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		return code
 	}
 
-	cfg, err := exampleConfigForProfile(strings.TrimSpace(*profile))
+	cfg, err := starterConfigForProfile(strings.TrimSpace(*profile))
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "init profile: %v\n", err)
 		return exitError

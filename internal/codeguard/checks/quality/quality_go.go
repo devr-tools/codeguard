@@ -5,14 +5,13 @@ import (
 	"go/ast"
 	"go/format"
 	"go/token"
-	"path/filepath"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
-func goFindingsForFileWithIndex(env support.Context, file string, data []byte, index *goPackageIndex) []core.Finding {
+func goFindingsForFileWithIndex(env support.Context, file string, data []byte, index *goPackageIndex, modules *goModuleResolver) []core.Finding {
 	findings := make([]core.Finding, 0)
 
 	formatted, err := format.Source(data)
@@ -55,7 +54,7 @@ func goFindingsForFileWithIndex(env support.Context, file string, data []byte, i
 		index.addFile(file, fset, parsed)
 	}
 	pkg := index.packageFor(file, parsed.Name.Name)
-	findings = append(findings, importFindings(env, file, fset, parsed)...)
+	findings = append(findings, importFindings(env, file, fset, parsed, modules)...)
 	findings = append(findings, goFunctionFindings(env, file, fset, parsed)...)
 	if localPrecisionEnabled(env) {
 		findings = append(findings, goPrecisionFindings(env, file, fset, parsed, data, pkg)...)
@@ -65,27 +64,42 @@ func goFindingsForFileWithIndex(env support.Context, file string, data []byte, i
 	return append(fileLengthFindingWithSignals(env, file, data, findings), findings...)
 }
 
-func importFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
+// importFindings reports imports of an internal package tree that Go's
+// internal-visibility rule does not permit, i.e. the importing package is
+// outside the directory the internal tree is scoped to.
+//
+// It deliberately does NOT report same-module internal imports. Importing
+// "<module>/internal/x" from anywhere in that module - cmd/, pkg/, a public
+// facade, an external test package - is legal and idiomatic Go, and codeguard
+// measured 631 findings across four repositories of which every single one was
+// such an import. See the rule's catalog entry for the remaining scope.
+func importFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File, modules *goModuleResolver) []core.Finding {
 	findings := make([]core.Finding, 0)
+	if testSourceFile(env, file) {
+		return findings
+	}
+	// The importing package path is resolved lazily: it takes the module
+	// resolver's lock, and most files import no internal package at all.
+	importer := ""
+	resolved := false
 	for _, imp := range parsed.Imports {
 		pathValue := strings.Trim(imp.Path.Value, `"`)
-		if strings.Contains(pathValue, "/internal/") && allowsInternalImport(env, file) {
-			pos := fset.Position(imp.Pos())
-			findings = append(findings, warnFinding(env, "quality.dependency-direction", file, pos.Line, pos.Column,
-				"non-CLI package imports internal implementation detail"))
+		owner, ok := internalPackageOwner(pathValue)
+		if !ok {
+			continue
 		}
+		if !resolved {
+			importer = goPackagePathForFile(modules, file)
+			resolved = true
+		}
+		if importer == "" || goInternalImportVisible(importer, owner) {
+			continue
+		}
+		pos := fset.Position(imp.Pos())
+		findings = append(findings, warnFinding(env, "quality.dependency-direction", file, pos.Line, pos.Column,
+			fmt.Sprintf("package %q imports internal tree %q, which is scoped to %q and its descendants", importer, pathValue, owner)))
 	}
 	return findings
-}
-
-func allowsInternalImport(env support.Context, file string) bool {
-	if env.IsInternalOrCmdFile(file) {
-		return false
-	}
-	if strings.HasPrefix(filepath.ToSlash(file), "tests/") {
-		return false
-	}
-	return !env.IsSDKFacadeFile(file)
 }
 
 func goFunctionFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
