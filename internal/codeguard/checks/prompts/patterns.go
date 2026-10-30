@@ -36,6 +36,12 @@ var (
 	}
 )
 
+// mcpDirConfigExtensions are the config formats an MCP client reads its server
+// definitions from; they are the files a directory named mcp/ governs.
+var mcpDirConfigExtensions = map[string]struct{}{
+	".json": {}, ".jsonc": {}, ".yaml": {}, ".yml": {}, ".toml": {},
+}
+
 func isGovernedPromptFile(env support.Context, rel string) bool {
 	return env.IsPromptFile(rel) || isAgentConfigFile(rel) || isMCPConfigFile(rel)
 }
@@ -57,11 +63,17 @@ func isMCPConfigFile(rel string) bool {
 	case ".mcp.json", "mcp.json", "mcp.yaml", "mcp.yml", "claude_desktop_config.json":
 		return true
 	}
-	if strings.Contains(rel, "/mcp/") {
-		return true
+	ext := filepath.Ext(base)
+	// A directory named mcp holds MCP server code as often as MCP config, so
+	// it only governs config-format files: Go, TypeScript, or Python source
+	// for an MCP server is code, and a string literal in it (a test fixture,
+	// a transcript) is not a prompt asset.
+	if strings.Contains("/"+rel, "/mcp/") {
+		_, config := mcpDirConfigExtensions[ext]
+		return config
 	}
 	if strings.Contains(base, "mcp") {
-		switch filepath.Ext(base) {
+		switch ext {
 		case ".json", ".yaml", ".yml":
 			return true
 		}
