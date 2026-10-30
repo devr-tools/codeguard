@@ -14,6 +14,13 @@ type inlineSuppression struct {
 	ruleID  string
 	line    int
 	expires string
+	// exactLine limits the directive to line itself. codeguard:ignore
+	// directives cover the same and the next line; translated gosec
+	// justifications cover only the line golangci-lint/gosec would.
+	exactLine bool
+	// match labels a translated directive in the suppression evidence
+	// (core.Suppression.Match); empty for native codeguard:ignore.
+	match string
 }
 
 var inlineIgnorePattern = regexp.MustCompile(`codeguard:ignore\s+([a-z0-9._*\-]+)(?:\s+until\s+(\d{4}-\d{2}-\d{2}))?`)
@@ -86,8 +93,8 @@ func MatchSuppression(sc Context, finding core.Finding) *core.Suppression {
 	if err != nil {
 		return nil
 	}
-	if inlineSuppressionMatches(sc, finding, directives) {
-		return &core.Suppression{Kind: "inline"}
+	if directive, ok := matchInlineSuppression(sc, finding, directives); ok {
+		return &core.Suppression{Kind: "inline", Match: directive.match}
 	}
 	return nil
 }
@@ -127,7 +134,7 @@ func findingFullPath(sc Context, rel string) string {
 	return ""
 }
 
-func inlineSuppressionMatches(sc Context, finding core.Finding, directives []inlineSuppression) bool {
+func matchInlineSuppression(sc Context, finding core.Finding, directives []inlineSuppression) (inlineSuppression, bool) {
 	for _, directive := range directives {
 		if directive.ruleID != "*" && directive.ruleID != finding.RuleID {
 			continue
@@ -135,11 +142,17 @@ func inlineSuppressionMatches(sc Context, finding core.Finding, directives []inl
 		if suppressionExpired(directive.expires, sc.Today) {
 			continue
 		}
+		if directive.exactLine {
+			if finding.Line == directive.line {
+				return directive, true
+			}
+			continue
+		}
 		if finding.Line == 0 || finding.Line == directive.line || finding.Line == directive.line+1 {
-			return true
+			return directive, true
 		}
 	}
-	return false
+	return inlineSuppression{}, false
 }
 
 func suppressionExpired(expires string, today time.Time) bool {
@@ -156,6 +169,7 @@ func parseInlineSuppressions(path string) ([]inlineSuppression, error) {
 		return nil, err
 	}
 	lines := strings.Split(string(data), "\n")
+	goSource := strings.EqualFold(filepath.Ext(path), ".go")
 	out := make([]inlineSuppression, 0)
 	for idx, line := range lines {
 		matches := inlineIgnorePattern.FindAllStringSubmatch(line, -1)
@@ -165,6 +179,9 @@ func parseInlineSuppressions(path string) ([]inlineSuppression, error) {
 				line:    idx + 1,
 				expires: match[2],
 			})
+		}
+		if goSource {
+			out = append(out, gosecJustifiedSuppressions(line, idx+1)...)
 		}
 	}
 	return out, nil
