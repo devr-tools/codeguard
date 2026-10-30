@@ -99,7 +99,7 @@ taint engine and default to `fail`.
 | `security.dockerfile-root` | A05 | Dockerfile `USER root` |
 | `security.weak-hash` | A02 | MD5 / SHA-1 used for security |
 | `security.weak-cipher` | A02 | DES / RC4 / ECB mode |
-| `security.insecure-deserialization` | A08 | `pickle`, unsafe `yaml.load`, Java `readObject`, `Marshal.load`, `unserialize` |
+| `security.insecure-deserialization` | A08 | `pickle`, unsafe `yaml.load`, Java `readObject`, `Marshal.load`, `unserialize`; call sites only (string literals and comments are masked in Go, Python, Rust, C/C++, Java, and C#) |
 | `security.log-secret-exposure` | A09 | secret-named identifiers (password, token, api_key, …) inside the argument list of a Go/Python/TS/JS logging call, secret-named structured-log keys, and secret-labeled string literals concatenated or format-directed into log output |
 | `security.unsanitized-error-response` | A09 | raw error values written directly into HTTP responses: Go `http.Error(w, err.Error(), …)` / `fmt.Fprintf(w, …, err)`, TS/JS `res.send(err)` / `res.json(err)` / `res.status(…).send(err.stack \|\| err.message)`, Python `return str(e)` / `HttpResponse(str(e))` inside `except` blocks |
 | `security.ssrf.go` / `security.ssrf.python` | A10 | untrusted input flowing into an outbound HTTP request URL |
