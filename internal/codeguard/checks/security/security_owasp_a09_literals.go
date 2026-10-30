@@ -47,8 +47,9 @@ func scanArgLiterals(raw string) []argLiteral {
 	return literals
 }
 
-// literalEnd returns the index of the closing quote (or the last index of raw
-// when the literal is unterminated on this line).
+// literalEnd returns the index of the closing quote, or len(raw) when the
+// literal is unterminated on this line, so raw[open+1:end] is always a valid
+// slice holding the literal's full content.
 func literalEnd(raw string, open int) int {
 	quote := raw[open]
 	for i := open + 1; i < len(raw); i++ {
@@ -59,7 +60,7 @@ func literalEnd(raw string, open int) int {
 			return i
 		}
 	}
-	return len(raw) - 1
+	return len(raw)
 }
 
 // literalPrefixStart skips string-prefix letters (Python f/r/b) immediately
