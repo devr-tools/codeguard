@@ -148,13 +148,48 @@ and `security`). Those activations apply wherever the profile is resolved:
 no-config-file scan path. `checks.disabled` is still applied last, so it is
 the way to turn a profile's section back off.
 
-A scan run with **no config file at all** (`codeguard scan -folder <path>`
-with no discoverable `codeguard.yaml`) resolves the built-in defaults with
-`use_recommended_defaults` behavior applied, plus any `-profile`. It does not
-use the config `codeguard init` writes, so none of the repository-shape policy
-in that starter config — required workflow/release/automation files, workflow
-content markers, required gates, `allowed_test_paths`, or the `design_rules`
-package-layering toggles — is in effect on that path.
+A scan run with **no config file at all** (`codeguard scan` or `codeguard
+scan -folder <path>` with no discoverable `codeguard.yaml` and no `-config`)
+resolves the same config `codeguard init` would write for the scanned
+directory, in memory, plus any `-profile`, and prints a one-line hint on
+stderr to run `codeguard init`. The SDK exposes it as
+`codeguard.DefaultScanConfig(root, profile)`. See
+[Generated config](#generated-config-codeguard-init).
+
+### Generated config (`codeguard init`)
+
+`codeguard init` detects the repository and writes only what it detected:
+
+- `targets`: one per language that holds at least 10% of the counted source
+  files, or at least 25 of them. A target is analyzed as a single language, so
+  a Python + TypeScript repository gets two. Every target uses the repository
+  root as its path (`..` when the file is written to `.codeguard/`). Files are
+  counted with the scanner's own walk, so dependency and build trees
+  (`node_modules`, `vendor`, `.venv`, `dist`, corroborated `build/`/`target/`)
+  are skipped, and so are hidden directories, `testdata` and `fixtures`.
+- `targets[].entrypoints`: Go `cmd/<name>` packages (with a `main.go`) and a
+  module-root `main.go`, next to each `go.mod`; `package.json` `bin` and
+  `main` when the file exists outside a skipped tree; Python
+  `[project.scripts]` / `[tool.poetry.scripts]` modules resolved to a file
+  (flat or `src/` layout) and every `__main__.py`.
+- `checks`: `quality`, `design`, `security` and `prompts` on; `ci` on only
+  when `.github/workflows/` exists; `supply_chain` on when a package manifest
+  exists (`go.mod`, `package.json`, `pyproject.toml`, `requirements*.txt`,
+  `Cargo.toml`, `vcpkg.json`, `conanfile.*`, CMake); `performance: false`
+  stated explicitly.
+- `profile`, when `-profile` is passed.
+
+Every other key is left out, so it resolves from the built-in defaults
+documented in this file. Language-agnostic findings (secrets, supply chain,
+CI files) are reported once even though several targets cover the same
+files. `codeguard init -full` writes the same effective config expanded to
+every key with its resolved value. `-path <dir>` detects a directory other
+than the current one.
+
+The SDK's `ExampleConfig()` is different: it is a complete example that
+describes CodeGuard's own repository (a Go target with a `cmd/codeguard`
+entrypoint, its workflow files, release files and `tests/**` layout). `init`
+does not write it.
 
 `performance` is opt-in and covers N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, unbounded concurrency, memory-pressure and framework-aware smells, Rust loop-smell heuristics, diff-mode complexity regressions, and measurement gates (size budgets, benchmark regression); see [Performance](#performance) for the rule list and the migration note for the former `quality.*` ids.
 
@@ -408,8 +443,8 @@ The comparison below is generated from the profile definitions and verified by
 the configuration tests. The `Baseline` column is the built-in default policy —
 what a repository gets for any key it omits — and each profile column is that
 baseline with the profile overlaid. The configuration `codeguard init` writes
-is a richer, opinionated *starter* config on top of the same baseline; it is
-not what an omitted key resolves to.
+sets only targets and section switches on top of the same baseline (see
+[Generated config](#generated-config-codeguard-init)).
 
 <!-- BEGIN GENERATED: policy-profile-comparison -->
 | Setting | Baseline | Startup | Strict | Enterprise | AI-safe |
@@ -1662,9 +1697,9 @@ Defaults: the four Go package-layering toggles
 default**. They describe one specific repository layout — `cmd/` delegating to
 `internal/cli`, and a `pkg/` facade that must not reach into `cmd/` — and
 report at fail level, and a `pkg/` package importing its own module's
-`internal/` is ordinary Go. Set them to `true` to enforce that layout; the
-config `codeguard init` writes does, and so does this repository's own
-self-scan config. The remaining design rules (import cycles, god modules,
+`internal/` is ordinary Go. Set them to `true` to enforce that layout; this
+repository's own self-scan config does. The config `codeguard init` writes
+leaves them off. The remaining design rules (import cycles, god modules,
 high-impact changes, the numeric thresholds, generic package names) stay on by
 default.
 
@@ -2094,20 +2129,19 @@ Defaults: every list above is **empty by default**, and each rule treats an
 empty list as "not configured" and reports nothing. codeguard cannot know which
 workflow filenames, release artifacts, command strings, or test directories a
 repository uses, so none of them are enforced until the repository states them.
-The only CI default is `require_workflow_dir: true`, since enabling
-`checks.ci` is itself the assertion that the repository wants pipeline policy
-checked and every other CI rule reads `.github/workflows`.
+`require_workflow_dir` is `false` by default too. It used to default to
+`true`, which failed every repository on another CI system, or with no CI yet,
+on its first scan. `codeguard init` now turns `checks.ci` on only when
+`.github/workflows/` exists. Set `require_workflow_dir: true` to require it.
 
 `allowed_test_paths` in particular must stay unset for a repository with
 co-located tests — idiomatic Go `_test.go` files, `*.spec.ts` beside the
 source, or pytest `test_*.py` inside the package. Setting it to `["tests/**"]`
 means "every test file outside `tests/` is a failure".
 
-The configuration `codeguard init` writes is a *starter* config, not the
-defaults: it states codeguard's own conventions (`.github/workflows/ci.yml`,
-a `test` gate, `actions/checkout` + `go test ./...` markers,
-`.goreleaser.yaml`, `Makefile`, `tests/**`) so they are visible and editable.
-Delete or replace the keys that do not describe your repository.
+The example above is this repository's own policy, which lives in its
+`.codeguard/codeguard.yaml`. The config `codeguard init` writes sets no
+`ci_rules` at all. Add the lists that describe your repository.
 
 Current behavior:
 - fails when a configured required workflow, release, or automation file is missing

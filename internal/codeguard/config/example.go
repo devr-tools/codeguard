@@ -2,10 +2,13 @@ package config
 
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
-// baseExampleConfig is the rich, opinionated starter configuration that
-// `codeguard init` writes and that ExampleConfig exposes. It is the
-// conservative default baseline (baseDefaultConfig) plus a starter policy
-// overlay.
+// baseExampleConfig is the rich, opinionated example configuration that
+// ExampleConfig exposes: the conservative default baseline
+// (baseDefaultConfig) plus codeguard's own repository conventions. It is NOT
+// what `codeguard init` writes — init detects the repository's languages,
+// entrypoints, workflows and manifests and writes a small config (see
+// internal/codeguard/initconfig), because writing this one made every other
+// repository inherit codeguard's Go layout and release conventions.
 //
 // The split matters because ApplyDefaults resolves omitted keys against
 // baseDefaultConfig, NOT against this function. Before the split there was one
@@ -22,9 +25,8 @@ func baseExampleConfig() core.Config {
 }
 
 // applyStarterPolicy layers codeguard's own house conventions onto the
-// conservative baseline. Everything set here is written into the generated
-// config file, so the user can see it and change it; none of it reaches a
-// repository that does not have a config, or that omits the key.
+// conservative baseline. None of it reaches a repository that does not have a
+// config, that omits the key, or that was set up with `codeguard init`.
 func applyStarterPolicy(cfg *core.Config) {
 	cfg.Targets = starterTargets()
 	applyStarterSectionActivation(&cfg.Checks)
@@ -58,6 +60,7 @@ func applyStarterSectionActivation(checks *core.CheckConfig) {
 // edit or delete them. See baseDefaultCIRules for why none of this is a
 // default.
 func applyStarterCIPolicy(rules *core.CIRulesConfig) {
+	rules.RequireWorkflowDir = boolPtr(true)
 	rules.RequiredWorkflowFiles = []string{".github/workflows/ci.yml"}
 	rules.RequiredGates = []string{"test"}
 	rules.WorkflowContentRules = []core.WorkflowRuleConfig{{

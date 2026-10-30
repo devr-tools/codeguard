@@ -84,7 +84,8 @@ go get github.com/devr-tools/codeguard/pkg/codeguard
 ## Quick Start
 
 ```bash
-codeguard init
+codeguard scan            # no config yet: repository-aware built-in defaults
+codeguard init            # detect languages, entrypoints, workflows, manifests; write a small codeguard.yaml
 codeguard validate -config codeguard.yaml
 codeguard doctor -config codeguard.yaml
 codeguard scan -config codeguard.yaml
@@ -103,6 +104,8 @@ codeguard baseline prune -config codeguard.yaml -check
 codeguard baseline policy -config codeguard.yaml -compare-baseline /tmp/base-baseline.json
 ```
 
+`codeguard init` detects the repository's languages (one target per language), entrypoints (Go `cmd/*/main.go` or `main.go`, `package.json` `bin`/`main`, Python `[project.scripts]` or `__main__.py`), whether `.github/workflows/` exists (enables CI/CD) and which package manifests exist (enables Supply Chain). It writes only those targets and section switches. Every other setting stays at its built-in default, documented in [docs/checks.md](docs/checks.md). `codeguard init -full` writes every key instead. The defaults enforce none of CodeGuard's own conventions: no required `.goreleaser.yaml`, `Makefile`, workflow files or content markers, and no test layout.
+
 `codeguard rules` prints each rule's level, execution model, language coverage, section, and title. `codeguard explain <rule-id>` includes the same metadata for a single rule.
 
 By default, `codeguard` looks for `codeguard.yaml`, `codeguard.yml`, or `codeguard.json` in the repository root. If those are missing, it also checks for the same file names inside a `.codeguard/` directory.
@@ -111,7 +114,7 @@ If you point `-config` at a directory such as `.codeguard`, `codeguard` will loo
 
 Long-running scans report completed sections and a 30-second heap/GOMEMLIMIT heartbeat on stderr, leaving JSON, SARIF, GitHub, and CycloneDX stdout machine-readable. Pass `-memprofile <path>` to keep a rolling Go heap profile (written at startup, every heartbeat, and completion), then inspect it with `go tool pprof <path>`. Full scans skip dependency and generated trees named `node_modules`, `vendor`, and `cdk.out` at any depth; use `exclude` for repository-specific generated paths.
 
-Use `codeguard scan -folder <path>` to scan only one folder. `-path <path>` is accepted as an alias. If no config file exists and you did not pass `-config`, folder scans use CodeGuard's built-in default config; add `-profile startup`, `-profile strict`, `-profile enterprise`, or `-profile ai-safe` to choose a default profile.
+Use `codeguard scan -folder <path>` to scan only one folder. `-path <path>` is accepted as an alias. If no config file exists and you did not pass `-config`, `codeguard scan` and folder scans both use the same repository-aware built-in defaults (what `codeguard init` would write, also available to SDK callers as `codeguard.DefaultScanConfig`), and print a one-line hint to run `codeguard init`; add `-profile startup`, `-profile strict`, `-profile enterprise`, or `-profile ai-safe` to choose a default profile.
 
 Use repeatable `-set key=value` flags to override config values from the terminal without writing a temporary config file. Keys use dotted YAML paths and are validated against the typed CodeGuard config; mistyped fields fail before the scan runs. String lists accept comma-separated values or a JSON string array.
 

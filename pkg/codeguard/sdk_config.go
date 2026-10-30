@@ -1,13 +1,20 @@
 package codeguard
 
-import "github.com/devr-tools/codeguard/internal/codeguard/config"
+import (
+	"github.com/devr-tools/codeguard/internal/codeguard/config"
+	"github.com/devr-tools/codeguard/internal/codeguard/initconfig"
+)
 
 // ErrConfigNotFound identifies a missing top-level configuration file.
 var ErrConfigNotFound = config.ErrConfigNotFound
 
 // ExampleConfig returns CodeGuard's complete, ready-to-edit starter
 // configuration. It is intended for callers creating a new configuration,
-// rather than as a way to normalize a partial Config.
+// rather than as a way to normalize a partial Config. It describes
+// CodeGuard's own repository layout and conventions (a Go target with a
+// cmd/codeguard entrypoint, its CI and release files, tests under tests/);
+// `codeguard init` no longer writes it, and DefaultScanConfig is the
+// repository-aware alternative.
 func ExampleConfig() Config {
 	return config.ExampleConfig()
 }
@@ -17,6 +24,17 @@ func ExampleConfig() Config {
 // profiles and the recommended section policy are independent.
 func ExampleConfigForProfile(profile string) (Config, error) {
 	return config.ExampleConfigForProfile(profile)
+}
+
+// DefaultScanConfig returns the configuration CodeGuard scans with when a
+// repository has no config file: the config `codeguard init` would generate
+// for the repository at root (one target per detected language, the
+// recommended sections, ci only when .github/workflows exists, supply_chain
+// only when package manifests exist), resolved against the built-in defaults.
+// It is exactly what `codeguard scan` falls back to when LoadConfigFile
+// reports ErrConfigNotFound. profile may be empty.
+func DefaultScanConfig(root string, profile string) (Config, error) {
+	return initconfig.DefaultScanConfig(root, profile)
 }
 
 // DefaultConfigPath returns the conventional filename used when locating a
