@@ -42,8 +42,12 @@ func DeclaredNamesForTest(language string, source string) []DeclaredNameForTest 
 		"python": pythonDeclaredNames,
 		"script": scriptDeclaredNames,
 	}[language]
-	var out []DeclaredNameForTest
-	for _, decl := range extract(source) {
+	decls := extract(source)
+	if len(decls) == 0 {
+		return nil
+	}
+	out := make([]DeclaredNameForTest, 0, len(decls))
+	for _, decl := range decls {
 		out = append(out, DeclaredNameForTest{Name: decl.name, Line: decl.line})
 	}
 	return out
