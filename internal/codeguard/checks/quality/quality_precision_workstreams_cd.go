@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"unicode"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -31,19 +30,24 @@ const (
 )
 
 var (
-	readCallPattern            = regexp.MustCompile(`(^|[.>:\-_])(?i:count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
-	identifierTokenPattern     = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
-	roleSuffixPattern          = regexp.MustCompile(`(?i)(manager|helper|util|utils|service|processor)$`)
-	durationNamePattern        = regexp.MustCompile(`(?i)(timeout|duration|delay|interval|ttl|latency|elapsed|expiry|expiration|retention)`)
-	sizeNamePattern            = regexp.MustCompile(`(?i)(size|limit|length|capacity|bytes?|mb|kb|gb)`)
-	moneyNamePattern           = regexp.MustCompile(`(?i)(amount|price|cost|fee|total|subtotal|balance|money)`)
-	unitSuffixPattern          = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|minor|bps|basispoints?|usd|eur|gbp|aud|cad)$`)
-	collectionTypePattern      = regexp.MustCompile(`(?i)(\[\]|\[\s*\]|array|list|slice|map|dict|record|set|vector|collection|iterable|sequence|promise<[^>]*\[\])`)
-	scalarTypePattern          = regexp.MustCompile(`(?i)\b(bool|boolean|char|double|float|float64|int|int32|int64|number|string|str|uint|uint64)\b`)
-	paramMutationPattern       = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
-	returnLinePattern          = regexp.MustCompile(`(?m)^\s*return(?:\s+([^;\n]+))?`)
-	partialReturnPattern       = regexp.MustCompile(`(?i)\breturn\s+[^;\n,]+,\s*(err|error)\b|\breturn\s+\{[^}\n]*(data|result|value)[^}\n]*(err|error)[^}\n]*\}`)
-	identifierWordSplitPattern = regexp.MustCompile(`[_\-\s]+`)
+	readCallPattern        = regexp.MustCompile(`(^|[.>:\-_])(?i:count|fetch|find|get|list|load|lookup|query|read|select|search)([A-Z_:\-.]|$)`)
+	identifierTokenPattern = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
+	durationNamePattern    = regexp.MustCompile(`(?i)(timeout|duration|delay|interval|ttl|latency|elapsed|expiry|expiration|retention)`)
+	sizeNamePattern        = regexp.MustCompile(`(?i)(size|limit|length|capacity|bytes?|mb|kb|gb)`)
+	moneyNamePattern       = regexp.MustCompile(`(?i)(amount|price|cost|fee|total|subtotal|balance|money)`)
+	unitSuffixPattern      = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|minor|bps|basispoints?|usd|eur|gbp|aud|cad)$`)
+	collectionTypePattern  = regexp.MustCompile(`(?i)(\[\]|\[\s*\]|array|list|slice|map|dict|record|set|vector|collection|iterable|sequence|promise<[^>]*\[\])`)
+	goSliceTypePattern     = regexp.MustCompile(`^\[[^\]]*\]\s*(.+)$`)
+	scriptArrayTypePattern = regexp.MustCompile(`^(.+?)\s*\[\s*\]$`)
+	// Ordered generic containers only; keyed containers are filtered first.
+	genericCollectionTypePattern = regexp.MustCompile(`(?i)^(?:[\w.:]*\b)?(array|list|slice|vec|vector|set|collection|iterable|sequence|readonlyarray|deque|queue|stack|span|arraylist|immutablelist)\s*[<\[]\s*([^<>\[\]]+?)\s*[>\]]$`)
+	keyedContainerTypePattern    = regexp.MustCompile(`(?i)(^|\b)(map\s*\[|record\s*<|dict\s*[<\[]|dictionary\s*<|hashmap\s*<|treemap\s*<|btreemap\s*<|unordered_map\s*<|multimap\s*<|counter\s*[<\[]|defaultdict\s*[<\[]|mapping\s*[<\[])`)
+	unitPluralExclusionPattern   = regexp.MustCompile(`(?i)(nanos?|micros?|millis?|ms|seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|bytes?|kb|mb|gb|cents?|pennies|minor|bps|basispoints?|usd|eur|gbp|aud|cad)$`)
+	scalarTypePattern            = regexp.MustCompile(`(?i)\b(bool|boolean|char|double|float|float64|int|int32|int64|number|string|str|uint|uint64)\b`)
+	numericScalarTypePattern     = regexp.MustCompile(`(?i)\b(double|float|float32|float64|int|int8|int16|int32|int64|number|uint|uint8|uint16|uint32|uint64|uintptr|bigint|decimal|long|short|size_t|ssize_t|byte|rune|duration)\b`)
+	paramMutationPattern         = regexp.MustCompile(`\b([A-Za-z_$][\w$]*)\s*(?:\.|->|\[)`)
+	returnLinePattern            = regexp.MustCompile(`(?m)^\s*return(?:\s+([^;\n]+))?`)
+	partialReturnPattern         = regexp.MustCompile(`(?i)\breturn\s+[^;\n,]+,\s*(err|error)\b|\breturn\s+\{[^}\n]*(data|result|value)[^}\n]*(err|error)[^}\n]*\}`)
 )
 
 func additionalPrecisionFunctionFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -159,13 +163,15 @@ func sourceNamingFindings(env support.Context, file string, source string) []cor
 		return nil
 	}
 	findings := make([]core.Finding, 0, 3)
-	if finding, ok := glossaryDriftFinding(env, file, source); ok {
+	// PERF: all three detectors tokenize the same source. Scan it at most once.
+	idents := &sourceIdentifiers{source: source}
+	if finding, ok := glossaryDriftFinding(env, file, idents); ok {
 		findings = append(findings, finding)
 	}
-	if finding, ok := roleSuffixOveruseFinding(env, file, source); ok {
+	if finding, ok := roleSuffixOveruseFinding(env, file, idents); ok {
 		findings = append(findings, finding)
 	}
-	if finding, ok := crossLayerInconsistencyFinding(env, file, source); ok {
+	if finding, ok := crossLayerInconsistencyFinding(env, file, idents); ok {
 		findings = append(findings, finding)
 	}
 	return findings
@@ -517,9 +523,12 @@ func nextResponseNullableGuardHelper(fn precisionFunction) bool {
 	return strings.Contains(body, "return null") && hasNextResponseBody
 }
 
+// PERF: compiled once; this detector runs per function.
+var lookupFunctionNamePattern = regexp.MustCompile(`^(as|exists|extract|find|get|lookup|parse|read|resolve|to)`)
+
 func nullableParserLookupContract(fn precisionFunction) bool {
 	loweredName := strings.ToLower(strings.Trim(fn.Name, "_$"))
-	if !regexp.MustCompile(`^(as|exists|extract|find|get|lookup|parse|read|resolve|to)`).MatchString(loweredName) {
+	if !lookupFunctionNamePattern.MatchString(loweredName) {
 		return false
 	}
 	body := strings.ToLower(fn.Body)
@@ -904,6 +913,20 @@ func isPredicateName(name string) bool {
 	return false
 }
 
+// cardinalityMismatch reports a name whose grammatical number contradicts the
+// shape of its value. It recognises exactly two situations, both of which are
+// wrong independently of any repository's vocabulary:
+//
+//   - a plural name on a scalar value ("names string"); and
+//   - a singular name that is the element type of the collection it holds
+//     ("user []User").
+//
+// It deliberately does NOT report every singular name on a collection type.
+// Measured over four repositories, that formulation produced 586 findings and
+// no true positives: byte strings ("payload []byte"), argv vectors ("command
+// []string"), maps keyed by id ("index map[string]Ref"), comparison pairs
+// ("left, right []Source"), Latin plurals ("criteria []string"), and mass
+// nouns ("evidence map[string]any") are all correctly singular.
 func cardinalityMismatch(file string, fn precisionFunction, name string, typ string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
 	if base == "" || conventionalCardinalityName(base) || configuredPluralDomainAbbreviation(base) || strings.HasSuffix(base, "status") || strings.HasSuffix(base, "class") {
@@ -915,26 +938,149 @@ func cardinalityMismatch(file string, fn precisionFunction, name string, typ str
 	if strings.Contains(typ, "{") || strings.Contains(typ, "}") {
 		return false
 	}
-	if strings.Contains(strings.ToLower(typ), "record<") && !isPluralName(base) {
-		return false
+	if isPluralName(base) {
+		return pluralNameOnScalar(typ)
 	}
-	plural := isPluralName(base)
-	collection := collectionTypePattern.MatchString(typ) || strings.Contains(typ, "[") || strings.Contains(typ, "]")
-	scalar := !collection && scalarTypePattern.MatchString(typ)
-	if collection && (strings.HasSuffix(base, "s") || strings.HasSuffix(base, "list") || strings.HasSuffix(base, "set") || strings.HasSuffix(base, "map")) {
-		return false
-	}
-	if plural && scalar && !collection {
-		return true
-	}
-	return !plural && collection && !strings.Contains(base, "map") && !strings.Contains(base, "list") && !strings.Contains(base, "set")
+	return singularNameOfElementType(base, typ)
 }
 
-func isPluralName(name string) bool {
-	if unitSuffixPattern.MatchString(name) {
+// pluralNameOnScalar reports a plural name bound to a single non-numeric,
+// non-boolean scalar, e.g. "recipients string".
+//
+// Numeric scalars are excluded on purpose: a plural noun on a number names a
+// count of things, which is correct English and pervasive ("maxLines int",
+// "minFailures int", "samples int", "rawTokens int"). Booleans are excluded
+// because a plural noun on a flag names a mode ("lineNumbers bool",
+// "applyPatches bool", "allTargets bool"); whether such a flag should read as
+// a predicate is naming.boolean-not-predicate's question, not this rule's.
+// Enabling this direction without those two carve-outs added 481 counts and
+// 13 flags across the measured repositories and no true positives. Variadic
+// parameters are collections rather than scalars, so "needles ...string" is
+// excluded too.
+func pluralNameOnScalar(typ string) bool {
+	trimmed := strings.TrimSpace(typ)
+	if trimmed == "" || variadicParamType(trimmed) {
 		return false
 	}
-	return strings.HasSuffix(name, "s") && !strings.HasSuffix(name, "ss") && !strings.HasSuffix(name, "us")
+	if collectionTypePattern.MatchString(trimmed) || strings.Contains(trimmed, "[") || strings.Contains(trimmed, "]") {
+		return false
+	}
+	if numericScalarTypePattern.MatchString(trimmed) || isBooleanNameCandidate(trimmed) {
+		return false
+	}
+	return scalarTypePattern.MatchString(trimmed)
+}
+
+// variadicParamType recognises variadic parameter spellings, which denote a
+// collection without any bracket syntax: Go "...string", C# "params string",
+// C++ "Args&&...".
+func variadicParamType(typ string) bool {
+	return strings.HasPrefix(typ, "...") || strings.HasSuffix(typ, "...") ||
+		strings.HasPrefix(strings.ToLower(typ), "params ")
+}
+
+// singularNameOfElementType reports whether base is the (singular) name of the
+// element type of the collection typ, e.g. "user" for "[]User" or "scenario"
+// for "Array<Scenario>". That coincidence is the one high-precision signal
+// that a collection has been named as though it held a single value.
+//
+// Keyed containers are excluded: naming a map after what it maps to
+// ("index map[string]Ref", "cache map[string]*Entry") is idiomatic. So are
+// primitive element types: "[]byte" and "[]rune" are byte and character
+// strings rather than collections of bytes, and "[]string" is routinely a
+// single composite value such as an argv vector.
+func singularNameOfElementType(base string, typ string) bool {
+	element, ok := collectionElementType(typ)
+	if !ok {
+		return false
+	}
+	if primitiveTypeName(element) {
+		return false
+	}
+	return base == element || base+"s" == element || base+"es" == element
+}
+
+// collectionElementType extracts the element type of an ordered collection,
+// lower-cased and stripped of package, namespace, and pointer decoration. It
+// returns ok=false for keyed containers and for anything it cannot resolve.
+func collectionElementType(typ string) (string, bool) {
+	trimmed := strings.TrimSpace(strings.Trim(typ, "*&"))
+	if trimmed == "" || keyedContainerTypePattern.MatchString(trimmed) {
+		return "", false
+	}
+	var element string
+	switch {
+	case goSliceTypePattern.MatchString(trimmed):
+		element = goSliceTypePattern.FindStringSubmatch(trimmed)[1]
+	case scriptArrayTypePattern.MatchString(trimmed):
+		element = scriptArrayTypePattern.FindStringSubmatch(trimmed)[1]
+	case genericCollectionTypePattern.MatchString(trimmed):
+		element = genericCollectionTypePattern.FindStringSubmatch(trimmed)[2]
+	default:
+		return "", false
+	}
+	element = strings.TrimSpace(strings.Trim(element, "*&"))
+	if element == "" || strings.ContainsAny(element, "[]<>(),|") {
+		return "", false
+	}
+	if idx := strings.LastIndexAny(element, ".:"); idx >= 0 {
+		element = element[idx+1:]
+	}
+	element = strings.ToLower(strings.TrimSpace(element))
+	if element == "" {
+		return "", false
+	}
+	return element, true
+}
+
+func primitiveTypeName(element string) bool {
+	switch element {
+	case "byte", "rune", "bool", "boolean", "char", "string", "str", "int", "int8", "int16",
+		"int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
+		"float", "float32", "float64", "double", "number", "bigint", "any", "unknown",
+		"object", "error", "void":
+		return true
+	default:
+		return false
+	}
+}
+
+// isPluralName reports whether a name reads as grammatically plural.
+//
+// NOTE: this used to delegate the unit check to unitSuffixPattern, which lists
+// a bare "s" (for "seconds") among its alternatives. Every name ending in "s"
+// therefore looked like a unit-suffixed name, and every name not ending in "s"
+// failed the plural test outright, so the function returned false for every
+// input and the plural-name-on-scalar half of naming.cardinality-mismatch had
+// never fired. It now uses a unit pattern without the bare second alias, and
+// strips a trailing ordinal digit so that "outputs1" reads as plural.
+func isPluralName(name string) bool {
+	trimmed := strings.TrimRight(name, "0123456789")
+	if trimmed == "" {
+		trimmed = name
+	}
+	if unitPluralExclusionPattern.MatchString(trimmed) || singularSNameExclusion(trimmed) {
+		return false
+	}
+	return strings.HasSuffix(trimmed, "s")
+}
+
+// singularSNameExclusion covers names that end in "s" while being singular.
+// The suffix rules carry most of it (-ss, -us, -is, -as, -os: address, status,
+// analysis, alias, macos); the short set holds the residue that no suffix rule
+// separates from a real plural.
+func singularSNameExclusion(name string) bool {
+	for _, suffix := range []string{"ss", "us", "is", "as", "os"} {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	switch name {
+	case "series", "species", "news", "lens", "dns", "tls", "cors", "https", "aws", "nats", "cms", "jws", "jwks":
+		return true
+	default:
+		return false
+	}
 }
 
 func implementationLeakName(name string) bool {
@@ -990,18 +1136,23 @@ func numericExpr(expr string) bool {
 }
 
 func unknownAbbreviation(env support.Context, name string) string {
-	allowed := allowedAbbreviations(env)
 	for _, word := range splitIdentifierWords(name) {
 		candidate := strings.ToLower(strings.Trim(word, "_$"))
 		if candidate == "" || len(candidate) < 2 {
 			continue
 		}
-		if _, ok := allowed[candidate]; ok {
+		// PERF: allowedAbbreviations rebuilds a ~45-entry map from config on
+		// every call, and this runs for every identifier in every function.
+		// The two tests commute — a candidate is reported only when it is
+		// suspicious AND not allowed — so apply the cheap one first and touch
+		// the map only for the handful of candidates that could be reported.
+		if !isSuspiciousShortening(candidate) {
 			continue
 		}
-		if isSuspiciousShortening(candidate) {
-			return word
+		if _, ok := allowedAbbreviations(env)[candidate]; ok {
+			continue
 		}
+		return word
 	}
 	return ""
 }
@@ -1027,18 +1178,19 @@ func isSuspiciousShortening(word string) bool {
 	}
 }
 
-func glossaryDriftFinding(env support.Context, file string, source string) (core.Finding, bool) {
+func glossaryDriftFinding(env support.Context, file string, idents *sourceIdentifiers) (core.Finding, bool) {
 	for concept, entry := range env.Config.Checks.QualityRules.Naming.Glossary {
 		preferred := strings.ToLower(strings.TrimSpace(concept))
 		terms := append([]string{preferred}, entry.Avoid...)
 		seen := map[string]int{}
-		for _, ident := range identifiersInSource(source) {
+		identWords := idents.wordsPerIdentifier()
+		for i, ident := range idents.all() {
 			for _, term := range terms {
 				normalized := strings.ToLower(strings.TrimSpace(term))
 				if normalized == "" {
 					continue
 				}
-				if identifierContainsWord(ident.name, normalized) {
+				if wordsContain(identWords[i], normalized) {
 					seen[normalized] = ident.line
 				}
 			}
@@ -1052,7 +1204,7 @@ func glossaryDriftFinding(env support.Context, file string, source string) (core
 	return core.Finding{}, false
 }
 
-func roleSuffixOveruseFinding(env support.Context, file string, source string) (core.Finding, bool) {
+func roleSuffixOveruseFinding(env support.Context, file string, idents *sourceIdentifiers) (core.Finding, bool) {
 	normalizedFile := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
 	if isSeedOrScriptSourcePath(file) || isPackageAPIRouterPath(file) ||
 		strings.Contains(normalizedFile, "/infra/") || strings.HasPrefix(normalizedFile, "infra/") {
@@ -1069,8 +1221,11 @@ func roleSuffixOveruseFinding(env support.Context, file string, source string) (
 		threshold = 4
 	}
 	seen := map[string]int{}
-	for _, ident := range identifiersInSource(source) {
-		if roleSuffixPattern.MatchString(ident.name) {
+	for _, ident := range idents.all() {
+		// hasRoleSuffix replaces `(?i)(manager|helper|util|utils|service|
+		// processor)$`: without (?m) that anchor is end-of-text, and an
+		// identifier holds no newline, so a suffix test is exactly equivalent.
+		if hasRoleSuffix(ident.name) {
 			seen[ident.name] = ident.line
 		}
 	}
@@ -1081,8 +1236,8 @@ func roleSuffixOveruseFinding(env support.Context, file string, source string) (
 		fmt.Sprintf("file uses %d vague role suffix names such as Manager/Helper/Util/Service/Processor", len(seen)), core.ConfidenceMedium), true
 }
 
-func crossLayerInconsistencyFinding(env support.Context, file string, source string) (core.Finding, bool) {
-	if strings.Contains(source, "userDeletionRequest") {
+func crossLayerInconsistencyFinding(env support.Context, file string, idents *sourceIdentifiers) (core.Finding, bool) {
+	if strings.Contains(idents.source, "userDeletionRequest") {
 		return core.Finding{}, false
 	}
 	groups := [][]string{
@@ -1091,15 +1246,21 @@ func crossLayerInconsistencyFinding(env support.Context, file string, source str
 		{"order", "purchase", "transaction"},
 	}
 	layerTerms := []string{"api", "request", "response", "dto", "entity", "record", "row", "model", "repository", "domain"}
-	idents := identifiersInSource(source)
+	// PERF: each identifier is split into words ONCE (shared with the other
+	// naming detectors). The nested loops below ask up to 3*(10+4) membership
+	// questions per identifier, and each one used to re-split the identifier
+	// from scratch — this single detector was ~15% of a full scan's CPU and
+	// ~20% of its allocations.
+	identWords := idents.wordsPerIdentifier()
 	for _, group := range groups {
 		seen := map[string]int{}
-		for _, ident := range idents {
-			if !containsAnyIdentifierWord(ident.name, layerTerms) {
+		for i, ident := range idents.all() {
+			words := identWords[i]
+			if !wordsContainAny(words, layerTerms) {
 				continue
 			}
 			for _, term := range group {
-				if identifierContainsWord(ident.name, term) {
+				if wordsContain(words, term) {
 					seen[term] = ident.line
 				}
 			}
@@ -1110,80 +1271,6 @@ func crossLayerInconsistencyFinding(env support.Context, file string, source str
 		}
 	}
 	return core.Finding{}, false
-}
-
-type identifierAtLine struct {
-	name string
-	line int
-}
-
-func identifiersInSource(source string) []identifierAtLine {
-	matches := identifierTokenPattern.FindAllStringIndex(source, -1)
-	out := make([]identifierAtLine, 0, len(matches))
-	line := 1
-	previousMatchStart := 0
-	for _, match := range matches {
-		line += strings.Count(source[previousMatchStart:match[0]], "\n")
-		out = append(out, identifierAtLine{
-			name: source[match[0]:match[1]],
-			line: line,
-		})
-		previousMatchStart = match[0]
-	}
-	return out
-}
-
-func splitIdentifierWords(name string) []string {
-	trimmed := strings.Trim(name, "_$")
-	if trimmed == "" {
-		return nil
-	}
-	var words []string
-	for _, part := range identifierWordSplitPattern.Split(trimmed, -1) {
-		if part == "" {
-			continue
-		}
-		words = append(words, splitCamelWords(part)...)
-	}
-	return words
-}
-
-func splitCamelWords(part string) []string {
-	if part == "" {
-		return nil
-	}
-	runes := []rune(part)
-	start := 0
-	out := make([]string, 0, 3)
-	for idx := 1; idx < len(runes); idx++ {
-		prev := runes[idx-1]
-		cur := runes[idx]
-		nextLower := idx+1 < len(runes) && unicode.IsLower(runes[idx+1])
-		if unicode.IsLower(prev) && unicode.IsUpper(cur) || unicode.IsUpper(prev) && unicode.IsUpper(cur) && nextLower {
-			out = append(out, string(runes[start:idx]))
-			start = idx
-		}
-	}
-	out = append(out, string(runes[start:]))
-	return out
-}
-
-func identifierContainsWord(identifier string, word string) bool {
-	for _, candidate := range splitIdentifierWords(identifier) {
-		if strings.EqualFold(candidate, word) {
-			return true
-		}
-	}
-	return false
-}
-
-func containsAnyIdentifierWord(identifier string, words []string) bool {
-	for _, word := range words {
-		if identifierContainsWord(identifier, word) {
-			return true
-		}
-	}
-	return false
 }
 
 func firstSeenLine(seen map[string]int) int {

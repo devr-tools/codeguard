@@ -8,6 +8,17 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
+// PERF: constant patterns that used to be compiled inside per-function and
+// per-line detectors. See quality_pattern_cache.go.
+var (
+	parserLookupContractCall  = regexp.MustCompile(`(?i)\b(parse|assert|guard|ensure|decode)[A-Z_][A-Za-z0-9_]*(?:Input|Payload|Body|Params|Query|Record|Request|Event|Config)?\s*\(`)
+	nullableArraySuffixUnion  = regexp.MustCompile(`\]\s*\|\s*(null|undefined|none)\b`)
+	nullableTypeUnionPattern  = regexp.MustCompile(`(^|\|)\s*(null|undefined|none)\b|\b(null|undefined|none)\s*\|`)
+	overflowSizeTermPattern   = regexp.MustCompile(`(?i)\b(count|size|length|len|capacity|offset|total|bytes)\b`)
+	overflowArithmeticPattern = regexp.MustCompile(`[A-Za-z_][\w$]*\s*(\*|\+|<<)\s*[A-Za-z0-9_]`)
+	numericKeyOnlyPattern     = regexp.MustCompile(`^\d+$`)
+)
+
 const (
 	defensiveUnvalidatedBoundaryInputRuleID  = "defensive.unvalidated-boundary-input"
 	defensiveInvalidStateRepresentableRuleID = "defensive.invalid-state-representable"
@@ -30,21 +41,49 @@ var (
 	externalCallPattern      = regexp.MustCompile(`(?i)(http\.Get|client\.Do|fetch\s*\(|axios\.|requests\.(get|post|put|delete)|curl_easy_perform|httplib::|http_client)`)
 	resourceReadPattern      = regexp.MustCompile(`(?i)(io\.ReadAll|ReadAll|read_to_string|read_to_end|\.read\s*\(|\.text\s*\(|arrayBuffer\s*\(|bodyParser|multer|formData\s*\(|request\.body|r\.Body)`)
 	ormCollectionReadPattern = regexp.MustCompile(`(?i)\bfindMany\s*\(`)
-	unsafeDefaultPattern     = regexp.MustCompile(`(?i)(getenv|process\.env|os\.environ|std::getenv|config).*?(default|fallback|\|\||!=|,\s*['"]).*?(true|false|allow|disable|skip|insecure)`)
-	switchLikePattern        = regexp.MustCompile(`(?i)\b(switch|match)\b[^{:\n]*(status|state|kind|type)`)
-	stateAssignmentPattern   = regexp.MustCompile(`(?i)(status|state)\s*(?:=|:=|=>)\s*["']?(paid|active|complete|completed|shipped|deleted|approved)["']?`)
-	authFailOpenPattern      = regexp.MustCompile(`(?is)(except|catch)\b[^{:\n]*(?:\{|:)[^}\n]*return\s+(true|allow|nil|none)`)
-	structStartPattern       = regexp.MustCompile(`(?i)\b(type\s+\w+\s+struct|interface\s+\w+|class\s+\w+|struct\s+\w+)`)
-	boolFieldPattern         = regexp.MustCompile(`(?i)\b(bool|boolean)\b`)
-	stringStateFieldPattern  = regexp.MustCompile(`(?i)\b(status|state|kind)\b.*\b(string|str|std::string|String)\b|\b(string|str|std::string|String)\b.*\b(status|state|kind)\b`)
-	resourceCountGuard       = regexp.MustCompile(`(?i)\b(?:count|size|length|len|bytes)\s*(?:<=|<|>|>=)\s*(?:max|limit|quota|cap|[0-9])`)
-	resourceNamedCountLimit  = regexp.MustCompile(`(?i)\b(?:max|limit|quota|cap)[A-Za-z0-9_]*(?:count|size|length|len|bytes)\b`)
-	sequenceAllocationLine   = regexp.MustCompile(`(?i)\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b.*(?:count|max)\s*\+\s*1|(?:count|max)\s*\+\s*1.*\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b`)
-	jsonReaderSchemaCall     = regexp.MustCompile(`(?i)\b(?:read|parse|decode)Json[A-Za-z0-9_]*\s*\([^)\n,]+,\s*[A-Za-z_$][\w$]*(?:Schema|Validator|Codec|Parser)\b`)
-	prismaTakePattern        = regexp.MustCompile(`(?is)\b(?:findMany|findFirst|findUnique|query|search)\s*\([^)]*\btake\s*:`)
-	sequenceIndexKeyPattern  = regexp.MustCompile(`(?i)^(?:i|j|n|idx|index|offset|position|pos|[A-Za-z_$][\w$]*(?:Index|Idx|Offset|Position|Pos))$`)
-	dataTransferPartPattern  = regexp.MustCompile(`part\d+$`)
-	blockExitKeywordPattern  = regexp.MustCompile(`\b(?:return|throw|continue|break)\b`)
+	// An environment read's trailing string/literal argument IS its default
+	// ("os.environ.get('AUTHZ_DISABLED', 'true')"), and a comparison against a
+	// literal selects one ("os.Getenv(\"AUTHZ_DISABLED\") != \"false\"" is an
+	// inverted default), so both count as defaulting syntax for an env read.
+	unsafeEnvDefaultPattern = regexp.MustCompile(`(?i)(getenv|process\.env|os\.environ|std::getenv).*?(\bdefault\b|\bfallback\b|\|\||\?\?|!=|={2,3}|,\s*['"]).*?\b(true|false|allow|disable|skip|insecure)\b`)
+	// NOTE: for a plain config read, three deliberate tightenings, each of
+	// which removed a measured false-positive class:
+	//   - the seed must be a config READ ("cfg.", "config[", "settings("),
+	//     not the bare substring "config", which matched any line naming a
+	//     Config type, a ConfigFields key, or the word "configs" inside an
+	//     error string;
+	//   - the middle group must be real defaulting syntax. It used to admit
+	//     ",\s*['\"]" and "!=", i.e. any call taking a string argument, so
+	//     "collectPolicyRules(cfg.Rules, \"tool\", \"allow\")" and
+	//     "fs.BoolVar(&opts.x, \"apply-patches\", true, ...)" matched. A
+	//     config read carries no positional-default convention, so unlike an
+	//     env read it does not get the comma-literal alternative;
+	//   - the safety token must be a whole word, so "Skippable" no longer
+	//     supplies "skip" and "allowed_write_paths" no longer supplies
+	//     "allow".
+	unsafeConfigDefaultPattern = regexp.MustCompile(`(?i)\b(config|cfg|conf|settings|options|opts)\s*[.\[(].*?(\bdefault\b|\bfallback\b|\|\||\?\?).*?\b(true|false|allow|disable|skip|insecure)\b`)
+	switchLikePattern          = regexp.MustCompile(`(?i)\b(switch|match)\b[^{:\n]*(status|state|kind|type)`)
+	stateAssignmentPattern     = regexp.MustCompile(`(?i)(status|state)\s*(?:=|:=|=>)\s*["']?(paid|active|complete|completed|shipped|deleted|approved)["']?`)
+	authFailOpenPattern        = regexp.MustCompile(`(?is)(except|catch)\b[^{:\n]*(?:\{|:)[^}\n]*return\s+(?:true|allow|nil|none)\s*(?:$|[;}\n])`)
+	authorizeFailOpenPattern   = regexp.MustCompile(`(?is)(?:if\s+)?(?:\w+\s*:=\s*)?authorize\([^)]*\)\s*;\s*err\s*!=\s*nil\s*\{[^}]*return\s+(?:true|nil)\s*(?:$|[;}\n])`)
+	// NOTE: the returned nil or true must be the SOLE return value. In Go,
+	// "if err != nil { return nil, err }" is the fail-CLOSED idiom - the nil
+	// is the absent result and the error is what the caller acts on. Matching
+	// "return nil" without that restriction made this rule fire on every
+	// function that both handles an error and mentions "auth" or "policy"
+	// anywhere in its body; all 14 measured findings were of that shape.
+	errorFailOpenPattern    = regexp.MustCompile(`(?is)err\s*!=\s*nil\s*\{[^}]*return\s+(?:true|nil)\s*(?:$|[;}\n])`)
+	structStartPattern      = regexp.MustCompile(`(?i)\b(type\s+\w+\s+struct|interface\s+\w+|class\s+\w+|struct\s+\w+)`)
+	boolFieldPattern        = regexp.MustCompile(`(?i)\b(bool|boolean)\b`)
+	stringStateFieldPattern = regexp.MustCompile(`(?i)\b(status|state|kind)\b.*\b(string|str|std::string|String)\b|\b(string|str|std::string|String)\b.*\b(status|state|kind)\b`)
+	resourceCountGuard      = regexp.MustCompile(`(?i)\b(?:count|size|length|len|bytes)\s*(?:<=|<|>|>=)\s*(?:max|limit|quota|cap|[0-9])`)
+	resourceNamedCountLimit = regexp.MustCompile(`(?i)\b(?:max|limit|quota|cap)[A-Za-z0-9_]*(?:count|size|length|len|bytes)\b`)
+	sequenceAllocationLine  = regexp.MustCompile(`(?i)\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b.*(?:count|max)\s*\+\s*1|(?:count|max)\s*\+\s*1.*\b(?:external[_]?id|next[_]?id|sequence|slug|number)\b`)
+	jsonReaderSchemaCall    = regexp.MustCompile(`(?i)\b(?:read|parse|decode)Json[A-Za-z0-9_]*\s*\([^)\n,]+,\s*[A-Za-z_$][\w$]*(?:Schema|Validator|Codec|Parser)\b`)
+	prismaTakePattern       = regexp.MustCompile(`(?is)\b(?:findMany|findFirst|findUnique|query|search)\s*\([^)]*\btake\s*:`)
+	sequenceIndexKeyPattern = regexp.MustCompile(`(?i)^(?:i|j|n|idx|index|offset|position|pos|[A-Za-z_$][\w$]*(?:Index|Idx|Offset|Position|Pos))$`)
+	dataTransferPartPattern = regexp.MustCompile(`part\d+$`)
+	blockExitKeywordPattern = regexp.MustCompile(`\b(?:return|throw|continue|break)\b`)
 )
 
 func defensiveBoundaryFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
@@ -61,7 +100,7 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 	}
 	if line, ok := nullAssumptionLine(file, fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveNullAssumptionRuleID, file, line,
-			"nullable boundary value is dereferenced without a nil/null guard", core.ConfidenceMedium))
+			"value declared nullable is dereferenced without a nil/null guard", core.ConfidenceLow))
 	}
 	if line, message, confidence, ok := sequenceCollisionRiskLine(file, fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveSequenceCollisionRiskRuleID, file, line,
@@ -77,7 +116,7 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 	}
 	if line, ok := unsafeDefaultLine(fn.Statements, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveUnsafeDefaultRuleID, file, line,
-			"configuration default can fail open or disable a safety control", core.ConfidenceHigh))
+			"configuration default can fail open or disable a safety control", core.ConfidenceLow))
 	}
 	if !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) {
 		if line, ok := nonExhaustiveBranchLine(fn, loweredBody); ok {
@@ -107,7 +146,7 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 	}
 	if line, ok := failOpenAuthorizationLine(fn, loweredBody); ok {
 		findings = append(findings, precisionWarnFinding(env, defensiveFailOpenAuthorizationRuleID, file, line,
-			"authorization failure path defaults to allow/success", core.ConfidenceHigh))
+			"authorization failure path defaults to allow/success", core.ConfidenceMedium))
 	}
 	return findings
 }
@@ -244,7 +283,7 @@ func validatedBoundaryInputPattern(fn precisionFunction, loweredBody string) boo
 	if strings.Contains(loweredBody, "nextresponse.") && containsAny(loweredBody, []string{"return nextresponse", ".json(", "redirect("}) && containsAny(loweredBody, []string{"if (!", "if (!", "if(", "if "}) {
 		return true
 	}
-	if regexp.MustCompile(`(?i)\b(parse|assert|guard|ensure|decode)[A-Z_][A-Za-z0-9_]*(?:Input|Payload|Body|Params|Query|Record|Request|Event|Config)?\s*\(`).MatchString(functionRawBody(fn)) {
+	if parserLookupContractCall.MatchString(functionRawBody(fn)) {
 		return true
 	}
 	return false
@@ -295,6 +334,22 @@ func isTransportRequestType(typ string) bool {
 		strings.Contains(typ, "incomingmessage")
 }
 
+// nullAssumptionLine reports a parameter whose declared type says the value
+// may be absent and which is then dereferenced with no guard.
+//
+// NOTE: this used to treat any pointer-typed parameter as nullable, which in
+// Go, C, C++, and Rust is simply the pass-by-reference idiom - those languages
+// have no separate optional-pointer type, so a bare "*T" carries no
+// nullability information at all. Measured over four Go repositories the rule
+// produced 420 findings and every hand-checked sample was an internal
+// out-parameter, accumulator, builder, options struct, or receiver-adjacent
+// value that the caller is contractually required to supply: "out
+// *strings.Builder", "errs *ValidationErrors", "cfg *core.Config",
+// "target *core.TargetConfig", and protobuf request pointers whose Get*()
+// accessors are nil-safe by construction. Nullability is now taken only from
+// an explicit declaration ("?", "| null", "| undefined", "| None",
+// "Optional[...]", "Maybe<...>", "std::optional<...>"), which is a claim the
+// declaration itself supports in every language that has the syntax.
 func nullAssumptionLine(file string, fn precisionFunction, loweredBody string) (int, bool) {
 	if isUIHelperOrMappingContext(file, fn) || isReactComponentOrHookBoundary(file, fn) {
 		return 0, false
@@ -314,12 +369,14 @@ func nullAssumptionLine(file string, fn precisionFunction, loweredBody string) (
 	return 0, false
 }
 
+// nullableParam reports whether a parameter's declared type says the value may
+// be absent. A bare pointer does not: see the note on nullAssumptionLine.
 func nullableParam(param support.ParsedParam) bool {
 	typ := strings.ToLower(strings.TrimSpace(param.Type))
 	if typ == "" {
 		return false
 	}
-	if strings.Contains(typ, "*") || strings.Contains(typ, "optional") || strings.Contains(typ, "maybe") {
+	if strings.Contains(typ, "optional") || strings.Contains(typ, "maybe") {
 		return true
 	}
 	if strings.Contains(typ, "{") && strings.Contains(typ, "}") &&
@@ -327,10 +384,10 @@ func nullableParam(param support.ParsedParam) bool {
 		return false
 	}
 	if strings.HasSuffix(strings.TrimSpace(typ), "[]") &&
-		!regexp.MustCompile(`\]\s*\|\s*(null|undefined|none)\b`).MatchString(typ) {
+		!nullableArraySuffixUnion.MatchString(typ) {
 		return false
 	}
-	return regexp.MustCompile(`(^|\|)\s*(null|undefined|none)\b|\b(null|undefined|none)\s*\|`).MatchString(typ) ||
+	return nullableTypeUnionPattern.MatchString(typ) ||
 		strings.Contains(typ, "?")
 }
 
@@ -351,12 +408,12 @@ func nullableParamGuarded(loweredBody string, name string) bool {
 		return true
 	}
 	quotedName := regexp.QuoteMeta(name)
-	return regexp.MustCompile(`if\s*\(\s*!\s*`+quotedName+`\s*\)\s*(?:return|throw|continue|break)\b`).MatchString(loweredBody) ||
+	return cachedPattern(`if\s*\(\s*!\s*`+quotedName+`\s*\)\s*(?:return|throw|continue|break)\b`).MatchString(loweredBody) ||
 		nullableParamHasBlockExitGuard(loweredBody, quotedName)
 }
 
 func nullableParamHasBlockExitGuard(loweredBody string, quotedName string) bool {
-	guardStart := regexp.MustCompile(`if\s*\(\s*!\s*` + quotedName + `\s*\)\s*\{`).FindStringIndex(loweredBody)
+	guardStart := cachedPattern(`if\s*\(\s*!\s*` + quotedName + `\s*\)\s*\{`).FindStringIndex(loweredBody)
 	if guardStart == nil {
 		return false
 	}
@@ -397,7 +454,7 @@ func nullableStatementUsesOnlyNullSafeOperators(statement string, name string) b
 	// check. Do not treat an arbitrary typeof occurrence elsewhere in the
 	// function as a null guard.
 	quotedName := regexp.QuoteMeta(name)
-	return regexp.MustCompile(`typeof\s+` + quotedName + `\s*={2,3}\s*['"](?:string|number|boolean|bigint|symbol|function)['"]\s*\?[^:]*\b` + quotedName + `(?:\.|\[)`).MatchString(statement)
+	return cachedPattern(`typeof\s+` + quotedName + `\s*={2,3}\s*['"](?:string|number|boolean|bigint|symbol|function)['"]\s*\?[^:]*\b` + quotedName + `(?:\.|\[)`).MatchString(statement)
 }
 
 func firstUseLine(fn precisionFunction, name string) int {
@@ -417,13 +474,13 @@ func integerOverflowLine(file string, fn precisionFunction, loweredBody string) 
 	if containsAny(loweredBody, []string{"maxint", "math.max", "checked", "saturating", "overflow", "limits<", "safeint"}) {
 		return 0, false
 	}
-	if !regexp.MustCompile(`(?i)\b(count|size|length|len|capacity|offset|total|bytes)\b`).MatchString(loweredBody) {
+	if !overflowSizeTermPattern.MatchString(loweredBody) {
 		return 0, false
 	}
 	if !resourceAllocationArithmeticContext(loweredBody) {
 		return 0, false
 	}
-	arithmetic := regexp.MustCompile(`[A-Za-z_][\w$]*\s*(\*|\+|<<)\s*[A-Za-z0-9_]`)
+	arithmetic := overflowArithmeticPattern
 	for _, statement := range fn.Statements {
 		if arithmetic.MatchString(firstNonEmptyString(statement.Raw, statement.Text)) {
 			return statement.Line, true
@@ -584,7 +641,7 @@ func indexExpressionLooksSequenceAccess(target string, key string, raw string) b
 	if containsAny(loweredRaw, []string{"record<", "map<", "dictionary", "dict", "object.", "hasown", " in ", ".has("}) {
 		return false
 	}
-	if regexp.MustCompile(`^\d+$`).MatchString(loweredKey) {
+	if numericKeyOnlyPattern.MatchString(loweredKey) {
 		return true
 	}
 	if sequenceIndexKeyPattern.MatchString(strings.TrimSpace(strings.Trim(key, `"'`))) {
@@ -618,11 +675,15 @@ func nearbyBoundsGuard(statements []support.ParsedStatement, idx int, target str
 func unsafeDefaultLine(statements []support.ParsedStatement, loweredBody string) (int, bool) {
 	for _, statement := range statements {
 		raw := strings.ToLower(firstNonEmptyString(statement.Raw, statement.Text))
-		if unsafeDefaultPattern.MatchString(raw) && unsafeDefaultIsSafetySensitive(raw, loweredBody) {
+		if unsafeDefaultCandidate(raw) && unsafeDefaultIsSafetySensitive(raw, loweredBody) {
 			return statement.Line, true
 		}
 	}
 	return 0, false
+}
+
+func unsafeDefaultCandidate(raw string) bool {
+	return unsafeEnvDefaultPattern.MatchString(raw) || unsafeConfigDefaultPattern.MatchString(raw)
 }
 
 func unsafeDefaultIsSafetySensitive(line string, loweredBody string) bool {
@@ -781,7 +842,9 @@ func failOpenAuthorizationLine(fn precisionFunction, loweredBody string) (int, b
 	if !containsAny(strings.ToLower(fn.Name), []string{"auth", "allow", "permission", "policy"}) && !containsAny(loweredBody, []string{"authorize", "permission", "authz", "policy"}) {
 		return 0, false
 	}
-	if authFailOpenPattern.MatchString(loweredBody) || regexp.MustCompile(`(?is)(?:if\s+)?(?:\w+\s*:=\s*)?authorize\([^)]*\)\s*;\s*err\s*!=\s*nil\s*\{[^}]*return\s+(true|nil)`).MatchString(loweredBody) || regexp.MustCompile(`(?is)err\s*!=\s*nil\s*\{[^}]*return\s+(true|nil)`).MatchString(loweredBody) {
+	if authFailOpenPattern.MatchString(loweredBody) ||
+		authorizeFailOpenPattern.MatchString(loweredBody) ||
+		errorFailOpenPattern.MatchString(loweredBody) {
 		return fn.StartLine, true
 	}
 	return 0, false

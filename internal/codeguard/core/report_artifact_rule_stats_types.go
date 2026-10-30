@@ -14,11 +14,15 @@ type RuleStatsArtifact struct {
 // SuppressionRatio is suppressed/(emitted+suppressed); a persistently high
 // ratio signals a rule teams work around rather than act on.
 type RuleStatsEntry struct {
-	RuleID             string  `json:"rule_id"`
-	Emitted            int     `json:"emitted"`
-	BaselineSuppressed int     `json:"baseline_suppressed"`
-	WaiverSuppressed   int     `json:"waiver_suppressed"`
-	InlineSuppressed   int     `json:"inline_suppressed"`
+	RuleID             string `json:"rule_id"`
+	Emitted            int    `json:"emitted"`
+	BaselineSuppressed int    `json:"baseline_suppressed"`
+	WaiverSuppressed   int    `json:"waiver_suppressed"`
+	InlineSuppressed   int    `json:"inline_suppressed"`
+	// ConfidenceFiltered counts findings removed by the minimum-confidence
+	// policy. It is excluded from Suppressed and from SuppressionRatio so the
+	// ratio keeps meaning "findings teams work around".
+	ConfidenceFiltered int     `json:"confidence_filtered,omitempty"`
 	SuppressionRatio   float64 `json:"suppression_ratio"`
 }
 

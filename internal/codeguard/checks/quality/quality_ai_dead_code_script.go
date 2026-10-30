@@ -86,7 +86,7 @@ func scriptUnusedFunctionFindings(env support.Context, file string, source strin
 func scriptLocalDeclarationIsReferenced(source string, name string) bool {
 	// JSX identifiers are references, not opaque markup. Check them directly
 	// before falling back to ordinary expression references.
-	jsxReference := regexp.MustCompile(`<\s*` + regexp.QuoteMeta(name) + `(?:\s|/|>)`)
+	jsxReference := cachedPattern(`<\s*` + regexp.QuoteMeta(name) + `(?:\s|/|>)`)
 	return jsxReference.MatchString(source) || countWordOccurrences(source, name) > 1
 }
 
@@ -103,6 +103,6 @@ func lineEnd(source string, from int) int {
 }
 
 func countWordOccurrences(source string, word string) int {
-	pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(word) + `\b`)
+	pattern := cachedPattern(`\b` + regexp.QuoteMeta(word) + `\b`)
 	return len(pattern.FindAllStringIndex(source, -1))
 }

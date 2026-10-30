@@ -108,9 +108,21 @@ It is therefore the final precedence layer. Accepted names are `quality`,
 invalid.
 
 When `use_recommended_defaults` is absent or `false`, section behavior is
-unchanged from earlier configurations. Profiles are independent: they adjust
-their own thresholds and policy settings, but do not select the recommended
-baseline.
+unchanged from earlier configurations. Profiles do not select the recommended
+baseline — but a profile may enable sections of its own on top of it (for
+example `enterprise` enables `supply_chain`, and `ai-safe` enables `prompts`
+and `security`). Those activations apply wherever the profile is resolved:
+`profile:` in a config file, `-profile` on the command line, and the
+no-config-file scan path. `checks.disabled` is still applied last, so it is
+the way to turn a profile's section back off.
+
+A scan run with **no config file at all** (`codeguard scan -folder <path>`
+with no discoverable `codeguard.yaml`) resolves the built-in defaults with
+`use_recommended_defaults` behavior applied, plus any `-profile`. It does not
+use the config `codeguard init` writes, so none of the repository-shape policy
+in that starter config — required workflow/release/automation files, workflow
+content markers, required gates, `allowed_test_paths`, or the `design_rules`
+package-layering toggles — is in effect on that path.
 
 `performance` is opt-in and covers N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, unbounded concurrency, memory-pressure and framework-aware smells, Rust loop-smell heuristics, diff-mode complexity regressions, and measurement gates (size budgets, benchmark regression); see [Performance](#performance) for the rule list and the migration note for the former `quality.*` ids.
 
@@ -245,6 +257,42 @@ Config keys:
 
 Current behavior:
 - excluded paths are not scanned by any check family
+- an entry prefixed with `!` is a **re-include**: it cancels exclusion for
+  matching paths, including the built-in defaults below
+  (`"exclude": ["!packages/ui/dist/**"]`)
+
+### Built-in default exclusions
+
+CodeGuard always skips dependency trees, tool caches, and generated build
+output. These are matched by path *segment*, so they apply at any depth (a
+monorepo's `services/*/dist` is skipped, not just a root-level `dist`):
+
+- version control and CodeGuard state: `.git`, `.hg`, `.svn`, `.codeguard`
+- dependencies: `node_modules`, `bower_components`, `site-packages`, `venv`,
+  `.venv`, `.pub-cache`, `Pods`, `Carthage`, and `vendor` (see
+  `scan_vendored_source` to opt vendored source back in)
+- framework/bundler output: `dist`, `.next`, `.nuxt`, `.svelte-kit`, `.angular`,
+  `.astro`, `.docusaurus`, `.output`, `.vercel`, `.netlify`, `cdk.out`
+- caches: `.cache`, `.gocache`, `.gomodcache`, `.turbo`, `.parcel-cache`,
+  `.vite`, `.webpack`, `.gradle`, `.terraform`, `.build`, `.dart_tool`,
+  `.sass-cache`, `.mypy_cache`, `.pytest_cache`, `.ruff_cache`, `.tox`, `.nox`,
+  `.eggs`, `.ipynb_checkpoints`
+- generated artifacts: `__pycache__`, `*.egg-info`, `htmlcov`, `.nyc_output`,
+  and minified bundles/source maps (`*.min.js`, `*.min.css`, `*.bundle.js`,
+  `*.js.map`, `*.css.map`)
+- binary files (detected by content, not name) are skipped by every per-file
+  line/regex detector
+
+Directory names that are build output in most repositories but real source in
+some — `build`, `out`, `bin`, `obj`, `target`, `coverage`, `_build` — are **not**
+excluded on the name alone. They are skipped only when a sibling manifest proves
+the directory is that build system's output (for example `target/` next to
+`Cargo.toml` or `pom.xml`, `bin/` and `obj/` next to a `.csproj`, `build/` next
+to `CMakeLists.txt` or `build.gradle`). A Go package named `build`, a Rust crate's
+`src/bin`, or a Python `coverage` source package therefore stays scanned.
+
+Use a `!` re-include if one of the unconditional defaults hides real source in
+your repository.
 
 ## Waivers
 
@@ -325,7 +373,11 @@ Built-in profiles:
 - `ai-safe`
 
 The comparison below is generated from the profile definitions and verified by
-the configuration tests.
+the configuration tests. The `Baseline` column is the built-in default policy —
+what a repository gets for any key it omits — and each profile column is that
+baseline with the profile overlaid. The configuration `codeguard init` writes
+is a richer, opinionated *starter* config on top of the same baseline; it is
+not what an omitted key resolves to.
 
 <!-- BEGIN GENERATED: policy-profile-comparison -->
 | Setting | Baseline | Startup | Strict | Enterprise | AI-safe |
@@ -339,8 +391,9 @@ the configuration tests.
 | `design_rules.max_methods_per_type` | 8 | 10 | 6 | 6 | 8 |
 | `design_rules.max_interface_methods` | 5 | 8 | 4 | 4 | 5 |
 | `security_rules.govulncheck_mode` | auto | auto | required | required | required |
-| `ci_rules.required_release_files` | .goreleaser.yaml | — | .goreleaser.yaml | .goreleaser.yaml | .goreleaser.yaml |
-| `ci_rules.required_automation_paths` | Makefile | Makefile | Makefile | Makefile<br>.github/workflows/ci.yml | Makefile |
+| `ci_rules.required_release_files` | — | — | — | .goreleaser.yaml | — |
+| `ci_rules.required_automation_paths` | — | — | — | Makefile<br>.github/workflows/ci.yml | — |
+| `ci_rules.required_gates` | — | — | test | test<br>security | — |
 | `contracts` | scan-mode | scan-mode | true | true | scan-mode |
 | `reliability` | false | false | true | true | true |
 | `data` | false | false | false | true | true |
@@ -425,6 +478,29 @@ Tree-sitter parsing (opt-in):
   assignments where the regex path cannot
 - oversized files (> 256 KiB), parse failures, and error-heavy trees fall
   back to the regex path per file
+
+Confidence policy (opt-in):
+- every finding carries a confidence of `high`, `medium`, or `low`; an
+  unspecified confidence is treated as `medium`. Structural analyses set
+  `high` (source-to-sink taint, tree-sitter rule paths), while regex line
+  scans generally leave it unspecified
+- `checks.min_confidence.default` drops findings below the given level, and
+  `checks.min_confidence.sections.<section>` overrides it for one section.
+  Section keys are the ids reported in scan output and accepted by
+  `checks.disabled` (supply chain is `supply_chain`). Omitting the block, or
+  setting `low`, admits every finding — the default behavior
+- removed findings are never silent: each is counted per rule as
+  `confidence_filtered` in the `rule_stats` artifact, reported per section as
+  `confidence_filtered_count`, and listed with reason `confidence` under
+  `--include-suppressed`. They are excluded from `suppression_ratio`, which
+  keeps meaning "findings teams work around"
+- `checks.confidence_demotion: true` reports a `low`-confidence finding on a
+  failing rule as a warning instead. It never promotes and never applies to
+  `medium` or `high`. Off by default
+- filtering and demotion are applied when a section is finalized, after the
+  per-file findings cache, so changing either setting re-renders a scan
+  instead of re-running one, and neither affects a finding's fingerprint or
+  its baseline match
 
 ## Quality
 
@@ -1347,7 +1423,7 @@ These rules live outside the repository-wide `Change Safety` section in report o
 | Naming | `naming.boolean-not-predicate` | warn | Boolean variables, parameters, or boolean-returning functions do not read like predicates. |
 | Naming | `naming.domain-vocabulary-drift` | warn | Configured glossary concepts appear under multiple terms in the same source. |
 | Naming | `naming.unknown-abbreviation` | warn | Identifiers contain abbreviations that are not common or configured for the repository. |
-| Naming | `naming.cardinality-mismatch` | warn | Plural names are used for scalar values or singular names for collection-like values. |
+| Naming | `naming.cardinality-mismatch` | warn | A plural name holds a single non-numeric, non-boolean scalar, or a singular name holds a collection of the type it is named after (`user []User`). Counts, flags, byte strings, argv vectors, and keyed maps are not reported. |
 | Naming | `naming.implementation-leak` | warn | Domain-facing names encode infrastructure details such as SQL, HTTP, Redis, Kafka, or ORM. |
 | Naming | `naming.missing-unit` | warn | Numeric duration, size, or money names omit a unit suffix. |
 | Naming | `naming.role-suffix-overuse` | warn | A file repeatedly uses vague suffixes such as Manager, Helper, Util, Service, or Processor. |
@@ -1377,17 +1453,17 @@ These rules live outside the repository-wide `Change Safety` section in report o
 | Defensive programming | `defensive.unsafe-numeric-conversion` | warn | A narrowing or sign-changing numeric conversion can truncate, wrap, or lose precision. |
 | Defensive programming | `defensive.unvalidated-boundary-input` | warn | Handler, API, event, or filesystem input is consumed without validation evidence. |
 | Defensive programming | `defensive.invalid-state-representable` | warn | Booleans or raw status strings can represent impossible state combinations. |
-| Defensive programming | `defensive.null-assumption` | warn | Nullable boundary values are dereferenced without a nil/null guard. |
+| Defensive programming | `defensive.null-assumption` | warn | A value whose declared type says it may be absent (`?`, `| null`, `| None`, `Optional`, `Maybe`, `std::optional`) is dereferenced without a guard. A bare pointer is the pass-by-reference idiom, not a nullability declaration, and is not reported. Confidence `low`. |
 | Defensive programming | `defensive.integer-overflow` | warn | Arithmetic on count, size, or length input lacks an overflow bound check. |
 | Defensive programming | `defensive.sequence-collision-risk` | warn | External ID allocation derives the next value from current count; bounded unique-collision retry is treated as mitigation, not full resolution. |
 | Defensive programming | `defensive.bounds-assumption` | warn | Indexed access assumes collection bounds without a nearby length check. |
-| Defensive programming | `defensive.unsafe-default` | warn | A config/env fallback can fail open or disable a safety control. |
+| Defensive programming | `defensive.unsafe-default` | warn | A config/env fallback can fail open or disable a safety control. Confidence `low`. |
 | Defensive programming | `defensive.non-exhaustive-branch` | warn | Enum-like state/kind/type branching lacks default or exhaustive handling. |
 | Defensive programming | `defensive.unchecked-external-response` | warn | External responses are consumed without checking status, ok, or transport errors. |
 | Defensive programming | `defensive.missing-schema-validation` | warn | Decoded JSON, events, or request payloads are used without schema or invariant validation. |
 | Defensive programming | `defensive.missing-resource-limit` | warn | Boundary reads or uploads lack explicit size, count, or time limits. |
 | Defensive programming | `defensive.invalid-state-transition` | warn | State transitions write terminal states without checking allowed prior state. |
-| Defensive programming | `defensive.fail-open-authorization` | warn | Authorization failure paths default to allow or success. |
+| Defensive programming | `defensive.fail-open-authorization` | warn | Authorization failure paths default to allow or success. A `return nil` alongside a non-nil error is fail-closed and is not reported. Confidence `medium`. |
 | Structural smell | `smell.god-object` | warn | A local type/class accumulates many methods, fields, and responsibility clusters. |
 | Structural smell | `smell.feature-envy` | warn | A function or method mostly interrogates one external collaborator instead of its own receiver/context. |
 | Structural smell | `smell.middle-man` | warn | A type/class mostly forwards calls to one collaborator without policy, translation, or ownership. |
@@ -1458,6 +1534,12 @@ Rules:
 | `supply_chain.cargo.missing-package-license` | Rust / Cargo manifests | always on when `checks.supply_chain` is enabled |
 | `supply_chain.cargo.non-hermetic-source` | Rust / Cargo manifests | always on when `checks.supply_chain` is enabled |
 
+Notes on lockfile drift precision:
+- `lockfile-drift` reports a dependency only when the lockfile was understood. A lockfile that yields no recognizable packages is treated as unparsed and skipped rather than reported as "every dependency is missing"; an empty lockfile is distinguished from an unparsed one by its format's own header (an npm `lockfileVersion`, a Cargo/Poetry/uv header-only file, a file holding nothing but comments).
+- `yarn.lock` is read in both the Yarn v1 (`version "1.2.3"`) and Yarn 2+ Berry (`version: 1.2.3`) spellings. Berry protocol selectors are understood: `npm:` ranges are compared against the manifest, while `workspace:`, `link:`, `portal:`, `file:`, `patch:` and git/URL resolutions count as present but are not compared against a registry range.
+- `pnpm-lock.yaml` is read in both the `name@1.2.3` (lockfile v6+) and `/name/1.2.3` (v5 and earlier) key shapes.
+- Python package names are compared after PEP 503 normalization (lowercase, and each run of `-`, `_` or `.` collapsed to `-`), so a `pyproject.toml` entry for `Jinja2` or `typing_extensions` matches the `jinja2` / `typing-extensions` entry Poetry and uv write. npm, Cargo, Go and Conan names are compared exactly, because in those ecosystems case and separators identify different packages.
+
 Notes on Cargo precision:
 - `cargo.missing-package-license` looks only at the manifest package metadata (`package.license` in `Cargo.toml`); it does not infer intent from README text or dependency licenses.
 - `cargo.non-hermetic-source` warns on `path = ...`, `branch = ...`, or `git = ...` without `rev = ...` in dependency specs. A git dependency pinned to an exact `rev` stays silent.
@@ -1524,6 +1606,7 @@ Config keys:
       "forbid_internal_import_cmd": true,
       "forbid_service_import_internal": true,
       "forbid_service_import_cmd": true,
+      "sdk_facade_paths": ["pkg/myapp"],
       "max_decls_per_file": 12,
       "max_methods_per_type": 8,
       "max_interface_methods": 5,
@@ -1540,6 +1623,49 @@ Config keys:
   }
 }
 ```
+
+Defaults: the four Go package-layering toggles
+(`require_cmd_through_internal_cli`, `forbid_internal_import_cmd`,
+`forbid_service_import_internal`, `forbid_service_import_cmd`) are **off by
+default**. They describe one specific repository layout — `cmd/` delegating to
+`internal/cli`, and a `pkg/` facade that must not reach into `cmd/` — and
+report at fail level, and a `pkg/` package importing its own module's
+`internal/` is ordinary Go. Set them to `true` to enforce that layout; the
+config `codeguard init` writes does, and so does this repository's own
+self-scan config. The remaining design rules (import cycles, god modules,
+high-impact changes, the numeric thresholds, generic package names) stay on by
+default.
+
+### `sdk_facade_paths` — which package is your public facade
+
+Two of the layering rules need to know which package is the repository's
+published API surface — the one public package whose job is to wrap the
+module's internals:
+
+- `design.service-import-internal` does **not** fire inside the facade. A
+  facade importing `internal/` is the point of a facade.
+- `design.cmd-through-internal-cli` fires when a `cmd/` package imports the
+  facade instead of going through `internal/cli`.
+
+`sdk_facade_paths` is a list of target-root-relative package directories, for
+example `["pkg/myapp"]`. A glob tail is accepted and trimmed, so `"pkg/myapp"`
+and `"pkg/myapp/**"` mean the same thing; absolute paths and `..` are rejected.
+
+**When it is unset, the facade is discovered from the repository layout: every
+directory directly under `pkg/` counts as facade.** That default is
+deliberately permissive. Within a single Go module, `pkg/<anything>` importing
+`<module>/internal/...` is legal, idiomatic Go, so treating a public package as
+a non-facade costs a fail-level finding on correct code. Set
+`sdk_facade_paths` when your repository really does distinguish one facade from
+other public packages and you want `design.service-import-internal` enforced on
+the rest.
+
+`design.service-import-cmd` has no facade exemption at all: a public package
+importing `cmd/` is a layering inversion under any layout, the facade included.
+
+`design.cmd-through-internal-cli` matches the facade import by module path when
+the target has a readable `go.mod` (`<module>/pkg/<facade>` and anything under
+it), and falls back to a path-segment match otherwise.
 
 Current behavior:
 
@@ -1730,6 +1856,37 @@ Config keys (under `checks.security_rules.secrets`):
 - `entropy` enables the high-entropy heuristic (off by default); tune `min_length`
   (default 20), `threshold` in bits/char (default 4.5), and `level` (default `warn`).
 
+#### Fixture and documentation classification
+
+Credential-shaped literals in test fixtures and documentation are graded rather than
+either failed or exempted, because a real key committed to a `_test.go` file is still a
+leaked key. Each match is classified from two independent kinds of evidence — where the
+file lives, and what the value looks like:
+
+| Classification | Reported as | When |
+| --- | --- | --- |
+| `confirmed` | the detector's own level (`fail` for credentials/private keys) | production paths, and PEM key material or high-entropy hits anywhere |
+| `ambiguous_fixture` | `warn`, `medium` confidence for provider/connection-string formats and `low` for the name-based heuristic, message annotated | a test-fixture or documentation path with no synthetic evidence about the value |
+| `likely_synthetic_fixture` | an informational `security.credential-fixture` diagnostic, not a finding | the value itself is demonstrably filler |
+
+A path signal never suppresses a finding on its own — suppression always needs positive
+evidence about the value: a vendor's own published documentation placeholder (for
+example AWS's `AKIAIOSFODNN7EXAMPLE`, recognized on **any** path since it is a
+world-readable non-secret), an explicit `EXAMPLE`/`FAKE`/`REDACTED` marker or repeated
+filler run in the body, or a credential aimed at a reserved (RFC 2606) or loopback host.
+
+Fixture paths are recognized by directory segment (`testdata`, `test`, `tests`,
+`__tests__`, `spec`, `fixtures`, `__fixtures__`, `mocks`, `__mocks__`, `e2e`, `cypress`,
+`stories`, …), by file-name suffix (`_test.go`, `_test.py`, `_spec.rb`, `_test.rs`,
+`_test.cc`, `.test.ts`/`.tsx`/`.js`/`.jsx`/`.mjs`, `.spec.*`, `.stories.*`), by file-name
+*prefix* (pytest's `test_*.py`, `conftest.py`), and by the case-sensitive JVM/.NET
+convention (`AccountTest.java`, `AccountTests.cs`). Documentation paths are `docs/`,
+`doc/`, `examples/`, `samples/` and the prose extensions `.md`, `.mdx`, `.rst`, `.adoc`.
+
+Set `security_rules.demote_fixture_findings` to `false` to turn all of this off and have
+every match reported exactly as the detector produced it. `allow_paths` remains the way
+to silence a path completely.
+
 Invalid `allow_patterns`/`custom_patterns` entries are rejected by config validation. If
 an unvalidated config reaches the scan anyway (e.g. through the SDK), the unusable
 pattern is skipped and reported as a `security.secrets-config` (**fail**) finding rather
@@ -1894,10 +2051,30 @@ Config keys:
 }
 ```
 
+Defaults: every list above is **empty by default**, and each rule treats an
+empty list as "not configured" and reports nothing. codeguard cannot know which
+workflow filenames, release artifacts, command strings, or test directories a
+repository uses, so none of them are enforced until the repository states them.
+The only CI default is `require_workflow_dir: true`, since enabling
+`checks.ci` is itself the assertion that the repository wants pipeline policy
+checked and every other CI rule reads `.github/workflows`.
+
+`allowed_test_paths` in particular must stay unset for a repository with
+co-located tests — idiomatic Go `_test.go` files, `*.spec.ts` beside the
+source, or pytest `test_*.py` inside the package. Setting it to `["tests/**"]`
+means "every test file outside `tests/` is a failure".
+
+The configuration `codeguard init` writes is a *starter* config, not the
+defaults: it states codeguard's own conventions (`.github/workflows/ci.yml`,
+a `test` gate, `actions/checkout` + `go test ./...` markers,
+`.goreleaser.yaml`, `Makefile`, `tests/**`) so they are visible and editable.
+Delete or replace the keys that do not describe your repository.
+
 Current behavior:
-- fails when required workflow, release, or automation files are missing
-- fails when required workflow content markers are missing
-- fails when detected Go, Python, TypeScript, C++, Rust, Java, C#, or Ruby test files live outside the configured test directories
+- fails when a configured required workflow, release, or automation file is missing
+- fails when a configured workflow content marker is missing
+- fails when a configured CI gate (`required_gates`) is absent from the repository's workflows; skipped entirely when the repository has no workflow files
+- fails when detected Go, Python, TypeScript, C++, Rust, Java, C#, or Ruby test files live outside `allowed_test_paths` — inactive while that list is unset
 
 ### Test quality
 

@@ -1,14 +1,20 @@
 package security
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
-var concatenatedLiteralPattern = regexp.MustCompile(`(["'])([^"']*)["']\s*\+\s*["']([^"']*)(["'])`)
+// concatenatedLiteralPattern folds `"abc" + "def"` into `"abcdef"` so a secret
+// split across literals is still detected. It is gated on the '+' the pattern
+// requires: it runs on every scanned line, and profiling showed it as the third
+// largest block of regexp time in the package.
+var concatenatedLiteralPattern = newGatedPattern("concatenated-literal",
+	`(["'])([^"']*)["']\s*\+\s*["']([^"']*)(["'])`,
+	exactGate("+"))
 
 // Bounds that keep the scan cheap and resistant to pathological (and untrusted)
 // input such as minified bundles or deliberately oversized lines. codeguard runs
@@ -17,7 +23,6 @@ var concatenatedLiteralPattern = regexp.MustCompile(`(["'])([^"']*)["']\s*\+\s*[
 const (
 	maxScanFileBytes = 5 << 20  // skip files larger than 5 MiB
 	maxScanLineBytes = 64 << 10 // scan at most the first 64 KiB of any line
-	binarySniffBytes = 8 << 10  // bytes inspected when detecting binary content
 )
 
 // ScanContent runs the secret/credential scan over file content and returns the
@@ -50,8 +55,10 @@ func (s Scanner) ScanContent(content string) []Match {
 }
 
 func foldConcatenatedLiterals(line string) string {
-	for concatenatedLiteralPattern.MatchString(line) {
-		line = concatenatedLiteralPattern.ReplaceAllString(line, `$1$2$3$4`)
+	// The gate is exact-only, so the ascii argument is unused here; false is
+	// the conservative value (it can only widen a gate, never narrow one).
+	for concatenatedLiteralPattern.matchString(line, false) {
+		line = concatenatedLiteralPattern.re.ReplaceAllString(line, `$1$2$3$4`)
 	}
 	return line
 }
@@ -102,11 +109,16 @@ func located(m *Match, lineNo int) []Match {
 }
 
 func secretResultsForFile(env support.Context, file string, data []byte, scanner Scanner) ([]core.Finding, []core.Diagnostic) {
-	if scanner.SkipPath(file) || len(data) > maxScanFileBytes || looksBinary(data) {
+	// The binary check is retained here as well as in the shared scan path
+	// (runnersupport.LooksBinary, applied in ScanTargetFiles) because
+	// secretResultsForFile is reachable from callers that do not go through the
+	// corpus scan; the shared helper is the single definition of the heuristic.
+	if scanner.SkipPath(file) || len(data) > maxScanFileBytes || runnersupport.LooksBinary(data) {
 		return nil, nil
 	}
 	content := string(data)
 	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	demote := fixtureDemotionEnabled(env.Config)
 	matches := scanner.ScanContent(content)
 	findings := make([]core.Finding, 0, len(matches))
 	diagnostics := make([]core.Diagnostic, 0)
@@ -116,14 +128,15 @@ func secretResultsForFile(env support.Context, file string, data []byte, scanner
 			line = lines[match.Line-1]
 		}
 		assessment := classifyFixtureCandidate(file, line, match)
+		if !demote {
+			assessment = fixtureAssessment{Classification: fixtureConfirmed, Scope: assessment.Scope, Evidence: []string{"policy:fixture_demotion_disabled"}}
+		}
 		if assessment.Classification == fixtureLikelySynthetic {
 			diagnostics = append(diagnostics, core.Diagnostic{ID: "security.credential-fixture", Level: "info", Kind: string(assessment.Classification), Message: "likely synthetic credential fixture", Path: file, Evidence: assessment.Evidence, Metadata: secretMetadata(match)})
 			continue
 		}
 		if assessment.Classification == fixtureAmbiguous {
-			match.Level = "warn"
-			match.Confidence = core.ConfidenceLow
-			match.Message += " (ambiguous credential-shaped fixture)"
+			applyAmbiguousFixtureDemotion(&match, assessment)
 		}
 		metadata := secretMetadata(match)
 		if metadata == nil {
@@ -143,6 +156,38 @@ func secretResultsForFile(env support.Context, file string, data []byte, scanner
 		}))
 	}
 	return findings, diagnostics
+}
+
+// fixtureDemotionEnabled reports whether security_rules.demote_fixture_findings
+// permits evidence-based demotion. It defaults to on (config/defaults_rules.go
+// sets it explicitly); turning it off makes every match report exactly as the
+// detector produced it, which is the escape hatch for teams that want a hard
+// fail on any credential-shaped literal anywhere in the tree.
+func fixtureDemotionEnabled(cfg core.Config) bool {
+	if flag := cfg.Checks.SecurityRules.DemoteFixtureFindings; flag != nil {
+		return *flag
+	}
+	return true
+}
+
+// applyAmbiguousFixtureDemotion moves a credential-shaped finding to the review
+// tier: warn, so it cannot block CI, but still a real finding that is reported,
+// baselinable, and exported to SARIF. Provider-format and connection-string
+// matches keep medium confidence because their structure is certain and only
+// the intent is in doubt; the name-based heuristic drops to low because both
+// its structure and its intent are weak.
+func applyAmbiguousFixtureDemotion(match *Match, assessment fixtureAssessment) {
+	match.Level = "warn"
+	if match.RuleID == hardcodedCredentialRule {
+		match.Confidence = core.ConfidenceMedium
+	} else {
+		match.Confidence = core.ConfidenceLow
+	}
+	if assessment.Scope == scopeDocumentation {
+		match.Message += " (ambiguous credential-shaped documentation example)"
+		return
+	}
+	match.Message += " (ambiguous credential-shaped fixture)"
 }
 
 func secretMetadata(match Match) map[string]string {

@@ -47,6 +47,11 @@ type SectionResult struct {
 	Findings        []Finding    `json:"findings"`
 	Diagnostics     []Diagnostic `json:"diagnostics,omitempty"`
 	SuppressedCount int          `json:"suppressed_count,omitempty"`
+	// ConfidenceFilteredCount counts findings removed by the
+	// checks.min_confidence policy. It is deliberately separate from
+	// SuppressedCount: a suppression records a team accepting a finding, while
+	// a confidence filter records the scanner not being sure enough to show it.
+	ConfidenceFilteredCount int `json:"confidence_filtered_count,omitempty"`
 }
 
 // Diagnostic describes scanner operation or informational classification. It

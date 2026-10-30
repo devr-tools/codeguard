@@ -132,6 +132,9 @@ func contextEnabled(sc runnersupport.Context) bool {
 // closure signatures carry no context of their own; they are only invoked
 // while Build's sections run, so the scan ctx is the correct lifetime.
 func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSupport.Context {
+	// One resolver per scan: it memoizes a go.mod read and a directory listing
+	// per target, and sections consult it concurrently.
+	facades := runnersupport.NewSDKFacadeResolver(sc.Cfg)
 	return checkSupport.Context{
 		Config:    sc.Cfg,
 		AIEnabled: sc.Opts.EnableAI || (sc.Cfg.AI.Enabled != nil && *sc.Cfg.AI.Enabled),
@@ -199,7 +202,9 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 		IsInternalOrCmdFile:  runnersupport.IsInternalOrCmdFile,
 		IsCmdFile:            runnersupport.IsCmdFile,
 		IsPublicPackageFile:  runnersupport.IsPublicPackageFile,
-		IsSDKFacadeFile:      runnersupport.IsSDKFacadeFile,
+		SDKFacadeFor: func(target core.TargetConfig) checkSupport.SDKFacade {
+			return facades.For(target)
+		},
 		IsPromptFile: func(rel string) bool {
 			return runnersupport.IsPromptFile(sc, rel)
 		},

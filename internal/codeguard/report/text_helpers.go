@@ -3,6 +3,7 @@ package report
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -62,6 +63,9 @@ func writeTextSection(w io.Writer, section core.SectionResult) error {
 	if _, err := fmt.Fprintf(w, "\n[%s] %s\n", renderStatus(string(section.Status), true), section.Name); err != nil {
 		return err
 	}
+	if err := writeTextDiagnostics(w, section.Diagnostics); err != nil {
+		return err
+	}
 	if len(section.Findings) == 0 {
 		if _, err := io.WriteString(w, "  ✅ no findings\n"); err != nil {
 			return err
@@ -80,6 +84,33 @@ func writeTextSection(w io.Writer, section core.SectionResult) error {
 	}
 	if section.SuppressedCount > 0 {
 		if _, err := fmt.Fprintf(w, "\n  suppressed: %d\n", section.SuppressedCount); err != nil {
+			return err
+		}
+	}
+	if section.ConfidenceFilteredCount > 0 {
+		if _, err := fmt.Fprintf(w, "\n  confidence filtered: %d\n", section.ConfidenceFilteredCount); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeTextDiagnostics surfaces the diagnostics that say the scan itself did
+// not run as intended — a truncated walk, a vulnerability scanner that could
+// not start. Until this existed the default report rendered no diagnostics at
+// all -- only the JSON and SARIF writers did -- so "codeguard stopped scanning
+// at 100,000 files" or "govulncheck could not run" reached a terminal reader
+// not at all. The github annotation writer still does not render them.
+// Informational diagnostics stay out of the default report: they are
+// per-finding classifications and routine status, and a scan emits enough of
+// them to bury the findings they sit beside.
+func writeTextDiagnostics(w io.Writer, diagnostics []core.Diagnostic) error {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Level != "warn" && diagnostic.Level != "fail" {
+			continue
+		}
+		if _, err := fmt.Fprintf(w, "  %s %s: %s\n",
+			renderStatus(diagnostic.Level, true), diagnostic.ID, diagnostic.Message); err != nil {
 			return err
 		}
 	}
@@ -103,9 +134,17 @@ func groupTextFindings(findings []core.Finding) []textFindingGroup {
 	}
 	out := make([]textFindingGroup, 0, len(order))
 	for _, name := range order {
+		grouped := groups[name]
+		// Presentation only: the most trustworthy findings in a group are read
+		// first. The sort is stable, so equal-confidence findings keep scan
+		// order, and section.Findings itself is never reordered — machine
+		// surfaces such as JSON and SARIF keep exact scan order.
+		sort.SliceStable(grouped, func(i, j int) bool {
+			return core.ConfidenceRank(grouped[i].Confidence) > core.ConfidenceRank(grouped[j].Confidence)
+		})
 		out = append(out, textFindingGroup{
 			name:     name,
-			findings: groups[name],
+			findings: grouped,
 		})
 	}
 	return out

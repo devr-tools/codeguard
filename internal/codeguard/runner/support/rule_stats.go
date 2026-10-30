@@ -17,10 +17,11 @@ type RuleStatsCollector struct {
 }
 
 type ruleTally struct {
-	emitted  int
-	baseline int
-	waiver   int
-	inline   int
+	emitted    int
+	baseline   int
+	waiver     int
+	inline     int
+	confidence int
 }
 
 func NewRuleStatsCollector() *RuleStatsCollector {
@@ -35,6 +36,18 @@ func (collector *RuleStatsCollector) RecordEmitted(ruleID string) {
 	collector.mu.Lock()
 	defer collector.mu.Unlock()
 	collector.lockedTally(ruleID).emitted++
+}
+
+// RecordConfidenceFiltered counts one finding removed from ruleID by the
+// minimum-confidence policy. It is tracked apart from the suppression
+// mechanisms so rule health can tell "not shown" from "worked around".
+func (collector *RuleStatsCollector) RecordConfidenceFiltered(ruleID string) {
+	if collector == nil || ruleID == "" {
+		return
+	}
+	collector.mu.Lock()
+	defer collector.mu.Unlock()
+	collector.lockedTally(ruleID).confidence++
 }
 
 // RecordSuppressed counts one suppressed finding for ruleID, attributed by the
@@ -92,6 +105,7 @@ func newRuleStatsEntry(ruleID string, tally ruleTally) core.RuleStatsEntry {
 		BaselineSuppressed: tally.baseline,
 		WaiverSuppressed:   tally.waiver,
 		InlineSuppressed:   tally.inline,
+		ConfidenceFiltered: tally.confidence,
 	}
 	if total := entry.Emitted + entry.Suppressed(); total > 0 {
 		entry.SuppressionRatio = float64(entry.Suppressed()) / float64(total)

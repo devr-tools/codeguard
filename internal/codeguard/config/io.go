@@ -10,6 +10,7 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/cachefile"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/version"
 )
 
 // maxConfigFileBytes caps how much of a config file is read into memory,
@@ -220,6 +221,11 @@ func WriteFile(path string, cfg core.Config) error {
 	if err := Validate(cfg); err != nil {
 		return err
 	}
+	// Stamp at the write boundary rather than in ApplyDefaults, so a loaded
+	// config keeps the version its file recorded and only rewriting refreshes
+	// it. That is what makes the field usable for spotting a config produced by
+	// a different release.
+	cfg.CodeguardVersion = version.Number
 
 	data, err := marshalConfig(path, cfg)
 	if err != nil {

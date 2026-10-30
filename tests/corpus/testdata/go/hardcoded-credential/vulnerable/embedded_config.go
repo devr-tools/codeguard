@@ -5,7 +5,7 @@ import "net/http"
 // uploadBackupBlob wires a fake AWS key (renamed variable, realistic call
 // site) plus a fake bearer token through ordinary-looking client code.
 func uploadBackupBlob() (*http.Request, error) {
-	blobSigner := "AKIAIOSFODNN7EXAMPLE"
+	blobSigner := "AKIA" + "Q7RMZLK4TP2XWDVB"
 	req, err := http.NewRequest(http.MethodPut, "https://storage.example.com/backups", nil)
 	if err != nil {
 		return nil, err

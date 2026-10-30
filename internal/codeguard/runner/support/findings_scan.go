@@ -49,6 +49,14 @@ func scanTargetFiles(sc Context, target core.TargetConfig, spec fileScanSpec) []
 		if err != nil {
 			return nil
 		}
+		// Binary content produces only noise: a line/regex detector run over
+		// object code reports findings at offsets inside a compiled artifact.
+		// Guarding here rather than per detector means no findings-producing
+		// pass can skip the check. See LooksBinary for why this is not pushed
+		// down to the corpus read or to VisitTargetFiles.
+		if LooksBinary(data) {
+			return nil
+		}
 		return cachedFileFindings(sc, fileScanInput{
 			sectionID: spec.sectionID,
 			target:    target,

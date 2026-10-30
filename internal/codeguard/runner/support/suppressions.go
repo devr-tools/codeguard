@@ -24,6 +24,10 @@ const (
 	SuppressionReasonBaseline = "baseline"
 	SuppressionReasonWaiver   = "waiver"
 	SuppressionReasonInline   = "inline suppression"
+	// SuppressionReasonConfidence labels findings removed by the
+	// checks.min_confidence policy. It is reported as its own mechanism and is
+	// never counted as a suppression.
+	SuppressionReasonConfidence = "confidence"
 )
 
 func IsSuppressed(sc Context, finding core.Finding) (bool, string) {

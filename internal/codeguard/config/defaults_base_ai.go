@@ -2,18 +2,18 @@ package config
 
 import "github.com/devr-tools/codeguard/internal/codeguard/core"
 
-func exampleAIConfig() core.AIConfig {
+func baseDefaultAIConfig() core.AIConfig {
 	return core.AIConfig{
 		Enabled:      boolPtr(false),
-		Provider:     exampleAIProviderConfig(),
+		Provider:     baseDefaultAIProviderConfig(),
 		Cache:        core.AICacheConfig{Path: ".codeguard/ai-cache.json"},
-		HybridTriage: exampleAIHybridTriageConfig(),
-		Semantic:     exampleAISemanticConfig(),
-		AutoFix:      exampleAIAutoFixConfig(),
+		HybridTriage: baseDefaultAIHybridTriageConfig(),
+		Semantic:     baseDefaultAISemanticConfig(),
+		AutoFix:      baseDefaultAIAutoFixConfig(),
 	}
 }
 
-func exampleAIProviderConfig() core.AIProviderConfig {
+func baseDefaultAIProviderConfig() core.AIProviderConfig {
 	return core.AIProviderConfig{ //nolint:gosec // APIKeyEnv is an env var name, not a credential
 		Type:      "openai",
 		Model:     "gpt-5",
@@ -22,7 +22,7 @@ func exampleAIProviderConfig() core.AIProviderConfig {
 	}
 }
 
-func exampleAIHybridTriageConfig() core.AIHybridTriageConfig {
+func baseDefaultAIHybridTriageConfig() core.AIHybridTriageConfig {
 	return core.AIHybridTriageConfig{
 		Enabled:             boolPtr(true),
 		SuppressDismissed:   boolPtr(true),
@@ -31,7 +31,7 @@ func exampleAIHybridTriageConfig() core.AIHybridTriageConfig {
 	}
 }
 
-func exampleAISemanticConfig() core.AISemanticConfig {
+func baseDefaultAISemanticConfig() core.AISemanticConfig {
 	return core.AISemanticConfig{
 		Enabled:                 boolPtr(true),
 		FunctionContract:        boolPtr(true),
@@ -42,7 +42,7 @@ func exampleAISemanticConfig() core.AISemanticConfig {
 	}
 }
 
-func exampleAIAutoFixConfig() core.AIAutoFixConfig {
+func baseDefaultAIAutoFixConfig() core.AIAutoFixConfig {
 	return core.AIAutoFixConfig{
 		Enabled:     boolPtr(false),
 		VerifyTests: boolPtr(true),

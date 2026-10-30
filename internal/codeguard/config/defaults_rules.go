@@ -92,15 +92,21 @@ func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig
 	defaultInt(&dst.GodModuleThreshold, def.GodModuleThreshold)
 	defaultInt(&dst.HighImpactChangeThreshold, def.HighImpactChangeThreshold)
 	defaultStringSlice(&dst.ForbiddenPackageNames, def.ForbiddenPackageNames)
+	// sdk_facade_paths has no baseline value on purpose: the facade is a
+	// property of the repository being scanned, so an unset list means
+	// "discover it from the layout" rather than "use codeguard's own".
+	defaultStringSlice(&dst.SDKFacadePaths, def.SDKFacadePaths)
 	applyDefaultBoolPtrs(
 		&dst.DetectImportCycles,
 		&dst.DetectGodModules,
 		&dst.DetectHighImpactChanges,
-		&dst.RequireCmdThroughInternalCLI,
-		&dst.ForbidInternalImportCmd,
-		&dst.ForbidServiceImportInternal,
-		&dst.ForbidServiceImportCmd,
 	)
+	// Package-layering policy is read from the baseline rather than forced on,
+	// so baseDefaultDesignRules stays the single place that decides it.
+	defaultBoolPtr(&dst.RequireCmdThroughInternalCLI, boolValue(def.RequireCmdThroughInternalCLI))
+	defaultBoolPtr(&dst.ForbidInternalImportCmd, boolValue(def.ForbidInternalImportCmd))
+	defaultBoolPtr(&dst.ForbidServiceImportInternal, boolValue(def.ForbidServiceImportInternal))
+	defaultBoolPtr(&dst.ForbidServiceImportCmd, boolValue(def.ForbidServiceImportCmd))
 	defaultCommandMap(&dst.LanguageCommands, def.LanguageCommands)
 	defaultCommandMap(&dst.LanguageDiffCommands, def.LanguageDiffCommands)
 }
@@ -121,9 +127,7 @@ func applyPromptDefaults(dst *core.PromptRulesConfig, def core.PromptRulesConfig
 }
 
 func applyCIDefaults(dst *core.CIRulesConfig, def core.CIRulesConfig) {
-	if dst.RequireWorkflowDir == nil {
-		dst.RequireWorkflowDir = boolPtr(true)
-	}
+	defaultBoolPtr(&dst.RequireWorkflowDir, boolValue(def.RequireWorkflowDir))
 	if dst.RequiredWorkflowFiles == nil {
 		dst.RequiredWorkflowFiles = append([]string(nil), def.RequiredWorkflowFiles...)
 	}
