@@ -39,7 +39,7 @@ type sectionDef struct {
 
 // sectionRegistry lists every section in the exact order they appear in the
 // scan result. Build iterates this slice and, for each enabled section, calls
-// through the safeRun panic-recovery wrapper.
+// through the SafeRun panic-recovery wrapper.
 var sectionRegistry = []sectionDef{
 	{
 		id:   "change",
