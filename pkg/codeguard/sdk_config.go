@@ -42,6 +42,17 @@ func ValidateConfig(cfg Config) error {
 	return config.Validate(cfg)
 }
 
+// ValidateTargetPaths checks that every target path in cfg names an existing,
+// readable directory. Unlike ValidateConfig it touches the filesystem, so call
+// it only where the targets are expected to exist. Relative paths resolve
+// against the working directory, as they do for a scan; LoadConfig has already
+// joined a loaded config's relative target paths onto the config's directory.
+// Scans run this check themselves and fail rather than report a missing target
+// as a clean pass.
+func ValidateTargetPaths(cfg Config) error {
+	return config.ValidateTargetPaths(cfg)
+}
+
 // ApplyDefaults fills omitted values on cfg in place. Use it for a partial
 // Config constructed or decoded in memory; use ExampleConfig when starting a
 // new configuration. When UseRecommendedDefaults is true, it additionally
