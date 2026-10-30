@@ -90,14 +90,22 @@ func splitIdentifierWords(name string) []string {
 	}
 	var words []string
 	start := 0
-	for i := 0; i <= len(trimmed); i++ {
-		if i < len(trimmed) && !isIdentifierWordSeparator(trimmed[i]) {
+	// Flush the final word after the loop rather than running the loop to
+	// i == len(trimmed) as a sentinel. The sentinel form was correct - the
+	// index was guarded by a short-circuiting i < len(trimmed) - but it reads
+	// as an off-byte-one against length and static analysers flag it as one,
+	// so the bound stays strict and the tail is explicit.
+	for i := 0; i < len(trimmed); i++ {
+		if !isIdentifierWordSeparator(trimmed[i]) {
 			continue
 		}
 		if i > start {
 			words = append(words, splitCamelWords(trimmed[start:i])...)
 		}
 		start = i + 1
+	}
+	if start < len(trimmed) {
+		words = append(words, splitCamelWords(trimmed[start:])...)
 	}
 	return words
 }
