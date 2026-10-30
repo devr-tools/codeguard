@@ -18,6 +18,32 @@ var (
 	scriptThrowNewPattern = regexp.MustCompile(`throw\s+new\s+([A-Za-z_$][\w$]*)\s*\(`)
 )
 
+// PERF: goPkgErrorsPattern opens with the (?:^|[^A-Za-z0-9_]) boundary group,
+// which leaves RE2 no literal prefix, so FindAllString attempts a match at
+// every byte of every Go file. goRepoStyleProfile runs it over the whole Go
+// corpus on the serial critical path, and it was ~80% of that function's time.
+// Gate it on the literals every match must contain (the technique of
+// quality_text_scan.go and the security line gates).
+//
+// Soundness: every match contains the capture group, which is one of two
+// branches. The first is errors.(Wrap|Wrapf|WithStack|WithMessage)(, so it
+// contains "errors.Wrap" (Wrap, Wrapf) or "errors.With" (WithStack,
+// WithMessage). The second is the literal "github.com/pkg/errors". The pattern
+// has no (?i), so byte-exact strings.Contains is the right comparison, and a
+// source holding none of the three literals has zero matches.
+//
+// The other Go error-style patterns need no gate: each begins with a literal
+// (fmt.Errorf( or errors.New(), which RE2 already locates with a substring
+// search before it runs the automaton.
+var goPkgErrorsLiterals = []string{"errors.Wrap", "errors.With", "github.com/pkg/errors"}
+
+func goPkgErrorsCount(source string) int {
+	if !containsAny(source, goPkgErrorsLiterals) {
+		return 0
+	}
+	return len(goPkgErrorsPattern.FindAllString(source, -1))
+}
+
 const (
 	goErrorStyleWrap      = "fmt.Errorf with %w wrapping"
 	goErrorStyleNew       = "errors.New / unwrapped fmt.Errorf"
@@ -39,7 +65,7 @@ func goErrorStyleCounts(source string) map[string]int {
 	if plain > 0 {
 		counts[goErrorStyleNew] = plain
 	}
-	if pkg := len(goPkgErrorsPattern.FindAllString(source, -1)); pkg > 0 {
+	if pkg := goPkgErrorsCount(source); pkg > 0 {
 		counts[goErrorStylePkgErrors] = pkg
 	}
 	return counts

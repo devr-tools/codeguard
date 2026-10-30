@@ -60,29 +60,47 @@ type goRepoStyle struct {
 // independent per-file sum, so folding them into one loop is
 // behavior-identical to the previous three passes.
 func goRepoStyleProfile(env support.Context, target core.TargetConfig, files []string) goRepoStyle {
-	frameworkCounts := map[string]int{}
-	styleTotals := map[string]int{}
-	namingTotals := map[string]int{}
+	totals := newGoRepoStyleTotals()
 	for _, rel := range files {
 		data, err := readAITargetFile(env, target, rel)
 		if err != nil {
 			continue
 		}
-		source := string(data)
-		if framework := goTestFramework(source); framework != "" {
-			frameworkCounts[framework]++
-		}
-		for style, count := range goErrorStyleCounts(source) {
-			styleTotals[style] += count
-		}
-		for convention, count := range namingCounts(source, goDeclaredNames) {
-			namingTotals[convention] += count
-		}
+		totals.add(string(data))
 	}
+	return totals.profile()
+}
+
+// goRepoStyleTotals accumulates the per-file style signals goRepoStyleProfile
+// sums across the corpus. It is split out so the summation can be exercised
+// (and benchmarked) over in-memory sources without a scan context.
+type goRepoStyleTotals struct {
+	frameworks map[string]int
+	styles     map[string]int
+	naming     map[string]int
+}
+
+func newGoRepoStyleTotals() goRepoStyleTotals {
+	return goRepoStyleTotals{frameworks: map[string]int{}, styles: map[string]int{}, naming: map[string]int{}}
+}
+
+func (t goRepoStyleTotals) add(source string) {
+	if framework := goTestFramework(source); framework != "" {
+		t.frameworks[framework]++
+	}
+	for style, count := range goErrorStyleCounts(source) {
+		t.styles[style] += count
+	}
+	for convention, count := range namingCounts(source, goDeclaredNames) {
+		t.naming[convention] += count
+	}
+}
+
+func (t goRepoStyleTotals) profile() goRepoStyle {
 	return goRepoStyle{
-		testFramework: dominantFrameworkFromCounts(frameworkCounts),
-		errorStyle:    dominantStyleFromTotals(styleTotals),
-		naming:        dominantStyleFromTotals(namingTotals),
+		testFramework: dominantFrameworkFromCounts(t.frameworks),
+		errorStyle:    dominantStyleFromTotals(t.styles),
+		naming:        dominantStyleFromTotals(t.naming),
 	}
 }
 
