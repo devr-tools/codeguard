@@ -236,12 +236,17 @@ func collectCloneCandidates(index cloneIndex, docs []cloneDocument, threshold in
 	return flattenCloneCandidates(byPair)
 }
 
-// sortedCloneIndexKeys returns the index's window hashes in ascending order so
-// candidate collection visits them deterministically.
+// sortedCloneIndexKeys returns, in ascending order, the window hashes that
+// occur at least twice, so candidate collection visits them deterministically.
+// A hash seen once cannot pair with anything: addClonePairs returns at once
+// for it without counting a comparison, so dropping it before the sort (most
+// windows are unique) changes nothing but the sort's size.
 func sortedCloneIndexKeys(index cloneIndex) []uint64 {
-	keys := make([]uint64, 0, len(index))
-	for hash := range index {
-		keys = append(keys, hash)
+	keys := make([]uint64, 0, len(index)/4)
+	for hash, occurrences := range index {
+		if len(occurrences) >= 2 {
+			keys = append(keys, hash)
+		}
 	}
 	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 	return keys
