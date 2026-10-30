@@ -173,7 +173,10 @@ func deliveryReferenceFiles(env support.Context, target core.TargetConfig) []ciF
 	return collectCIFiles(env, target, func(rel string) bool {
 		normalized := strings.ToLower(filepath.ToSlash(rel))
 		base := strings.ToLower(filepath.Base(normalized))
+		// Composite actions resolve step `uses:` refs exactly as workflows do,
+		// so an unpinned ref there carries the same supply-chain risk.
 		return strings.HasPrefix(normalized, ".github/workflows/") ||
+			base == "action.yml" || base == "action.yaml" ||
 			strings.HasPrefix(normalized, "deploy/") ||
 			strings.HasPrefix(normalized, "deployment/") ||
 			strings.HasPrefix(normalized, "k8s/") ||
