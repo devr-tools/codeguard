@@ -96,8 +96,13 @@ func importFindings(env support.Context, file string, fset *token.FileSet, parse
 			continue
 		}
 		pos := fset.Position(imp.Pos())
-		findings = append(findings, warnFinding(env, "quality.dependency-direction", file, pos.Line, pos.Column,
-			fmt.Sprintf("package %q imports internal tree %q, which is scoped to %q and its descendants", importer, pathValue, owner)))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.dependency-direction",
+			Path:    file,
+			Line:    pos.Line,
+			Column:  pos.Column,
+			Message: fmt.Sprintf("package %q imports internal tree %q, which is scoped to %q and its descendants", importer, pathValue, owner),
+		}))
 	}
 	return findings
 }

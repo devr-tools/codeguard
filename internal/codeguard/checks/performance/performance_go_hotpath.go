@@ -52,7 +52,13 @@ func goHotPathFindings(env support.Context, file string, fset *token.FileSet, pa
 		}
 		if _, dup := seen[finding.pos.Line]; !dup {
 			seen[finding.pos.Line] = struct{}{}
-			findings = append(findings, warnFinding(env, finding.ruleID, file, finding.pos.Line, finding.pos.Column, finding.message))
+			findings = append(findings, support.NewWarnFinding(env, support.WarnFindingInput{
+				RuleID:  finding.ruleID,
+				Path:    file,
+				Line:    finding.pos.Line,
+				Column:  finding.pos.Column,
+				Message: finding.message,
+			}))
 		}
 		return true
 	})
