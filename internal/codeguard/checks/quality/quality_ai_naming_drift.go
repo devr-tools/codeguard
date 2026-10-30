@@ -23,7 +23,7 @@ var (
 	snakeCasePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$`)
 	camelCasePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[A-Z][A-Za-z0-9]*)+$`)
 
-	goFuncNamePattern        = regexp.MustCompile(`(?m)^func\s+(?:\([^)]*\)\s*)?([A-Za-z_][\w]*)\s*\(`)
+	goFuncNameAtStartPattern = regexp.MustCompile(`^func\s+(?:\([^)]*\)\s*)?([A-Za-z_][\w]*)\s*\(`)
 	pythonDefNamePattern     = regexp.MustCompile(`(?m)^[ \t]*def\s+([A-Za-z_][\w]*)\s*\(`)
 	scriptFuncNamePattern    = regexp.MustCompile(`(?m)\bfunction\s+([A-Za-z_$][\w$]*)\s*\(`)
 	scriptBindingNamePattern = regexp.MustCompile(`(?m)^[ \t]*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=`)
@@ -107,16 +107,73 @@ func namingDriftFinding(env support.Context, file string, source string, dominan
 	})}
 }
 
+// PERF: goDeclaredNames used to run (?m)^func\s+... over the whole file with
+// FindAllStringSubmatchIndex. A leading (?m)^ gives RE2 no literal prefix, so
+// the engine tried a match at every byte, and it ran over the whole Go corpus
+// in goRepoStyleProfile and again per file. A whole-file strings.Contains gate
+// would be sound but useless here, since almost every Go file holds "func".
+//
+// The gate is positional instead: (?m)^ only matches at offset 0 or directly
+// after a '\n', and the next four bytes of every match are the literal
+// "func". So only line starts that begin with "func" are tried, each with
+// goFuncNameAtStartPattern (the same expression with a plain ^, which RE2
+// evaluates at the one position it is given). Scanning resumes at the end of
+// each match, exactly as FindAll does, so a line start inside an earlier match
+// is skipped in both. Nothing in the expression looks behind its start, so an
+// anchored match at a line start is the match FindAll would report there.
 func goDeclaredNames(source string) []nameAt {
-	return extractNames(source, goFuncNamePattern)
+	var out []nameAt
+	line, counted := 1, 0
+	for pos := 0; pos < len(source); {
+		if (pos == 0 || source[pos-1] == '\n') && strings.HasPrefix(source[pos:], "func") {
+			if match := goFuncNameAtStartPattern.FindStringSubmatchIndex(source[pos:]); match != nil {
+				nameStart := pos + match[2]
+				line += strings.Count(source[counted:nameStart], "\n")
+				counted = nameStart
+				out = append(out, nameAt{name: source[nameStart : pos+match[3]], line: line})
+				pos += match[1]
+				continue
+			}
+		}
+		next := strings.IndexByte(source[pos:], '\n')
+		if next < 0 {
+			break
+		}
+		pos += next + 1
+	}
+	return out
 }
 
+// PERF: pythonDefNamePattern ((?m)^[ \t]*def), scriptFuncNamePattern
+// (\bfunction) and scriptBindingNamePattern ((?m)^[ \t]*...) all open with an
+// assertion or a class, so none has a literal prefix. Each is gated on the
+// literals every match must contain; all three are case-sensitive, so the
+// checks are byte-exact:
+//   - pythonDefNamePattern: the literal "def".
+//   - scriptFuncNamePattern: the literal "function".
+//   - scriptBindingNamePattern: the (?:const|let|var) alternation is
+//     mandatory, so every match holds one of its three branches; the gate
+//     lists all three.
+var (
+	pythonDefLiterals     = []string{"def"}
+	scriptFuncLiterals    = []string{"function"}
+	scriptBindingLiterals = []string{"const", "let", "var"}
+)
+
 func pythonDeclaredNames(source string) []nameAt {
-	return extractNames(source, pythonDefNamePattern)
+	return extractGatedNames(source, pythonDefNamePattern, pythonDefLiterals)
 }
 
 func scriptDeclaredNames(source string) []nameAt {
-	return append(extractNames(source, scriptFuncNamePattern), extractNames(source, scriptBindingNamePattern)...)
+	return append(extractGatedNames(source, scriptFuncNamePattern, scriptFuncLiterals),
+		extractGatedNames(source, scriptBindingNamePattern, scriptBindingLiterals)...)
+}
+
+func extractGatedNames(source string, pattern *regexp.Regexp, literals []string) []nameAt {
+	if !containsAny(source, literals) {
+		return nil
+	}
+	return extractNames(source, pattern)
 }
 
 func extractNames(source string, pattern *regexp.Regexp) []nameAt {
