@@ -89,6 +89,7 @@ codeguard validate -config codeguard.yaml
 codeguard doctor -config codeguard.yaml
 codeguard scan -config codeguard.yaml
 codeguard scan -config codeguard.yaml -memprofile /tmp/codeguard.heap.pprof
+codeguard scan -config codeguard.yaml -fail-on warn -min-confidence medium -quiet
 codeguard scan -config codeguard.yaml -folder ./internal/codeguard
 codeguard scan -folder ./internal/codeguard -profile startup
 codeguard scan -folder ./internal/codeguard -profile startup -set checks.quality=true -set output.format=json
@@ -109,7 +110,9 @@ By default, `codeguard` looks for `codeguard.yaml`, `codeguard.yml`, or `codegua
 
 If you point `-config` at a directory such as `.codeguard`, `codeguard` will look inside it for `codeguard.*` or `config.*` files.
 
-Long-running scans report completed sections and a 30-second heap/GOMEMLIMIT heartbeat on stderr, leaving JSON, SARIF, GitHub, and CycloneDX stdout machine-readable. Pass `-memprofile <path>` to keep a rolling Go heap profile (written at startup, every heartbeat, and completion), then inspect it with `go tool pprof <path>`. Full scans skip dependency and generated trees named `node_modules`, `vendor`, and `cdk.out` at any depth; use `exclude` for repository-specific generated paths.
+Long-running scans report completed sections and a 30-second heap/GOMEMLIMIT heartbeat on stderr, leaving JSON, SARIF, GitHub, and CycloneDX stdout machine-readable; `-quiet` turns those progress lines off. Pass `-memprofile <path>` to keep a rolling Go heap profile (written at startup, every heartbeat, and completion), then inspect it with `go tool pprof <path>`. Full scans skip dependency and generated trees named `node_modules`, `vendor`, and `cdk.out` at any depth; use `exclude` for repository-specific generated paths.
+
+`codeguard scan` exits 1 when the result fails its exit policy: `-fail-on fail` (default; any failed section), `-fail-on warn` (any warned or failed section) or `-fail-on none` (never on findings), also settable as `output.fail_on`. Invalid config, a missing target, a crashed section (`scan.section.panic`) and a failed target walk (`scan.target-walk`) exit 1 under every policy. `-min-confidence low|medium|high` maps onto `checks.min_confidence.default`. The text banner is only printed to an interactive terminal outside CI and without `NO_COLOR`. See [docs/checks.md#output](docs/checks.md#output).
 
 Use `codeguard scan -folder <path>` to scan only one folder. `-path <path>` is accepted as an alias. If no config file exists and you did not pass `-config`, folder scans use CodeGuard's built-in default config; add `-profile startup`, `-profile strict`, `-profile enterprise`, or `-profile ai-safe` to choose a default profile.
 

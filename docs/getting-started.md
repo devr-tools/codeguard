@@ -67,6 +67,28 @@ package-layering policy above is enforced until you configure it. Add
 ai-safe` to overlay a policy profile, which may also enable further sections
 (for example `enterprise` adds Supply Chain and Delivery).
 
+### CI flags and exit codes
+
+`codeguard scan` exits 0 when the scan passes its exit policy and 1 otherwise.
+Useful flags for CI:
+
+- `-fail-on fail|warn|none` (config: `output.fail_on`): `fail` (default) exits
+  1 when any section fails; `warn` also exits 1 when a section warns (strict
+  mode); `none` reports without failing on findings (rollout mode). Errors —
+  invalid config, a missing target, a crashed section (`scan.section.panic`)
+  or a failed target walk (`scan.target-walk`) — exit 1 under every policy.
+- `-min-confidence low|medium|high`: drop findings below that confidence; it
+  maps onto `checks.min_confidence.default`.
+- `-quiet`: no banner and no progress lines; findings and the summary are
+  still printed. The banner is also skipped automatically when stdout is not a
+  terminal, when `CI` is set, or when `NO_COLOR` is set.
+
+```bash
+codeguard scan -config codeguard.yaml -fail-on none -quiet      # rollout: report only
+codeguard scan -config codeguard.yaml -fail-on warn             # strict: warnings block
+codeguard scan -config codeguard.yaml -min-confidence medium    # hide low-confidence noise
+```
+
 After upgrading CodeGuard, run `codeguard waivers audit -config codeguard.yaml` to identify waiver cleanup candidates. CodeGuard stores audit snapshots with version, config fingerprint, scan scope, and matched finding fingerprints; it only marks a waiver as stale after upgrade when prior comparable evidence shows the waiver matched findings before and matches none now. JSON output is available with `-format json`.
 
 If you prefer a JSON example, start from [examples/codeguard.json](/Users/alex/Documents/GitHub/codeguard/examples/codeguard.json:1).
