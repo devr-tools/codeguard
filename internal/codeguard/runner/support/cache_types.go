@@ -26,9 +26,13 @@ type cacheFile struct {
 }
 
 type cacheEntry struct {
-	FileHash   string         `json:"file_hash"`
-	ConfigHash string         `json:"config_hash"`
-	Findings   []core.Finding `json:"findings"`
+	FileHash   string `json:"file_hash"`
+	ConfigHash string `json:"config_hash"`
+	// DepsHash digests the cross-file inputs (sibling sources, manifests,
+	// target-level state) a dependency-declaring evaluator read. Empty for
+	// evaluators that depend on the file alone, so their entries are unchanged.
+	DepsHash string         `json:"deps_hash,omitempty"`
+	Findings []core.Finding `json:"findings"`
 }
 
 // scanCacheVersion is bumped whenever the on-disk cache layout or the meaning of

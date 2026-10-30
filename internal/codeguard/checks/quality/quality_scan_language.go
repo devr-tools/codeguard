@@ -3,6 +3,8 @@ package quality
 import (
 	"context"
 	"go/ast"
+	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -35,7 +37,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 					index = buildGoPackageIndex(env, target)
 				}
 				modules := newGoModuleResolver(target.Path)
-				findings := support.ScanGoFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
+				findings := support.ScanTargetFilesWithDependencies(env, target, "quality", isGoSourcePath, goQualityDependencies(index), func(file string, data []byte) []core.Finding {
 					return goFindingsForFileWithIndex(env, file, data, index, &modules)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
@@ -114,6 +116,28 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		},
 	)
 	return languageQualityScan{findings: findings, unresolved: unresolved}
+}
+
+// goQualityDependencies declares what the Go quality evaluator reads besides
+// the scanned file: go.mod/go.work through the module resolver (import-path
+// resolution for quality.dependency-direction), and, when local precision
+// built a package-wide index, every sibling .go file in the same directory
+// (package types and variables seen by the mutation resolver).
+func goQualityDependencies(index *goPackageIndex) support.FileScanDependencies {
+	deps := support.FileScanDependencies{SharedFiles: isGoManifestPath}
+	if index != nil {
+		deps.PackageFiles = isGoSourcePath
+	}
+	return deps
+}
+
+func isGoSourcePath(rel string) bool {
+	return strings.HasSuffix(rel, ".go")
+}
+
+func isGoManifestPath(rel string) bool {
+	base := path.Base(filepath.ToSlash(rel))
+	return base == "go.mod" || base == "go.work"
 }
 
 func buildGoPackageIndex(env support.Context, target core.TargetConfig) *goPackageIndex {

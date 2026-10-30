@@ -71,6 +71,12 @@ func (facade SDKFacade) MatchesImport(importPath string) bool {
 	return false
 }
 
+// CacheKey fingerprints everything the facade matches on, for per-file cache
+// entries whose findings depend on it.
+func (facade SDKFacade) CacheKey() string {
+	return "facade|" + facade.modulePath + "|" + strings.Join(facade.prefixes, ",")
+}
+
 // SDKFacadeResolver resolves one SDKFacade per scan target. Resolution touches
 // the filesystem (go.mod plus a single directory listing), so results are
 // memoized for the life of a scan; the lock is needed because check sections

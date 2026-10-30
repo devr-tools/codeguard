@@ -13,6 +13,9 @@ type fileScanInput struct {
 	target    core.TargetConfig
 	rel       string
 	data      []byte
+	// depsHash digests the inputs beyond data that the evaluator reads; it is
+	// empty for evaluators that depend on the file alone.
+	depsHash string
 }
 
 type fileScanSpec struct {
@@ -20,6 +23,9 @@ type fileScanSpec struct {
 	include   func(string) bool
 	evaluator func(string, []byte) []core.Finding
 	parallel  bool
+	// dependencies, when set, maps a file to the digest of the cross-file
+	// inputs its findings depend on; see ScanTargetFilesWithDependencies.
+	dependencies func(rel string) string
 }
 
 const maxFileScanWorkers = 4
@@ -58,12 +64,16 @@ func scanTargetFiles(sc Context, target core.TargetConfig, spec fileScanSpec) []
 		if LooksBinary(data) {
 			return nil
 		}
-		return cachedFileFindings(sc, fileScanInput{
+		input := fileScanInput{
 			sectionID: spec.sectionID,
 			target:    target,
 			rel:       file,
 			data:      data,
-		}, func() []core.Finding {
+		}
+		if spec.dependencies != nil {
+			input.depsHash = spec.dependencies(file)
+		}
+		return cachedFileFindings(sc, input, func() []core.Finding {
 			return spec.evaluator(file, data)
 		})
 	}
@@ -167,7 +177,7 @@ func cachedFileFindings(sc Context, input fileScanInput, compute func() []core.F
 	sc.Cache.mu.Lock()
 	entry, ok := sc.Cache.entries[key]
 	sc.Cache.mu.Unlock()
-	if ok && entry.FileHash == fileHash && entry.ConfigHash == configHash {
+	if ok && entry.FileHash == fileHash && entry.ConfigHash == configHash && entry.DepsHash == input.depsHash {
 		return cloneFindings(entry.Findings)
 	}
 
@@ -177,6 +187,7 @@ func cachedFileFindings(sc Context, input fileScanInput, compute func() []core.F
 	sc.Cache.entries[key] = cacheEntry{
 		FileHash:   fileHash,
 		ConfigHash: configHash,
+		DepsHash:   input.depsHash,
 		Findings:   cloneFindings(findings),
 	}
 	sc.Cache.dirty = true

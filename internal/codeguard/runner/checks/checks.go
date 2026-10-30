@@ -238,6 +238,9 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context) checkSuppo
 		ScanTargetFiles: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFiles(sc, target, sectionID, include, evaluator)
 		},
+		ScanTargetFilesWithDependencies: func(target core.TargetConfig, sectionID string, include func(string) bool, deps checkSupport.FileScanDependencies, evaluator func(string, []byte) []core.Finding) []core.Finding {
+			return runnersupport.ScanTargetFilesWithDependencies(sc, target, sectionID, include, deps, evaluator)
+		},
 		ParseGoFile: func(path string, data []byte) (*token.FileSet, *ast.File, error) {
 			return runnersupport.ParseGoFile(sc, path, data)
 		},
