@@ -2239,8 +2239,11 @@ Supported values:
 - `json`
 - `sarif`
 - `github`
+- `github-comment`
+- `cyclonedx` (alias `cyclonedx-json`)
 
 `github` emits workflow command annotations like `::warning ...` or `::error ...`.
+`github-comment` emits a Markdown fix-suggestion summary for a pull request comment; the GitHub Action's `comment-fix-mode: sticky` uses it.
 
 Findings now carry:
 - file and line when available

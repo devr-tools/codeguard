@@ -192,10 +192,10 @@ func validateTargets(targets []core.TargetConfig) error {
 
 func validateOutput(output core.OutputConfig) error {
 	switch strings.TrimSpace(strings.ToLower(output.Format)) {
-	case "", "text", "json", "sarif", "github", "cyclonedx", "cyclonedx-json":
+	case "", "text", "json", "sarif", "github", "github-comment", "cyclonedx", "cyclonedx-json":
 		return nil
 	default:
-		return errors.New("output format must be one of text, json, sarif, github, cyclonedx")
+		return errors.New("output format must be one of text, json, sarif, github, github-comment, cyclonedx, cyclonedx-json")
 	}
 }
 

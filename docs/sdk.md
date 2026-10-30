@@ -48,7 +48,7 @@ func main() {
 - `codeguard.RunWithOptions(ctx, cfg, opts)` runs a full or diff scan.
 - `codeguard.VerifyFix(ctx, cfg, finding, candidate, opts)` validates a proposed patch in a temp workspace, reruns `codeguard` against the diff, and executes verification tests before returning it.
 - `codeguard.GenerateVerifiedFix(ctx, req)` asks a generator for a patch candidate and only returns it after the same verification flow passes.
-- `codeguard.WriteReport(w, report, format)` writes `text`, `json`, `sarif`, or `github` output.
+- `codeguard.WriteReport(w, report, format)` writes `text`, `json`, `sarif`, `github`, `github-comment`, or `cyclonedx` output.
 - `codeguard.WriteBaselineFile(path, entries)` writes a baseline file.
 - `codeguard.BaselineEntriesFromReport(report)` extracts baseline entries from a report.
 - `codeguard.Rules()` lists rule metadata for CLI-like discovery.
