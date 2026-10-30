@@ -22,6 +22,16 @@ codeguard explain quality.ai.semantic-runtime
 Use `codeguard rules` to discover what exists and `codeguard explain <rule-id>` to
 understand why a specific finding failed and what remediation path it expects.
 
+Sections can also carry diagnostics, which describe the scan itself rather than
+your code (for example `scan.file-limit` or `scan.govulncheck.*`). They are not
+rules: they have no `codeguard explain` entry and can never be waived or
+baselined. One of them is `scan.section.panic`: if a section crashes, the
+other sections still run, but that section is reported as `fail` with this
+diagnostic and no findings. Its checks did not run, so the scan exits non-zero
+whichever section it was. The JSON and SARIF reports include the recovered
+panic value (`metadata.panic`) and a short stack excerpt (`evidence`). Please
+include both when you report the bug.
+
 ## Check glossary
 
 This glossary is the quick map of every built-in check family and the main subsections users will see in reports, rule IDs, and config.

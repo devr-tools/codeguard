@@ -31,6 +31,18 @@ var knownSectionPrefixes = []string{
 	"supply_chain.", "context.", "contracts.", "data.", "delivery.",
 	"observability.", "operations.", "reliability.", "change.", "refactor.",
 	"defensive.", "error.", "function.", "naming.", "smell.", "maintainability.",
+	// checks. is the runner's own namespace. It once carried a section-panic
+	// finding built by hand with no catalog entry; that outcome is now a
+	// core.Diagnostic, and any future runner-emitted finding must be catalogued.
+	"checks.",
+}
+
+// emissionRoots are the trees whose source can construct findings: the check
+// sections themselves and the runner that wraps them (panic recovery lives
+// there, outside any section package).
+var emissionRoots = []string{
+	filepath.Join("..", "..", "internal", "codeguard", "checks"),
+	filepath.Join("..", "..", "internal", "codeguard", "runner", "checks"),
 }
 
 // TestEveryEmittedRuleIDIsInTheCatalog is the invariant that was missing when
@@ -40,11 +52,10 @@ var knownSectionPrefixes = []string{
 // Catalog-to-implementation was already enforced; this is the reverse.
 func TestEveryEmittedRuleIDIsInTheCatalog(t *testing.T) {
 	catalog := rules.Catalog()
-	root := filepath.Join("..", "..", "internal", "codeguard", "checks")
 
 	emitted := map[string][]string{}
 	diagnostics := map[string]bool{}
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+	visit := func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -72,9 +83,11 @@ func TestEveryEmittedRuleIDIsInTheCatalog(t *testing.T) {
 			emitted[id] = append(emitted[id], path)
 		}
 		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk checks tree: %v", err)
+	}
+	for _, root := range emissionRoots {
+		if err := filepath.WalkDir(root, visit); err != nil {
+			t.Fatalf("walk %s: %v", root, err)
+		}
 	}
 	if len(emitted) == 0 {
 		t.Fatal("found no rule id literals under checks/; the scan is not working")
