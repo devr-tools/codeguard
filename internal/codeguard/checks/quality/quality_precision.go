@@ -1041,8 +1041,12 @@ func sourceMutableGlobalFindings(env support.Context, file string, source string
 	if strings.HasPrefix(normalized, "bin/") || strings.Contains(normalized, "/integrations/") || strings.Contains(normalized, "integrations/") {
 		return nil
 	}
+	var moduleScope []bool
+	if isScriptLikeSourcePath(file) {
+		moduleScope = scriptSourceModuleScopeLines(source)
+	}
 	for idx, line := range strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n") {
-		if isScriptLikeSourcePath(file) && !scriptSourceLineAtModuleScope(source, idx) {
+		if moduleScope != nil && !moduleScope[idx] {
 			continue
 		}
 		trimmed := strings.TrimSpace(line)

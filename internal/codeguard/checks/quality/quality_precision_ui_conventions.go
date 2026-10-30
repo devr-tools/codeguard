@@ -281,24 +281,29 @@ func moduleStatementLooksTopLevel(statement support.ParsedStatement) bool {
 	return statement.Indent == 0
 }
 
-func scriptSourceLineAtModuleScope(source string, targetIdx int) bool {
-	// PERF: this is called once per candidate symbol and only ever reads lines
-	// up to targetIdx, so splitting the whole file into a []string each time
-	// was ~10% of a full scan's allocations. eachSourceLine walks lazily.
+// scriptSourceModuleScopeLines reports, for every line of source (split
+// exactly as strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
+// would), whether that line sits at module scope: no leading indentation and
+// a running brace depth of zero over all preceding lines. The depth counts
+// every '{' and '}' before a line's first "//" (strings, template literals
+// and block comments are deliberately not special-cased) and is clamped at
+// zero after each line.
+//
+// PERF: this used to be a per-line query that rescanned the file from the
+// top, which made sourceMutableGlobalFindings O(lines^2) and dominated scans
+// of large bundled JS files. One pass yields the same answer for every line.
+func scriptSourceModuleScopeLines(source string) []bool {
+	flags := make([]bool, 0, strings.Count(source, "\n")+1)
 	depth := 0
-	atModuleScope := true
-	eachSourceLine(source, func(idx int, line string) bool {
-		if idx == targetIdx {
-			atModuleScope = depth == 0 && len(line) == len(strings.TrimLeft(line, " \t"))
-			return false
-		}
+	eachSourceLine(source, func(_ int, line string) bool {
+		flags = append(flags, depth == 0 && len(line) == len(strings.TrimLeft(line, " \t")))
 		depth += braceDelta(maskCommentSuffix(line))
 		if depth < 0 {
 			depth = 0
 		}
 		return true
 	})
-	return atModuleScope
+	return flags
 }
 
 // eachSourceLine walks source line by line with exactly the normalization of
