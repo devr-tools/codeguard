@@ -195,6 +195,19 @@ waivers:
   # The Devin pack hosts the MCP server for a cloud client; it requires an
   # auth token (and warns without one) and its README says to front it with
   # TLS/ingress.
+  # FOLLOW-UP: the published composite action interpolates its own inputs.*
+  # straight into run: scripts and pins actions/setup-go by tag. Both are real
+  # findings (a workflow passing attacker-influenced text as an input gets
+  # shell injection in the caller's job), but action.yml has in-flight changes
+  # on another branch, so the fix (route inputs through env:, pin setup-go to
+  # a SHA) lands there. Scoped to the one file; remove these waivers with
+  # that fix.
+  - rule: ci.workflow-script-injection
+    path: action.yml
+    reason: composite action inputs interpolated into run; pending env-indirection fix tracked as follow-up
+  - rule: ci.mutable-deployment-reference
+    path: action.yml
+    reason: actions/setup-go pinned by tag in the composite action; pending SHA pin tracked as follow-up
   - rule: security.bind-all-interfaces
     path: examples/hooks/devin/**
     reason: cloud-reachable MCP HTTP server is the documented purpose of this example; auth token plus TLS ingress required
