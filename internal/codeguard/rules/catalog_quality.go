@@ -320,16 +320,7 @@ var qualityCatalog = map[string]core.RuleMetadata{
 		Description:      "Warns when function parameters hide alternate behavior behind boolean flags.",
 		HowToFix:         "Split the behavior into named functions or replace the flag with an explicit options type.",
 	},
-	"quality.mixed-abstraction-levels": {
-		ID:               "quality.mixed-abstraction-levels",
-		Section:          "Code Quality",
-		DefaultLevel:     "warn",
-		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
-		LanguageCoverage: core.FixedRuleLanguageCoverage(core.RuleLanguageGo, core.RuleLanguagePython, core.RuleLanguageTypeScript, core.RuleLanguageJavaScript, core.RuleLanguageCPP),
-		Title:            "Mixed abstraction levels",
-		Description:      "Warns when one function mixes domain orchestration with low-level infrastructure operations.",
-		HowToFix:         "Extract low-level I/O, serialization, or persistence details behind a helper or adapter.",
-	},
+
 	"quality.primitive-obsession": {
 		ID:               "quality.primitive-obsession",
 		Section:          "Code Quality",

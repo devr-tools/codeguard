@@ -1557,6 +1557,13 @@ These rules live outside the repository-wide `Change Safety` section in report o
 | Code smell history | `smell.shotgun-surgery-history` | warn | A changed file repeatedly co-changes with several partners, suggesting scattered responsibility. |
 | Code smell history | `smell.divergent-change-history` | warn | A changed file has recent commit subjects spanning several concern families. |
 
+**Retired alias:** `quality.mixed-abstraction-levels` was catalogued alongside
+`function.mixed-abstraction-level` but never emitted. It is no longer a
+separate rule. Unlike the retired performance ids, it is aliased at runtime:
+waivers, inline suppressions, and `codeguard explain` that name it act on
+`function.mixed-abstraction-level`, and `codeguard doctor` suggests updating
+the id.
+
 Deeper `maintainability.*` deltas remain follow-on roadmap unless they appear in
 `codeguard rules` for the active build.
 

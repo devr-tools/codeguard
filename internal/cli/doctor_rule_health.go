@@ -43,6 +43,10 @@ func waiverDoctorChecks(cfg service.Config, today time.Time) []doctorCheck {
 }
 
 func waiverHealthCheck(waiver service.WaiverConfig, catalog map[string]bool, today time.Time) (doctorCheck, bool) {
+	if canonical, aliased := rules.RuleAliases()[waiver.Rule]; aliased && catalog[canonical] {
+		return warnDoctorCheck("waiver:"+waiver.Rule,
+			fmt.Sprintf("rule id is a retired alias for %s; the waiver still applies, but update its rule id", canonical)), true
+	}
 	if waiver.Rule != "*" && !catalog[waiver.Rule] {
 		if renamed, retired := rules.RetiredPerformanceRuleIDs()[waiver.Rule]; retired {
 			return warnDoctorCheck("waiver:"+waiver.Rule,

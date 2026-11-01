@@ -18,14 +18,28 @@ func RuleListForConfig(cfg core.Config) []core.RuleMetadata {
 }
 
 func ExplainRule(ruleID string) (core.RuleMetadata, bool) {
-	meta, ok := rulespkg.Catalog()[strings.TrimSpace(ruleID)]
+	meta, ok := rulespkg.Catalog()[rulespkg.ResolveRuleAlias(ruleID)]
 	return meta, ok
 }
 
 func ExplainRuleForConfig(cfg core.Config, ruleID string) (core.RuleMetadata, bool) {
 	ApplyDefaults(&cfg)
-	meta, ok := RuleCatalogForConfig(cfg)[strings.TrimSpace(ruleID)]
+	meta, ok := RuleCatalogForConfig(cfg)[resolveRuleIDForConfig(cfg, ruleID)]
 	return meta, ok
+}
+
+// resolveRuleIDForConfig resolves a built-in rule alias unless a rule pack
+// defines a custom rule with that exact id, which then takes precedence.
+func resolveRuleIDForConfig(cfg core.Config, ruleID string) string {
+	trimmed := strings.TrimSpace(ruleID)
+	for _, pack := range cfg.RulePacks {
+		for _, rule := range pack.Rules {
+			if rule.ID == trimmed {
+				return trimmed
+			}
+		}
+	}
+	return rulespkg.ResolveRuleAlias(trimmed)
 }
 
 func RuleCatalogForConfig(cfg core.Config) map[string]core.RuleMetadata {
