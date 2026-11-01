@@ -67,22 +67,18 @@ type cppReliabilityScan struct {
 
 func (s *cppReliabilityScan) consumeLine(lineNo int, line string) {
 	startsLoop := cppLoopStart.MatchString(line)
-	inLoop := len(s.loops) > 0 || startsLoop
-	inUnboundedLoop := len(s.unboundedLoops) > 0 || cppUnboundedLoop.MatchString(line)
-	inCatch := s.catchDepth >= 0 || cppCatchStart.MatchString(line)
-	s.checkLine(lineNo, line, inLoop, inUnboundedLoop)
-	if enabled(s.rules.DetectLostErrorContext) && inCatch && cppLostContextThrow.MatchString(line) && !strings.Contains(line, "what()") {
-		s.add("reliability.lost-error-context", "warn", lineNo, "catch block replaces the original exception without preserving diagnostic context", "medium", "error", "throw-runtime-error")
+	scope := lineScope{
+		inLoop:          len(s.loops) > 0 || startsLoop,
+		inUnboundedLoop: len(s.unboundedLoops) > 0 || cppUnboundedLoop.MatchString(line),
+		inHandler:       s.catchDepth >= 0 || cppCatchStart.MatchString(line),
 	}
-	if enabled(s.rules.DetectSwallowedError) && inCatch && cppSwallowedCatch.MatchString(line) {
-		s.add("reliability.swallowed-error", "fail", lineNo, "catch block exits without surfacing or preserving the caught exception", "high", "error", "catch-swallowed")
+	s.checkLine(lineNo, line, scope)
+	if scope.inHandler {
+		s.checkCatchLine(lineNo, line)
 	}
 	next := s.depth + strings.Count(line, "{") - strings.Count(line, "}")
 	if cppCatchStart.MatchString(line) {
-		s.catchDepth = next - 1
-		if s.catchDepth < 0 {
-			s.catchDepth = 0
-		}
+		s.catchDepth = max(next-1, 0)
 	}
 	if startsLoop && next > s.depth {
 		s.loops = append(s.loops, s.depth)
@@ -90,39 +86,40 @@ func (s *cppReliabilityScan) consumeLine(lineNo int, line string) {
 			s.unboundedLoops = append(s.unboundedLoops, s.depth)
 		}
 	}
-	for len(s.loops) > 0 && next <= s.loops[len(s.loops)-1] {
-		s.loops = s.loops[:len(s.loops)-1]
-	}
-	for len(s.unboundedLoops) > 0 && next <= s.unboundedLoops[len(s.unboundedLoops)-1] {
-		s.unboundedLoops = s.unboundedLoops[:len(s.unboundedLoops)-1]
-	}
+	s.loops = popBlockRegions(s.loops, next)
+	s.unboundedLoops = popBlockRegions(s.unboundedLoops, next)
 	if s.catchDepth >= 0 && next <= s.catchDepth {
 		s.catchDepth = -1
 	}
 	s.depth = next
 }
 
-func (s *cppReliabilityScan) checkLine(lineNo int, line string, inLoop bool, inUnboundedLoop bool) {
+// checkCatchLine reports catch blocks that rethrow without the original
+// exception's context or exit without surfacing it.
+func (s *cppReliabilityScan) checkCatchLine(lineNo int, line string) {
+	if enabled(s.rules.DetectLostErrorContext) && cppLostContextThrow.MatchString(line) && !strings.Contains(line, "what()") {
+		s.add("reliability.lost-error-context", "warn", lineNo, "catch block replaces the original exception without preserving diagnostic context", "medium", "error", "throw-runtime-error")
+	}
+	if enabled(s.rules.DetectSwallowedError) && cppSwallowedCatch.MatchString(line) {
+		s.add("reliability.swallowed-error", "fail", lineNo, "catch block exits without surfacing or preserving the caught exception", "high", "error", "catch-swallowed")
+	}
+}
+
+var cppRetryPatterns = retryPatterns{
+	language:      "C++",
+	retry:         cppRetryHint.MatchString,
+	backoff:       cppBackoffHint.MatchString,
+	nonIdempotent: cppNonIdempotent.MatchString,
+	idempotent:    cppIdempotency.MatchString,
+}
+
+func (s *cppReliabilityScan) checkLine(lineNo int, line string, scope lineScope) {
 	if enabled(s.rules.DetectMissingTimeout) && cppOutboundCall.MatchString(line) && !strings.Contains(strings.ToLower(line), "timeout") && !strings.Contains(strings.ToLower(line), "deadline") {
 		s.add("reliability.missing-timeout", "fail", lineNo, "outbound C++ dependency call has no visible timeout or deadline", "medium", "call", "dependency-without-timeout")
 	}
-	if enabled(s.rules.DetectRetryWithoutBackoff) && inLoop && cppRetryHint.MatchString(line) && !cppBackoffHint.MatchString(line) {
-		s.add("reliability.retry-without-backoff", "warn", lineNo, "retry-like C++ loop has no visible backoff or jitter", "medium", "retry", "no-backoff")
-	}
-	if enabled(s.rules.DetectUnboundedRetry) && inUnboundedLoop && cppRetryHint.MatchString(line) {
-		s.add("reliability.unbounded-retry", "fail", lineNo, "retry-like C++ loop can run forever without an attempt limit", "medium", "retry", "while-true")
-	}
-	if enabled(s.rules.DetectNonIdempotentRetry) && inLoop && cppNonIdempotent.MatchString(line) && !cppIdempotency.MatchString(line) {
-		s.add("reliability.non-idempotent-retry", "fail", lineNo, "retry-like C++ loop wraps a non-idempotent side effect without idempotency evidence", "medium", "retry", "side-effect")
-	}
-	if enabled(s.rules.DetectUnboundedWork) && inLoop && !s.limited && cppThreadLaunch.MatchString(line) {
-		s.add("reliability.unbounded-work", "warn", lineNo, "C++ thread/task is launched inside a loop without a visible concurrency bound", "high", "work", "thread-in-loop")
-	}
+	cppRetryPatterns.check(s.rules, lineNo, line, scope, s.add)
 	if cppThreadLaunch.MatchString(line) {
-		s.threadLines = append(s.threadLines, lineNo)
-		if enabled(s.rules.DetectMissingCancellation) && !s.cancellable {
-			s.add("reliability.missing-cancellation", "warn", lineNo, "C++ async work starts without visible stop_token, deadline, or cancellation propagation", "medium", "context", "cpp-async-work")
-		}
+		s.checkThreadLaunch(lineNo, scope)
 	}
 	if enabled(s.rules.DetectMissingGracefulShutdown) && cppServerStart.MatchString(line) && !s.hasShutdown {
 		s.add("reliability.missing-graceful-shutdown", "warn", lineNo, "C++ service starts without visible signal handling, stop, drain, or graceful shutdown path", "medium", "server", "cpp-server-start")
@@ -132,6 +129,18 @@ func (s *cppReliabilityScan) checkLine(lineNo int, line string, inLoop bool, inU
 	}
 	if enabled(s.rules.DetectResourceLeak) {
 		s.trackRawNew(lineNo, line)
+	}
+}
+
+// checkThreadLaunch records a thread/task launch and reports unbounded or
+// uncancellable launches.
+func (s *cppReliabilityScan) checkThreadLaunch(lineNo int, scope lineScope) {
+	if enabled(s.rules.DetectUnboundedWork) && scope.inLoop && !s.limited {
+		s.add("reliability.unbounded-work", "warn", lineNo, "C++ thread/task is launched inside a loop without a visible concurrency bound", "high", "work", "thread-in-loop")
+	}
+	s.threadLines = append(s.threadLines, lineNo)
+	if enabled(s.rules.DetectMissingCancellation) && !s.cancellable {
+		s.add("reliability.missing-cancellation", "warn", lineNo, "C++ async work starts without visible stop_token, deadline, or cancellation propagation", "medium", "context", "cpp-async-work")
 	}
 }
 

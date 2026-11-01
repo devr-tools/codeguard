@@ -68,63 +68,75 @@ func (s *pythonReliabilityScan) consumeLine(lineNo int, line string) {
 	indent := leadingIndentWidth(line)
 	s.loops = popPythonLoopRegions(s.loops, indent)
 	s.excepts = popIndentedRegions(s.excepts, indent)
-	inLoop := len(s.loops) > 0
-	inUnboundedLoop := inUnboundedPythonLoop(s.loops)
-	inExcept := len(s.excepts) > 0
+	scope := lineScope{inLoop: len(s.loops) > 0, inUnboundedLoop: inUnboundedPythonLoop(s.loops), inHandler: len(s.excepts) > 0}
 	if pyRetryLoop.MatchString(line) {
 		s.loops = append(s.loops, pythonLoopRegion{indent: indent, unbounded: strings.HasPrefix(trimmed, "while True")})
-		inLoop = true
-		inUnboundedLoop = strings.HasPrefix(trimmed, "while True") || inUnboundedLoop
+		scope.inLoop = true
+		scope.inUnboundedLoop = strings.HasPrefix(trimmed, "while True") || scope.inUnboundedLoop
 	}
 	if strings.HasPrefix(trimmed, "except ") || strings.HasPrefix(trimmed, "except:") {
 		s.excepts = append(s.excepts, indent)
-		inExcept = true
+		scope.inHandler = true
 	}
-	s.checkLine(lineNo, line, trimmed, inLoop, inUnboundedLoop, inExcept)
+	s.checkLine(lineNo, line, trimmed, scope)
 }
 
-func (s *pythonReliabilityScan) checkLine(lineNo int, line string, trimmed string, inLoop bool, inUnboundedLoop bool, inExcept bool) {
+var pythonRetryPatterns = retryPatterns{
+	language:      "Python",
+	retry:         looksRetryish,
+	backoff:       pyBackoffHint.MatchString,
+	nonIdempotent: pyNonIdempotentRetryCall.MatchString,
+	idempotent:    pyIdempotencyHint.MatchString,
+}
+
+func (s *pythonReliabilityScan) checkLine(lineNo int, line string, trimmed string, scope lineScope) {
 	if enabled(s.rules.DetectMissingTimeout) && (pyHTTPCall.MatchString(line) || pyAioHTTPCall.MatchString(line)) && !strings.Contains(line, "timeout=") {
 		s.add("reliability.missing-timeout", "fail", lineNo, "outbound Python HTTP call has no timeout argument", "high", "call", "http-without-timeout")
 	}
-	if enabled(s.rules.DetectRetryWithoutBackoff) && inLoop && looksRetryish(line) && !pyBackoffHint.MatchString(line) {
-		s.add("reliability.retry-without-backoff", "warn", lineNo, "retry-like Python loop has no visible backoff or jitter", "medium", "retry", "no-backoff")
-	}
-	if enabled(s.rules.DetectUnboundedRetry) && inUnboundedLoop && looksRetryish(line) {
-		s.add("reliability.unbounded-retry", "fail", lineNo, "retry-like Python loop can run forever without an attempt limit", "medium", "retry", "while-true")
-	}
-	if enabled(s.rules.DetectNonIdempotentRetry) && inLoop && pyNonIdempotentRetryCall.MatchString(line) && !pyIdempotencyHint.MatchString(line) {
-		s.add("reliability.non-idempotent-retry", "fail", lineNo, "retry-like Python loop wraps a non-idempotent side effect without idempotency evidence", "medium", "retry", "side-effect")
-	}
-	if enabled(s.rules.DetectUnboundedWork) && pyTaskCreate.MatchString(line) && !s.limited {
-		detail := "asyncio-task"
-		message := "asyncio task is created without an obvious concurrency bound"
-		if inLoop {
-			detail = "asyncio-task-in-loop"
-			message = "asyncio task is created inside a loop without an obvious concurrency bound"
-		}
-		s.add("reliability.unbounded-work", "warn", lineNo, message, "high", "work", detail)
-	}
+	pythonRetryPatterns.check(s.rules, lineNo, line, scope, s.add)
 	if pyTaskCreate.MatchString(line) {
-		s.taskLines = append(s.taskLines, lineNo)
-		if enabled(s.rules.DetectMissingCancellation) && !s.cancellable {
-			s.add("reliability.missing-cancellation", "warn", lineNo, "asyncio task is detached without visible cancellation, timeout, or shutdown propagation", "medium", "context", "detached-asyncio-task")
-		}
+		s.checkTaskCreation(lineNo, scope)
 	}
 	if enabled(s.rules.DetectMissingGracefulShutdown) && pyServerStart.MatchString(line) && !s.hasShutdown {
 		s.add("reliability.missing-graceful-shutdown", "warn", lineNo, "Python server or event loop starts without visible signal handling or graceful shutdown", "medium", "server", "python-server-start")
 	}
-	if enabled(s.rules.DetectSwallowedError) && inExcept && pySwallowedExcept.MatchString(trimmed) {
-		s.add("reliability.swallowed-error", "fail", lineNo, "exception handler swallows the error without reporting or returning it", "high", "error", "except-swallowed")
-	}
-	if enabled(s.rules.DetectLostErrorContext) && inExcept && pyLostContextRaise.MatchString(trimmed) && !strings.Contains(trimmed, " from ") {
-		s.add("reliability.lost-error-context", "warn", lineNo, "exception handler replaces the original exception without chaining it with 'from'", "medium", "error", "raise-without-cause")
+	if scope.inHandler {
+		s.checkExceptHandlerLine(lineNo, trimmed)
 	}
 	if enabled(s.rules.DetectRecoverablePanic) && pyRecoverableRaise.MatchString(line) {
 		s.add("reliability.recoverable-panic", "fail", lineNo, "production code raises a generic exception for a recoverable failure path", "medium", "exception", "generic-raise")
 	}
 	if enabled(s.rules.DetectResourceLeak) {
 		s.trackResourceLeak(lineNo, line)
+	}
+}
+
+// checkTaskCreation records an asyncio task and reports unbounded or
+// uncancellable task creation.
+func (s *pythonReliabilityScan) checkTaskCreation(lineNo int, scope lineScope) {
+	if enabled(s.rules.DetectUnboundedWork) && !s.limited {
+		detail := "asyncio-task"
+		message := "asyncio task is created without an obvious concurrency bound"
+		if scope.inLoop {
+			detail = "asyncio-task-in-loop"
+			message = "asyncio task is created inside a loop without an obvious concurrency bound"
+		}
+		s.add("reliability.unbounded-work", "warn", lineNo, message, "high", "work", detail)
+	}
+	s.taskLines = append(s.taskLines, lineNo)
+	if enabled(s.rules.DetectMissingCancellation) && !s.cancellable {
+		s.add("reliability.missing-cancellation", "warn", lineNo, "asyncio task is detached without visible cancellation, timeout, or shutdown propagation", "medium", "context", "detached-asyncio-task")
+	}
+}
+
+// checkExceptHandlerLine reports swallowed exceptions and re-raises that
+// drop the original exception inside an except block.
+func (s *pythonReliabilityScan) checkExceptHandlerLine(lineNo int, trimmed string) {
+	if enabled(s.rules.DetectSwallowedError) && pySwallowedExcept.MatchString(trimmed) {
+		s.add("reliability.swallowed-error", "fail", lineNo, "exception handler swallows the error without reporting or returning it", "high", "error", "except-swallowed")
+	}
+	if enabled(s.rules.DetectLostErrorContext) && pyLostContextRaise.MatchString(trimmed) && !strings.Contains(trimmed, " from ") {
+		s.add("reliability.lost-error-context", "warn", lineNo, "exception handler replaces the original exception without chaining it with 'from'", "medium", "error", "raise-without-cause")
 	}
 }
 
