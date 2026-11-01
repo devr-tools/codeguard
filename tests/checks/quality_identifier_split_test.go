@@ -84,7 +84,10 @@ func TestSplitIdentifierWordsMatchesRegexOracle(t *testing.T) {
 	agrees := func(name string) bool {
 		return equalWords(quality.SplitIdentifierWordsForTest(name), referenceSplit(name))
 	}
-	if err := quick.Check(agrees, &quick.Config{MaxCount: 50000}); err != nil {
+	// The property check runs unconditionally; only the failure report is
+	// conditional on its result.
+	err := quick.Check(agrees, &quick.Config{MaxCount: 50000})
+	if err != nil {
 		t.Errorf("byte scan disagrees with the regex oracle: %v", err)
 	}
 }

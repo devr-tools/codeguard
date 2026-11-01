@@ -149,14 +149,14 @@ type Payload struct {
 func CurrentPayload(input Payload) string { `+tc.body+` }
 `)
 			report := runQualityPrecisionScan(t, qualityPrecisionConfig(dir))
-			if !tc.finding {
+			if tc.finding {
+				finding := findFinding(t, report, "Code Quality", "function.hidden-mutation")
+				if finding.Metadata["mutation_target"] != "argument" || finding.Metadata["origin"] != "caller_owned" {
+					t.Fatalf("metadata = %v, want argument/caller-owned evidence", finding.Metadata)
+				}
+			} else {
 				assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
 				assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
-				return
-			}
-			finding := findFinding(t, report, "Code Quality", "function.hidden-mutation")
-			if finding.Metadata["mutation_target"] != "argument" || finding.Metadata["origin"] != "caller_owned" {
-				t.Fatalf("metadata = %v, want argument/caller-owned evidence", finding.Metadata)
 			}
 		})
 	}
@@ -183,14 +183,14 @@ int current() { shared.value++; return shared.value; }`, finding: true, target: 
 			dir := t.TempDir()
 			writeFile(t, filepath.Join(dir, "origin.cpp"), tc.source)
 			report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "cpp"))
-			if !tc.finding {
+			if tc.finding {
+				finding := findFinding(t, report, "Code Quality", "function.hidden-mutation")
+				if finding.Metadata["mutation_target"] != tc.target || finding.Metadata["origin"] != tc.origin {
+					t.Fatalf("metadata = %v, want target=%q origin=%q", finding.Metadata, tc.target, tc.origin)
+				}
+			} else {
 				assertFindingRuleAbsent(t, report, "Code Quality", "function.hidden-mutation")
 				assertFindingRuleAbsent(t, report, "Code Quality", "function.command-query-mix")
-				return
-			}
-			finding := findFinding(t, report, "Code Quality", "function.hidden-mutation")
-			if finding.Metadata["mutation_target"] != tc.target || finding.Metadata["origin"] != tc.origin {
-				t.Fatalf("metadata = %v, want target=%q origin=%q", finding.Metadata, tc.target, tc.origin)
 			}
 		})
 	}
