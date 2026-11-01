@@ -100,6 +100,79 @@ capabilities and negotiates protocol versions `2025-11-25` (current) and
   explanation).
 - Prompts: `review-diff`, `triage-findings`, `explain-rule`.
 
+### Filtering and paginating findings
+
+`scan` and `validate_patch` do not return the raw report: on a real repository
+that is thousands of findings, which floods an agent's context window. They
+return a summary-first payload instead.
+
+Optional inputs (all tools that return findings):
+
+| Input | Type | Meaning |
+|---|---|---|
+| `sections` | string[] | Only findings from these section ids (`security`, `quality`, `prompts`, ...). Unknown ids are rejected. |
+| `rules` | string[] | Rule ids. An entry ending in `.` or `*` is a prefix (`security.`, `prompts.secret*`); anything else is exact. |
+| `min_level` | `warn` \| `fail` | Drop findings below this level. |
+| `min_confidence` | `low` \| `medium` \| `high` | Sets `checks.min_confidence.default` before the scan, exactly like the CLI `-min-confidence` flag (per-section overrides still apply, and section status reflects it). Unspecified confidence counts as medium. |
+| `paths` | string[] | Path globs: `*` within a segment, `**` across segments (`internal/**`, `cmd/*/main.go`). Findings without a path never match. |
+| `max_findings` | integer | Page size, default `50`, capped at `500`. `0` returns only the summary (plus a cursor). |
+| `cursor` | string | `next_cursor` from a previous call. |
+| `verbose` | boolean | Add `title`, `severity`, `why`, `column`, `fingerprint`, and `metadata` per finding, non-operational diagnostics, and report artifacts. |
+
+`scan` additionally accepts `changed_only: true`, which runs diff mode against
+`base_ref` (default `main`; the working tree is compared, so uncommitted edits
+count). It is equivalent to `mode: "diff"` and is rejected together with
+`mode: "full"`. `validate_patch` takes `diff` (required unless `cursor` is set).
+
+Response (`structuredContent`; the text content carries the same JSON):
+
+```json
+{
+  "name": "my-repo",
+  "scan_id": "9ff5f7ebf68e0a766b35470e3548b0db",
+  "summary": {
+    "passed_sections": 0, "warned_sections": 1, "failed_sections": 1,
+    "total_findings": 14, "suppressed_findings": 0,
+    "matched_findings": 14, "returned_findings": 3,
+    "filtered_out": {"total": 0, "sections": 0, "rules": 0, "min_level": 0, "paths": 0, "min_confidence": 0},
+    "top_rules": [{"rule_id": "prompts.secret-interpolation", "level": "fail", "count": 7}],
+    "sections": [{"id": "prompts", "name": "AI Prompts", "status": "fail", "findings": 13, "matched": 13}]
+  },
+  "findings": [
+    {"rule_id": "prompts.secret-interpolation", "level": "fail", "confidence": "medium", "section": "prompts",
+     "location": "other/x.prompt:1", "path": "other/x.prompt", "line": 1,
+     "message": "prompt contains secret interpolation pattern",
+     "how_to_fix": "Remove secret placeholders from prompt assets and inject secrets outside the prompt text."}
+  ],
+  "offset": 0,
+  "truncated": true,
+  "next_cursor": "eyJ2IjoxLCJz...",
+  "filters": {"max_findings": 3}
+}
+```
+
+- `total_findings` is the report total; `matched_findings` is what survived the
+  filters. `filtered_out.sections|rules|min_level|paths` count findings the
+  filters removed (each attributed to the first filter it failed), and
+  `filtered_out.min_confidence` counts findings the confidence policy dropped
+  during the scan (these are not part of `total_findings`).
+- Findings are ordered by level (fail first), then confidence (high first),
+  then path, line, and rule id, so the order is deterministic.
+- Operational diagnostics (a crashed check, an unwalkable target) are always
+  listed under their section, because they mean the section is incomplete.
+- **Pagination.** The server keeps the last 8 reports in memory for 30 minutes.
+  A cursor pages through the exact report it was issued for — no re-scan, so
+  pages never overlap or skip findings even if the tree changes. Pass the same
+  `sections`, `rules`, `min_level`, `min_confidence`, and `paths` with the
+  cursor (a mismatch is an error); `max_findings` and `verbose` may change
+  between pages, and scan-shaping inputs (`config_path`, `mode`, ...) are
+  ignored. An expired cursor returns an error asking you to re-run the call.
+- **Compatibility.** A call without the new inputs still works but returns the
+  summary plus the first 50 findings, not the full report; check `truncated`.
+  Clients that need every finding follow `next_cursor` (or pass
+  `max_findings: 500` per page); the CLI `codeguard scan -format json` still
+  emits the full report.
+
 ### Verified auto-fix
 
 - `verify_fix` takes a caller-supplied candidate `diff` plus the `finding` it
