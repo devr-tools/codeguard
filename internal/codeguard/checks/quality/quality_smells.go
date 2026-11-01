@@ -516,34 +516,47 @@ func delegatedTarget(body string) string {
 }
 
 func messageChainFindings(env support.Context, file string, source string, language string) []core.Finding {
-	if isScriptLikeSourcePath(file) && isLikelyUIFile(file) {
-		return nil
-	}
-	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
-	if strings.HasPrefix(normalized, "infra/") || strings.Contains(normalized, "/integrations/") || strings.Contains(normalized, "integrations/") {
-		return nil
-	}
-	if (language == "typescript" || language == "javascript") &&
-		!strings.Contains(maskForStructuralLanguage(source, language), "class ") &&
-		!isDomainSourcePathForMessageChains(file) {
-		return nil
-	}
-	if isStructuralTraversalUtilityPath(file) {
+	if messageChainScanExcluded(file, source, language) {
 		return nil
 	}
 	masked := maskForStructuralLanguage(source, language)
 	for idx, line := range strings.Split(masked, "\n") {
 		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "import ") || strings.HasPrefix(trimmed, "#include") || strings.HasPrefix(trimmed, "package ") {
-			continue
-		}
-		if independentlyOwnedMessageChain(trimmed) && !looksLikeAllowedFluentChain(trimmed) && !looksLikeAllowedTraversalChain(trimmed) {
+		if messageChainCandidate(trimmed) {
 			return []core.Finding{precisionWarnFinding(env, smellMessageChainRuleID, file, idx+1,
 				"long message chain reaches through several collaborators; introduce a named query/helper at the boundary",
 				core.ConfidenceMedium)}
 		}
 	}
 	return nil
+}
+
+// messageChainScanExcluded skips UI scripts, infrastructure and integration
+// code, class-free non-domain TypeScript/JavaScript, and traversal utilities.
+func messageChainScanExcluded(file string, source string, language string) bool {
+	if isScriptLikeSourcePath(file) && isLikelyUIFile(file) {
+		return true
+	}
+	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
+	if strings.HasPrefix(normalized, "infra/") || strings.Contains(normalized, "/integrations/") || strings.Contains(normalized, "integrations/") {
+		return true
+	}
+	if (language == "typescript" || language == "javascript") &&
+		!strings.Contains(maskForStructuralLanguage(source, language), "class ") &&
+		!isDomainSourcePathForMessageChains(file) {
+		return true
+	}
+	return isStructuralTraversalUtilityPath(file)
+}
+
+// messageChainCandidate reports a non-import line holding a chain through
+// independently owned collaborators that is not an allowed fluent or
+// traversal chain.
+func messageChainCandidate(trimmed string) bool {
+	if trimmed == "" || strings.HasPrefix(trimmed, "import ") || strings.HasPrefix(trimmed, "#include") || strings.HasPrefix(trimmed, "package ") {
+		return false
+	}
+	return independentlyOwnedMessageChain(trimmed) && !looksLikeAllowedFluentChain(trimmed) && !looksLikeAllowedTraversalChain(trimmed)
 }
 
 func independentlyOwnedMessageChain(line string) bool {
@@ -701,9 +714,7 @@ func normalizedParamConcept(name string) string {
 }
 
 func switchOnTypeFindings(env support.Context, file string, source string, language string) []core.Finding {
-	if isQualityFixturePath(file) || isSeedOrScriptSourcePath(file) || isLikelyUIFile(file) ||
-		isFrontendLibraryPath(file) || isPackageAPIRouterPath(file) ||
-		strings.Contains(strings.ToLower(file), "/integrations/") || strings.Contains(strings.ToLower(file), "integrations/") {
+	if switchOnTypeExcludedPath(file) {
 		return nil
 	}
 	masked := maskForStructuralLanguage(source, language)
@@ -714,17 +725,7 @@ func switchOnTypeFindings(env support.Context, file string, source string, langu
 		return nil
 	}
 	typeBranches := len(typeBranchPattern.FindAllStringIndex(masked, -1))
-	kindBranches := 0
-	switch language {
-	case "go":
-		kindBranches = len(goKindSwitchPattern.FindAllStringIndex(masked, -1))
-	case "python":
-		kindBranches = len(pythonKindBranchPattern.FindAllStringIndex(masked, -1))
-	case "cpp":
-		kindBranches = len(cppKindSwitchPattern.FindAllStringIndex(masked, -1))
-	default:
-		kindBranches = len(scriptKindSwitchPattern.FindAllStringIndex(masked, -1))
-	}
+	kindBranches := kindBranchCount(masked, language)
 	caseBranches := strings.Count(masked, "case ")
 	total := typeBranches + kindBranches
 	if kindBranches == 0 && caseBranches == 0 {
@@ -736,6 +737,29 @@ func switchOnTypeFindings(env support.Context, file string, source string, langu
 			core.ConfidenceMedium)}
 	}
 	return nil
+}
+
+// switchOnTypeExcludedPath skips fixtures, scripts, UI and frontend
+// libraries, API routers, and integrations, where kind dispatch is expected.
+func switchOnTypeExcludedPath(file string) bool {
+	lowered := strings.ToLower(file)
+	return isQualityFixturePath(file) || isSeedOrScriptSourcePath(file) || isLikelyUIFile(file) ||
+		isFrontendLibraryPath(file) || isPackageAPIRouterPath(file) ||
+		strings.Contains(lowered, "/integrations/") || strings.Contains(lowered, "integrations/")
+}
+
+// kindBranchCount counts the language's kind/discriminator switch sites.
+func kindBranchCount(masked string, language string) int {
+	switch language {
+	case "go":
+		return len(goKindSwitchPattern.FindAllStringIndex(masked, -1))
+	case "python":
+		return len(pythonKindBranchPattern.FindAllStringIndex(masked, -1))
+	case "cpp":
+		return len(cppKindSwitchPattern.FindAllStringIndex(masked, -1))
+	default:
+		return len(scriptKindSwitchPattern.FindAllStringIndex(masked, -1))
+	}
 }
 
 func closedDomainDiscriminatorDispatch(source string) bool {

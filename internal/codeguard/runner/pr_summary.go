@@ -37,19 +37,19 @@ func productionRiskMetric(cfg core.ProductionRiskConfig, sections []core.Section
 			weight := 0
 			switch {
 			case strings.HasPrefix(finding.RuleID, "reliability."):
-				weight += cfg.ReliabilityWeight
+				weight += core.IntValue(cfg.ReliabilityWeight)
 			case strings.HasPrefix(finding.RuleID, "data."):
-				weight += cfg.DataWeight
+				weight += core.IntValue(cfg.DataWeight)
 			case finding.RuleID == "contracts.non-expand-contract-migration":
-				weight += cfg.DataWeight
+				weight += core.IntValue(cfg.DataWeight)
 			default:
 				continue
 			}
 			switch strings.ToLower(finding.Level) {
 			case "fail", "error":
-				weight += cfg.FailWeight
+				weight += core.IntValue(cfg.FailWeight)
 			case "warn", "warning":
-				weight += cfg.WarnWeight
+				weight += core.IntValue(cfg.WarnWeight)
 			}
 			label := productionRiskLabel(finding)
 			component := componentsByLabel[label]

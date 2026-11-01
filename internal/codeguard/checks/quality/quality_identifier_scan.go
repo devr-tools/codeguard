@@ -1,10 +1,13 @@
 package quality
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
+
+var identifierTokenPattern = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
 
 // sourceIdentifiers memoizes one file's identifier scan across the naming
 // detectors. It is per-call state, never shared between goroutines.

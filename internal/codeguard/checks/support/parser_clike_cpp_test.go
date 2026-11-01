@@ -111,8 +111,10 @@ func TestCppParserDistinguishesPointerAndThisCaptureShapes(t *testing.T) {
 	}
 }
 
-func TestCppParserDoesNotTreatIfConstexprRequiresAsFunction(t *testing.T) {
-	parsed := ParseCLike(`
+// ifConstexprRequiresSource lives outside the test body: its fixture line
+// `if constexpr (requires(...))` reads, to the line-based
+// ci.conditional-assertion rule, like a require-style assertion inside an if.
+const ifConstexprRequiresSource = `
 struct Awaiter {
   State state;
   template <typename Promise>
@@ -124,7 +126,10 @@ struct Awaiter {
     return !state.completed;
   }
 };
-`, CLikeCPP)
+`
+
+func TestCppParserDoesNotTreatIfConstexprRequiresAsFunction(t *testing.T) {
+	parsed := ParseCLike(ifConstexprRequiresSource, CLikeCPP)
 	for _, function := range parsed.AllFunctions() {
 		if function.Name == "constexpr" {
 			t.Fatalf("if constexpr requires-expression became a function: %#v", function)

@@ -563,6 +563,48 @@ Current inference behavior:
 - rules with language prefixes such as `quality.typescript.*`, `quality.javascript.*`, `security.python.*`, `security.javascript.*`, `design.typescript.*`, or `design.python.*` automatically resolve to fixed coverage for that language
 - custom rule-pack metadata defaults to `execution_model: language-agnostic` and `language_coverage: configurable`
 
+### Rule and configuration reference
+
+- [Rule index](rule-index.md) lists every catalog rule by section, with its default level and a one-line summary.
+- [Configuration key reference](config-reference.md) documents keys that are not covered in the section prose below, with their defaults, and lists which numeric keys accept an explicit `0`.
+
+### Exploring rules
+
+`codeguard rules` lists the catalog. With no flags its output is the full,
+tab-separated list. Filters combine:
+
+```bash
+codeguard rules -section prompts            # section id (quality, security, supply_chain, ...) or display name
+codeguard rules -search "source-to-sink"    # case-insensitive match on id, title, and description
+codeguard rules -level fail                 # default level: fail or warn
+codeguard rules -enabled                    # only rules the resolved config/profile runs
+codeguard rules -enabled -profile strict -format json
+```
+
+`codeguard explain <rule-id>` prints:
+
+- title, section, level, confidence, the reason the rule exists ("why"), and
+  how to fix it
+- a bad and a good example for the most commonly reported rules, every
+  security taint rule, every `prompts.*` rule, and the `ci.workflow-*` rules.
+  Every bad example is verified by the test suite to trigger the rule, and
+  every good example not to. An example that needs a lowered threshold to
+  stay short lists the `scan -set` override that reproduces it.
+- the config keys that control the rule (`checks.<section>` plus any
+  rule-level switch or threshold), each marked `enable` or `tune`, with its
+  value in the resolved config and whether the rule runs under it
+- the inline suppression (`codeguard:ignore <rule-id> -- <reason>`, in the
+  example's comment syntax) and a `waivers:` entry for this rule
+- the profiles that enable it, on top of the recommended sections
+- retired alias ids that still resolve to it
+- its docs link, `docs/rule-index.md#rule-<id with dots replaced by dashes>`
+
+`explain` reads the config named by `-config`, otherwise a codeguard config
+in the working directory, otherwise the built-in defaults a zero-config scan
+uses. `-format json` (alias `agent`) returns the same data as the MCP
+`explain` tool and the `codeguard://rules/<id>` resource. `confidence` and
+`examples` are also part of the SDK `RuleMetadata`, along with `config_keys`.
+
 ## Built-in language coverage snapshot
 
 | Family | Go | C++ | Python | TypeScript | Rust | Java | C# | Ruby |
@@ -652,6 +694,7 @@ Current behavior:
 - fails on non-`gofmt` files
 - warns when maintainability thresholds are exceeded
 - warns when a file exceeds `max_file_lines` alone, and fails that rule when the same file also exceeds cyclomatic complexity limits
+- `quality.cyclomatic-complexity` counts McCabe decision points: a function starts at 1 and adds one per branch or loop and one per short-circuit boolean operator, since each `&&`/`||` is its own branch. For Go the count matches [`gocyclo`](https://github.com/fzipp/gocyclo): `if`, `for`, `range`, each non-`default` `case` of a `switch`, type switch, or `select`, and each `&&` and `||`; function literals count toward the function that contains them. TypeScript/JavaScript (AST runner) count `if`, loops, `catch`, `?:`, non-`default` `case`, `&&`, `||`, and `??`, and leave nested functions out; Python and the other text-based languages count their branch keywords plus `and`/`or` or `&&`/`||`. Releases up to v1.9.0 had a Go count that left out `&&`/`||` but counted `default:` clauses, so it could report much less than `gocyclo`: a function with long boolean conditions may newly exceed `max_cyclomatic_complexity` after upgrading
 - includes an AI-failure-mode pack for swallowed errors, narrative comments, hallucinated imports, plausible dead code, over-mocked tests, and codebase-idiom drift in Go, TypeScript, and JavaScript targets
 - publishes a `slop_score` artifact in the report when AI-failure-mode signals are present so CI systems can trend the metric over time
 - can apply a provenance-aware policy for AI-assisted changes through `quality_rules.ai_provenance` using environment hints or commit trailers
@@ -2487,6 +2530,21 @@ codeguard report -legibility-history [-config path] [-limit n]
 
 (mirroring `codeguard report -slop-history` and `codeguard report -perf-history`).
 
+### Generating agent docs (`codeguard context`)
+
+The rules above lint agent docs; `codeguard context` writes them from the same parsers, so a freshly generated file passes them by construction.
+
+```bash
+codeguard context init   [-path .] [-file AGENTS.md|CLAUDE.md] [-force] [-dry-run] [-config path]
+codeguard context update [-path .] [-file AGENTS.md|CLAUDE.md] [-dry-run] [-config path]
+```
+
+- `init` writes `AGENTS.md` (or `-file CLAUDE.md`) from detected facts only: languages and manifests, commands (root Makefile targets and package.json scripts as `context.undocumented-commands` reads them, Go/Cargo toolchain commands for a root `go.mod` / `Cargo.toml`, tools configured in `pyproject.toml`, and single-line root-level CI `run:` steps whose make targets, scripts and `./` paths resolve), top-level directories, entrypoints (as `codeguard init` detects them), test file locations, and formatter/linter/toolchain configuration. A directory gets a purpose only when its name and contents agree (for example `cmd/` with `main.go` subdirectories); anything codeguard cannot know is an explicit `TODO:` line. It refuses to overwrite an existing file without `-force`; `-dry-run` prints the document to stdout.
+- Detected content sits in managed blocks delimited by `<!-- codeguard:begin NAME -->` and `<!-- codeguard:end NAME -->`, with `NAME` one of `overview`, `commands`, `layout`, `entrypoints`, `tests`, `conventions`. `update` rewrites only the bodies of those blocks; every byte outside them (headings, prose, unknown `codeguard:` blocks) is preserved. Blocks without markers are reported and not added. Malformed markers (unclosed, nested, duplicate) are an error. `-dry-run` prints a unified diff instead of writing.
+- `update` on a file with no markers prints a diff of the sections codeguard would manage, asks for markers, writes nothing and exits 1.
+- After writing, both commands run only the Agent Context section on the repository and print the `repo_legibility` score, its components and any remaining findings (tuned by `-config`'s `context_rules` when given). The legibility history is not updated by this check.
+- SDK: `DetectContextFacts`, `RenderContextDoc`, `UpdateContextDoc`, `ProposeContextSections`, `ContextDocDiff` and `CheckContextDocs` in `pkg/codeguard`.
+
 ## Output
 
 Config keys:
@@ -2541,6 +2599,74 @@ Findings now carry:
 - rule id and severity
 - why the rule triggered
 - how-to-fix guidance from built-in metadata or custom rule packs
+
+### SARIF output (GitHub code scanning)
+
+`-format sarif` writes a SARIF 2.1.0 log with one run. It is checked against
+the official OASIS schema in `tests/report`. It carries what GitHub code scanning
+needs to show severity, rule help and taint traces.
+
+`runs[].tool.driver`:
+- `name` (`codeguard`), `version`, `informationUri` (the repository), and
+  `semanticVersion` for release builds (development builds report only `version: devel`)
+- `rules[]`: one entry per rule that appears in the results, sorted by id
+
+`rules[]` fields:
+
+| Field | Source |
+| --- | --- |
+| `shortDescription.text` | catalog `title` |
+| `fullDescription.text` | catalog `description` |
+| `help.text` | description, `How to fix: <how_to_fix>`, and the fix template |
+| `help.markdown` | the same content as markdown, plus CWE, OWASP and rule reference links |
+| `helpUri` | `https://github.com/devr-tools/codeguard/blob/main/docs/rule-index.md#rule-<id>`, where `<id>` is the rule id with dots replaced by hyphens (`security.taint.go` → `#rule-security-taint-go`). Every catalog rule has an anchored row in the [rule index](rule-index.md). Rules outside the catalog (custom rule packs, imported external reports) have no `helpUri` |
+| `defaultConfiguration.level` | catalog `default_level`: `fail` → `error`, `warn` → `warning` |
+| `properties.tags` | the section (`security`, `quality`, `ci`, `supply-chain`, ...), `security` for security rules, one `external/cwe/cwe-NNN` tag per CWE, and `OWASP:<code>` when mapped |
+| `properties.precision` | the highest finding confidence for the rule in this run: `high`, `medium` (also used when the check set no confidence), or `low` |
+| `properties.security-severity` | security rules only; see the table below |
+| `properties.cwe` | the catalog `cwe` ids, such as `["CWE-78", "CWE-89"]` |
+| `relationships` | the OWASP Top 10 taxon, when mapped |
+
+A rule counts as a security rule when it belongs to the Security section, or
+when it has a CWE mapping (for example the `ci.workflow-*` workflow security
+rules and `supply_chain.vulnerable-dependency`). The catalog `cwe` field is
+also returned by `codeguard.Rules()` and `ExplainRule`. CWE tags are zero-padded
+to three digits like CodeQL's (`external/cwe/cwe-078`), so a GitHub
+`tag:external/cwe/cwe-078` filter matches codeguard and CodeQL alerts together.
+
+`security-severity` mapping. GitHub reads the score from the rule and labels it
+critical (above 9.0), high (7.0–8.9), medium (4.0–6.9) or low (below 4.0).
+The rule takes the highest score among its findings in the run:
+
+| Finding level | `high` confidence | `medium` / unset | `low` |
+| --- | --- | --- | --- |
+| `fail` | 9.3 (critical) | 8.1 (high) | 6.5 (medium) |
+| `warn` | 6.1 (medium) | 5.0 (medium) | 3.1 (low) |
+
+A fail-level finding backed by structured evidence, such as a source-to-sink
+taint flow, is critical. A warn-level review item never rises above medium.
+
+`results[]` fields:
+- `level`: `fail` → `error`, `warn` → `warning`. Scan diagnostics map
+  `fail` → `error`, `warn` → `warning` and anything else → `note`
+- `locations`: file, `startLine` (line 1 for file-level findings), and
+  `startColumn` when the check reported one
+- `partialFingerprints`: `codeguardContext/v1`, which stays the same when
+  unrelated edits move the finding, and `codeguardLegacy/v1`, which is line
+  based. GitHub uses them to de-duplicate alerts across uploads
+- `codeFlows`: taint findings (`security.taint.*`, `security.ssrf.*`,
+  `security.typescript.taint-flow` and `security.javascript.taint-flow`) get one thread flow with a step
+  for each hop in the source-to-sink chain. Each step has a message and the
+  kinds `taint`, `source` or `sink`. Go, Python and C++ engines report lines
+  only for the source and the sink, so intermediate steps (the variables the
+  value passed through) have the file but no region. TypeScript/JavaScript steps
+  each have their own file and line, including steps in other modules
+- `properties.confidence` when the check set one
+
+`runs[].invocations[0].executionSuccessful` is `false` when any section
+reported a fail-level operational diagnostic (`scan.section.panic`,
+`scan.target-walk`, ...), because part of the repository was not analysed.
+`endTimeUtc` is the report timestamp.
 
 ## Custom rule packs
 

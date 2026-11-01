@@ -11,50 +11,11 @@ import (
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
-func runRules(args []string, stdout io.Writer, stderr io.Writer) int {
-	fs := flag.NewFlagSet("rules", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	configPath := fs.String("config", "", "optional config path to include custom rule packs")
-	profile := fs.String("profile", "", "optional policy profile override")
-	if err := fs.Parse(args); err != nil {
-		return exitError
-	}
-
-	rules := service.Rules()
-	if strings.TrimSpace(*configPath) != "" {
-		cfg, ok := loadConfigOrFail(*configPath, *profile, stderr)
-		if !ok {
-			return exitError
-		}
-		rules = service.RulesForConfig(cfg)
-	}
-	for _, rule := range rules {
-		var line strings.Builder
-		line.WriteString(rule.ID)
-		line.WriteByte('\t')
-		line.WriteString(rule.DefaultLevel)
-		line.WriteByte('\t')
-		line.WriteString(string(rule.ExecutionModel))
-		line.WriteByte('\t')
-		line.WriteString(rule.LanguageCoverage.String())
-		line.WriteByte('\t')
-		line.WriteString(rule.Section)
-		line.WriteByte('\t')
-		line.WriteString(rule.Title)
-		if rule.OWASPCategory != "" {
-			line.WriteByte('\t')
-			line.WriteString(string(rule.OWASPCategory))
-		}
-		_, _ = fmt.Fprintln(stdout, line.String())
-	}
-	return exitOK
-}
-
 func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("explain", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	configPath := fs.String("config", "", "optional config path to include custom rule packs")
-	format := fs.String("format", "text", "output format: text, agent")
+	configPath := fs.String("config", "", "config path; defaults to a codeguard config in the working directory, then built-in defaults")
+	format := fs.String("format", "text", "output format: text, json (agent is an alias of json)")
 	profile := fs.String("profile", "", "optional policy profile override")
 	if err := fs.Parse(args); err != nil {
 		return exitError
@@ -63,44 +24,41 @@ func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, "explain requires a rule id")
 		return exitError
 	}
+	outputFormat := strings.TrimSpace(*format)
+	switch outputFormat {
+	case "", "text", "json", "agent":
+	default:
+		_, _ = fmt.Fprintf(stderr, "invalid explain format %q (valid: text, json, agent)\n", *format)
+		return exitError
+	}
 
-	ruleID := fs.Arg(0)
-	rule, ok, err := resolveExplainRule(*configPath, *profile, ruleID)
+	ec, err := resolveExplainConfig(*configPath, *profile, loadConfigWithProfile, func(note string) {
+		_, _ = fmt.Fprintln(stderr, note)
+	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return exitError
 	}
+	ruleID := fs.Arg(0)
+	rule, ok := service.ExplainRuleForConfig(ec.cfg, ruleID)
 	if !ok {
-		_, _ = fmt.Fprintf(stderr, "unknown rule %q%s\n", ruleID, suggest.Hint(ruleID, explainCandidateIDs(*configPath, *profile)))
+		_, _ = fmt.Fprintf(stderr, "unknown rule %q%s\n", ruleID, suggest.Hint(ruleID, ruleIDs(service.RulesForConfig(ec.cfg))))
 		_, _ = fmt.Fprintln(stderr, "run `codeguard rules` to list every rule id")
 		return exitError
 	}
 
-	switch strings.TrimSpace(*format) {
-	case "", "text":
-		writeExplainText(stdout, rule)
-	case "agent":
-		if err := writeExplainAgent(stdout, rule); err != nil {
-			_, _ = fmt.Fprintf(stderr, "write explain output: %v\n", err)
-			return exitError
-		}
-	default:
-		_, _ = fmt.Fprintf(stderr, "invalid explain format %q\n", *format)
+	out := buildExplainOutput(rule, &ec)
+	if outputFormat == "" || outputFormat == "text" {
+		writeExplainText(stdout, out)
+		return exitOK
+	}
+	encoder := json.NewEncoder(stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(out); err != nil {
+		_, _ = fmt.Fprintf(stderr, "write explain output: %v\n", err)
 		return exitError
 	}
 	return exitOK
-}
-
-// explainCandidateIDs lists the rule ids explain could have meant: the
-// built-in catalog, plus custom rule packs when a config was named.
-func explainCandidateIDs(configPath string, profile string) []string {
-	rules := service.Rules()
-	if strings.TrimSpace(configPath) != "" {
-		if cfg, err := loadConfigWithProfile(configPath, profile); err == nil {
-			rules = service.RulesForConfig(cfg)
-		}
-	}
-	return ruleIDs(rules)
 }
 
 func ruleIDs(rules []service.RuleMetadata) []string {
@@ -109,87 +67,6 @@ func ruleIDs(rules []service.RuleMetadata) []string {
 		ids = append(ids, rule.ID)
 	}
 	return ids
-}
-
-func resolveExplainRule(configPath string, profile string, ruleID string) (service.RuleMetadata, bool, error) {
-	rule, ok := service.ExplainRule(ruleID)
-	if strings.TrimSpace(configPath) == "" {
-		return rule, ok, nil
-	}
-
-	cfg, err := loadConfigWithProfile(configPath, profile)
-	if err != nil {
-		return service.RuleMetadata{}, false, err
-	}
-	rule, ok = service.ExplainRuleForConfig(cfg, ruleID)
-	return rule, ok, nil
-}
-
-func writeExplainText(stdout io.Writer, rule service.RuleMetadata) {
-	_, _ = fmt.Fprintf(stdout, "%s\ntitle: %s\nsection: %s\nlevel: %s\nexecution model: %s\nlanguage coverage: %s\n%s\n", rule.ID, rule.Title, rule.Section, rule.DefaultLevel, rule.ExecutionModel, rule.LanguageCoverage, rule.Description)
-	if rule.OWASPCategory != "" {
-		_, _ = fmt.Fprintf(stdout, "owasp: %s\n", rule.OWASPCategory)
-	}
-	if strings.TrimSpace(rule.HowToFix) != "" {
-		_, _ = fmt.Fprintf(stdout, "how to fix: %s\n", rule.HowToFix)
-	}
-}
-
-func writeExplainAgent(stdout io.Writer, rule service.RuleMetadata) error {
-	encoder := json.NewEncoder(stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(buildExplainAgentOutput(rule))
-}
-
-type explainAgentOutput struct {
-	ID               string                        `json:"id"`
-	Title            string                        `json:"title"`
-	Section          string                        `json:"section"`
-	Level            string                        `json:"level"`
-	ExecutionModel   string                        `json:"execution_model"`
-	LanguageCoverage explainLanguageCoverageOutput `json:"language_coverage"`
-	Description      string                        `json:"description"`
-	Why              string                        `json:"why"`
-	HowToFix         string                        `json:"how_to_fix"`
-	FixTemplate      string                        `json:"fix_template"`
-	FixTemplateKind  string                        `json:"fix_template_kind,omitempty"`
-	OWASPCategory    string                        `json:"owasp_category,omitempty"`
-}
-
-type explainLanguageCoverageOutput struct {
-	Mode      string   `json:"mode"`
-	Languages []string `json:"languages"`
-}
-
-func buildExplainAgentOutput(rule service.RuleMetadata) explainAgentOutput {
-	return explainAgentOutput{
-		ID:             rule.ID,
-		Title:          rule.Title,
-		Section:        rule.Section,
-		Level:          rule.DefaultLevel,
-		ExecutionModel: string(rule.ExecutionModel),
-		LanguageCoverage: explainLanguageCoverageOutput{
-			Mode:      string(rule.LanguageCoverage.Mode),
-			Languages: explainLanguages(rule.LanguageCoverage.Languages),
-		},
-		Description:     rule.Description,
-		Why:             rule.Description,
-		HowToFix:        rule.HowToFix,
-		FixTemplate:     rule.FixTemplate.Text,
-		FixTemplateKind: string(rule.FixTemplate.Kind),
-		OWASPCategory:   string(rule.OWASPCategory),
-	}
-}
-
-func explainLanguages(languages []service.RuleLanguage) []string {
-	if len(languages) == 0 {
-		return []string{}
-	}
-	out := make([]string, 0, len(languages))
-	for _, language := range languages {
-		out = append(out, string(language))
-	}
-	return out
 }
 
 func runProfiles(stdout io.Writer) int {

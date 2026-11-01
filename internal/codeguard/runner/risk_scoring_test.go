@@ -13,8 +13,8 @@ func TestAddRiskArtifactsRanksFilesDeterministicallyAndExplainsSignals(t *testin
 	sc := runnersupport.Context{
 		Opts: core.ScanOptions{Mode: core.ScanModeDiff},
 		Cfg: core.Config{Checks: core.CheckConfig{QualityRules: core.QualityRulesConfig{RiskScoring: core.RiskScoringConfig{
-			Enabled: &enabled, MaxHotspots: 1, ChangedFileWeight: 5, FailFindingWeight: 30, WarnFindingWeight: 15,
-			SecurityWeight: 10, SupplyChainWeight: 10, CoverageGapWeight: 15, AIProvenanceWeight: 15, AISignalWeight: 10, SlopScoreDivisor: 10,
+			Enabled: &enabled, MaxHotspots: 1, ChangedFileWeight: intRef(5), FailFindingWeight: intRef(30), WarnFindingWeight: intRef(15),
+			SecurityWeight: intRef(10), SupplyChainWeight: intRef(10), CoverageGapWeight: intRef(15), AIProvenanceWeight: intRef(15), AISignalWeight: intRef(10), SlopScoreDivisor: intRef(10),
 		}}}},
 		Diff:      map[string]runnersupport.LineRanges{"a.go": {}, "b.go": {}},
 		Artifacts: runnersupport.NewArtifactStore(),
@@ -49,6 +49,36 @@ func TestAddRiskArtifactsRanksFilesDeterministicallyAndExplainsSignals(t *testin
 	}
 }
 
+func TestAddRiskArtifactsZeroWeightSwitchesSignalOff(t *testing.T) {
+	enabled := true
+	sc := runnersupport.Context{
+		Opts: core.ScanOptions{Mode: core.ScanModeDiff},
+		Cfg: core.Config{Checks: core.CheckConfig{QualityRules: core.QualityRulesConfig{RiskScoring: core.RiskScoringConfig{
+			Enabled: &enabled, MaxHotspots: 1, ChangedFileWeight: intRef(5), FailFindingWeight: intRef(30),
+			SecurityWeight: intRef(0), SlopScoreDivisor: intRef(0),
+		}}}},
+		Diff:      map[string]runnersupport.LineRanges{"b.go": {}},
+		Artifacts: runnersupport.NewArtifactStore(),
+	}
+	sc.Artifacts.Put(core.Artifact{ID: "slop", Kind: "slop_score", Target: ".", SlopScore: &core.SlopScoreArtifact{Score: 25}})
+	sections := []core.SectionResult{{ID: "security", Findings: []core.Finding{
+		{RuleID: "security.go.sql-injection", Section: "security", Level: "fail", Path: "b.go"},
+	}}}
+
+	addRiskArtifacts(sc, sections)
+	fileRisk, _ := riskArtifacts(t, sc.Artifacts.List())
+	if len(fileRisk.Files) != 1 || fileRisk.Files[0].Score != 35 {
+		t.Fatalf("file risk = %#v, want b.go scored 35 (changed_file 5 + fail_finding 30)", fileRisk.Files)
+	}
+	labels := make([]string, 0, len(fileRisk.Files[0].Components))
+	for _, component := range fileRisk.Files[0].Components {
+		labels = append(labels, component.Label)
+	}
+	if want := []string{"changed_file", "fail_finding"}; !reflect.DeepEqual(labels, want) {
+		t.Fatalf("component labels = %#v, want %#v (zero-weight security and slop_score omitted)", labels, want)
+	}
+}
+
 func TestAddRiskArtifactsSkipsFullScans(t *testing.T) {
 	enabled := true
 	sc := runnersupport.Context{
@@ -80,3 +110,5 @@ func riskArtifacts(t *testing.T, artifacts []core.Artifact) (*core.FileRiskArtif
 	}
 	return fileRisk, hotspots
 }
+
+func intRef(v int) *int { return &v }

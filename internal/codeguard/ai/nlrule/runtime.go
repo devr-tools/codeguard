@@ -36,10 +36,6 @@ func NewRuntime(cfg core.AIConfig) Runtime {
 	return commandRuntime{command: command}
 }
 
-func NewRuntimeFromEnv() Runtime {
-	return NewRuntime(core.AIConfig{})
-}
-
 func (runtime commandRuntime) Enabled() bool { return true }
 
 func (runtime commandRuntime) Fingerprint() string {

@@ -23,7 +23,9 @@ func addRiskArtifacts(sc runnersupport.Context, sections []core.SectionResult) {
 	cfg := sc.Cfg.Checks.QualityRules.RiskScoring
 	entries := make(map[string]*core.FileRiskEntry, len(paths))
 	for _, path := range paths {
-		entries[path] = &core.FileRiskEntry{Path: path, Components: []core.FileRiskComponent{riskComponent("changed_file", cfg.ChangedFileWeight, "file is in the diff")}}
+		entry := &core.FileRiskEntry{Path: path}
+		addRiskComponent(entry, "changed_file", cfg.ChangedFileWeight, "file is in the diff")
+		entries[path] = entry
 	}
 
 	for _, section := range sections {
@@ -65,21 +67,21 @@ func addRiskArtifacts(sc runnersupport.Context, sections []core.SectionResult) {
 func addFindingRisk(entry *core.FileRiskEntry, finding core.Finding, cfg core.RiskScoringConfig) {
 	switch strings.ToLower(finding.Level) {
 	case "fail", "error":
-		entry.Components = append(entry.Components, riskComponent("fail_finding", cfg.FailFindingWeight, finding.RuleID))
+		addRiskComponent(entry, "fail_finding", cfg.FailFindingWeight, finding.RuleID)
 	case "warn", "warning":
-		entry.Components = append(entry.Components, riskComponent("warn_finding", cfg.WarnFindingWeight, finding.RuleID))
+		addRiskComponent(entry, "warn_finding", cfg.WarnFindingWeight, finding.RuleID)
 	}
 	if finding.Section == "security" || strings.HasPrefix(finding.RuleID, "security.") {
-		entry.Components = append(entry.Components, riskComponent("security_finding", cfg.SecurityWeight, finding.RuleID))
+		addRiskComponent(entry, "security_finding", cfg.SecurityWeight, finding.RuleID)
 	}
 	if finding.Section == "supply_chain" || strings.HasPrefix(finding.RuleID, "supply_chain.") {
-		entry.Components = append(entry.Components, riskComponent("supply_chain_finding", cfg.SupplyChainWeight, finding.RuleID))
+		addRiskComponent(entry, "supply_chain_finding", cfg.SupplyChainWeight, finding.RuleID)
 	}
 	if finding.RuleID == "quality.coverage-delta" {
-		entry.Components = append(entry.Components, riskComponent("coverage_gap", cfg.CoverageGapWeight, "changed-line coverage is below policy"))
+		addRiskComponent(entry, "coverage_gap", cfg.CoverageGapWeight, "changed-line coverage is below policy")
 	}
 	if strings.HasPrefix(finding.RuleID, "quality.ai.") && finding.RuleID != "quality.ai.provenance-policy" {
-		entry.Components = append(entry.Components, riskComponent("ai_signal", cfg.AISignalWeight, finding.RuleID))
+		addRiskComponent(entry, "ai_signal", cfg.AISignalWeight, finding.RuleID)
 	}
 }
 
@@ -89,8 +91,8 @@ func addArtifactRisk(entries map[string]*core.FileRiskEntry, artifacts []core.Ar
 		if len(paths) == 0 {
 			continue
 		}
-		if artifact.SlopScore != nil && cfg.SlopScoreDivisor > 0 {
-			weight := artifact.SlopScore.Score / cfg.SlopScoreDivisor
+		if divisor := core.IntValue(cfg.SlopScoreDivisor); artifact.SlopScore != nil && divisor > 0 {
+			weight := artifact.SlopScore.Score / divisor
 			if weight > 0 {
 				for _, path := range paths {
 					entries[path].Components = append(entries[path].Components, riskComponent("slop_score", weight, "target AI-quality score"))
@@ -99,7 +101,7 @@ func addArtifactRisk(entries map[string]*core.FileRiskEntry, artifacts []core.Ar
 		}
 		if artifact.ChangeRisk != nil && artifact.ChangeRisk.ProvenanceActive {
 			for _, path := range paths {
-				entries[path].Components = append(entries[path].Components, riskComponent("ai_provenance", cfg.AIProvenanceWeight, "AI-assisted provenance is active for this target"))
+				addRiskComponent(entries[path], "ai_provenance", cfg.AIProvenanceWeight, "AI-assisted provenance is active for this target")
 			}
 		}
 	}
@@ -115,6 +117,16 @@ func riskArtifactPaths(entries map[string]*core.FileRiskEntry, target string) []
 	}
 	sort.Strings(paths)
 	return paths
+}
+
+// addRiskComponent records a weighted signal on entry. A weight explicitly
+// configured as 0 means the signal is switched off, so it adds no
+// zero-contribution noise to the artifact.
+func addRiskComponent(entry *core.FileRiskEntry, label string, weight *int, detail string) {
+	if core.IntValue(weight) == 0 {
+		return
+	}
+	entry.Components = append(entry.Components, riskComponent(label, core.IntValue(weight), detail))
 }
 
 func riskComponent(label string, weight int, detail string) core.FileRiskComponent {

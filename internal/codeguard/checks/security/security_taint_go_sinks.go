@@ -40,18 +40,18 @@ var goHTTPSinkArgIndex = map[string]int{
 // checkSinks inspects one call expression for taint sinks. Tainted values
 // derived from parameters are recorded in the function summary instead of
 // being reported, so callers decide whether the flow is dangerous.
-func (s *goScope) checkSinks(call *ast.CallExpr, callee string, args []*goTaint) {
+func (s *goScope) checkSinks(call *ast.CallExpr, callee string, args []*taintTrace) {
 	line := s.analyzer.line(call.Pos())
 	switch {
 	case callee == "exec.Command":
-		s.reportFirstTainted(args, callee, line)
+		s.reportFirstTainted(callee, line, args...)
 	case callee == "exec.CommandContext" && len(args) > 1:
-		s.reportFirstTainted(args[1:], callee, line)
+		s.reportFirstTainted(callee, line, args[1:]...)
 	case goFileSinkCallees[callee] && len(args) > 0:
-		s.reportTainted(args[0], callee, line)
+		s.reportSink(args[0], callee, line)
 	case isGoHTTPSink(callee):
 		if idx := goHTTPSinkArgIndex[callee]; idx < len(args) {
-			s.reportTainted(args[idx], callee, line)
+			s.reportSink(args[idx], callee, line)
 		}
 	default:
 		s.checkMethodSinks(call, callee, args, line)
@@ -63,32 +63,25 @@ func isGoHTTPSink(callee string) bool {
 	return ok
 }
 
-func goTaintRuleID(sink string) string {
-	if isGoHTTPSink(sink) {
-		return "security.ssrf.go"
-	}
-	return "security.taint.go"
-}
-
-func (s *goScope) checkMethodSinks(call *ast.CallExpr, callee string, args []*goTaint, line int) {
+func (s *goScope) checkMethodSinks(call *ast.CallExpr, callee string, args []*taintTrace, line int) {
 	method := callee
 	if dot := strings.LastIndexByte(callee, '.'); dot >= 0 {
 		method = callee[dot+1:]
 	}
 	if receiver, selectedMethod, ok := selectorReceiverAndMethod(call.Fun); ok {
 		if model, index, matches := s.analyzer.models.sinkModel(receiver, selectedMethod); matches && index < len(args) {
-			s.reportTainted(args[index].withSinkModel(model.name), callee, line)
+			s.reportSink(args[index].withSinkModel(model.name), callee, line)
 			return
 		}
 	}
 	if queryIdx, isQuery := goQuerySinkMethods[method]; isQuery && method != callee {
 		if queryIdx < len(args) {
-			s.reportTainted(args[queryIdx], callee, line)
+			s.reportSink(args[queryIdx], callee, line)
 		}
 		return
 	}
 	if method == "Parse" && s.isTemplateReceiver(call.Fun, callee) && len(args) > 0 {
-		s.reportTainted(args[0], callee, line)
+		s.reportSink(args[0], callee, line)
 	}
 }
 
@@ -102,35 +95,4 @@ func (s *goScope) isTemplateReceiver(fun ast.Expr, callee string) bool {
 		return s.templateVars[root]
 	}
 	return false
-}
-
-func (s *goScope) reportFirstTainted(args []*goTaint, sink string, line int) {
-	for _, taint := range args {
-		if taint != nil {
-			s.reportSink(taint, sink, line)
-			return
-		}
-	}
-}
-
-func (s *goScope) reportTainted(taint *goTaint, sink string, line int) {
-	if taint != nil {
-		s.reportSink(taint, sink, line)
-	}
-}
-
-// reportSink emits a finding for concrete sources and records a summary
-// entry for parameter-conditional taint.
-func (s *goScope) reportSink(taint *goTaint, sink string, line int) {
-	if taint.paramIndex >= 0 {
-		s.summary.paramsToSink = append(s.summary.paramsToSink, goParamSink{
-			paramIndex: taint.paramIndex,
-			sink:       sink,
-			line:       line,
-		})
-		return
-	}
-	if s.emit {
-		s.analyzer.emitFinding(taint, sink, line)
-	}
 }

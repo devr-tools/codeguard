@@ -147,44 +147,35 @@ func domainKnowledgeLiteral(value string) bool {
 
 func domainKnowledgeLiteralInLine(value string, line string) bool {
 	trimmed := strings.Trim(value, `"'`)
-	if trimmed == "" || len(trimmed) > 80 {
-		return false
-	}
-	if len(trimmed) > 48 {
-		return false
-	}
-	if strings.Contains(trimmed, "-") {
-		return false
-	}
-	if strings.Contains(trimmed, "${") || strings.Contains(trimmed, "________________") || strings.Contains(trimmed, "__test-stubs__") {
-		return false
-	}
-	if strings.Contains(trimmed, "'") || strings.Contains(trimmed, ". ") || strings.Contains(trimmed, ", ") {
-		return false
-	}
-	if len(trimmed) < 4 && !strings.ContainsAny(trimmed, "0123456789") {
-		return false
-	}
-	if numeric, ok := duplicatedKnowledgeNumber(trimmed); ok {
-		_ = numeric
-		return false
-	}
-	if duplicatedKnowledgeStyleLiteral(trimmed) {
-		return false
-	}
-	if duplicatedKnowledgeSentinelLiteral(trimmed) {
-		return false
-	}
-	if duplicatedKnowledgeTableOrEnumLiteral(trimmed, line) {
-		return false
-	}
-	if duplicatedKnowledgeEnumStatusLiteral(trimmed, line) {
-		return false
-	}
-	if likelyDisplayLabel(trimmed) {
+	if !domainKnowledgeLiteralShape(trimmed) || nonDomainKnowledgeLiteral(trimmed, line) {
 		return false
 	}
 	return domainPrimitiveNamePattern.MatchString(trimmed) || strings.Contains(trimmed, "_")
+}
+
+// domainKnowledgeLiteralShape reports whether a literal is short, identifier-
+// like text: no hyphens, prose punctuation, templates, or placeholder runs.
+func domainKnowledgeLiteralShape(trimmed string) bool {
+	if trimmed == "" || len(trimmed) > 48 {
+		return false
+	}
+	if containsAny(trimmed, []string{"-", "${", "________________", "__test-stubs__", "'", ". ", ", "}) {
+		return false
+	}
+	return len(trimmed) >= 4 || strings.ContainsAny(trimmed, "0123456789")
+}
+
+// nonDomainKnowledgeLiteral reports literals that are numbers, styling,
+// sentinels, table/enum members, status values, or display labels.
+func nonDomainKnowledgeLiteral(trimmed string, line string) bool {
+	if _, ok := duplicatedKnowledgeNumber(trimmed); ok {
+		return true
+	}
+	return duplicatedKnowledgeStyleLiteral(trimmed) ||
+		duplicatedKnowledgeSentinelLiteral(trimmed) ||
+		duplicatedKnowledgeTableOrEnumLiteral(trimmed, line) ||
+		duplicatedKnowledgeEnumStatusLiteral(trimmed, line) ||
+		likelyDisplayLabel(trimmed)
 }
 
 func duplicatedKnowledgeStyleLiteral(value string) bool {

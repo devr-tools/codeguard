@@ -199,42 +199,49 @@ func isResourceIdentifierName(name string) bool {
 	return false
 }
 
+// conventionalCardinalityNames are names whose plural or singular wording is
+// conventional regardless of the value's shape.
+var conventionalCardinalityNames = map[string]struct{}{
+	"accept": {}, "activity": {}, "adjacency": {}, "aliases": {}, "all": {}, "aliveatend": {}, "allowed": {},
+	"answers": {}, "apply": {}, "args": {}, "arr": {}, "atrisk": {}, "awaitingsig": {}, "body": {},
+	"changes": {}, "claims": {}, "claimed": {}, "columns": {}, "comments": {}, "content": {}, "contract": {},
+	"contracts": {}, "contractsbytype": {}, "counts": {}, "cur": {}, "currentpatch": {}, "data": {}, "docs": {},
+	"entries": {}, "expectedkeys": {}, "files": {}, "filtered": {}, "fixes": {}, "grid": {}, "grouped": {},
+	"groups": {}, "header": {}, "history": {}, "ids": {}, "input": {}, "inputs": {}, "items": {}, "jobs": {},
+	"k": {}, "keys": {}, "kindcounts": {}, "known": {}, "krs": {}, "latestquarter": {}, "matter": {},
+	"matters": {}, "messages": {}, "model": {}, "newrisks": {}, "next": {}, "nodes": {}, "objectives": {},
+	"obj": {}, "obligations": {}, "openrequests": {}, "out": {}, "overdue": {}, "params": {}, "parsed": {},
+	"patch": {}, "policy": {}, "prev": {}, "prisma": {}, "projects": {}, "props": {}, "quarter": {},
+	"quarters": {}, "raw": {}, "records": {}, "requests": {}, "requestsbypillar": {}, "resources": {},
+	"restrict": {}, "rest": {}, "result": {}, "results": {}, "risks": {}, "roledefaults": {}, "roles": {},
+	"row": {}, "rows": {}, "schemas": {}, "searchparams": {}, "sections": {}, "seenactivepillar": {},
+	"size": {}, "skipreasons": {}, "snap": {}, "source": {}, "src": {}, "state": {}, "status": {}, "stream": {},
+	"tags": {}, "team": {}, "thresholds": {}, "threads": {}, "tools": {}, "users": {}, "values": {}, "vec": {},
+	"versions": {}, "where": {}, "window": {}, "v": {}, "i": {}, "j": {}, "x": {}, "y": {},
+}
+
+// conventionalCardinalitySuffixes mark grouped or keyed values (for example
+// "...ByKey", "...Counts") whose wording need not match their shape.
+var conventionalCardinalitySuffixes = []string{
+	"dates", "fields", "filters", "ids", "links", "options", "points", "rows", "items", "entries", "params",
+	"props", "args", "columns", "sections", "snapshots", "tasks", "types", "bykey", "byrisk", "bytext",
+	"counts", "patch", "reasons", "risks", "soon", "weeks",
+}
+
 func conventionalCardinalityName(name string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
-	switch base {
-	case "accept", "activity", "adjacency", "aliases", "all", "aliveatend", "allowed", "answers", "apply", "args", "arr", "atrisk", "awaitingsig", "body", "changes", "claims", "claimed", "columns", "comments", "content", "contract", "contracts", "contractsbytype", "counts", "cur", "currentpatch", "data", "docs", "entries", "expectedkeys", "files", "filtered", "fixes", "grid", "grouped", "groups", "header", "history", "ids", "input", "inputs", "items", "jobs", "k", "keys", "kindcounts", "known", "krs", "latestquarter", "matter", "matters", "messages", "model", "newrisks", "next", "nodes", "objectives", "obj", "obligations", "openrequests", "out", "overdue", "params", "parsed", "patch", "policy", "prev", "prisma", "projects", "props", "quarter", "quarters", "raw", "records", "requests", "requestsbypillar", "resources", "restrict", "rest", "result", "results", "risks", "roledefaults", "roles", "row", "rows", "schemas", "searchparams", "sections", "seenactivepillar", "size", "skipreasons", "snap", "source", "src", "state", "status", "stream", "tags", "team", "thresholds", "threads", "tools", "users", "values", "vec", "versions", "where", "window", "v", "i", "j", "x", "y":
+	if _, ok := conventionalCardinalityNames[base]; ok {
 		return true
-	default:
-		return len(name) <= 2 ||
-			strings.HasPrefix(base, "by") ||
-			strings.HasSuffix(base, "dates") ||
-			strings.HasSuffix(base, "fields") ||
-			strings.HasSuffix(base, "filters") ||
-			strings.HasSuffix(base, "ids") ||
-			strings.HasSuffix(base, "links") ||
-			strings.HasSuffix(base, "options") ||
-			strings.HasSuffix(base, "points") ||
-			strings.HasSuffix(base, "rows") ||
-			strings.HasSuffix(base, "items") ||
-			strings.HasSuffix(base, "entries") ||
-			strings.HasSuffix(base, "params") ||
-			strings.HasSuffix(base, "props") ||
-			strings.HasSuffix(base, "args") ||
-			strings.HasSuffix(base, "columns") ||
-			strings.HasSuffix(base, "sections") ||
-			strings.HasSuffix(base, "snapshots") ||
-			strings.HasSuffix(base, "tasks") ||
-			strings.HasSuffix(base, "types") ||
-			strings.HasSuffix(base, "bykey") ||
-			strings.HasSuffix(base, "byrisk") ||
-			strings.HasSuffix(base, "bytext") ||
-			strings.HasSuffix(base, "counts") ||
-			strings.HasSuffix(base, "patch") ||
-			strings.HasSuffix(base, "reasons") ||
-			strings.HasSuffix(base, "risks") ||
-			strings.HasSuffix(base, "soon") ||
-			strings.HasSuffix(base, "weeks")
 	}
+	if len(name) <= 2 || strings.HasPrefix(base, "by") {
+		return true
+	}
+	for _, suffix := range conventionalCardinalitySuffixes {
+		if strings.HasSuffix(base, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func isUIHelperOrMappingContext(file string, fn precisionFunction) bool {

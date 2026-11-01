@@ -50,15 +50,15 @@ func validateRiskScoring(cfg core.RiskScoringConfig) error {
 		value int
 	}{
 		{"max_hotspots", cfg.MaxHotspots},
-		{"changed_file_weight", cfg.ChangedFileWeight},
-		{"fail_finding_weight", cfg.FailFindingWeight},
-		{"warn_finding_weight", cfg.WarnFindingWeight},
-		{"security_weight", cfg.SecurityWeight},
-		{"supply_chain_weight", cfg.SupplyChainWeight},
-		{"coverage_gap_weight", cfg.CoverageGapWeight},
-		{"ai_provenance_weight", cfg.AIProvenanceWeight},
-		{"ai_signal_weight", cfg.AISignalWeight},
-		{"slop_score_divisor", cfg.SlopScoreDivisor},
+		{"changed_file_weight", core.IntValue(cfg.ChangedFileWeight)},
+		{"fail_finding_weight", core.IntValue(cfg.FailFindingWeight)},
+		{"warn_finding_weight", core.IntValue(cfg.WarnFindingWeight)},
+		{"security_weight", core.IntValue(cfg.SecurityWeight)},
+		{"supply_chain_weight", core.IntValue(cfg.SupplyChainWeight)},
+		{"coverage_gap_weight", core.IntValue(cfg.CoverageGapWeight)},
+		{"ai_provenance_weight", core.IntValue(cfg.AIProvenanceWeight)},
+		{"ai_signal_weight", core.IntValue(cfg.AISignalWeight)},
+		{"slop_score_divisor", core.IntValue(cfg.SlopScoreDivisor)},
 	} {
 		if setting.value < 0 {
 			return fmt.Errorf("quality_rules.risk_scoring.%s must be non-negative", setting.name)

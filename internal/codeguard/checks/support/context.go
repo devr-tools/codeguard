@@ -92,7 +92,9 @@ type Context struct {
 	VisitTargetFilesOrdered func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte) func())
 	// ListTargetFiles returns every non-excluded file under the target root from
 	// the shared per-scan corpus walk (the same listing VisitTargetFiles
-	// iterates). Nil in unit-test contexts; callers fall back to a direct walk.
+	// iterates). The runner always wires it; it is nil only in unit-test
+	// contexts, where callers fall back to VisitTargetFiles or report nothing
+	// rather than re-implementing the runner's exclude-aware walk.
 	ListTargetFiles func(target core.TargetConfig) ([]string, error)
 	// ReadTargetFile reads target-root-relative rel through the shared per-scan
 	// file corpus, so a file inspected by several checks is read from disk at

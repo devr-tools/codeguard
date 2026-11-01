@@ -21,10 +21,22 @@ func applyDefaultBoolPtrs(values ...**bool) {
 	}
 }
 
-// defaultInt fills an int setting with its profile default when unset.
+// defaultInt fills an int setting with its profile default when unset. A plain
+// int cannot tell an explicit 0 from an omitted key, so 0 counts as unset
+// here. Settings where 0 is a real choice are *int and use defaultIntPtr; the
+// list is documented in docs/config-reference.md.
 func defaultInt(dst *int, def int) {
 	if *dst == 0 {
 		*dst = def
+	}
+}
+
+// defaultIntPtr fills an optional int setting with its default when unset.
+// Unlike defaultInt it keeps an explicit 0, so use it for settings where 0 is
+// a meaningful choice (a weight that should contribute nothing).
+func defaultIntPtr(dst **int, def int) {
+	if *dst == nil {
+		*dst = intPtr(def)
 	}
 }
 

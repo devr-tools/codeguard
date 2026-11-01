@@ -13,31 +13,34 @@ func cloneExcludedPath(language string, rel string) bool {
 	if strings.HasPrefix(slash, "tests/") || strings.Contains(slash, "/tests/") {
 		return true
 	}
-
+	base := path.Base(slash)
 	switch support.NormalizedLanguage(language) {
 	case "", "go":
 		return strings.HasSuffix(slash, "_test.go")
 	case "python", "py":
-		base := path.Base(slash)
 		return base == "tests.py" || strings.HasPrefix(base, "test_") || strings.HasSuffix(base, "_test.py")
 	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
-		base := path.Base(slash)
-		return strings.Contains(base, ".test.") || strings.Contains(base, ".spec.") ||
-			strings.HasPrefix(slash, "__tests__/") || strings.Contains(slash, "/__tests__/")
+		return scriptCloneTestPath(slash, base)
 	case "java":
-		base := path.Base(slash)
-		return strings.HasSuffix(base, "test.java") || strings.HasSuffix(base, "tests.java") || strings.HasSuffix(base, "it.java")
+		return hasAnySuffix(base, []string{"test.java", "tests.java", "it.java"})
 	case "csharp", "c#", "cs", "dotnet":
-		base := path.Base(slash)
-		return strings.HasSuffix(base, "test.cs") || strings.HasSuffix(base, "tests.cs") || strings.HasSuffix(base, "spec.cs")
+		return hasAnySuffix(base, []string{"test.cs", "tests.cs", "spec.cs"})
 	case "ruby", "rb":
-		base := path.Base(slash)
-		return strings.HasPrefix(slash, "test/") || strings.HasPrefix(slash, "spec/") ||
-			strings.Contains(slash, "/test/") || strings.Contains(slash, "/spec/") ||
-			strings.HasSuffix(base, "_test.rb") || strings.HasSuffix(base, "_spec.rb")
+		return rubyCloneTestPath(slash, base)
 	default:
 		return false
 	}
+}
+
+func scriptCloneTestPath(slash string, base string) bool {
+	return strings.Contains(base, ".test.") || strings.Contains(base, ".spec.") ||
+		strings.HasPrefix(slash, "__tests__/") || strings.Contains(slash, "/__tests__/")
+}
+
+func rubyCloneTestPath(slash string, base string) bool {
+	return strings.HasPrefix(slash, "test/") || strings.HasPrefix(slash, "spec/") ||
+		strings.Contains(slash, "/test/") || strings.Contains(slash, "/spec/") ||
+		strings.HasSuffix(base, "_test.rb") || strings.HasSuffix(base, "_spec.rb")
 }
 
 func cloneIncludeForLanguage(language string) func(string) bool {

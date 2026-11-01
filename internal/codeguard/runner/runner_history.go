@@ -12,10 +12,39 @@ import (
 // to the first section that finalizes, and raise its status the same way
 // FinalizeSectionWithDiagnostics does.
 func attachRunDiagnostics(sections []core.SectionResult, diagnostics []core.Diagnostic) {
-	if len(diagnostics) == 0 || len(sections) == 0 {
+	if len(sections) == 0 {
 		return
 	}
-	section := &sections[0]
+	attachSectionDiagnostics(&sections[0], diagnostics)
+}
+
+// attachScoreHistoryDiagnostics reports score-history write failures on the
+// section that published the score artifact, falling back to the first
+// section when that section is absent from the report.
+func attachScoreHistoryDiagnostics(sections []core.SectionResult, diagnostics []runnersupport.SectionDiagnostic) {
+	for _, item := range diagnostics {
+		index := sectionIndex(sections, item.SectionID)
+		if index < 0 {
+			attachRunDiagnostics(sections, []core.Diagnostic{item.Diagnostic})
+			continue
+		}
+		attachSectionDiagnostics(&sections[index], []core.Diagnostic{item.Diagnostic})
+	}
+}
+
+func sectionIndex(sections []core.SectionResult, id string) int {
+	for index := range sections {
+		if sections[index].ID == id {
+			return index
+		}
+	}
+	return -1
+}
+
+func attachSectionDiagnostics(section *core.SectionResult, diagnostics []core.Diagnostic) {
+	if len(diagnostics) == 0 {
+		return
+	}
 	section.Diagnostics = append(section.Diagnostics, diagnostics...)
 	for _, diagnostic := range diagnostics {
 		if !diagnostic.Operational {

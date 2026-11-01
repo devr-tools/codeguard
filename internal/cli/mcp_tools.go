@@ -210,14 +210,14 @@ func (s *mcpToolService) callExplain(ctx context.Context, raw json.RawMessage) (
 	if err != nil {
 		return toolErrorResult(err.Error()), nil
 	}
-	rule, ok, err := s.resolveExplainRule(confinedPath, args.Profile, args.RuleID)
+	rule, ec, ok, err := s.resolveExplainRule(confinedPath, args.Profile, args.RuleID)
 	if err != nil {
 		return toolErrorResult(fmt.Sprintf("load config: %v", err)), nil
 	}
 	if !ok {
-		return toolErrorResult(fmt.Sprintf("unknown rule %q%s", args.RuleID, suggest.Hint(args.RuleID, ruleIDs(service.Rules())))), nil
+		return toolErrorResult(fmt.Sprintf("unknown rule %q%s", args.RuleID, suggest.Hint(args.RuleID, ruleIDs(service.RulesForConfig(ec.cfg))))), nil
 	}
-	return toolSuccessResult(buildExplainAgentOutput(rule)), nil
+	return toolSuccessResult(buildExplainOutput(rule, ec)), nil
 }
 
 func (s *mcpToolService) callListRules(ctx context.Context, raw json.RawMessage) (map[string]any, error) {

@@ -13,6 +13,9 @@ type RuleLanguageCoverage = core.RuleLanguageCoverage
 type RuleLanguageCoverageMode = core.RuleLanguageCoverageMode
 type FixTemplate = core.FixTemplate
 type FixTemplateKind = core.FixTemplateKind
+type RuleExample = core.RuleExample
+type RuleConfigKey = core.RuleConfigKey
+type RuleConfigKeyRole = core.RuleConfigKeyRole
 type PolicyProfile = core.PolicyProfile
 type Runner = runner.Runner
 
@@ -34,6 +37,8 @@ const (
 	RuleLanguageCoverageConfigurable          = core.RuleLanguageCoverageConfigurable
 	FixTemplateKindDeterministic              = core.FixTemplateKindDeterministic
 	FixTemplateKindGuided                     = core.FixTemplateKindGuided
+	RuleConfigKeyRoleEnable                   = core.RuleConfigKeyRoleEnable
+	RuleConfigKeyRoleTune                     = core.RuleConfigKeyRoleTune
 	ScanModeFull                              = core.ScanModeFull
 	ScanModeDiff                              = core.ScanModeDiff
 	StatusPass                                = core.StatusPass

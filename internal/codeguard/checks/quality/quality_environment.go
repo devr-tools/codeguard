@@ -41,22 +41,22 @@ func environmentBranchingFindings(env support.Context, target core.TargetConfig)
 	})
 }
 
+// environmentExcludedPath* mark API, auth, script, ORM, integration, and
+// shared-library paths where environment checks are boundary concerns.
+var (
+	environmentExcludedPathFragments = []string{
+		"/app/api/", "/api/", "/auth/", "/scripts/", "/prisma/", "/integrations/", "/packages/db/src/", "/apps/web/lib/",
+	}
+	environmentExcludedPathPrefixes = []string{"apps/web/lib/", "packages/db/src/"}
+	environmentSourceExtensions     = []string{
+		".go", ".py", ".ts", ".tsx", ".js", ".jsx", ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".h", ".rb",
+	}
+)
+
 func environmentBranchingEligiblePath(cfg core.DeliveryRulesConfig, rel string) bool {
 	normalized := strings.ToLower(filepath.ToSlash(rel))
-	if isQualityFixturePath(normalized) {
-		return false
-	}
-	if isLikelyUIFile(normalized) ||
-		strings.Contains(normalized, "/app/api/") ||
-		strings.Contains(normalized, "/api/") ||
-		strings.Contains(normalized, "/auth/") ||
-		strings.Contains(normalized, "/scripts/") ||
-		strings.Contains(normalized, "/prisma/") ||
-		strings.Contains(normalized, "/integrations/") ||
-		strings.Contains(normalized, "/packages/db/src/") ||
-		strings.Contains(normalized, "/apps/web/lib/") ||
-		strings.HasPrefix(normalized, "apps/web/lib/") ||
-		strings.HasPrefix(normalized, "packages/db/src/") {
+	if isQualityFixturePath(normalized) || isLikelyUIFile(normalized) ||
+		containsAny(normalized, environmentExcludedPathFragments) || hasAnyPrefix(normalized, environmentExcludedPathPrefixes) {
 		return false
 	}
 	for _, pattern := range cfg.BootstrapPathPatterns {
@@ -69,19 +69,25 @@ func environmentBranchingEligiblePath(cfg core.DeliveryRulesConfig, rel string) 
 			return false
 		}
 	}
-	return strings.HasSuffix(normalized, ".go") ||
-		strings.HasSuffix(normalized, ".py") ||
-		strings.HasSuffix(normalized, ".ts") ||
-		strings.HasSuffix(normalized, ".tsx") ||
-		strings.HasSuffix(normalized, ".js") ||
-		strings.HasSuffix(normalized, ".jsx") ||
-		strings.HasSuffix(normalized, ".cpp") ||
-		strings.HasSuffix(normalized, ".cc") ||
-		strings.HasSuffix(normalized, ".cxx") ||
-		strings.HasSuffix(normalized, ".hpp") ||
-		strings.HasSuffix(normalized, ".hh") ||
-		strings.HasSuffix(normalized, ".h") ||
-		strings.HasSuffix(normalized, ".rb")
+	return hasAnySuffix(normalized, environmentSourceExtensions)
+}
+
+func hasAnyPrefix(value string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(value, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAnySuffix(value string, suffixes []string) bool {
+	for _, suffix := range suffixes {
+		if strings.HasSuffix(value, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func environmentBranchLine(text string) int {

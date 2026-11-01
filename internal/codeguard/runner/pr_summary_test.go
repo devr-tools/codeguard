@@ -15,7 +15,7 @@ func TestAddPRSummaryArtifactScoresProductionRisk(t *testing.T) {
 		Opts: core.ScanOptions{Mode: core.ScanModeDiff},
 		Cfg: core.Config{Checks: core.CheckConfig{ProductionRisk: core.ProductionRiskConfig{
 			Enabled: &enabled, WarnThreshold: 35, FailThreshold: 70,
-			ReliabilityWeight: 12, DataWeight: 15, FailWeight: 25, WarnWeight: 10,
+			ReliabilityWeight: intRef(12), DataWeight: intRef(15), FailWeight: intRef(25), WarnWeight: intRef(10),
 		}}},
 		Artifacts: runnersupport.NewArtifactStore(),
 	}
@@ -55,7 +55,7 @@ func TestAddPRSummaryArtifactAddsChangeSafetyMetrics(t *testing.T) {
 		Opts: core.ScanOptions{Mode: core.ScanModeDiff},
 		Cfg: core.Config{Checks: core.CheckConfig{ProductionRisk: core.ProductionRiskConfig{
 			Enabled: &enabled, WarnThreshold: 35, FailThreshold: 70,
-			ReliabilityWeight: 12, DataWeight: 15, FailWeight: 25, WarnWeight: 10,
+			ReliabilityWeight: intRef(12), DataWeight: intRef(15), FailWeight: intRef(25), WarnWeight: intRef(10),
 		}}},
 		Artifacts: runnersupport.NewArtifactStore(),
 	}

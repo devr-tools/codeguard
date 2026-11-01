@@ -38,13 +38,6 @@ func (s *Session) Enabled() bool {
 	return s != nil && s.enabled && s.provider != nil
 }
 
-func (s *Session) ProviderName() string {
-	if s == nil || s.provider == nil {
-		return ""
-	}
-	return s.provider.Name()
-}
-
 func (s *Session) Save() error {
 	if s == nil || s.cache == nil {
 		return nil

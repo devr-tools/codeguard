@@ -41,16 +41,16 @@ func matchingParenOffset(text string, open int) int {
 }
 
 // evalExpr computes the taint of one masked Python expression.
-func (s *pyScope) evalExpr(expr string, line int) *pyTaint {
+func (s *pyScope) evalExpr(expr string, line int) *taintTrace {
 	stripped := stripPySanitizers(expr)
 	if taint := s.directSourceTaint(stripped, line); taint != nil {
 		return taint
 	}
 	taint := s.localCallTaint(stripped, line)
-	return preferPyTaint(taint, s.taintedIdentifier(stripped, line))
+	return preferTaint(taint, s.taintedIdentifier(stripped, line))
 }
 
-func (s *pyScope) directSourceTaint(stripped string, line int) *pyTaint {
+func (s *pyScope) directSourceTaint(stripped string, line int) *taintTrace {
 	if taint := s.frameworkRequestSource(stripped, line); taint != nil {
 		return taint
 	}
@@ -69,10 +69,10 @@ func (s *pyScope) directSourceTaint(stripped string, line int) *pyTaint {
 	if name == "" {
 		return nil
 	}
-	return &pyTaint{source: name, sourceLine: line, chain: []string{name}, paramIndex: -1}
+	return sourceTrace(name, line, "")
 }
 
-func (s *pyScope) frameworkRequestSource(stripped string, line int) *pyTaint {
+func (s *pyScope) frameworkRequestSource(stripped string, line int) *taintTrace {
 	for _, candidate := range []struct {
 		model   string
 		pattern *regexp.Regexp
@@ -82,7 +82,7 @@ func (s *pyScope) frameworkRequestSource(stripped string, line int) *pyTaint {
 			continue
 		}
 		name := strings.TrimLeft(match[0], " \t=+,([{")
-		return &pyTaint{source: name, sourceLine: line, chain: []string{name}, paramIndex: -1, model: candidate.model}
+		return sourceTrace(name, line, candidate.model)
 	}
 	return nil
 }
@@ -91,43 +91,31 @@ func (s *pyScope) requestSourcesEnabled() bool {
 	return s.analyzer.webRequest || s.requestParam
 }
 
-// localCallTaint applies same-file function summaries to calls inside the
-// expression: tainted returns and tainted parameters that reach returns.
-func (s *pyScope) localCallTaint(stripped string, line int) *pyTaint {
-	for _, call := range support.ExtractCallsPositional(stripped, line) {
-		summary, known := s.analyzer.summaries[call.Callee]
-		if !known || summary == nil {
-			continue
-		}
-		if summary.returnTaint != nil {
-			inner := summary.returnTaint
-			return &pyTaint{
-				source:     inner.source,
-				sourceLine: inner.sourceLine,
-				chain:      append(append([]string{}, inner.chain...), call.Callee+"()"),
-				paramIndex: -1,
-			}
-		}
-		for idx, arg := range call.Args {
-			argTaint := s.taintedIdentifier(stripPySanitizers(arg), line)
-			if argTaint != nil && summary.paramsToReturn[idx] {
-				return argTaint.extended(call.Callee + "()")
-			}
-		}
-	}
-	return nil
+// callArgTaint resolves a summarised call's argument from tracked
+// identifiers only; nested calls inside the argument are not re-evaluated.
+func (s *pyScope) callArgTaint(arg string, line int) *taintTrace {
+	return s.taintedIdentifier(stripPySanitizers(arg), line)
+}
+
+func (s *pyScope) extractCalls(text string, line int) []support.ParsedCall {
+	return support.ExtractCallsPositional(text, line)
+}
+
+// lookupSummary resolves a callee by its exact same-file function name.
+func (s *pyScope) lookupSummary(callee string) *funcSummary {
+	return s.engine.summaries[callee]
 }
 
 // taintedIdentifier scans for identifiers bound to tainted values, skipping
 // attribute accesses like obj.name.
-func (s *pyScope) taintedIdentifier(stripped string, _ int) *pyTaint {
-	var found *pyTaint
+func (s *pyScope) taintedIdentifier(stripped string, _ int) *taintTrace {
+	var found *taintTrace
 	for _, match := range pyIdentScanPattern.FindAllStringIndex(stripped, -1) {
 		if match[0] > 0 && stripped[match[0]-1] == '.' {
 			continue
 		}
 		if taint, tracked := s.vars[stripped[match[0]:match[1]]]; tracked {
-			found = preferPyTaint(found, taint)
+			found = preferTaint(found, taint)
 		}
 	}
 	return found

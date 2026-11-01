@@ -8,15 +8,7 @@ import (
 
 func (s *goScope) handleReturn(stmt *ast.ReturnStmt) {
 	for _, result := range stmt.Results {
-		taint := s.evalExpr(result)
-		if taint == nil {
-			continue
-		}
-		if taint.paramIndex >= 0 {
-			s.summary.paramsToReturn[taint.paramIndex] = true
-		} else if s.summary.returnTaint == nil {
-			s.summary.returnTaint = taint
-		}
+		s.recordReturn(s.evalExpr(result))
 	}
 }
 
@@ -39,18 +31,12 @@ func (s *goScope) handleAssign(stmt *ast.AssignStmt) {
 	}
 }
 
-func (s *goScope) assignTo(lhs ast.Expr, taint *goTaint, allowClear bool) {
+func (s *goScope) assignTo(lhs ast.Expr, taint *taintTrace, allowClear bool) {
 	ident, ok := lhs.(*ast.Ident)
 	if !ok || ident.Name == "_" {
 		return
 	}
-	if taint != nil {
-		s.vars[ident.Name] = taint.extended(ident.Name)
-		return
-	}
-	if allowClear {
-		delete(s.vars, ident.Name)
-	}
+	s.bind(ident.Name, taint, allowClear)
 }
 
 // markStdinReader tracks `reader := bufio.NewReader(os.Stdin)` and
@@ -63,7 +49,7 @@ func (s *goScope) markStdinReader(lhs []ast.Expr, rhs ast.Expr) {
 	}
 	callee := exprTypeText(call.Fun)
 	if strings.HasPrefix(callee, "template.") {
-		s.markIdents(lhs, s.templateVars)
+		markIdents(lhs, s.templateVars)
 		return
 	}
 	if callee != "bufio.NewReader" && callee != "bufio.NewScanner" {
@@ -72,10 +58,11 @@ func (s *goScope) markStdinReader(lhs []ast.Expr, rhs ast.Expr) {
 	if len(call.Args) != 1 || exprTypeText(call.Args[0]) != "os.Stdin" {
 		return
 	}
-	s.markIdents(lhs, s.stdinReaders)
+	markIdents(lhs, s.stdinReaders)
 }
 
-func (s *goScope) markIdents(lhs []ast.Expr, set map[string]bool) {
+// markIdents adds every named (non-blank) identifier in lhs to set.
+func markIdents(lhs []ast.Expr, set map[string]bool) {
 	for _, target := range lhs {
 		if ident, ok := target.(*ast.Ident); ok && ident.Name != "_" {
 			set[ident.Name] = true

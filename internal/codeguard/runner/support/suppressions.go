@@ -23,7 +23,7 @@ type inlineSuppression struct {
 
 var inlineIgnorePattern = regexp.MustCompile(`codeguard:ignore\s+([a-z0-9._*\-]+)(?:\s+until\s+(\d{4}-\d{2}-\d{2}))?`)
 
-// Suppression reasons returned by IsSuppressed, keyed on by the rule-stats
+// Suppression reasons derived from MatchSuppression, keyed on by the rule-stats
 // collector to attribute suppressed findings to their mechanism.
 const (
 	SuppressionReasonBaseline = "baseline"
@@ -35,11 +35,6 @@ const (
 	SuppressionReasonConfidence = "confidence"
 )
 
-func IsSuppressed(sc Context, finding core.Finding) (bool, string) {
-	suppression := MatchSuppression(sc, finding)
-	return suppression != nil, suppressionReason(suppression)
-}
-
 func suppressionReason(suppression *core.Suppression) string {
 	if suppression == nil {
 		return ""
@@ -50,8 +45,9 @@ func suppressionReason(suppression *core.Suppression) string {
 	return suppression.Kind
 }
 
-// MatchSuppression returns structured suppression evidence while retaining the
-// exact precedence and many-to-many fingerprint semantics of IsSuppressed.
+// MatchSuppression returns structured evidence of the suppression covering
+// finding, checking the baseline (by any of its fingerprints), then waivers,
+// then inline directives; it returns nil when none applies.
 func MatchSuppression(sc Context, finding core.Finding) *core.Suppression {
 	if sc.Baseline != nil {
 		if entry, ok := sc.Baseline[finding.Fingerprint]; ok {

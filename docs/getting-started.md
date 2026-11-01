@@ -146,7 +146,16 @@ A typo in a flag or name fails before the scan starts, with a suggestion:
 - `fail` findings are intended to block until fixed, waived, or baselined.
 - `warn` findings are advisory by default and are best used for gradual cleanup.
 - `codeguard rules` lists every rule with section, level, execution model, and language coverage.
-- `codeguard explain <rule-id>` explains what a specific failed check means and how to fix it.
+  Narrow it with `-section security`, `-search taint`, `-level fail`, or
+  `-enabled` (only rules your config and profile actually run); add
+  `-format json` for scripts.
+- `codeguard explain <rule-id>` explains what a specific failed check means and how to fix it:
+  a bad and a good example (for the most common rules), the config keys that
+  turn it on, off, or tune it with their values in your config, the
+  `codeguard:ignore` comment and waiver YAML to suppress it, the profiles
+  that enable it, any retired alias ids, and a link to its docs. Use
+  `-format json` for the same data in machine-readable form. See
+  [Exploring rules](checks.md#exploring-rules).
 
 ## SDK import path
 

@@ -110,20 +110,26 @@ func writeSARIF(w io.Writer, report core.Report) error {
 		"version": "2.1.0",
 		"$schema": "https://json.schemastore.org/sarif-2.1.0.json",
 	}
-	rulesSeen := map[string]struct{}{}
-	var sarifRules []sarifRule
+	ruleFindings := map[string]*sarifRuleFindings{}
 	var results []sarifResult
 	for _, section := range report.Sections {
 		for _, finding := range section.Findings {
-			if _, ok := rulesSeen[finding.RuleID]; !ok {
-				rulesSeen[finding.RuleID] = struct{}{}
-				sarifRules = append(sarifRules, buildSARIFRule(rulespkg.Catalog(), finding))
+			group, ok := ruleFindings[finding.RuleID]
+			if !ok {
+				group = &sarifRuleFindings{sectionID: section.ID}
+				ruleFindings[finding.RuleID] = group
 			}
+			group.findings = append(group.findings, finding)
 			results = append(results, buildSARIFResult(finding))
 		}
 		for _, diagnostic := range section.Diagnostics {
 			results = append(results, buildSARIFDiagnostic(diagnostic))
 		}
+	}
+	catalog := rulespkg.Catalog()
+	sarifRules := make([]sarifRule, 0, len(ruleFindings))
+	for ruleID, group := range ruleFindings {
+		sarifRules = append(sarifRules, buildSARIFRule(catalog, ruleID, *group))
 	}
 	sort.Slice(sarifRules, func(i, j int) bool { return sarifRules[i].ID < sarifRules[j].ID })
 
@@ -142,16 +148,19 @@ func writeSARIF(w io.Writer, report core.Report) error {
 	if report.GeneratedAt != "" {
 		invocation["endTimeUtc"] = report.GeneratedAt
 	}
+	driver := map[string]any{
+		"name":           "codeguard",
+		"version":        version.Number,
+		"informationUri": "https://github.com/devr-tools/codeguard",
+		"rules":          sarifRules,
+	}
+	// semanticVersion must be a semver string; development builds report
+	// "devel", which only belongs in the free-form version field.
+	if semantic := strings.TrimPrefix(version.Number, "v"); semantic != "" && semantic[0] >= '0' && semantic[0] <= '9' {
+		driver["semanticVersion"] = semantic
+	}
 	run := map[string]any{
-		"tool": map[string]any{
-			"driver": map[string]any{
-				"name":            "codeguard",
-				"version":         version.Number,
-				"semanticVersion": strings.TrimPrefix(version.Number, "v"),
-				"informationUri":  "https://github.com/devr-tools/codeguard",
-				"rules":           sarifRules,
-			},
-		},
+		"tool":        map[string]any{"driver": driver},
 		"taxonomies":  []any{owaspTaxonomy()},
 		"invocations": []any{invocation},
 		"results":     results,
