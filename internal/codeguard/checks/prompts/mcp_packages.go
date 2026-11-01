@@ -80,36 +80,49 @@ func detectPackageLaunch(tokens []string) (packageLaunch, bool) {
 	return launch, true
 }
 
+// directLaunchers run their first argument as a package.
+var directLaunchers = map[string]launcherKind{
+	"npx": launcherNode, "bunx": launcherNode, "pnpx": launcherNode, "uvx": launcherPython,
+}
+
 func classifyLauncher(tokens []string) (string, launcherKind, []string) {
 	base := commandBase(tokens[0])
 	rest := tokens[1:]
-	switch base {
-	case "npx", "bunx", "pnpx":
-		return base, launcherNode, rest
-	case "pnpm", "yarn", "bun":
-		if len(rest) > 0 && (rest[0] == "dlx" || (base == "bun" && rest[0] == "x")) {
-			return base + " " + rest[0], launcherNode, rest[1:]
-		}
-	case "npm":
-		if len(rest) > 0 && (rest[0] == "exec" || rest[0] == "x") {
-			return "npm " + rest[0], launcherNode, rest[1:]
-		}
-	case "uvx":
-		return base, launcherPython, rest
-	case "uv":
+	if kind, ok := directLaunchers[base]; ok {
+		return base, kind, rest
+	}
+	if base == "uv" {
 		if len(rest) > 1 && rest[0] == "tool" && rest[1] == "run" {
 			return "uv tool run", launcherPython, rest[2:]
 		}
-	case "pipx":
-		if len(rest) > 0 && rest[0] == "run" {
-			return "pipx run", launcherPython, rest[1:]
-		}
-	case "docker", "podman":
-		if len(rest) > 0 && rest[0] == "run" {
-			return base + " run", launcherContainer, rest[1:]
-		}
+		return "", 0, nil
+	}
+	if kind, ok := subcommandLauncher(base, rest); ok {
+		return base + " " + rest[0], kind, rest[1:]
 	}
 	return "", 0, nil
+}
+
+// subcommandLauncher reports package runners invoked through a one-word
+// subcommand: pnpm/yarn/bun dlx, bun x, npm exec/x, pipx run, and
+// docker/podman run.
+func subcommandLauncher(base string, rest []string) (launcherKind, bool) {
+	if len(rest) == 0 {
+		return 0, false
+	}
+	switch base {
+	case "pnpm", "yarn":
+		return launcherNode, rest[0] == "dlx"
+	case "bun":
+		return launcherNode, rest[0] == "dlx" || rest[0] == "x"
+	case "npm":
+		return launcherNode, rest[0] == "exec" || rest[0] == "x"
+	case "pipx":
+		return launcherPython, rest[0] == "run"
+	case "docker", "podman":
+		return launcherContainer, rest[0] == "run"
+	}
+	return 0, false
 }
 
 func nodePackageArg(args []string, launch *packageLaunch) string {

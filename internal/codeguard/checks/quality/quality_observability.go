@@ -40,57 +40,101 @@ func findingsForFile(env support.Context, file string, data []byte) []core.Findi
 	rules := env.Config.Checks.ObservabilityRules
 	source := strings.ReplaceAll(string(data), "\r\n", "\n")
 	code := maskStringsForStructure(file, source)
-	lines := strings.Split(source, "\n")
-	codeLines := strings.Split(code, "\n")
-	findings := make([]core.Finding, 0)
-	hasDependency := dependencyPattern.MatchString(code)
-	hasInstrumentation := hasInstrumentationEvidence(source, rules)
-	healthRegionLine := 0
-
-	for idx, rawLine := range lines {
-		lineNo := idx + 1
-		codeLine := ""
-		if idx < len(codeLines) {
-			codeLine = codeLines[idx]
-		}
-		trimmed := strings.TrimSpace(codeLine)
-		if trimmed == "" || isCommentLine(trimmed) || isTestPath(file) {
-			continue
-		}
-		if enabled(rules.DetectUnstructuredLog) && isRawLogLine(codeLine) && !hasStructuredContext(rawLine) {
-			findings = append(findings, newFinding(env, "observability.unstructured-log", "warn", file, lineNo, "raw log call has no structured field context", "medium", "log_kind", "raw"))
-		}
-		if enabled(rules.DetectErrorWithoutContext) && isErrorLogLine(codeLine) && !hasErrorContext(rawLine, rules) {
-			findings = append(findings, newFinding(env, "observability.error-without-context", "warn", file, lineNo, "error log lacks operation, request, or safe resource context", "medium", "log_kind", "error"))
-		}
-		if enabled(rules.DetectSensitiveLogData) && isLogLikeLine(codeLine) {
-			if token, ok := firstPatternEvidence(rawLine, rules.SensitiveNamePatterns); ok {
-				findings = append(findings, newFinding(env, "observability.sensitive-log-data", "fail", file, lineNo, "log call includes sensitive-name evidence", "high", "sensitive_name", token))
-			}
-		}
-		if enabled(rules.DetectHighCardinalityLabel) && metricLabelPattern.MatchString(codeLine) {
-			if token, ok := firstPatternEvidence(rawLine, rules.HighCardinalityLabelPatterns); ok {
-				findings = append(findings, newFinding(env, "observability.high-cardinality-label", "warn", file, lineNo, "metric label appears to use a high-cardinality value", "high", "label_kind", token))
-			}
-		}
-		if enabled(rules.DetectLogAndIgnore) && isErrorLogLine(codeLine) && nextFewLinesIgnoreError(codeLines, idx) {
-			findings = append(findings, newFinding(env, "observability.log-and-ignore", "warn", file, lineNo, "failure is logged and then ignored or reported as success", "high", "failure_handling", "log-and-ignore"))
-		}
-		if isHealthPathOrLine(file, codeLine, rules) {
-			healthRegionLine = lineNo
-		}
-		if enabled(rules.DetectShallowHealthCheck) && healthRegionLine > 0 && lineNo <= healthRegionLine+8 && healthReturnOKPattern.MatchString(codeLine) && hasDependency {
-			findings = append(findings, newFinding(env, "observability.shallow-health-check", "warn", file, lineNo, "health/readiness path returns static OK while dependency evidence exists in the file", "medium", "healthcheck", "static-ok"))
-			healthRegionLine = 0
-		}
-		if enabled(rules.DetectCriticalPathUninstrumented) && isCriticalPath(file, codeLine, rules) && !hasInstrumentation {
-			findings = append(findings, newFinding(env, "observability.critical-path-uninstrumented", "warn", file, lineNo, "critical production path lacks visible metrics, tracing, or structured logging evidence", "medium", "critical_path", criticalKind(file, codeLine, rules)))
+	scan := &observabilityScan{
+		env:                env,
+		rules:              rules,
+		file:               file,
+		codeLines:          strings.Split(code, "\n"),
+		hasDependency:      dependencyPattern.MatchString(code),
+		hasInstrumentation: hasInstrumentationEvidence(source, rules),
+		findings:           make([]core.Finding, 0),
+	}
+	if !isTestPath(file) {
+		for idx, rawLine := range strings.Split(source, "\n") {
+			scan.scanLine(idx, rawLine)
 		}
 	}
-
-	return support.DedupeFindings(findings, func(finding core.Finding) string {
+	return support.DedupeFindings(scan.findings, func(finding core.Finding) string {
 		return finding.RuleID + "|" + finding.Path + "|" + fmt.Sprintf("%d", finding.Line)
 	})
+}
+
+// observabilityScan walks one file line by line. rawLine keeps string
+// contents (for evidence such as sensitive names) while codeLines have
+// strings masked (for structural matching).
+type observabilityScan struct {
+	env                support.Context
+	rules              core.ObservabilityRulesConfig
+	file               string
+	codeLines          []string
+	hasDependency      bool
+	hasInstrumentation bool
+	// healthRegionLine is the most recent health/readiness line; a static OK
+	// within 8 lines of it is a shallow health check.
+	healthRegionLine int
+	findings         []core.Finding
+}
+
+func (scan *observabilityScan) add(ruleID string, level string, line int, message string, confidence string, metaKey string, metaValue string) {
+	scan.findings = append(scan.findings, newFinding(scan.env, ruleID, level, scan.file, line, message, confidence, metaKey, metaValue))
+}
+
+func (scan *observabilityScan) scanLine(idx int, rawLine string) {
+	lineNo := idx + 1
+	codeLine := ""
+	if idx < len(scan.codeLines) {
+		codeLine = scan.codeLines[idx]
+	}
+	trimmed := strings.TrimSpace(codeLine)
+	if trimmed == "" || isCommentLine(trimmed) {
+		return
+	}
+	scan.logLineFindings(idx, rawLine, codeLine)
+	scan.healthCheckFinding(lineNo, codeLine)
+	if enabled(scan.rules.DetectCriticalPathUninstrumented) && isCriticalPath(scan.file, codeLine, scan.rules) && !scan.hasInstrumentation {
+		scan.add("observability.critical-path-uninstrumented", "warn", lineNo, "critical production path lacks visible metrics, tracing, or structured logging evidence", "medium", "critical_path", criticalKind(scan.file, codeLine, scan.rules))
+	}
+}
+
+// logLineFindings checks log and metric calls: unstructured logs, error logs
+// without context, sensitive data, high-cardinality labels, and log-and-ignore.
+func (scan *observabilityScan) logLineFindings(idx int, rawLine string, codeLine string) {
+	lineNo := idx + 1
+	rules := scan.rules
+	if enabled(rules.DetectUnstructuredLog) && isRawLogLine(codeLine) && !hasStructuredContext(rawLine) {
+		scan.add("observability.unstructured-log", "warn", lineNo, "raw log call has no structured field context", "medium", "log_kind", "raw")
+	}
+	if enabled(rules.DetectErrorWithoutContext) && isErrorLogLine(codeLine) && !hasErrorContext(rawLine, rules) {
+		scan.add("observability.error-without-context", "warn", lineNo, "error log lacks operation, request, or safe resource context", "medium", "log_kind", "error")
+	}
+	if enabled(rules.DetectSensitiveLogData) && isLogLikeLine(codeLine) {
+		if token, ok := firstPatternEvidence(rawLine, rules.SensitiveNamePatterns); ok {
+			scan.add("observability.sensitive-log-data", "fail", lineNo, "log call includes sensitive-name evidence", "high", "sensitive_name", token)
+		}
+	}
+	if enabled(rules.DetectHighCardinalityLabel) && metricLabelPattern.MatchString(codeLine) {
+		if token, ok := firstPatternEvidence(rawLine, rules.HighCardinalityLabelPatterns); ok {
+			scan.add("observability.high-cardinality-label", "warn", lineNo, "metric label appears to use a high-cardinality value", "high", "label_kind", token)
+		}
+	}
+	if enabled(rules.DetectLogAndIgnore) && isErrorLogLine(codeLine) && nextFewLinesIgnoreError(scan.codeLines, idx) {
+		scan.add("observability.log-and-ignore", "warn", lineNo, "failure is logged and then ignored or reported as success", "high", "failure_handling", "log-and-ignore")
+	}
+}
+
+// healthCheckFinding tracks health/readiness regions and reports a static OK
+// returned shortly after one while the file shows dependency evidence.
+func (scan *observabilityScan) healthCheckFinding(lineNo int, codeLine string) {
+	if isHealthPathOrLine(scan.file, codeLine, scan.rules) {
+		scan.healthRegionLine = lineNo
+	}
+	if !enabled(scan.rules.DetectShallowHealthCheck) || scan.healthRegionLine == 0 || lineNo > scan.healthRegionLine+8 {
+		return
+	}
+	if healthReturnOKPattern.MatchString(codeLine) && scan.hasDependency {
+		scan.add("observability.shallow-health-check", "warn", lineNo, "health/readiness path returns static OK while dependency evidence exists in the file", "medium", "healthcheck", "static-ok")
+		scan.healthRegionLine = 0
+	}
 }
 
 func isObservableSourceFile(path string) bool {

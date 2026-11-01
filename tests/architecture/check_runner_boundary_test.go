@@ -44,39 +44,7 @@ var checkRunnerImportAllowlist = map[string]map[string]string{
 // the runner orchestrates the check sections, so a check importing a runner
 // package couples a section to orchestration internals and risks cycles.
 func TestChecksDoNotImportRunner(t *testing.T) {
-	found := map[string]map[string]bool{}
-	fset := token.NewFileSet()
-	err := filepath.WalkDir(checksRoot, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() || !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-		file, parseErr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
-		if parseErr != nil {
-			return parseErr
-		}
-		rel, relErr := filepath.Rel(checksRoot, path)
-		if relErr != nil {
-			return relErr
-		}
-		rel = filepath.ToSlash(rel)
-		for _, spec := range file.Imports {
-			importPath, unquoteErr := strconv.Unquote(spec.Path.Value)
-			if unquoteErr != nil {
-				return unquoteErr
-			}
-			if importPath != runnerPrefix && !strings.HasPrefix(importPath, runnerPrefix+"/") {
-				continue
-			}
-			if found[rel] == nil {
-				found[rel] = map[string]bool{}
-			}
-			found[rel][importPath] = true
-		}
-		return nil
-	})
+	found, err := runnerImportsUnder(checksRoot)
 	if err != nil {
 		t.Fatalf("walk %s: %v", checksRoot, err)
 	}
@@ -106,4 +74,51 @@ func TestChecksDoNotImportRunner(t *testing.T) {
 	for _, entry := range stale {
 		t.Errorf("allowlist entry %s is no longer needed; remove it from checkRunnerImportAllowlist", entry)
 	}
+}
+
+// runnerImportsUnder maps each Go file under root (by slash-separated path
+// relative to root) to the runner packages it imports.
+func runnerImportsUnder(root string) (map[string]map[string]bool, error) {
+	found := map[string]map[string]bool{}
+	fset := token.NewFileSet()
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		imports, importErr := fileRunnerImports(fset, path)
+		if importErr != nil {
+			return importErr
+		}
+		if len(imports) > 0 {
+			found[filepath.ToSlash(rel)] = imports
+		}
+		return nil
+	})
+	return found, err
+}
+
+// fileRunnerImports returns the runner packages one Go file imports.
+func fileRunnerImports(fset *token.FileSet, path string) (map[string]bool, error) {
+	file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+	if err != nil {
+		return nil, err
+	}
+	imports := map[string]bool{}
+	for _, spec := range file.Imports {
+		importPath, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			return nil, err
+		}
+		if importPath == runnerPrefix || strings.HasPrefix(importPath, runnerPrefix+"/") {
+			imports[importPath] = true
+		}
+	}
+	return imports, nil
 }

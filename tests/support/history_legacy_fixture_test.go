@@ -30,7 +30,9 @@ func TestLegacyKeyedHistoryFixturesLoad(t *testing.T) {
 	if got := slop["ai_slop:repo"][1]; got.Timestamp != "2026-10-02T00:00:00Z" || got.Score != 10 {
 		t.Fatalf("latest slop entry = %#v", got)
 	}
+}
 
+func TestLegacyKeyedPerfAndLegibilityHistoryFixturesLoad(t *testing.T) {
 	perf := runnersupport.LoadPerfScoreHistory(filepath.Join(legacyHistoryDir, "perf-history.json"))
 	if entries := perf["performance_score:repo"]; len(entries) != 2 || entries[0].Score != 30 || entries[1].Score != 40 || entries[1].Signals != 4 {
 		t.Fatalf("perf history = %#v", perf)

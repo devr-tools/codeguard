@@ -17,8 +17,6 @@ type runtimeConfig struct {
 	BaseURLFromEnv bool
 	APIKey         string
 	Timeout        time.Duration
-	MockDecision   string
-	MockSummary    string
 }
 
 const (
@@ -96,8 +94,6 @@ func discoverRuntime(cfg core.AIConfig, opts core.ScanOptions) runtimeConfig {
 		BaseURLFromEnv: envBaseURL != "",
 		APIKey:         apiKey,
 		Timeout:        timeout,
-		MockDecision:   strings.ToLower(strings.TrimSpace(os.Getenv("CODEGUARD_AI_TRIAGE_DECISION"))),
-		MockSummary:    strings.TrimSpace(os.Getenv("CODEGUARD_AI_TRIAGE_SUMMARY")),
 	}
 }
 
@@ -109,20 +105,19 @@ func (cfg runtimeConfig) validate() error {
 	if cfg.Provider == "" {
 		return nil
 	}
-	if cfg.Provider != "mock" && cfg.Model == "" {
+	if cfg.Model == "" {
 		return fmt.Errorf("CODEGUARD_AI_TRIAGE_MODEL is required when CODEGUARD_AI_TRIAGE_PROVIDER is set")
 	}
 	if err := safehttp.ValidateProviderURL(cfg.BaseURL, cfg.BaseURLFromEnv); err != nil {
 		return err
 	}
 	switch cfg.Provider {
-	case "mock":
-		return nil
-	case "openai":
-		return nil
-	case "anthropic":
+	case "openai", "anthropic":
 		return nil
 	default:
+		if injectedTestProvider(cfg.Provider) != nil {
+			return nil
+		}
 		return fmt.Errorf("unsupported CODEGUARD_AI_TRIAGE_PROVIDER %q", cfg.Provider)
 	}
 }

@@ -80,27 +80,39 @@ func TestImportTrivyNormalizesFindingsAndRedactsSecretPayload(t *testing.T) {
 	if len(sections) != 1 || sections[0].Status != core.StatusFail || len(sections[0].Findings) != 3 {
 		t.Fatalf("unexpected sections: %#v", sections)
 	}
-	var vulnerability, misconfiguration, findingSecret core.Finding
-	for _, finding := range sections[0].Findings {
-		switch finding.Metadata["trivy_kind"] {
-		case "vulnerability":
-			vulnerability = finding
-		case "misconfiguration":
-			misconfiguration = finding
-		case "secret":
-			findingSecret = finding
-		}
-	}
-	if vulnerability.RuleID != "external.trivy-fs.vulnerability.cve-2026-1234" || vulnerability.Level != "fail" || vulnerability.Path != "go.mod" {
-		t.Fatalf("unexpected vulnerability: %#v", vulnerability)
-	}
-	if misconfiguration.RuleID != "external.trivy-fs.misconfiguration.avd-ksv-0001" || misconfiguration.Level != "warn" || misconfiguration.Path != "deploy/app.yaml" || misconfiguration.Line != 12 {
-		t.Fatalf("unexpected misconfiguration: %#v", misconfiguration)
-	}
-	if findingSecret.RuleID != "external.trivy-fs.secret.generic-api-key" || findingSecret.Level != "fail" || findingSecret.Path != "go.mod" || findingSecret.Line != 19 {
-		t.Fatalf("unexpected secret finding: %#v", findingSecret)
-	}
+	byKind := trivyFindingsByKind(sections[0].Findings)
+	assertTrivyFinding(t, byKind["vulnerability"], trivyFindingShape{ruleID: "external.trivy-fs.vulnerability.cve-2026-1234", level: "fail", path: "go.mod"})
+	assertTrivyFinding(t, byKind["misconfiguration"], trivyFindingShape{ruleID: "external.trivy-fs.misconfiguration.avd-ksv-0001", level: "warn", path: "deploy/app.yaml", line: 12})
+	assertTrivyFinding(t, byKind["secret"], trivyFindingShape{ruleID: "external.trivy-fs.secret.generic-api-key", level: "fail", path: "go.mod", line: 19})
 	if strings.Contains(fmt.Sprintf("%#v", sections), redactedMarker) {
 		t.Fatalf("secret payload was retained in finding: %#v", sections)
+	}
+}
+
+// trivyFindingShape is the expected identity of an imported Trivy finding;
+// a zero line is not checked.
+type trivyFindingShape struct {
+	ruleID string
+	level  string
+	path   string
+	line   int
+}
+
+func trivyFindingsByKind(findings []core.Finding) map[string]core.Finding {
+	byKind := make(map[string]core.Finding, len(findings))
+	for _, finding := range findings {
+		byKind[finding.Metadata["trivy_kind"]] = finding
+	}
+	return byKind
+}
+
+func assertTrivyFinding(t *testing.T, finding core.Finding, want trivyFindingShape) {
+	t.Helper()
+	got := trivyFindingShape{ruleID: finding.RuleID, level: finding.Level, path: finding.Path, line: finding.Line}
+	if want.line == 0 {
+		got.line = 0
+	}
+	if got != want {
+		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }

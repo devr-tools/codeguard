@@ -10,8 +10,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/ai/triage"
 	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
+
+// useTestTriageProvider routes triage for this test to a deterministic
+// provider that returns decision/summary for every candidate.
+func useTestTriageProvider(t *testing.T, decision string, summary string) *triage.TestProvider {
+	t.Helper()
+	provider := &triage.TestProvider{Decision: decision, Summary: summary}
+	t.Cleanup(triage.UseTestProviderForTest("test", provider))
+	t.Setenv("CODEGUARD_AI_TRIAGE_PROVIDER", "test")
+	t.Setenv("CODEGUARD_AI_TRIAGE_MODEL", "test-model")
+	return provider
+}
 
 func openAITriageHandler(t *testing.T, wrap func(string) string) http.HandlerFunc {
 	t.Helper()
@@ -146,6 +158,29 @@ func doThing() error { return nil }
 	}
 }
 
+// TestHybridTriageRejectsRemovedMockProvider pins that the old config-
+// selectable "mock" provider is gone from the production binary: selecting it
+// is a configuration error and findings are kept.
+func TestHybridTriageRejectsRemovedMockProvider(t *testing.T) {
+	t.Setenv("CODEGUARD_AI_TRIAGE_PROVIDER", "mock")
+	t.Setenv("CODEGUARD_AI_TRIAGE_MODEL", "test-model")
+
+	report, err := codeguard.Run(context.Background(), triageFixtureConfig(t, t.TempDir()))
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if len(findSection(t, report, "Code Quality").Findings) == 0 {
+		t.Fatal("expected findings to be kept when the provider is rejected")
+	}
+	artifact := findAIAnalysisArtifact(report)
+	if artifact == nil || artifact.AIAnalysis == nil || len(artifact.AIAnalysis.Verdicts) != 1 {
+		t.Fatalf("expected one configuration verdict, got %#v", report.Artifacts)
+	}
+	if verdict := artifact.AIAnalysis.Verdicts[0]; verdict.Status != "error" || !strings.Contains(verdict.Summary, `unsupported CODEGUARD_AI_TRIAGE_PROVIDER "mock"`) {
+		t.Fatalf("expected unsupported-provider error, got %#v", verdict)
+	}
+}
+
 func TestHybridTriageDismissesStaticFinding(t *testing.T) {
 	root := t.TempDir()
 	writeArtifactFile(t, filepath.Join(root, "service.go"), `package sample
@@ -159,10 +194,7 @@ func BuildClient() error {
 func doThing() error { return nil }
 `)
 
-	t.Setenv("CODEGUARD_AI_TRIAGE_PROVIDER", "mock")
-	t.Setenv("CODEGUARD_AI_TRIAGE_MODEL", "test-model")
-	t.Setenv("CODEGUARD_AI_TRIAGE_DECISION", "dismiss")
-	t.Setenv("CODEGUARD_AI_TRIAGE_SUMMARY", "blank identifier use is intentional in this fixture")
+	useTestTriageProvider(t, "dismiss", "blank identifier use is intentional in this fixture")
 
 	cacheEnabled := true
 	report, err := codeguard.Run(context.Background(), codeguard.Config{
@@ -215,12 +247,7 @@ func BuildClient() error {
 func doThing() error { return nil }
 `)
 
-	counterPath := filepath.Join(root, "triage-count.txt")
-	t.Setenv("CODEGUARD_AI_TRIAGE_PROVIDER", "mock")
-	t.Setenv("CODEGUARD_AI_TRIAGE_MODEL", "test-model")
-	t.Setenv("CODEGUARD_AI_TRIAGE_DECISION", "dismiss")
-	t.Setenv("CODEGUARD_AI_TRIAGE_SUMMARY", "cached dismissal")
-	t.Setenv("CODEGUARD_AI_TRIAGE_COUNT_FILE", counterPath)
+	provider := useTestTriageProvider(t, "dismiss", "cached dismissal")
 
 	cachePath := filepath.Join(root, ".codeguard", "cache.json")
 	cacheEnabled := true
@@ -251,10 +278,8 @@ func doThing() error { return nil }
 	if err != nil {
 		t.Fatalf("second Run returned error: %v", err)
 	}
-	if data, readErr := os.ReadFile(counterPath); readErr != nil {
-		t.Fatalf("read count file: %v", readErr)
-	} else if strings.TrimSpace(string(data)) != "1" {
-		t.Fatalf("expected 1 provider call across cached rerun, got %q", strings.TrimSpace(string(data)))
+	if calls := provider.Calls(); calls != 1 {
+		t.Fatalf("expected 1 provider call across cached rerun, got %d", calls)
 	}
 	if verdicts := findAIAnalysisArtifact(second).AIAnalysis.Verdicts; len(verdicts) != 1 || verdicts[0].Status != "cached-dismissed" {
 		t.Fatalf("expected cached-dismissed verdict on second run, got %#v", verdicts)

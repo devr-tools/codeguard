@@ -128,13 +128,19 @@ func defensiveBoundaryFindings(env support.Context, file string, fn precisionFun
 		findings = append(findings, precisionWarnFinding(env, defensiveUncheckedExternalResponseRuleID, file, line,
 			"external response is consumed without checking status, ok, or transport error", core.ConfidenceMedium))
 	}
+	findings = append(findings, defensivePayloadAndStateFindings(env, file, fn, loweredBody)...)
+	return findings
+}
+
+// defensivePayloadAndStateFindings covers decoded payloads, resource limits,
+// state transitions, and authorization failure paths.
+func defensivePayloadAndStateFindings(env support.Context, file string, fn precisionFunction, loweredBody string) []core.Finding {
+	findings := make([]core.Finding, 0)
 	if !isUIHelperOrMappingContext(file, fn) && !isReactComponentOrHookBoundary(file, fn) {
 		if line, ok := missingSchemaValidationLine(fn, loweredBody); ok {
 			findings = append(findings, precisionWarnFinding(env, defensiveMissingSchemaValidationRuleID, file, line,
 				"decoded JSON or event payload is used without schema or invariant validation", core.ConfidenceMedium))
 		}
-	}
-	if !isUIHelperOrMappingContext(file, fn) && !isReactComponentOrHookBoundary(file, fn) {
 		if line, ok := missingResourceLimitLine(fn, loweredBody); ok {
 			findings = append(findings, precisionWarnFinding(env, defensiveMissingResourceLimitRuleID, file, line,
 				"boundary read or upload lacks an explicit size/count/time resource limit", core.ConfidenceMedium))
@@ -204,28 +210,22 @@ func structuralDataTransferContainerLine(line string) bool {
 		if idx+1 >= len(fields) {
 			return false
 		}
-		name := strings.ToLower(strings.Trim(fields[idx+1], "_$"))
-		return strings.HasSuffix(name, "args") ||
-			strings.Contains(name, "context") ||
-			strings.HasSuffix(name, "base") ||
-			strings.HasSuffix(name, "data") ||
-			strings.HasSuffix(name, "response") ||
-			strings.HasSuffix(name, "responses") ||
-			strings.HasSuffix(name, "input") ||
-			strings.HasSuffix(name, "options") ||
-			strings.HasSuffix(name, "opts") ||
-			strings.HasSuffix(name, "row") ||
-			strings.Contains(name, "rowpart") ||
-			strings.HasSuffix(name, "part") ||
-			dataTransferPartPattern.MatchString(name) ||
-			strings.HasSuffix(name, "ctx") ||
-			strings.Contains(name, "dto") ||
-			strings.Contains(name, "schema") ||
-			strings.Contains(name, "payload") ||
-			strings.Contains(name, "record") ||
-			strings.Contains(name, "seed")
+		return dataTransferTypeName(strings.ToLower(strings.Trim(fields[idx+1], "_$")))
 	}
 	return false
+}
+
+var (
+	dataTransferNameSuffixes  = []string{"args", "base", "data", "response", "responses", "input", "options", "opts", "row", "part", "ctx"}
+	dataTransferNameFragments = []string{"context", "rowpart", "dto", "schema", "payload", "record", "seed"}
+)
+
+// dataTransferTypeName reports whether a lower-cased type name reads as a
+// data-transfer, options, context, or row shape.
+func dataTransferTypeName(name string) bool {
+	return hasAnySuffix(name, dataTransferNameSuffixes) ||
+		containsAny(name, dataTransferNameFragments) ||
+		dataTransferPartPattern.MatchString(name)
 }
 
 func structuralPendingResultContainer(lines []string, start int) bool {

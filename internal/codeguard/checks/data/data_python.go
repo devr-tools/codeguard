@@ -38,47 +38,31 @@ func pythonFindingsForFile(env support.Context, file string, data []byte) []core
 }
 
 type pythonDataScan struct {
-	env          support.Context
-	file         string
-	rules        core.DataRulesConfig
-	readLines    []int
-	writeLines   []int
-	publishLines []int
-	consumerLine int
-	hasTx        bool
-	hasOutbox    bool
-	hasDedupe    bool
-	findings     []core.Finding
+	env   support.Context
+	file  string
+	rules core.DataRulesConfig
+	dataFlowEvidence
+	findings []core.Finding
+}
+
+var pythonDataPatterns = dataLinePatterns{
+	transaction: pyTransactionHint,
+	outbox:      pyOutboxHint,
+	dedupe:      pyDedupeHint,
+	write:       pyWriteCall,
+	read:        pySelectQuery,
+	publish:     pyPublishCall,
+	consumer:    pyConsumerDef,
 }
 
 func (s *pythonDataScan) consumeLine(lineNo int, line string) {
 	lower := strings.ToLower(line)
-	if pyTransactionHint.MatchString(line) {
-		s.hasTx = true
-	}
-	if pyOutboxHint.MatchString(line) {
-		s.hasOutbox = true
-	}
-	if pyDedupeHint.MatchString(line) {
-		s.hasDedupe = true
-	}
-	if pyWriteCall.MatchString(line) {
-		s.writeLines = append(s.writeLines, lineNo)
-	}
-	if pySelectQuery.MatchString(line) {
-		s.readLines = append(s.readLines, lineNo)
-	}
-	if pyPublishCall.MatchString(line) {
-		s.publishLines = append(s.publishLines, lineNo)
-	}
+	s.record(lineNo, line, pythonDataPatterns)
 	if enabled(s.rules.DetectUnstablePagination) && pyLimitOffset.MatchString(line) && !pyOrderBy.MatchString(line) {
 		s.add("data.unstable-pagination", "warn", lineNo, "Python query paginates with offset without deterministic ordering", "high", "query", "offset-without-order")
 	}
 	if enabled(s.rules.DetectUnboundedRead) && pySelectQuery.MatchString(line) && !pyLimitBound.MatchString(line) && !strings.Contains(lower, "where ") {
 		s.add("data.unbounded-read", "warn", lineNo, "Python database read has no visible limit, stream, cursor, or bounded filter", "medium", "query", "unbounded-read")
-	}
-	if pyConsumerDef.MatchString(line) {
-		s.consumerLine = lineNo
 	}
 	if enabled(s.rules.DetectCacheWithoutPolicy) && pyCacheSet.MatchString(line) && !pyTTLHint.MatchString(line) {
 		s.add("data.cache-without-policy", "warn", lineNo, "Python cache write lacks TTL or expiration policy evidence", "medium", "cache", "set-without-ttl")
@@ -89,31 +73,7 @@ func (s *pythonDataScan) consumeLine(lineNo int, line string) {
 }
 
 func (s *pythonDataScan) finish() {
-	if enabled(s.rules.DetectReadModifyWriteRace) && len(s.readLines) > 0 && len(s.writeLines) > 0 && !s.hasTx {
-		s.add("data.read-modify-write-race", "fail", s.readLines[0], "Python code reads state and writes derived state without transaction or atomic update evidence", "medium", "pattern", "read-modify-write")
-	}
-	if len(s.writeLines) > s.rules.MaxWritesWithoutTransaction && !s.hasTx {
-		s.add("data.missing-transaction-boundary", "fail", s.writeLines[0], "Python code performs multiple persistence writes without transaction evidence", "medium", "writes", "multiple")
-	}
-	if enabled(s.rules.DetectSideEffectInTransaction) && s.hasTx && len(s.publishLines) > 0 && !s.hasOutbox {
-		s.add("data.side-effect-in-transaction", "fail", s.publishLines[0], "Python transaction block performs an external side effect that may not roll back safely", "high", "transaction", "side-effect")
-	}
-	if len(s.writeLines) > 0 && len(s.publishLines) > 0 && !s.hasOutbox {
-		if enabled(s.rules.DetectUnsafeDualWrite) {
-			s.add("data.unsafe-dual-write", "fail", s.writeLines[0], "Python code writes state and publishes/sends work without a consistency strategy", "medium", "pattern", "write-plus-side-effect")
-		}
-		if enabled(s.rules.DetectMissingOutboxStrategy) {
-			s.add("data.missing-outbox-strategy", "fail", s.publishLines[0], "Python state write is paired with publish/send without outbox evidence", "medium", "pattern", "missing-outbox")
-		}
-	}
-	if s.consumerLine > 0 && len(s.publishLines) > 0 && !s.hasDedupe {
-		if enabled(s.rules.DetectNonIdempotentConsumer) {
-			s.add("data.non-idempotent-consumer", "fail", s.consumerLine, "Python consumer performs side effects without idempotency evidence", "medium", "consumer", "handler")
-		}
-		if enabled(s.rules.DetectMissingDeduplication) {
-			s.add("data.missing-deduplication", "warn", s.consumerLine, "Python consumer has no visible deduplication guard", "medium", "consumer", "handler")
-		}
-	}
+	s.fileFindings(s.rules, "Python", s.add)
 }
 
 func (s *pythonDataScan) add(ruleID string, level string, lineNo int, message string, confidence string, metaKey string, metaValue string) {

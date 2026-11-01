@@ -12,11 +12,6 @@ import (
 // shown to users.
 var outputFormats = []string{"text", "json", "sarif", "github", "github-comment", "cyclonedx", "cyclonedx-json"}
 
-// OutputFormats returns the accepted report formats.
-func OutputFormats() []string {
-	return append([]string(nil), outputFormats...)
-}
-
 // ValidateOutputFormat checks a report format without loading a config, so
 // commands can reject a typo such as -format sarf before any scan output. An
 // empty format means "use the config's format" and is valid.
