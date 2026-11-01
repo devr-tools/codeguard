@@ -118,6 +118,32 @@ or consumed in the same expression (`exec.Command(arg).Run()`,
 `if err := exec.Command(arg).Start(); ...`). `strconv` parsing clears taint,
 and constant arguments never fire.
 
+### Python taint sources and sinks
+
+`security.taint.python` / `security.ssrf.python` sources are `input()`,
+`os.environ`, `sys.argv`, and — in modules that import Flask, Django, or
+FastAPI — request data: Flask `request.args` / `form` / `values` / `json` /
+`data` / `cookies` / `headers` / `get_json()` (bare `request` or qualified
+`flask.request`), Django `request.GET` / `POST` / `FILES` / `COOKIES` /
+`META` / `body`, and FastAPI `Request` query/path params, headers, cookies,
+and body. Sinks:
+
+- command execution: `os.system`, `os.popen`, `eval`, `exec`, and
+  `subprocess.run` / `call` / `check_call` / `check_output` / `getoutput` /
+  `getstatusoutput` / `Popen` when given `shell=True` or a string command
+  (an argv list without `shell=True` is not a sink);
+- SQL: the query argument of `.execute` / `.executemany` and Django
+  `.objects.raw` (parameter tuples are not sinks);
+- SSRF: the URL argument of `requests.get/post/put/delete/patch/head/options`,
+  `requests.request` (second argument), `urllib.request.urlopen` /
+  `urllib.request.Request`, and `httpx.get/post/put/patch/delete/head` and
+  `httpx.request` / `httpx.stream` (second argument).
+
+Sinks are resolved through imports, so `from urllib.request import urlopen`,
+`from os import system`, `from requests import get as fetch`, and
+`import subprocess as sp` reach the same sinks as their qualified forms.
+`shlex.quote()`, `int()`, and `float()` clear taint.
+
 ## Release integrity (supply chain)
 
 codeguard's own releases are hardened against tampering:

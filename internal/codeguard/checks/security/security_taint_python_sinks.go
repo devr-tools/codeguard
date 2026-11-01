@@ -24,6 +24,12 @@ var pyHTTPSinkArgIndex = map[string]int{
 	"urllib2.urlopen":        0,
 	"httpx.get":              0,
 	"httpx.post":             0,
+	"httpx.put":              0,
+	"httpx.patch":            0,
+	"httpx.delete":           0,
+	"httpx.head":             0,
+	"httpx.request":          1,
+	"httpx.stream":           1,
 }
 
 func isPyHTTPSink(callee string) bool {
@@ -77,13 +83,14 @@ var (
 
 // checkStatementSinks inspects every call in the statement for sinks.
 func (s *pyScope) checkStatementSinks(statement support.ParsedStatement) {
-	for _, call := range support.ExtractCalls(statement.Text, statement.Line) {
+	for _, call := range support.ExtractCallsPositional(statement.Text, statement.Line) {
 		s.checkCallSink(call)
 		s.applyLocalParamSinks(call)
 	}
 }
 
 func (s *pyScope) checkCallSink(call support.ParsedCall) {
+	call.Callee = s.analyzer.models.canonicalCallee(call.Callee)
 	switch {
 	case call.Callee == "os.system" || call.Callee == "os.popen" || call.Callee == "eval" || call.Callee == "exec":
 		s.reportSink(s.argTaint(call, 0), call.Callee, call.Line)
