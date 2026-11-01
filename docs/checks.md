@@ -1871,14 +1871,22 @@ TypeScript/JavaScript) and reports in both full scans and `-mode diff` scans, so
 hardcoded credential introduced in a PR fails the changed-lines diff check as well as a
 full scan. It has two confidence tiers:
 
-- `security.hardcoded-credential` (**fail**) — a value matching a known provider format:
-  AWS access keys, GitHub/GitLab tokens, Slack tokens and webhook URLs, Stripe live keys,
+- `security.hardcoded-credential` (**fail**, high confidence) — a value matching a known
+  provider format: AWS access keys, GitHub classic (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`)
+  and fine-grained (`github_pat_`) tokens, GitLab tokens, Slack tokens and webhook URLs,
+  Stripe live secret/restricted keys (`sk_live_`/`rk_live_`, and the hyphenated
+  `sk-live-` spelling), OpenAI (`sk-proj-`/`sk-svcacct-`/`sk-admin-` and legacy
+  `sk-…T3BlbkFJ…`) and Anthropic (`sk-ant-api03-…`) API keys, Hugging Face (`hf_`) tokens,
   Google API keys, npm/PyPI/Docker Hub tokens, SendGrid and Twilio keys, Azure storage
   account keys, database connection strings with embedded passwords
   (`postgres://user:pass@…`), `Authorization: Bearer …` tokens,
   `aws_secret_access_key`/`client_secret`/`private_token` assignments, plus any configured
-  `custom_patterns`.
-- `security.hardcoded-secret` (**warn**) — the lower-confidence name-based heuristic: a
+  `custom_patterns`. The provider tier is checked before the name-based heuristic, so a
+  valid-shaped provider key assigned to a `secret`/`api_key` identifier is reported here
+  at high confidence rather than as a low-confidence `hardcoded-secret`. The prefix alone
+  is not enough: each format requires its documented body length and alphabet, and
+  Stripe test-mode (`sk_test_`) and publishable (`pk_live_`) keys are not in this tier.
+- `security.hardcoded-secret` (**warn**, low confidence) — the name-based heuristic: a
   `secret`/`token`/`api_key`/`password` identifier assigned a quoted literal.
 - `security.high-entropy-string` (**warn**, opt-in) — a high-entropy string literal that
   may be an unknown/random secret matching no known format. Enabled via
@@ -1888,7 +1896,10 @@ Findings report the value **masked** (`AKIA…CDEF`) so the message itself never
 the secret. Obvious placeholders are skipped automatically (`REDACTED`, `xxxx…`,
 `example`, `your-…`, `${ENV}` / `{{ }}` / `<…>` interpolations, `$(...)` command
 substitutions, `op://` / `vault://` secret references, all-same-character fillers,
-`process.env.*` / `os.environ[...]` references).
+`process.env.*` / `os.environ[...]` references, and provider-prefixed stand-ins whose body
+is empty or filler such as `sk_test_xxx` or `ghp_xxxx…` when they reach the name-based
+heuristic). Fixture and documentation grading (below) applies on top of these tiers
+unchanged.
 
 Config keys (under `checks.security_rules.secrets`):
 

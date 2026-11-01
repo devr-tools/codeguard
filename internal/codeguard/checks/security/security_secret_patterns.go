@@ -48,7 +48,13 @@ var credentialPatterns = []credentialPattern{
 	// precede or follow the match (satisfies CodeQL go/regex/missing-regexp-anchor);
 	// the captured group is the webhook URL itself.
 	{regexp.MustCompile(`(?:^|[^A-Za-z0-9_])(https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]{16,})(?:$|[^A-Za-z0-9_])`), "Slack webhook URL"},
-	{regexp.MustCompile(`\b(?:sk|rk)_live_[0-9A-Za-z]{20,}\b`), "Stripe live secret key"},
+	// Stripe documents underscores; the hyphenated spelling is accepted too
+	// because "sk-live-"/"rk-live-" is unmistakably a live key either way.
+	{regexp.MustCompile(`\b(?:sk|rk)(?:_live_|-live-)[0-9A-Za-z]{20,}\b`), "Stripe live secret key"},
+	{regexp.MustCompile(`\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}`), "OpenAI API key"},
+	{regexp.MustCompile(`\bsk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}\b`), "OpenAI API key"},
+	{regexp.MustCompile(`\bsk-ant-(?:api|admin)[0-9]{2}-[A-Za-z0-9_-]{32,}`), "Anthropic API key"},
+	{regexp.MustCompile(`\bhf_[A-Za-z]{34}\b`), "Hugging Face access token"},
 	{regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`), "Google API key"},
 	{regexp.MustCompile(`\bnpm_[0-9A-Za-z]{36}\b`), "npm access token"},
 	{regexp.MustCompile(`\bSG\.[0-9A-Za-z_-]{22}\.[0-9A-Za-z_-]{43}\b`), "SendGrid API key"},
@@ -76,8 +82,8 @@ var placeholderPattern = regexp.MustCompile(`(?i)^(?:[x*.\-_0]+|redacted|changem
 var (
 	gateLiterals = []string{
 		"AKIA", "ASIA", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_",
-		"glpat-", "xox", "hooks.slack.com", "_live_", "AIza", "npm_", "SG.", "SK",
-		"pypi-", "dckr_pat_", "PRIVATE KEY", "://",
+		"glpat-", "xox", "hooks.slack.com", "_live_", "-live-", "sk-", "hf_", "AIza",
+		"npm_", "SG.", "SK", "pypi-", "dckr_pat_", "PRIVATE KEY", "://",
 	}
 	gateFoldLiterals = []string{
 		"secret", "token", "password", "dbpass", "db_pass", "db-pass", "apikey", "api_key", "api-key", "bearer", "accountkey",
