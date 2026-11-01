@@ -39,17 +39,9 @@ func typeScriptAITargetFindings(env support.Context, target core.TargetConfig) [
 		errorStyle: dominantScriptErrorStyle(env, target, files),
 		naming:     dominantNamingConvention(env, target, files, scriptDeclaredNames),
 	}
-	// Each file's findings depend only on the file and the read-only input
-	// built above, so files are scanned in parallel; ParallelIndexed returns
-	// them in file order, keeping the output identical to a sequential loop.
-	perFile := support.ParallelIndexed(len(files), support.ParallelWorkers(len(files)), func(i int) []core.Finding {
-		return scriptFileAIQualityFindings(env, target, files[i], input)
+	return fileFindingsInParallel(files, func(rel string) []core.Finding {
+		return scriptFileAIQualityFindings(env, target, rel, input)
 	})
-	findings := make([]core.Finding, 0)
-	for _, fileFindings := range perFile {
-		findings = append(findings, fileFindings...)
-	}
-	return findings
 }
 
 type scriptFileScanInput struct {

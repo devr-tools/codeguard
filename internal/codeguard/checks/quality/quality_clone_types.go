@@ -29,4 +29,22 @@ type cloneCandidate struct {
 	Length     int
 }
 
-type cloneIndex map[uint64][]cloneOccurrence
+// cloneWindow is one indexed threshold-token window. The indices are int32 to
+// halve the index's footprint; both are bounded far below 2^31 by the clone
+// corpus budget.
+type cloneWindow struct {
+	Hash       uint64
+	DocIndex   int32
+	TokenIndex int32
+}
+
+// cloneIndex holds the indexed windows sorted by hash, each hash's windows in
+// (document, token) order.
+type cloneIndex struct {
+	windows []cloneWindow
+}
+
+// len reports how many windows the index holds.
+func (index cloneIndex) len() int {
+	return len(index.windows)
+}
