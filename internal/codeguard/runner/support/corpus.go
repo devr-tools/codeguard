@@ -570,6 +570,19 @@ func (c *fileCorpus) retainedEntriesForLocked(kind string) int {
 	return len(c.reads)
 }
 
+// ReportDiagnostic queues an operational diagnostic raised during a check
+// (for example a failed history write) on the corpus, so the next section to
+// finalize reports it, mirroring read-error diagnostics. Checks reach it
+// through the check context's ReportDiagnostic hook.
+func (sc Context) ReportDiagnostic(diagnostic core.Diagnostic) {
+	if sc.corpus == nil {
+		return
+	}
+	sc.corpus.mu.Lock()
+	defer sc.corpus.mu.Unlock()
+	sc.corpus.diagnostics = append(sc.corpus.diagnostics, diagnostic)
+}
+
 func (c *fileCorpus) takeDiagnostics() []core.Diagnostic {
 	if c == nil {
 		return nil

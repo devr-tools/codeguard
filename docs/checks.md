@@ -52,6 +52,10 @@ not findings, so they cannot be baselined or waived:
   skipped. The first 20 such files are listed individually and the rest are
   summarised.
 - `scan.file-limit` (warn): the walk stopped at the file-count limit.
+- `scan.history-write` (warn): a trend history file under the cache directory
+  (slop, performance score, legibility, rule stats, or waiver audit; named in
+  the `history` metadata key) could not be written. The scan results are
+  complete, but that history is missing this scan's observation.
 - `scan.section.panic` (fail): the section crashed; see above.
 
 ## Check glossary

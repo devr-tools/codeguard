@@ -33,7 +33,10 @@ func recordPerformanceScoreHistory(env support.Context, artifact *core.Artifact)
 		Signals:    artifact.PerformanceScore.Signals,
 		Components: append([]core.SlopScoreComponent(nil), artifact.PerformanceScore.Components...),
 	}
-	previous, hasPrevious := runnersupport.AppendPerfScoreHistory(path, artifact.ID, entry, rules.ScoreHistoryLimit)
+	previous, hasPrevious, err := runnersupport.AppendPerfScoreHistory(path, artifact.ID, entry, rules.ScoreHistoryLimit)
+	if err != nil {
+		support.ReportDiagnostic(env, runnersupport.HistoryWriteDiagnostic("performance-score", path, err))
+	}
 	if !hasPrevious {
 		return
 	}

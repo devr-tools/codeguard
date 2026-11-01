@@ -71,14 +71,18 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	}
 	addRiskArtifacts(sc, sections)
 	addPRSummaryArtifact(sc, sections)
+	var historyDiagnostics []core.Diagnostic
 	if ruleStats := sc.RuleStats.Snapshot(); len(ruleStats) > 0 {
 		sc.Artifacts.Put(core.NewRuleStatsArtifact(ruleStats))
-		runnersupport.RecordRuleStatsHistory(sc, ruleStats)
+		historyDiagnostics = append(historyDiagnostics, runnersupport.RecordRuleStatsHistory(sc, ruleStats)...)
 	}
 	if waiverAudit := sc.WaiverAudit.Snapshot(sc.RuleCatalog, sc.Today); len(waiverAudit) > 0 {
-		waiverAudit = runnersupport.RecordWaiverAuditHistory(sc, waiverAudit)
+		var diagnostics []core.Diagnostic
+		waiverAudit, diagnostics = runnersupport.RecordWaiverAuditHistory(sc, waiverAudit)
+		historyDiagnostics = append(historyDiagnostics, diagnostics...)
 		sc.Artifacts.Put(core.NewWaiverAuditArtifact(waiverAudit))
 	}
+	attachRunDiagnostics(report.Sections, historyDiagnostics)
 	report.Artifacts = sc.Artifacts.List()
 	report.Summary = runnersupport.SummarizeSections(report.Sections)
 	if opts.IncludeSuppressed {
