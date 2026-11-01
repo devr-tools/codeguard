@@ -563,6 +563,43 @@ Current inference behavior:
 - rules with language prefixes such as `quality.typescript.*`, `quality.javascript.*`, `security.python.*`, `security.javascript.*`, `design.typescript.*`, or `design.python.*` automatically resolve to fixed coverage for that language
 - custom rule-pack metadata defaults to `execution_model: language-agnostic` and `language_coverage: configurable`
 
+### Exploring rules
+
+`codeguard rules` lists the catalog. With no flags its output is the full,
+tab-separated list. Filters combine:
+
+```bash
+codeguard rules -section prompts            # section id (quality, security, supply_chain, ...) or display name
+codeguard rules -search "source-to-sink"    # case-insensitive match on id, title, and description
+codeguard rules -level fail                 # default level: fail or warn
+codeguard rules -enabled                    # only rules the resolved config/profile runs
+codeguard rules -enabled -profile strict -format json
+```
+
+`codeguard explain <rule-id>` prints:
+
+- title, section, level, confidence, the reason the rule exists ("why"), and
+  how to fix it
+- a bad and a good example for the most commonly reported rules, every
+  security taint rule, every `prompts.*` rule, and the `ci.workflow-*` rules.
+  Every bad example is verified by the test suite to trigger the rule, and
+  every good example not to. An example that needs a lowered threshold to
+  stay short lists the `scan -set` override that reproduces it.
+- the config keys that control the rule (`checks.<section>` plus any
+  rule-level switch or threshold), each marked `enable` or `tune`, with its
+  value in the resolved config and whether the rule runs under it
+- the inline suppression (`codeguard:ignore <rule-id> -- <reason>`, in the
+  example's comment syntax) and a `waivers:` entry for this rule
+- the profiles that enable it, on top of the recommended sections
+- retired alias ids that still resolve to it
+- its docs link, `docs/checks.md#rule-<id with dots replaced by dashes>`
+
+`explain` reads the config named by `-config`, otherwise a codeguard config
+in the working directory, otherwise the built-in defaults a zero-config scan
+uses. `-format json` (alias `agent`) returns the same data as the MCP
+`explain` tool and the `codeguard://rules/<id>` resource. `confidence` and
+`examples` are also part of the SDK `RuleMetadata`, along with `config_keys`.
+
 ## Built-in language coverage snapshot
 
 | Family | Go | C++ | Python | TypeScript | Rust | Java | C# | Ruby |
