@@ -46,9 +46,14 @@ func RuleAliases(ruleID string) []string {
 }
 
 // RuleDocsPath returns the repository-relative docs link for a rule:
-// docs/checks.md#rule-<id with dots replaced by dashes>.
+// docs/rule-index.md#rule-<id with dots replaced by dashes>.
 func RuleDocsPath(ruleID string) string {
 	return rules.RuleDocsPath(ruleID)
+}
+
+// RuleDocsURL returns the absolute, published docs link for a rule.
+func RuleDocsURL(ruleID string) string {
+	return rules.DocsRuleURL(ruleID)
 }
 
 // KnownConfigKey reports whether a dotted yaml path (the `scan -set` syntax,

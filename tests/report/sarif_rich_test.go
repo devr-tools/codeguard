@@ -485,16 +485,16 @@ func TestSARIFExecutionSuccessfulIsFalseOnSectionPanic(t *testing.T) {
 }
 
 // helpUri anchors must resolve: every catalog rule needs its
-// <a id="rule-..."></a> anchor in docs/checks.md.
-func TestDocsChecksHasAnAnchorForEveryCatalogRule(t *testing.T) {
-	docs, err := os.ReadFile(filepath.Join("..", "..", "docs", "checks.md"))
+// <a id="rule-..."></a> anchor in docs/rule-index.md.
+func TestRuleIndexHasAnAnchorForEveryCatalogRule(t *testing.T) {
+	docs, err := os.ReadFile(filepath.Join("..", "..", "docs", "rule-index.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(docs)
 	for id := range rulespkg.Catalog() {
 		if !strings.Contains(text, `<a id="`+rulespkg.DocsAnchor(id)+`"></a>`) {
-			t.Errorf("docs/checks.md has no anchor for %s; add `<a id=%q></a>` to the rule index", id, rulespkg.DocsAnchor(id))
+			t.Errorf("docs/rule-index.md has no anchor for %s; add `<a id=%q></a>` to its row", id, rulespkg.DocsAnchor(id))
 		}
 	}
 }

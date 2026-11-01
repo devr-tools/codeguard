@@ -121,10 +121,10 @@ func TestRequiredRuleFamiliesHaveExamples(t *testing.T) {
 }
 
 func TestRuleDocsAnchorScheme(t *testing.T) {
-	if got := rules.RuleDocsAnchor("security.taint.go"); got != "rule-security-taint-go" {
+	if got := rules.DocsAnchor("security.taint.go"); got != "rule-security-taint-go" {
 		t.Fatalf("anchor = %q", got)
 	}
-	if got := rules.RuleDocsPath("ci.workflow-script-injection"); got != "docs/checks.md#rule-ci-workflow-script-injection" {
+	if got := rules.RuleDocsPath("ci.workflow-script-injection"); got != "docs/rule-index.md#rule-ci-workflow-script-injection" {
 		t.Fatalf("docs path = %q", got)
 	}
 }

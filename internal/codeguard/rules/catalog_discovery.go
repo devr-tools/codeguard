@@ -73,16 +73,10 @@ func SectionToggleKey(sectionKey string) string {
 	return sectionToggleKeys[sectionKey]
 }
 
-// RuleDocsAnchor returns the docs/checks.md anchor for a rule id: "rule-"
-// followed by the id with dots replaced by dashes, the scheme shared with
-// SARIF helpUri links.
-func RuleDocsAnchor(ruleID string) string {
-	return "rule-" + strings.ReplaceAll(strings.TrimSpace(ruleID), ".", "-")
-}
-
-// RuleDocsPath returns the repository-relative docs link for a rule.
+// RuleDocsPath returns the repository-relative docs link for a rule, using
+// the same anchor as SARIF helpUri links.
 func RuleDocsPath(ruleID string) string {
-	return "docs/checks.md#" + RuleDocsAnchor(ruleID)
+	return DocsPath + "#" + DocsAnchor(ruleID)
 }
 
 // AliasesFor lists the retired ids that resolve to ruleID, sorted.

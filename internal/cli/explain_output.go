@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/devr-tools/codeguard/internal/codeguard/initconfig"
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
@@ -128,10 +127,10 @@ func buildExplainOutput(rule service.RuleMetadata, ec *explainConfig) explainOut
 	if out.Examples == nil {
 		out.Examples = []service.RuleExample{}
 	}
-	// Custom rule-pack rules have no section in docs/checks.md to link to.
+	// Custom rule-pack rules have no row in the rule index to link to.
 	if _, builtIn := service.ExplainRule(rule.ID); builtIn {
 		out.Docs = service.RuleDocsPath(rule.ID)
-		out.DocsURL = initconfig.ChecksReference + strings.TrimPrefix(out.Docs, "docs/checks.md")
+		out.DocsURL = service.RuleDocsURL(rule.ID)
 	}
 	for _, key := range rule.ConfigKeys {
 		item := explainConfigKeyOutput{Key: key.Key, Role: string(key.Role)}

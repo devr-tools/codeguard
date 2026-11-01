@@ -105,7 +105,7 @@ func TestExplainJSONCarriesDiscoveryFields(t *testing.T) {
 	if !slices.Contains(payload.Profiles, "default") || !slices.Contains(payload.Profiles, "strict") {
 		t.Fatalf("profiles = %v", payload.Profiles)
 	}
-	if payload.Docs != "docs/checks.md#rule-security-taint-go" || !strings.HasSuffix(payload.DocsURL, "/docs/checks.md#rule-security-taint-go") {
+	if payload.Docs != "docs/rule-index.md#rule-security-taint-go" || !strings.HasSuffix(payload.DocsURL, "/docs/rule-index.md#rule-security-taint-go") {
 		t.Fatalf("docs = %q, %q", payload.Docs, payload.DocsURL)
 	}
 	if payload.Aliases == nil {
@@ -176,7 +176,7 @@ func TestExplainTextShowsExamplesSuppressionAndProfiles(t *testing.T) {
 		"inline (same or previous line): // codeguard:ignore quality.max-file-lines -- <reason>",
 		"waiver (codeguard.yaml):\n    waivers:\n      - rule: quality.max-file-lines",
 		"profiles that enable it: default, ai-safe, enterprise, startup, strict",
-		"docs: docs/checks.md#rule-quality-max-file-lines",
+		"docs: docs/rule-index.md#rule-quality-max-file-lines",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("explain output missing %q:\n%s", want, stdout)

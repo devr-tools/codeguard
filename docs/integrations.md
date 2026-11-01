@@ -81,7 +81,7 @@ In code scanning, each alert shows:
   critical, high, medium or low. Other rules appear as error or warning
 - **Rule help.** The rule description, how-to-fix guidance, a before/after
   example, CWE links, and a link to the rule's entry in
-  [docs/checks.md](checks.md#rule-index)
+  [docs/rule-index.md](rule-index.md)
 - **Taint traces.** Go, Python, C++ and TypeScript/JavaScript taint findings
   include a code flow from source to sink
 - **CWE tags.** Tags use CodeQL's format (`external/cwe/cwe-078`), so a CWE

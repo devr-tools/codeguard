@@ -29,7 +29,7 @@ var linkedDocPattern = regexp.MustCompile(`\]\(([a-z0-9_-]+\.md)(?:#[^)]*)?\)`)
 var undocumentedConfigKeys = map[string]string{}
 
 // ruleIndexRow matches a row of docs/rule-index.md: rule id, default level.
-var ruleIndexRow = regexp.MustCompile("(?m)^\\| `([^`]+)` \\| ([a-z]+) \\|")
+var ruleIndexRow = regexp.MustCompile("(?m)^\\| <a id=\"rule-[a-z0-9_-]+\"></a>`([^`]+)` \\| ([a-z]+) \\|")
 
 // TestEveryCatalogRuleIsDocumented keeps docs/checks.md (and the pages it
 // links to) in step with rules.Catalog(). Before this test roughly half the
