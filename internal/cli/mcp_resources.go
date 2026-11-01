@@ -95,14 +95,14 @@ func (s *mcpToolService) readResource(params json.RawMessage) (map[string]any, s
 		if strings.TrimSpace(ruleID) == "" {
 			return nil, "resource uri missing rule id"
 		}
-		rule, ok, err := s.resolveExplainRule(s.defaultConfigPath, s.defaultProfile, ruleID)
+		rule, ec, ok, err := s.resolveExplainRule(s.defaultConfigPath, s.defaultProfile, ruleID)
 		if err != nil {
 			return nil, fmt.Sprintf("load config: %v", err)
 		}
 		if !ok {
-			return nil, fmt.Sprintf("unknown rule %q%s", ruleID, suggest.Hint(ruleID, ruleIDs(service.Rules())))
+			return nil, fmt.Sprintf("unknown rule %q%s", ruleID, suggest.Hint(ruleID, ruleIDs(service.RulesForConfig(ec.cfg))))
 		}
-		return resourceResult(uri, buildExplainAgentOutput(rule)), ""
+		return resourceResult(uri, buildExplainOutput(rule, ec)), ""
 	default:
 		return nil, fmt.Sprintf("unknown resource %q", uri)
 	}

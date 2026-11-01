@@ -43,6 +43,12 @@ func DefaultConfigPath() string {
 	return config.DefaultConfigPath()
 }
 
+// ResolveConfigPath returns the file LoadConfigFile would read for path,
+// applying the same default-location search for an empty path.
+func ResolveConfigPath(path string) (string, error) {
+	return config.ResolveConfigPath(path)
+}
+
 // LoadConfigFile reads, defaults, and validates a configuration file.
 func LoadConfigFile(path string) (Config, error) {
 	return config.LoadFile(path)

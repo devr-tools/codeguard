@@ -79,4 +79,14 @@ type RuleMetadata struct {
 	// identifiers. SARIF output turns them into external/cwe tags so GitHub
 	// code scanning can filter and group codeguard alerts with other tools'.
 	CWE []string `json:"cwe,omitempty"`
+	// Confidence is the confidence the rule's findings typically carry
+	// (high, medium, or low). Empty means unspecified: individual findings
+	// set their own, and consumers treat an empty value as medium.
+	Confidence string `json:"confidence,omitempty"`
+	// Examples are short bad/good snippets. tests/rules verifies that each
+	// bad snippet triggers the rule and each good snippet stays silent.
+	Examples []RuleExample `json:"examples,omitempty"`
+	// ConfigKeys are the dotted config paths (as accepted by `scan -set`)
+	// that turn the rule on or off or tune what it reports.
+	ConfigKeys []RuleConfigKey `json:"config_keys,omitempty"`
 }
