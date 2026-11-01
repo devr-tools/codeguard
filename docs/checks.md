@@ -73,7 +73,7 @@ This glossary is the quick map of every built-in check family and the main subse
 | Security | `Security` | `checks.security` | hardcoded secrets and credentials; private keys; insecure TLS; shell execution; dynamic code execution; unsafe HTML sinks; SSRF and taint-style flow; unsafe C string APIs; optional `govulncheck`; OWASP category metadata |
 | Supply Chain | `Supply Chain` | `checks.supply_chain` | manifest normalization; SBOM output; missing lockfiles; lockfile drift; unpinned dependencies; license policy; offline advisory-cache vulnerability matching; Cargo manifest hygiene; C++ package-manager metadata for vcpkg, Conan, and CMake |
 | Prompts | `Prompts` | `checks.prompts` | prompt-asset governance; secret interpolation; unsafe instructions; dangerous agent instructions; standing permissions; MCP config risk |
-| CI/CD | `CI/CD` | `checks.ci` | required workflow directories/files; workflow content policy; release automation files; test file location; test assertions; conditional/always-true assertions; cross-language test-quality heuristics |
+| CI/CD | `CI/CD` | `checks.ci` | required workflow directories/files; workflow content policy; GitHub Actions workflow security (script injection, privileged triggers, token permissions, remote script piping, fork-triggered secrets, unpinned actions); release automation files; test file location; test assertions; conditional/always-true assertions; cross-language test-quality heuristics |
 | Agent Context | `Agent Context` | `checks.context` | missing agent docs; README/doc drift; oversized files; ambiguous symbols; undocumented commands; oversized agent docs; doc link rot; repository readiness for coding agents |
 | External Reports | `External Reports` | `external_reports` | imported SARIF, Gitleaks JSON, and Trivy JSON findings from scanners that already ran; normalized into CodeGuard report sections with namespaced rule IDs |
 
@@ -2058,6 +2058,7 @@ Purpose:
 - Workflow content checks
 - Release file presence checks
 - Automation entrypoint checks
+- GitHub Actions workflow security (script injection, privileged triggers, token permissions, remote script piping, secrets on fork-triggered jobs)
 
 Config keys:
 
@@ -2114,6 +2115,40 @@ Current behavior:
 - fails when a configured workflow content marker is missing
 - fails when a configured CI gate (`required_gates`) is absent from the repository's workflows; skipped entirely when the repository has no workflow files
 - fails when detected Go, Python, TypeScript, C++, Rust, Java, C#, or Ruby test files live outside `allowed_test_paths` — inactive while that list is unset
+- `ci.mutable-deployment-reference` fails when a workflow, composite `action.yml`/`action.yaml`, or deployment file uses an external action at a ref other than a full commit SHA, or a container image tagged `latest`
+
+### Workflow security
+
+These rules need no configuration. They parse every `.github/workflows/*.yml|yaml`
+file (direct children only, as GitHub does) and every composite action
+(`action.yml`/`action.yaml` with `runs.using: composite`) as YAML and report the
+real line and column, including lines inside multi-line `run: |` blocks.
+Expression whitespace (`${{github.event.x}}`, `${{   github.event.x   }}`) and
+bracket access (`github.event['issue']['title']`) are normalized. Files that do
+not parse are skipped. GitHub rejects them anyway, and guessing at their
+structure would produce misplaced findings.
+
+| Rule | Level | Fires when |
+| --- | --- | --- |
+| `ci.workflow-script-injection` | fail | An attacker-controlled `${{ }}` expression is interpolated directly into a `run:` script or an `actions/github-script` `script:`. Untrusted contexts: `github.event.issue.*` free text (title, body, labels; numbers, ids, timestamps, URLs and states are trusted), `github.event.pull_request.title/body/head.ref/head.label/head.repo.default_branch`, `github.event.comment.body`, `github.event.review.body`, `github.event.review_comment.body`, `github.event.head_commit.message/author.*`, `github.event.commits.*.message/author.*`, `github.event.discussion.title/body`, `github.event.workflow_run.head_branch/display_title/head_commit.message`, `github.event.pages.*.page_name`, `github.head_ref`, and `inputs.*` in composite actions. Expressions that evaluate to a boolean (`==`, `!=`, `contains(...)`, `startsWith(...)`) are not flagged. |
+| `ci.workflow-dangerous-trigger` | fail | A `pull_request_target` or `workflow_run` workflow checks out pull request code: an `actions/checkout` `ref:` built from `github.event.pull_request.head.sha/ref`, `merge_commit_sha`, `github.head_ref`, `github.event.workflow_run.head_sha/head_branch`, or `refs/pull/...`, or a `run:` script that uses `gh pr checkout` or fetches those refs with `git`. |
+| `ci.workflow-write-all-permissions` | fail | A workflow or job sets `permissions: write-all`. |
+| `ci.workflow-missing-permissions` | warn | The workflow has no top-level `permissions:` and at least one job sets none, so `GITHUB_TOKEN` gets the repository or organization default, which is read-write on every scope for repositories created before February 2023 or set to the permissive default. Workflows triggered only by `workflow_call` are skipped because the caller caps their token. |
+| `ci.workflow-remote-script-pipe` | warn | A `run:` script pipes `curl`/`wget` output into `sh`/`bash`/`zsh` (also `sudo bash`, `bash <(curl ...)`, `sh -c "$(curl ...)"`, and commands split with `\` continuations). |
+| `ci.workflow-fork-trigger-secrets` | warn | A job in a `pull_request_target` workflow reads `secrets.*` (other than `GITHUB_TOKEN`, which the permissions rules cover) or passes `secrets: inherit`. Reported once per job, listing every secret. |
+
+The safe pattern for untrusted values is environment indirection. The value
+reaches the shell as data and is never parsed as script:
+
+```yaml
+- env:
+    PR_TITLE: ${{ github.event.pull_request.title }}
+  run: echo "$PR_TITLE"
+```
+
+Unpinned actions in workflows and composite actions are reported by the
+existing `ci.mutable-deployment-reference` rule. No separate workflow rule
+duplicates it.
 
 ### Test quality
 
