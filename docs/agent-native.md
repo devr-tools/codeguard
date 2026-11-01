@@ -83,7 +83,19 @@ This document is a short status brief for `codeguard` features aimed at AI agent
     - standing wildcard permissions or effectively unrestricted tool access
     - risky MCP shell-wrapped command patterns
 
+- Agent doc generation (`codeguard context`)
+  - codeguard lints agent docs (the Agent Context section) and also writes them: `codeguard context init` generates `AGENTS.md` (or `-file CLAUDE.md`) from what it can detect deterministically, namely languages, build/test/lint commands, top-level layout, entrypoints, test locations and configured formatters/linters
+  - no fabrication: every generated line is a detected fact or an explicit `TODO:` for a human; directory purposes are stated only when name and contents agree
+  - detected content lives in managed blocks (`<!-- codeguard:begin commands -->` … `<!-- codeguard:end commands -->`; blocks are `overview`, `commands`, `layout`, `entrypoints`, `tests`, `conventions`); `codeguard context update` refreshes only those block bodies and leaves human-written text byte-for-byte intact
+  - a file with no markers is never rewritten: `update` prints a diff of what it would manage and asks for markers
+  - `init` refuses to overwrite without `-force`; `-dry-run` prints instead of writing (a document for `init`, a diff for `update`)
+  - after writing, the Agent Context checks run on the result and print the legibility score and remaining findings; a generated file triggers no `context.undocumented-commands`, drift or link-rot finding because commands come from the same parser those rules use
+  - SDK: `DetectContextFacts`, `RenderContextDoc`, `UpdateContextDoc`, `ProposeContextSections`, `ContextDocDiff`, `CheckContextDocs`
+  - full reference: the "Generating agent docs" subsection of `docs/checks.md`
+
 ## File map
+
+- Agent doc generation: `internal/codeguard/contextgen/` (detection, rendering, managed-block update), CLI `internal/cli/context.go`, SDK `pkg/codeguard/sdk_context.go`
 
 - MCP server core: [internal/cli/mcp_run.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_run.go:1), [internal/cli/mcp_dispatch.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_dispatch.go:1), [internal/cli/mcp_tools.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_tools.go:1), [internal/cli/mcp_protocol.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_protocol.go:1)
 - MCP HTTP transport: [internal/cli/mcp_http.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_http.go:1), session/SSE registry [internal/cli/mcp_http_session.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_http_session.go:1)

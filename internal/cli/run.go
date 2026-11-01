@@ -11,6 +11,7 @@ type commandRunner func(args []string, stdin io.Reader, stdout io.Writer, stderr
 
 var commandCatalog = map[string]commandRunner{
 	"baseline":       withoutStdin(runBaseline),
+	"context":        withoutStdin(runContext),
 	"doctor":         withoutStdin(runDoctor),
 	"explain":        withoutStdin(runExplain),
 	"fix":            withoutStdin(runFix),

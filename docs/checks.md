@@ -2530,6 +2530,21 @@ codeguard report -legibility-history [-config path] [-limit n]
 
 (mirroring `codeguard report -slop-history` and `codeguard report -perf-history`).
 
+### Generating agent docs (`codeguard context`)
+
+The rules above lint agent docs; `codeguard context` writes them from the same parsers, so a freshly generated file passes them by construction.
+
+```bash
+codeguard context init   [-path .] [-file AGENTS.md|CLAUDE.md] [-force] [-dry-run] [-config path]
+codeguard context update [-path .] [-file AGENTS.md|CLAUDE.md] [-dry-run] [-config path]
+```
+
+- `init` writes `AGENTS.md` (or `-file CLAUDE.md`) from detected facts only: languages and manifests, commands (root Makefile targets and package.json scripts as `context.undocumented-commands` reads them, Go/Cargo toolchain commands for a root `go.mod` / `Cargo.toml`, tools configured in `pyproject.toml`, and single-line root-level CI `run:` steps whose make targets, scripts and `./` paths resolve), top-level directories, entrypoints (as `codeguard init` detects them), test file locations, and formatter/linter/toolchain configuration. A directory gets a purpose only when its name and contents agree (for example `cmd/` with `main.go` subdirectories); anything codeguard cannot know is an explicit `TODO:` line. It refuses to overwrite an existing file without `-force`; `-dry-run` prints the document to stdout.
+- Detected content sits in managed blocks delimited by `<!-- codeguard:begin NAME -->` and `<!-- codeguard:end NAME -->`, with `NAME` one of `overview`, `commands`, `layout`, `entrypoints`, `tests`, `conventions`. `update` rewrites only the bodies of those blocks; every byte outside them (headings, prose, unknown `codeguard:` blocks) is preserved. Blocks without markers are reported and not added. Malformed markers (unclosed, nested, duplicate) are an error. `-dry-run` prints a unified diff instead of writing.
+- `update` on a file with no markers prints a diff of the sections codeguard would manage, asks for markers, writes nothing and exits 1.
+- After writing, both commands run only the Agent Context section on the repository and print the `repo_legibility` score, its components and any remaining findings (tuned by `-config`'s `context_rules` when given). The legibility history is not updated by this check.
+- SDK: `DetectContextFacts`, `RenderContextDoc`, `UpdateContextDoc`, `ProposeContextSections`, `ContextDocDiff` and `CheckContextDocs` in `pkg/codeguard`.
+
 ## Output
 
 Config keys:
