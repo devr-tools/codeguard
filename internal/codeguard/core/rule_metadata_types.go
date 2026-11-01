@@ -75,4 +75,8 @@ type RuleMetadata struct {
 	// the rule is not associated with a fixed category (e.g. command-driven
 	// rules whose category depends on the external tool).
 	OWASPCategory OWASPCategory `json:"owasp_category,omitempty"`
+	// CWE lists the MITRE CWE weaknesses the rule detects, as "CWE-<n>"
+	// identifiers. SARIF output turns them into external/cwe tags so GitHub
+	// code scanning can filter and group codeguard alerts with other tools'.
+	CWE []string `json:"cwe,omitempty"`
 }

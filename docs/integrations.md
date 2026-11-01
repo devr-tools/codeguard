@@ -47,6 +47,53 @@ For pull request workflows, the action can also publish a sticky fix-oriented co
 
 `format: github` preserves workflow annotations. `comment-fix-mode: sticky` adds or updates a PR comment with concrete fix suggestions derived from the same findings.
 
+### GitHub code scanning (SARIF)
+
+To show codeguard findings in the repository's **Security → Code scanning**
+tab, write SARIF and upload it with `github/codeql-action/upload-sarif`:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: actions/setup-go@v5
+    with:
+      go-version: stable
+  - run: go install github.com/devr-tools/codeguard/cmd/codeguard@latest
+  - name: codeguard (SARIF)
+    run: codeguard scan -config codeguard.yaml -format sarif -fail-on none > codeguard.sarif
+  - uses: github/codeql-action/upload-sarif@v3
+    if: always()
+    with:
+      sarif_file: codeguard.sarif
+      category: codeguard
+```
+
+`-fail-on none` lets the upload step run when findings fail the scan.
+Operational failures, such as a crashed section, still exit 1 and are also
+recorded as `executionSuccessful: false` in the SARIF invocation.
+
+In code scanning, each alert shows:
+- **Severity.** Security rules carry `security-severity` and appear as
+  critical, high, medium or low. Other rules appear as error or warning
+- **Rule help.** The rule description, how-to-fix guidance, a before/after
+  example, CWE links, and a link to the rule's entry in
+  [docs/checks.md](checks.md#rule-index)
+- **Taint traces.** Go, Python, C++ and TypeScript/JavaScript taint findings
+  include a code flow from source to sink
+- **CWE tags.** Tags use CodeQL's format (`external/cwe/cwe-078`), so a CWE
+  filter groups codeguard alerts with CodeQL alerts
+- **Stable alerts.** `partialFingerprints` keeps an alert stable across commits
+  when unrelated edits move it
+
+The full field reference and the severity mapping are in
+[Checks → SARIF output](checks.md#sarif-output-github-code-scanning). The
+marketplace action does not upload SARIF yet. Use the workflow above until it
+has a SARIF upload input.
+
 ## Agent Hook Packs
 
 `codeguard` now ships example hook packs under [examples/hooks](/Users/alex/Documents/GitHub/codeguard/examples/hooks/README.md:1).
