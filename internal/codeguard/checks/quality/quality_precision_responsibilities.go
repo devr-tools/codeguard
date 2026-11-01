@@ -38,54 +38,73 @@ func responsibilityThreshold(file string, fn precisionFunction) int {
 	return 6
 }
 
+// responsibilityKeywords maps a call or statement to the first responsibility
+// whose keywords it contains. Order matters: a text matching several rows is
+// classified by the first.
+var responsibilityKeywords = []struct {
+	label    string
+	keywords []string
+}{
+	{"validate", []string{"validat", "sanitize"}},
+	{"authorize", []string{"auth", "permission", "allow"}},
+	{"load", []string{"fetch", "find", "load", "query", "read", "select"}},
+	{"write", []string{"save", "insert", "update", "delete", "persist", "write"}},
+	{"send", []string{"send", "publish", "emit", "notify"}},
+	{"cache", []string{"cache", "redis"}},
+	{"transform", []string{"format", "map", "transform", "serialize", "json"}},
+	{"observe", []string{"log", "metric", "trace"}},
+}
+
 func classifyResponsibility(text string, record func(string)) {
-	switch {
-	case strings.Contains(text, "validat") || strings.Contains(text, "sanitize"):
-		record("validate")
-	case strings.Contains(text, "auth") || strings.Contains(text, "permission") || strings.Contains(text, "allow"):
-		record("authorize")
-	case strings.Contains(text, "fetch") || strings.Contains(text, "find") || strings.Contains(text, "load") || strings.Contains(text, "query") || strings.Contains(text, "read") || strings.Contains(text, "select"):
-		record("load")
-	case strings.Contains(text, "save") || strings.Contains(text, "insert") || strings.Contains(text, "update") || strings.Contains(text, "delete") || strings.Contains(text, "persist") || strings.Contains(text, "write"):
-		record("write")
-	case strings.Contains(text, "send") || strings.Contains(text, "publish") || strings.Contains(text, "emit") || strings.Contains(text, "notify"):
-		record("send")
-	case strings.Contains(text, "cache") || strings.Contains(text, "redis"):
-		record("cache")
-	case strings.Contains(text, "format") || strings.Contains(text, "map") || strings.Contains(text, "transform") || strings.Contains(text, "serialize") || strings.Contains(text, "json"):
-		record("transform")
-	case strings.Contains(text, "log") || strings.Contains(text, "metric") || strings.Contains(text, "trace"):
-		record("observe")
+	for _, responsibility := range responsibilityKeywords {
+		if containsAny(text, responsibility.keywords) {
+			record(responsibility.label)
+			return
+		}
 	}
 }
+
+var (
+	orchestratorNameKeywords  = []string{"handler", "controller", "job", "worker"}
+	orchestratorBodyKeywords  = []string{"request", "response"}
+	infrastructureCallVerbs   = []string{"fetch", "save", "send", "cache", "publish", "query"}
+	domainDecisionKeywords    = []string{"order", "user", "account", "price", "eligib", "valid"}
+	renderingFunctionKeywords = []string{"return <", "jsx", "classname", "onclick", "onchange"}
+)
 
 func orchestrationDomainMix(file string, fn precisionFunction) bool {
 	if isFrameworkOrchestrationBoundary(file, fn) || isUIHelperOrMappingContext(file, fn) ||
 		isAdapterOrOrchestrationFunction(file, fn) || isSeedOrScriptSourcePath(file) {
 		return false
 	}
-	name := strings.ToLower(fn.Name)
 	body := strings.ToLower(fn.Body)
-	if isReactHookName(fn.Name) || containsAny(body, []string{"return <", "jsx", "classname", "onclick", "onchange"}) {
+	if isReactHookName(fn.Name) || containsAny(body, renderingFunctionKeywords) {
 		return false
 	}
-	orchestrator := strings.Contains(name, "handler") || strings.Contains(name, "controller") || strings.Contains(name, "job") ||
-		strings.Contains(name, "worker") || strings.Contains(fn.Signature, "Request") || strings.Contains(fn.Signature, "Response") ||
-		strings.Contains(body, "request") || strings.Contains(body, "response")
-	if !orchestrator {
+	if !isRequestOrJobOrchestrator(fn, body) {
 		return false
 	}
-	hasInfra := lowLevelOperationPattern.MatchString(fn.Body)
+	return touchesInfrastructure(fn) && strings.Contains(body, "if ") && containsAny(body, domainDecisionKeywords)
+}
+
+// isRequestOrJobOrchestrator reports whether a function's name, signature,
+// or lower-cased body marks it as a request handler, controller, or job.
+func isRequestOrJobOrchestrator(fn precisionFunction, body string) bool {
+	return containsAny(strings.ToLower(fn.Name), orchestratorNameKeywords) ||
+		strings.Contains(fn.Signature, "Request") || strings.Contains(fn.Signature, "Response") ||
+		containsAny(body, orchestratorBodyKeywords)
+}
+
+// touchesInfrastructure reports whether a function performs low-level
+// infrastructure operations or calls fetch/save/send-style collaborators.
+func touchesInfrastructure(fn precisionFunction) bool {
+	if lowLevelOperationPattern.MatchString(fn.Body) {
+		return true
+	}
 	for _, call := range fn.Calls {
-		lowered := strings.ToLower(call.Callee)
-		if strings.Contains(lowered, "fetch") || strings.Contains(lowered, "save") || strings.Contains(lowered, "send") ||
-			strings.Contains(lowered, "cache") || strings.Contains(lowered, "publish") || strings.Contains(lowered, "query") {
-			hasInfra = true
-			break
+		if containsAny(strings.ToLower(call.Callee), infrastructureCallVerbs) {
+			return true
 		}
 	}
-	hasDomainDecision := strings.Contains(body, "if ") && (strings.Contains(body, "order") || strings.Contains(body, "user") ||
-		strings.Contains(body, "account") || strings.Contains(body, "price") || strings.Contains(body, "eligib") ||
-		strings.Contains(body, "valid"))
-	return hasInfra && hasDomainDecision
+	return false
 }

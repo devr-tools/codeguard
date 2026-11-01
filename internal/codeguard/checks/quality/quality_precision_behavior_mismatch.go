@@ -36,47 +36,52 @@ func behaviorMismatch(file string, fn precisionFunction) bool {
 	return false
 }
 
+// hiddenMutationExemptions cover functions whose name, location, or role
+// announces that they mutate state.
+var hiddenMutationExemptions = []precisionExemption{
+	exemptPath(isQualityFixturePath),
+	func(_ string, fn precisionFunction) bool { return isCPPConstructorOrDestructor(fn) },
+	exemptName(explicitMutationName),
+	exemptFileAndName(isUICommandHelperName),
+	exemptName(isDomainSideEffectBoundaryName),
+	isFrameworkOrchestrationBoundary,
+	exemptFileAndName(isScriptEntrypoint),
+	exemptPath(isSeedOrScriptSourcePath),
+	isAdapterOrOrchestrationFunction,
+	isSecurityOrConfigUtilityFunction,
+	isUIActionAssemblyFunction,
+	exemptName(isFactoryHelperName),
+	isReactComponentOrNamedHookBoundary,
+}
+
 func hiddenMutationEvidence(file string, fn precisionFunction) (mutationEvidence, bool) {
-	if isQualityFixturePath(file) {
-		return mutationEvidence{}, false
-	}
-	if isCPPConstructorOrDestructor(fn) {
-		return mutationEvidence{}, false
-	}
-	if explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) || isFrameworkOrchestrationBoundary(file, fn) || isScriptEntrypoint(file, fn.Name) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) || isSecurityOrConfigUtilityFunction(file, fn) {
-		return mutationEvidence{}, false
-	}
-	if isUIActionAssemblyFunction(file, fn) {
-		return mutationEvidence{}, false
-	}
-	if isFactoryHelperName(fn.Name) {
-		return mutationEvidence{}, false
-	}
-	if isReactComponentOrNamedHookBoundary(file, fn) {
+	if anyPrecisionExemption(file, fn, hiddenMutationExemptions) {
 		return mutationEvidence{}, false
 	}
 	evidence, hasEvidence := firstReportableMutationEvidence(fn)
-	mutatesParam := hasEvidence && evidence.Target == targetArgument
-	mutatesState := hasEvidence
+	if !hasEvidence || isBenignMutationContext(file, fn, evidence) {
+		return mutationEvidence{}, false
+	}
+	return evidence, true
+}
+
+// isBenignMutationContext reports whether a mutation is expected given the
+// function's role: UI helpers and builders that only touch local state, and
+// pure helpers, React local-state boundaries, or predicates that do not
+// mutate their arguments.
+func isBenignMutationContext(file string, fn precisionFunction, evidence mutationEvidence) bool {
 	if isUIHelperOrMappingContext(file, fn) && !hasPersistentCollaboratorSideEffect(fn) {
-		return mutationEvidence{}, false
-	}
-	if isPureComputationHelperName(fn.Name) && !mutatesParam && !hasPersistentCollaboratorSideEffect(fn) {
-		return mutationEvidence{}, false
-	}
-	if isReactLocalStateBoundary(file, fn) && mutatesState && !mutatesParam && onlyReactHookLocalStateMutation(fn) {
-		return mutationEvidence{}, false
-	}
-	if isPredicateName(fn.Name) && !mutatesParam && !predicateHasObviousSideEffect(fn) {
-		return mutationEvidence{}, false
+		return true
 	}
 	if isAccumulatorBuilderFunctionName(fn.Name) && !hasLikelyExternalMutationCall(fn) && !hasLikelyParameterAssignment(fn) {
-		return mutationEvidence{}, false
+		return true
 	}
-	if mutatesState || mutatesParam {
-		return evidence, true
+	if evidence.Target == targetArgument {
+		return false
 	}
-	return mutationEvidence{}, false
+	return (isPureComputationHelperName(fn.Name) && !hasPersistentCollaboratorSideEffect(fn)) ||
+		(isReactLocalStateBoundary(file, fn) && onlyReactHookLocalStateMutation(fn)) ||
+		(isPredicateName(fn.Name) && !predicateHasObviousSideEffect(fn))
 }
 
 func isCPPConstructorOrDestructor(fn precisionFunction) bool {

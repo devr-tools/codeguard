@@ -25,79 +25,87 @@ var (
 	numericScalarTypePattern     = regexp.MustCompile(`(?i)\b(double|float|float32|float64|int|int8|int16|int32|int64|number|uint|uint8|uint16|uint32|uint64|uintptr|bigint|decimal|long|short|size_t|ssize_t|byte|rune|duration)\b`)
 )
 
-func precisionNamingFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
-	findings := make([]core.Finding, 0, 6)
-	allNames := make([]struct {
-		name string
-		typ  string
-		expr string
-		line int
-		role string
-	}, 0, 1+len(fn.Params)+len(fn.Assignments))
-	allNames = append(allNames, struct {
-		name string
-		typ  string
-		expr string
-		line int
-		role string
-	}{name: fn.Name, line: fn.StartLine, role: "function"})
+// functionIdentifier is one name a function introduces: the function itself,
+// a parameter, or a local assignment.
+type functionIdentifier struct {
+	name string
+	typ  string
+	expr string
+	line int
+	role string
+}
+
+// functionIdentifiers lists the function name, then its parameters, then its
+// local assignments.
+func functionIdentifiers(fn precisionFunction) []functionIdentifier {
+	identifiers := make([]functionIdentifier, 0, 1+len(fn.Params)+len(fn.Assignments))
+	identifiers = append(identifiers, functionIdentifier{name: fn.Name, line: fn.StartLine, role: "function"})
 	for _, param := range fn.Params {
-		allNames = append(allNames, struct {
-			name string
-			typ  string
-			expr string
-			line int
-			role string
-		}{name: param.Name, typ: param.Type, line: fn.StartLine, role: "parameter"})
+		identifiers = append(identifiers, functionIdentifier{name: param.Name, typ: param.Type, line: fn.StartLine, role: "parameter"})
 	}
 	for _, assignment := range fn.Assignments {
-		allNames = append(allNames, struct {
-			name string
-			typ  string
-			expr string
-			line int
-			role string
-		}{name: assignment.Name, expr: assignment.Expr, line: assignment.Line, role: "local"})
+		identifiers = append(identifiers, functionIdentifier{name: assignment.Name, expr: assignment.Expr, line: assignment.Line, role: "local"})
 	}
-	for _, item := range allNames {
-		if item.name == "" {
+	return identifiers
+}
+
+func precisionNamingFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
+	findings := make([]core.Finding, 0, 6)
+	for _, item := range functionIdentifiers(fn) {
+		if skipsIdentifierNaming(file, fn, item) {
 			continue
 		}
-		if item.name == fn.Name && isReactComponentOrHookBoundary(file, fn) {
-			continue
-		}
-		if isSeedOrScriptSourcePath(file) && isBooleanNameCandidate(item.typ) {
-			continue
-		}
-		if isBooleanNameCandidate(item.typ) && isUIHelperOrMappingContext(file, fn) {
-			continue
-		}
-		if isBooleanNameCandidate(item.typ) &&
-			!isInferredUIBooleanAssignment(file, fn, item.typ, item.expr, item.line) &&
-			(item.role != "parameter" || !isImperativeBooleanParameterName(item.name)) &&
-			!isPredicateName(item.name) &&
-			!isAllowedBooleanUIName(file, fn, item.name) {
-			findings = append(findings, precisionWarnFinding(env, namingBooleanNotPredicateRuleID, file, item.line,
-				fmt.Sprintf("boolean name %q should read as a predicate such as is/has/can/should", item.name), core.ConfidenceMedium))
-		}
-		if cardinalityMismatch(file, fn, item.name, item.typ) {
-			findings = append(findings, precisionWarnFinding(env, namingCardinalityMismatchRuleID, file, item.line,
-				fmt.Sprintf("identifier %q has plural/singular wording that conflicts with its value shape", item.name), core.ConfidenceMedium))
-		}
-		if implementationLeakName(item.name) {
-			findings = append(findings, precisionWarnFinding(env, namingImplementationLeakRuleID, file, item.line,
-				fmt.Sprintf("identifier %q exposes infrastructure vocabulary in domain-facing naming", item.name), core.ConfidenceMedium))
-		}
-		if !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) && missingUnit(item.name, item.typ, item.expr) {
-			findings = append(findings, precisionWarnFinding(env, namingMissingUnitRuleID, file, item.line,
-				fmt.Sprintf("numeric identifier %q names a duration, size, or money value without a unit suffix", item.name), core.ConfidenceMedium))
-		}
-		if abbr := unknownAbbreviation(env, item.name); abbr != "" {
-			findings = append(findings, precisionWarnFinding(env, namingUnknownAbbreviationRuleID, file, item.line,
-				fmt.Sprintf("identifier %q contains abbreviation %q that is not established in quality_rules.naming.allowed_abbreviations", item.name, abbr), core.ConfidenceLow))
-		}
+		findings = append(findings, identifierNamingFindings(env, file, fn, item)...)
 	}
 	return findings
+}
+
+// skipsIdentifierNaming reports identifiers exempt from every naming rule:
+// unnamed ones, React component/hook names, and booleans in scripts or UI
+// helpers.
+func skipsIdentifierNaming(file string, fn precisionFunction, item functionIdentifier) bool {
+	if item.name == "" || (item.name == fn.Name && isReactComponentOrHookBoundary(file, fn)) {
+		return true
+	}
+	return isBooleanNameCandidate(item.typ) && (isSeedOrScriptSourcePath(file) || isUIHelperOrMappingContext(file, fn))
+}
+
+func identifierNamingFindings(env support.Context, file string, fn precisionFunction, item functionIdentifier) []core.Finding {
+	findings := make([]core.Finding, 0, 2)
+	if booleanNameNotPredicate(file, fn, item) {
+		findings = append(findings, precisionWarnFinding(env, namingBooleanNotPredicateRuleID, file, item.line,
+			fmt.Sprintf("boolean name %q should read as a predicate such as is/has/can/should", item.name), core.ConfidenceMedium))
+	}
+	if cardinalityMismatch(file, fn, item.name, item.typ) {
+		findings = append(findings, precisionWarnFinding(env, namingCardinalityMismatchRuleID, file, item.line,
+			fmt.Sprintf("identifier %q has plural/singular wording that conflicts with its value shape", item.name), core.ConfidenceMedium))
+	}
+	if implementationLeakName(item.name) {
+		findings = append(findings, precisionWarnFinding(env, namingImplementationLeakRuleID, file, item.line,
+			fmt.Sprintf("identifier %q exposes infrastructure vocabulary in domain-facing naming", item.name), core.ConfidenceMedium))
+	}
+	if !anyPrecisionExemption(file, fn, uiOrScriptIdentifierExemptions) && missingUnit(item.name, item.typ, item.expr) {
+		findings = append(findings, precisionWarnFinding(env, namingMissingUnitRuleID, file, item.line,
+			fmt.Sprintf("numeric identifier %q names a duration, size, or money value without a unit suffix", item.name), core.ConfidenceMedium))
+	}
+	if abbr := unknownAbbreviation(env, item.name); abbr != "" {
+		findings = append(findings, precisionWarnFinding(env, namingUnknownAbbreviationRuleID, file, item.line,
+			fmt.Sprintf("identifier %q contains abbreviation %q that is not established in quality_rules.naming.allowed_abbreviations", item.name, abbr), core.ConfidenceLow))
+	}
+	return findings
+}
+
+// booleanNameNotPredicate reports a boolean identifier that does not read as
+// a predicate and is not covered by a UI or imperative-parameter convention.
+func booleanNameNotPredicate(file string, fn precisionFunction, item functionIdentifier) bool {
+	if !isBooleanNameCandidate(item.typ) || isPredicateName(item.name) {
+		return false
+	}
+	if item.role == "parameter" && isImperativeBooleanParameterName(item.name) {
+		return false
+	}
+	return !isInferredUIBooleanAssignment(file, fn, item.typ, item.expr, item.line) &&
+		!isAllowedBooleanUIName(file, fn, item.name)
 }
 
 func isBooleanNameCandidate(typ string) bool {

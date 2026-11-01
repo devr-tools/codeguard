@@ -270,6 +270,23 @@ func localsStoredInSharedState(fn precisionFunction, origins map[string]string) 
 }
 
 func resolvedMutationBindings(fn precisionFunction) (map[string]string, map[string]string) {
+	origins, targets := declaredMutationBindings(fn)
+	for _, assignment := range directAssignments(fn) {
+		applyAssignmentBinding(fn, assignment, origins, targets)
+	}
+	for _, pattern := range []*regexp.Regexp{goAliasPattern, cppAliasPattern} {
+		for _, match := range pattern.FindAllStringSubmatch(fn.Body, -1) {
+			if origin := origins[match[2]]; origin != "" {
+				origins[match[1]], targets[match[1]] = origin, targets[match[2]]
+			}
+		}
+	}
+	return origins, targets
+}
+
+// declaredMutationBindings seeds ownership from what the function declares:
+// captured bindings, proven globals, parameters, the receiver, and locals.
+func declaredMutationBindings(fn precisionFunction) (map[string]string, map[string]string) {
 	origins := make(map[string]string, len(fn.CapturedBindings))
 	targets := make(map[string]string, len(fn.CapturedBindings))
 	for name, binding := range fn.CapturedBindings {
@@ -289,39 +306,35 @@ func resolvedMutationBindings(fn precisionFunction) (map[string]string, map[stri
 	if fn.Receiver != "" {
 		origins["this"], targets["this"] = originCaller, targetReceiver
 	}
-
-	locals := localMutationTargets(fn)
-	for name := range locals {
+	for name := range localMutationTargets(fn) {
 		origins[name], targets[name] = originLocal, targetLocal
 	}
-	for _, assignment := range directAssignments(fn) {
-		name := strings.TrimSpace(assignment.Name)
-		if name == "" {
-			continue
-		}
-		if assignmentDeclaresLocal(fn, assignment) {
-			delete(origins, name)
-			delete(targets, name)
-		}
-		if source := assignmentAliasSource(fn, assignment); source != "" && assignmentCanReceiveAlias(fn, assignment) {
-			if origin := origins[source]; origin != "" {
-				origins[name], targets[name] = origin, targets[source]
-			}
-		}
-		if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(fn, assignment) {
-			origins[name], targets[name] = originLocal, targetLocal
-		} else if origins[name] == "" && strings.Contains(assignment.Expr, "(") {
-			origins[name], targets[name] = originUnknown, ""
-		}
-	}
-	for _, pattern := range []*regexp.Regexp{goAliasPattern, cppAliasPattern} {
-		for _, match := range pattern.FindAllStringSubmatch(fn.Body, -1) {
-			if origin := origins[match[2]]; origin != "" {
-				origins[match[1]], targets[match[1]] = origin, targets[match[2]]
-			}
-		}
-	}
 	return origins, targets
+}
+
+// applyAssignmentBinding updates ownership for one assignment: a local
+// declaration shadows outer bindings, an alias inherits its source's
+// ownership, local allocations are local, and other call results are
+// unknown.
+func applyAssignmentBinding(fn precisionFunction, assignment support.ParsedAssignment, origins map[string]string, targets map[string]string) {
+	name := strings.TrimSpace(assignment.Name)
+	if name == "" {
+		return
+	}
+	if assignmentDeclaresLocal(fn, assignment) {
+		delete(origins, name)
+		delete(targets, name)
+	}
+	if source := assignmentAliasSource(fn, assignment); source != "" && assignmentCanReceiveAlias(fn, assignment) {
+		if origin := origins[source]; origin != "" {
+			origins[name], targets[name] = origin, targets[source]
+		}
+	}
+	if assignmentLooksLocalAccumulator(fn, assignment) || assignmentLooksLocalBuilder(fn, assignment) || looksLikeLocalObjectAllocation(fn, assignment) {
+		origins[name], targets[name] = originLocal, targetLocal
+	} else if origins[name] == "" && strings.Contains(assignment.Expr, "(") {
+		origins[name], targets[name] = originUnknown, ""
+	}
 }
 
 func assignmentAliasSource(fn precisionFunction, assignment support.ParsedAssignment) string {
