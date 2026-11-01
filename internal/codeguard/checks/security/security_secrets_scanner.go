@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 // Match is a single secret/credential hit on a line. It is the unit shared by
@@ -83,7 +83,7 @@ func BuildScanner(cfg *core.SecretsRulesConfig) (Scanner, []string) {
 
 func (s Scanner) SkipPath(file string) bool {
 	for _, pattern := range s.allowPaths {
-		if runnersupport.MatchPattern(pattern, file) {
+		if support.MatchPattern(pattern, file) {
 			return true
 		}
 	}

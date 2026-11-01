@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 // internalPackageOwner returns the import-path prefix that owns an internal
@@ -156,7 +155,7 @@ func configuredTestPathFile(env support.Context, file string) bool {
 		if pattern == "" {
 			continue
 		}
-		if runnersupport.MatchPattern(pattern, normalized) {
+		if support.MatchPattern(pattern, normalized) {
 			return true
 		}
 		if prefix := strings.TrimSuffix(filepath.ToSlash(pattern), "**"); prefix != pattern &&
