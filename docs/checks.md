@@ -2557,6 +2557,7 @@ Config keys:
 
 Current behavior:
 - caches quality, design, security, prompt, and custom-rule file findings by file hash
+- stores per-file diagnostics with the findings (for example the `security.credential-fixture` diagnostics for suppressed synthetic fixtures), so a warm run reports the same diagnostics as a cold run; caches written by older versions are discarded on upgrade
 - caches optional semantic-review verdicts by hashed request content in a sibling semantic cache file
 - invalidates cached entries when file content or config changes, or when a cross-file input the finding depends on changes (sibling Go files in the same package when `local_precision` is on, `go.mod`/`go.work`, or the resolved SDK facade)
 

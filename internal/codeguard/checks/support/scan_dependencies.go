@@ -1,6 +1,10 @@
 package support
 
-import "github.com/devr-tools/codeguard/internal/codeguard/core"
+import (
+	"sync"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
+)
 
 // FileScanDependencies declares the inputs beyond a file's own content that a
 // per-file evaluator reads. The per-file findings cache keys an entry on the
@@ -37,4 +41,25 @@ func ScanTargetFilesWithDependencies(env Context, target core.TargetConfig, sect
 		return env.ScanTargetFilesWithDependencies(target, sectionID, include, deps, evaluator)
 	}
 	return env.ScanTargetFiles(target, sectionID, include, evaluator)
+}
+
+// ScanTargetFilesWithDiagnostics runs a per-file evaluator that reports
+// diagnostics beside its findings. With the runner hook the diagnostics are
+// stored in the findings cache entry, so a cache hit replays them. Contexts
+// without the hook (unit-test contexts) run without a findings cache, so
+// gathering the diagnostics as the evaluator runs is equivalent there.
+func ScanTargetFilesWithDiagnostics(env Context, target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) ([]core.Finding, []core.Diagnostic)) ([]core.Finding, []core.Diagnostic) {
+	if env.ScanTargetFilesWithDiagnostics != nil {
+		return env.ScanTargetFilesWithDiagnostics(target, sectionID, include, evaluator)
+	}
+	var mu sync.Mutex
+	var diagnostics []core.Diagnostic
+	findings := env.ScanTargetFiles(target, sectionID, include, func(file string, data []byte) []core.Finding {
+		fileFindings, fileDiagnostics := evaluator(file, data)
+		mu.Lock()
+		diagnostics = append(diagnostics, fileDiagnostics...)
+		mu.Unlock()
+		return fileFindings
+	})
+	return findings, diagnostics
 }

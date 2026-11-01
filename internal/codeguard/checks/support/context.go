@@ -100,7 +100,12 @@ type Context struct {
 	// the package-level ScanTargetFilesWithDependencies helper, which falls
 	// back to ScanTargetFiles when this hook is nil.
 	ScanTargetFilesWithDependencies func(target core.TargetConfig, sectionID string, include func(string) bool, deps FileScanDependencies, evaluator func(string, []byte) []core.Finding) []core.Finding
-	ParseGoFile                     func(path string, data []byte) (*token.FileSet, *ast.File, error)
+	// ScanTargetFilesWithDiagnostics exists because diagnostics gathered as a
+	// side effect of a ScanTargetFiles evaluator vanish on a cache hit; this
+	// hook stores them in the cache entry instead. Reach it through the
+	// package-level helper so contexts without a cache keep working.
+	ScanTargetFilesWithDiagnostics func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) ([]core.Finding, []core.Diagnostic)) ([]core.Finding, []core.Diagnostic)
+	ParseGoFile                    func(path string, data []byte) (*token.FileSet, *ast.File, error)
 	// ParseCLikeFile returns the structured C-like parse of one file through
 	// the per-scan corpus cache. The result is shared across sections and
 	// goroutines, so callers must treat it as read-only. Call it via
