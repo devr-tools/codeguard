@@ -283,7 +283,7 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context, baseFiles 
 			return sc.Artifacts.Get(id)
 		},
 		CountLines:           runnersupport.CountLines,
-		CyclomaticComplexity: runnersupport.CyclomaticComplexity,
+		CyclomaticComplexity: runnersupport.CyclomaticComplexityFor(sc.Cfg.Checks.QualityRules.CyclomaticCounting),
 		TypeName:             runnersupport.TypeName,
 		IsInternalOrCmdFile:  runnersupport.IsInternalOrCmdFile,
 		IsCmdFile:            runnersupport.IsCmdFile,
