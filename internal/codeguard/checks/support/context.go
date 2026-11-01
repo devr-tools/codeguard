@@ -101,6 +101,11 @@ type Context struct {
 	// back to ScanTargetFiles when this hook is nil.
 	ScanTargetFilesWithDependencies func(target core.TargetConfig, sectionID string, include func(string) bool, deps FileScanDependencies, evaluator func(string, []byte) []core.Finding) []core.Finding
 	ParseGoFile                     func(path string, data []byte) (*token.FileSet, *ast.File, error)
+	// ParseCLikeFile returns the structured C-like parse of one file through
+	// the per-scan corpus cache. The result is shared across sections and
+	// goroutines, so callers must treat it as read-only. Call it via
+	// ParseCLikeSource, which falls back to an uncached parse when nil.
+	ParseCLikeFile func(path string, data []byte, lang CLikeLanguage) *ParsedFile
 	// ParseScriptFile parses one supported non-Go file through the tree-sitter
 	// substrate. It is nil unless parsers.treesitter is "auto"; checks treat
 	// nil (and any error) as "use the native fallback path".

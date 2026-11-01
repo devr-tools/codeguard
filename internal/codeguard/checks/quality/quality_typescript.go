@@ -27,7 +27,7 @@ func typeScriptFindingsForFile(env support.Context, file string, data []byte) []
 	findings = append(findings, appendTypeScriptDirectiveFindings(ctx)...)
 	findings = append(findings, typeScriptPatternFindings(ctx)...)
 	findings = append(findings, typeScriptAIQualityFindings(ctx)...)
-	parsed := support.ParseCLike(source, support.CLikeTypeScript)
+	parsed := support.ParseCLikeSource(env, file, data, support.CLikeTypeScript)
 	for _, fn := range parsedFunctionMetrics(parsed, typeScriptComplexity) {
 		findings = append(findings, maintainabilityFindings(env, file, fn)...)
 	}

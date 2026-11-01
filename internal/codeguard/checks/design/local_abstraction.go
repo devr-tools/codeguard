@@ -360,7 +360,7 @@ func designFunctions(env support.Context, language string, file string, data []b
 	case "python", "py":
 		return parsedDesignFunctions(support.ParsePython(string(data)))
 	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
-		return parsedDesignFunctions(support.ParseCLike(string(data), support.CLikeTypeScript))
+		return parsedDesignFunctions(support.ParseCLikeSource(env, file, data, support.CLikeTypeScript))
 	case "c++", "cpp", "cxx", "cc":
 		return parsedDesignFunctions(support.ParseCLike(string(data), support.CLikeCPP))
 	default:
