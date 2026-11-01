@@ -218,10 +218,10 @@ func baseDefaultProductionRisk() core.ProductionRiskConfig {
 		Enabled:           boolPtr(true),
 		WarnThreshold:     35,
 		FailThreshold:     70,
-		ReliabilityWeight: intPtr(12),
-		DataWeight:        intPtr(15),
-		FailWeight:        intPtr(25),
-		WarnWeight:        intPtr(10),
+		ReliabilityWeight: 12,
+		DataWeight:        15,
+		FailWeight:        25,
+		WarnWeight:        10,
 	}
 }
 

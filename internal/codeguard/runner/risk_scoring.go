@@ -91,7 +91,7 @@ func addArtifactRisk(entries map[string]*core.FileRiskEntry, artifacts []core.Ar
 		if len(paths) == 0 {
 			continue
 		}
-		if divisor := core.IntValue(cfg.SlopScoreDivisor); artifact.SlopScore != nil && divisor > 0 {
+		if divisor := cfg.SlopScoreDivisor; artifact.SlopScore != nil && divisor > 0 {
 			weight := artifact.SlopScore.Score / divisor
 			if weight > 0 {
 				for _, path := range paths {
@@ -122,11 +122,11 @@ func riskArtifactPaths(entries map[string]*core.FileRiskEntry, target string) []
 // addRiskComponent records a weighted signal on entry. A weight explicitly
 // configured as 0 means the signal is switched off, so it adds no
 // zero-contribution noise to the artifact.
-func addRiskComponent(entry *core.FileRiskEntry, label string, weight *int, detail string) {
-	if core.IntValue(weight) == 0 {
+func addRiskComponent(entry *core.FileRiskEntry, label string, weight int, detail string) {
+	if weight == 0 {
 		return
 	}
-	entry.Components = append(entry.Components, riskComponent(label, core.IntValue(weight), detail))
+	entry.Components = append(entry.Components, riskComponent(label, weight, detail))
 }
 
 func riskComponent(label string, weight int, detail string) core.FileRiskComponent {

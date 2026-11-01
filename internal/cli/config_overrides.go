@@ -74,6 +74,7 @@ func setConfigOverride(root reflect.Value, path string, raw string) error {
 			if err := assignOverrideValue(next, raw, path); err != nil {
 				return err
 			}
+			markOverrideExplicit(current, segment.name)
 			return nil
 		}
 		current = dereferenceOverrideValue(next)
@@ -82,6 +83,35 @@ func setConfigOverride(root reflect.Value, path string, raw string) error {
 		}
 	}
 	return nil
+}
+
+// explicitKeySetter is implemented by config structs whose int keys can hold
+// an explicit 0 (the risk-scoring and production-risk weights).
+type explicitKeySetter interface {
+	ExplicitKeys() []string
+	SetExplicit(keys ...string) error
+}
+
+// markOverrideExplicit marks the key a -set override just assigned as
+// explicit when its parent struct tracks explicit keys, so
+// `-set checks.production_risk.fail_weight=0` keeps the 0 through
+// ApplyDefaults the same way `fail_weight: 0` in a config file does.
+func markOverrideExplicit(parent reflect.Value, name string) {
+	parent = dereferenceOverrideValue(parent)
+	if !parent.CanAddr() {
+		return
+	}
+	setter, ok := parent.Addr().Interface().(explicitKeySetter)
+	if !ok {
+		return
+	}
+	for _, key := range setter.ExplicitKeys() {
+		if strings.EqualFold(key, name) || strings.EqualFold(strings.ReplaceAll(key, "_", ""), name) {
+			// The key comes from ExplicitKeys, so SetExplicit cannot reject it.
+			_ = setter.SetExplicit(key)
+			return
+		}
+	}
 }
 
 func parseOverridePath(path string) ([]overrideSegment, error) {

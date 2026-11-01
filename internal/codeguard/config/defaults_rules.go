@@ -35,15 +35,15 @@ func applyQualityNamingDefaults(dst *core.QualityNamingConfig, def core.QualityN
 func applyRiskScoringDefaults(dst *core.RiskScoringConfig) {
 	defaultBoolPtr(&dst.Enabled, true)
 	defaultInt(&dst.MaxHotspots, 5)
-	defaultIntPtr(&dst.ChangedFileWeight, 5)
-	defaultIntPtr(&dst.FailFindingWeight, 30)
-	defaultIntPtr(&dst.WarnFindingWeight, 15)
-	defaultIntPtr(&dst.SecurityWeight, 10)
-	defaultIntPtr(&dst.SupplyChainWeight, 10)
-	defaultIntPtr(&dst.CoverageGapWeight, 15)
-	defaultIntPtr(&dst.AIProvenanceWeight, 15)
-	defaultIntPtr(&dst.AISignalWeight, 10)
-	defaultIntPtr(&dst.SlopScoreDivisor, 10)
+	defaultUnlessExplicit(&dst.ChangedFileWeight, dst.IsExplicit("changed_file_weight"), 5)
+	defaultUnlessExplicit(&dst.FailFindingWeight, dst.IsExplicit("fail_finding_weight"), 30)
+	defaultUnlessExplicit(&dst.WarnFindingWeight, dst.IsExplicit("warn_finding_weight"), 15)
+	defaultUnlessExplicit(&dst.SecurityWeight, dst.IsExplicit("security_weight"), 10)
+	defaultUnlessExplicit(&dst.SupplyChainWeight, dst.IsExplicit("supply_chain_weight"), 10)
+	defaultUnlessExplicit(&dst.CoverageGapWeight, dst.IsExplicit("coverage_gap_weight"), 15)
+	defaultUnlessExplicit(&dst.AIProvenanceWeight, dst.IsExplicit("ai_provenance_weight"), 15)
+	defaultUnlessExplicit(&dst.AISignalWeight, dst.IsExplicit("ai_signal_weight"), 10)
+	defaultUnlessExplicit(&dst.SlopScoreDivisor, dst.IsExplicit("slop_score_divisor"), 10)
 }
 
 func applyCPPToolingDefaults(dst *core.CPPToolingConfig) {
@@ -337,8 +337,8 @@ func applyProductionRiskDefaults(dst *core.ProductionRiskConfig, def core.Produc
 	defaultBoolPtr(&dst.Enabled, boolValueOrTrue(def.Enabled))
 	defaultInt(&dst.WarnThreshold, def.WarnThreshold)
 	defaultInt(&dst.FailThreshold, def.FailThreshold)
-	defaultIntPtr(&dst.ReliabilityWeight, core.IntValue(def.ReliabilityWeight))
-	defaultIntPtr(&dst.DataWeight, core.IntValue(def.DataWeight))
-	defaultIntPtr(&dst.FailWeight, core.IntValue(def.FailWeight))
-	defaultIntPtr(&dst.WarnWeight, core.IntValue(def.WarnWeight))
+	defaultUnlessExplicit(&dst.ReliabilityWeight, dst.IsExplicit("reliability_weight"), def.ReliabilityWeight)
+	defaultUnlessExplicit(&dst.DataWeight, dst.IsExplicit("data_weight"), def.DataWeight)
+	defaultUnlessExplicit(&dst.FailWeight, dst.IsExplicit("fail_weight"), def.FailWeight)
+	defaultUnlessExplicit(&dst.WarnWeight, dst.IsExplicit("warn_weight"), def.WarnWeight)
 }

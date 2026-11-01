@@ -115,10 +115,10 @@ func validateProductionRisk(risk core.ProductionRiskConfig) error {
 		field string
 		value int
 	}{
-		{"production_risk.reliability_weight", core.IntValue(risk.ReliabilityWeight)},
-		{"production_risk.data_weight", core.IntValue(risk.DataWeight)},
-		{"production_risk.fail_weight", core.IntValue(risk.FailWeight)},
-		{"production_risk.warn_weight", core.IntValue(risk.WarnWeight)},
+		{"production_risk.reliability_weight", risk.ReliabilityWeight},
+		{"production_risk.data_weight", risk.DataWeight},
+		{"production_risk.fail_weight", risk.FailWeight},
+		{"production_risk.warn_weight", risk.WarnWeight},
 	} {
 		if item.value < 0 {
 			return fmt.Errorf("%s must not be negative", item.field)
