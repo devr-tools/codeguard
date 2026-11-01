@@ -2548,6 +2548,74 @@ Findings now carry:
 - why the rule triggered
 - how-to-fix guidance from built-in metadata or custom rule packs
 
+### SARIF output (GitHub code scanning)
+
+`-format sarif` writes a SARIF 2.1.0 log with one run. It is checked against
+the official OASIS schema in `tests/report`. It carries what GitHub code scanning
+needs to show severity, rule help and taint traces.
+
+`runs[].tool.driver`:
+- `name` (`codeguard`), `version`, `informationUri` (the repository), and
+  `semanticVersion` for release builds (development builds report only `version: devel`)
+- `rules[]`: one entry per rule that appears in the results, sorted by id
+
+`rules[]` fields:
+
+| Field | Source |
+| --- | --- |
+| `shortDescription.text` | catalog `title` |
+| `fullDescription.text` | catalog `description` |
+| `help.text` | description, `How to fix: <how_to_fix>`, and the fix template |
+| `help.markdown` | the same content as markdown, plus CWE, OWASP and rule reference links |
+| `helpUri` | `https://github.com/devr-tools/codeguard/blob/main/docs/checks.md#rule-<id>`, where `<id>` is the rule id with dots replaced by hyphens (`security.taint.go` → `#rule-security-taint-go`). Every catalog rule has an anchor in the [Rule index](#rule-index). Rules outside the catalog (custom rule packs, imported external reports) have no `helpUri` |
+| `defaultConfiguration.level` | catalog `default_level`: `fail` → `error`, `warn` → `warning` |
+| `properties.tags` | the section (`security`, `quality`, `ci`, `supply-chain`, ...), `security` for security rules, one `external/cwe/cwe-NNN` tag per CWE, and `OWASP:<code>` when mapped |
+| `properties.precision` | the highest finding confidence for the rule in this run: `high`, `medium` (also used when the check set no confidence), or `low` |
+| `properties.security-severity` | security rules only; see the table below |
+| `properties.cwe` | the catalog `cwe` ids, such as `["CWE-78", "CWE-89"]` |
+| `relationships` | the OWASP Top 10 taxon, when mapped |
+
+A rule counts as a security rule when it belongs to the Security section, or
+when it has a CWE mapping (for example the `ci.workflow-*` workflow security
+rules and `supply_chain.vulnerable-dependency`). The catalog `cwe` field is
+also returned by `codeguard.Rules()` and `ExplainRule`. CWE tags are zero-padded
+to three digits like CodeQL's (`external/cwe/cwe-078`), so a GitHub
+`tag:external/cwe/cwe-078` filter matches codeguard and CodeQL alerts together.
+
+`security-severity` mapping. GitHub reads the score from the rule and labels it
+critical (above 9.0), high (7.0–8.9), medium (4.0–6.9) or low (below 4.0).
+The rule takes the highest score among its findings in the run:
+
+| Finding level | `high` confidence | `medium` / unset | `low` |
+| --- | --- | --- | --- |
+| `fail` | 9.3 (critical) | 8.1 (high) | 6.5 (medium) |
+| `warn` | 6.1 (medium) | 5.0 (medium) | 3.1 (low) |
+
+A fail-level finding backed by structured evidence, such as a source-to-sink
+taint flow, is critical. A warn-level review item never rises above medium.
+
+`results[]` fields:
+- `level`: `fail` → `error`, `warn` → `warning`. Scan diagnostics map
+  `fail` → `error`, `warn` → `warning` and anything else → `note`
+- `locations`: file, `startLine` (line 1 for file-level findings), and
+  `startColumn` when the check reported one
+- `partialFingerprints`: `codeguardContext/v1`, which stays the same when
+  unrelated edits move the finding, and `codeguardLegacy/v1`, which is line
+  based. GitHub uses them to de-duplicate alerts across uploads
+- `codeFlows`: taint findings (`security.taint.*`, `security.ssrf.*`,
+  `security.typescript.taint-flow` and `security.javascript.taint-flow`) get one thread flow with a step
+  for each hop in the source-to-sink chain. Each step has a message and the
+  kinds `taint`, `source` or `sink`. Go, Python and C++ engines report lines
+  only for the source and the sink, so intermediate steps (the variables the
+  value passed through) have the file but no region. TypeScript/JavaScript steps
+  each have their own file and line, including steps in other modules
+- `properties.confidence` when the check set one
+
+`runs[].invocations[0].executionSuccessful` is `false` when any section
+reported a fail-level operational diagnostic (`scan.section.panic`,
+`scan.target-walk`, ...), because part of the repository was not analysed.
+`endTimeUtc` is the report timestamp.
+
 ## Custom rule packs
 
 Purpose:
@@ -2736,3 +2804,448 @@ Rules:
 ## Full example
 
 See [examples/codeguard.json](../examples/codeguard.json) for the current full config.
+
+## Rule index
+
+Every built-in rule, grouped by section, with its default level and title.
+Each entry has a stable anchor, `#rule-<id with dots replaced by hyphens>`,
+which SARIF `helpUri` values link to. When you add a rule, add its line here.
+`TestDocsChecksHasAnAnchorForEveryCatalogRule` fails until you do.
+
+### AI Prompts rules
+
+- <a id="rule-prompts-agent-config-literal-secret"></a>`prompts.agent-config-literal-secret` (fail): Literal secret in agent or MCP config
+- <a id="rule-prompts-agent-dangerous-instructions"></a>`prompts.agent-dangerous-instructions` (fail): Dangerous agent instructions
+- <a id="rule-prompts-agent-standing-permissions"></a>`prompts.agent-standing-permissions` (fail): Standing agent permissions
+- <a id="rule-prompts-hidden-unicode"></a>`prompts.hidden-unicode` (fail): Hidden Unicode in prompt or agent file
+- <a id="rule-prompts-mcp-config-risk"></a>`prompts.mcp-config-risk` (fail): Risky MCP configuration
+- <a id="rule-prompts-mcp-insecure-transport"></a>`prompts.mcp-insecure-transport` (fail): MCP server over plaintext transport
+- <a id="rule-prompts-mcp-remote-unauthenticated"></a>`prompts.mcp-remote-unauthenticated` (warn): Remote MCP server without auth header
+- <a id="rule-prompts-mcp-unpinned-server"></a>`prompts.mcp-unpinned-server` (warn): Unpinned MCP server package
+- <a id="rule-prompts-secret-interpolation"></a>`prompts.secret-interpolation` (fail): Prompt secret interpolation
+- <a id="rule-prompts-unsafe-instructions"></a>`prompts.unsafe-instructions` (warn): Unsafe prompt instructions
+
+### API Contracts rules
+
+- <a id="rule-contracts-cpp-public-breaking"></a>`contracts.cpp-public-breaking` (fail): C++ public-header breaking change
+- <a id="rule-contracts-go-exported-breaking"></a>`contracts.go-exported-breaking` (fail): Go exported API breaking change
+- <a id="rule-contracts-migration-destructive"></a>`contracts.migration-destructive` (warn): Destructive database migration
+- <a id="rule-contracts-non-expand-contract-migration"></a>`contracts.non-expand-contract-migration` (fail): Non-expand/contract schema migration
+- <a id="rule-contracts-openapi-breaking"></a>`contracts.openapi-breaking` (fail): OpenAPI breaking change
+- <a id="rule-contracts-proto-breaking"></a>`contracts.proto-breaking` (fail): Protobuf breaking change
+
+### Agent Context rules
+
+- <a id="rule-context-agent-docs-drift"></a>`context.agent-docs-drift` (warn): Agent instructions drift
+- <a id="rule-context-agent-docs-missing"></a>`context.agent-docs-missing` (warn): Missing agent instructions
+- <a id="rule-context-ambiguous-symbol"></a>`context.ambiguous-symbol` (warn): Ambiguous file basename
+- <a id="rule-context-doc-link-rot"></a>`context.doc-link-rot` (warn): Documentation link rot
+- <a id="rule-context-legibility-threshold"></a>`context.legibility-threshold` (warn): Repository legibility below threshold
+- <a id="rule-context-oversized-agent-doc"></a>`context.oversized-agent-doc` (warn): Oversized agent instructions
+- <a id="rule-context-oversized-context-unit"></a>`context.oversized-context-unit` (warn): Oversized context unit
+- <a id="rule-context-readme-drift"></a>`context.readme-drift` (warn): README command drift
+- <a id="rule-context-undocumented-commands"></a>`context.undocumented-commands` (warn): Undocumented dev command
+
+### CI/CD rules
+
+- <a id="rule-ci-always-true-test-assertion"></a>`ci.always-true-test-assertion` (warn): Always-true test assertion
+- <a id="rule-ci-conditional-assertion"></a>`ci.conditional-assertion` (warn): Conditionally executed assertions
+- <a id="rule-ci-missing-required-gate"></a>`ci.missing-required-gate` (fail): Missing required CI gate
+- <a id="rule-ci-mutable-deployment-reference"></a>`ci.mutable-deployment-reference` (fail): Mutable deployment reference
+- <a id="rule-ci-required-file"></a>`ci.required-file` (fail): Required CI file
+- <a id="rule-ci-required-workflow-dir"></a>`ci.required-workflow-dir` (fail): Workflow directory
+- <a id="rule-ci-test-file-location"></a>`ci.test-file-location` (fail): Test file location
+- <a id="rule-ci-test-without-assertion"></a>`ci.test-without-assertion` (warn): Test without assertion
+- <a id="rule-ci-workflow-content"></a>`ci.workflow-content` (fail): Workflow content
+- <a id="rule-ci-workflow-dangerous-trigger"></a>`ci.workflow-dangerous-trigger` (fail): Privileged trigger checks out pull request code
+- <a id="rule-ci-workflow-fork-trigger-secrets"></a>`ci.workflow-fork-trigger-secrets` (warn): Secrets in a fork-triggered job
+- <a id="rule-ci-workflow-missing-permissions"></a>`ci.workflow-missing-permissions` (warn): Workflow token permissions not declared
+- <a id="rule-ci-workflow-remote-script-pipe"></a>`ci.workflow-remote-script-pipe` (warn): Remote script piped into a shell
+- <a id="rule-ci-workflow-script-injection"></a>`ci.workflow-script-injection` (fail): Workflow script injection
+- <a id="rule-ci-workflow-write-all-permissions"></a>`ci.workflow-write-all-permissions` (fail): Workflow grants write-all permissions
+
+### Change Safety rules
+
+- <a id="rule-change-mixed-concerns"></a>`change.mixed-concerns` (warn): Mixed concerns
+- <a id="rule-change-mixed-refactor-and-behavior"></a>`change.mixed-refactor-and-behavior` (warn): Mixed refactor and behavior change
+- <a id="rule-change-move-without-verification"></a>`change.move-without-verification` (warn): Move without verification
+- <a id="rule-change-oversized-diff"></a>`change.oversized-diff` (warn): Oversized diff
+- <a id="rule-change-too-many-concerns"></a>`change.too-many-concerns` (warn): Too many concerns
+- <a id="rule-change-unnecessary-surface-area"></a>`change.unnecessary-surface-area` (warn): Unnecessary surface area
+
+### Change Safety / Refactors rules
+
+- <a id="rule-refactor-behavior-change-detected"></a>`refactor.behavior-change-detected` (fail): Behavior change detected in refactor
+- <a id="rule-refactor-dead-path-left-behind"></a>`refactor.dead-path-left-behind` (warn): Dead path left behind
+- <a id="rule-refactor-dependency-direction-worsened"></a>`refactor.dependency-direction-worsened` (warn): Dependency direction worsened in refactor
+- <a id="rule-refactor-duplicate-implementation-left-behind"></a>`refactor.duplicate-implementation-left-behind` (warn): Duplicate implementation left behind
+- <a id="rule-refactor-error-path-changed"></a>`refactor.error-path-changed` (fail): Error path changed in refactor
+- <a id="rule-refactor-public-contract-changed"></a>`refactor.public-contract-changed` (fail): Public contract changed in refactor
+- <a id="rule-refactor-side-effect-order-changed"></a>`refactor.side-effect-order-changed` (fail): Side-effect order changed in refactor
+- <a id="rule-refactor-test-coverage-reduced"></a>`refactor.test-coverage-reduced` (warn): Test coverage reduced by refactor
+- <a id="rule-refactor-visibility-expanded"></a>`refactor.visibility-expanded` (warn): Visibility expanded in refactor
+
+### Change Safety / Testability rules
+
+- <a id="rule-change-cleanup-regression"></a>`change.cleanup-regression` (warn): Cleanup regression
+- <a id="rule-change-complexity-increased"></a>`change.complexity-increased` (warn): Complexity increased
+- <a id="rule-change-duplicate-helper"></a>`change.duplicate-helper` (warn): Duplicate helper
+- <a id="rule-change-one-use-abstraction"></a>`change.one-use-abstraction` (warn): One-use abstraction
+- <a id="rule-testing-behavior-change-without-test"></a>`testing.behavior-change-without-test` (fail): Behavior change without test
+- <a id="rule-testing-failure-path-missing"></a>`testing.failure-path-missing` (warn): Failure path missing
+- <a id="rule-testing-hardwired-dependency"></a>`testing.hardwired-dependency` (warn): Hardwired dependency
+- <a id="rule-testing-legacy-hotspot-uncovered"></a>`testing.legacy-hotspot-uncovered` (warn): Legacy hotspot without characterization coverage
+- <a id="rule-testing-nondeterministic-domain-logic"></a>`testing.nondeterministic-domain-logic` (warn): Nondeterministic domain logic
+
+### Code Quality rules
+
+- <a id="rule-function-hidden-mutation"></a>`function.hidden-mutation` (warn): Hidden mutation
+- <a id="rule-function-inconsistent-return-contract"></a>`function.inconsistent-return-contract` (warn): Inconsistent return contract
+- <a id="rule-function-multiple-responsibilities"></a>`function.multiple-responsibilities` (warn): Multiple responsibilities
+- <a id="rule-function-orchestration-domain-mix"></a>`function.orchestration-domain-mix` (warn): Orchestration/domain mix
+- <a id="rule-function-partial-result"></a>`function.partial-result` (warn): Implicit partial result
+- <a id="rule-naming-behavior-mismatch"></a>`naming.behavior-mismatch` (warn): Name behavior mismatch
+- <a id="rule-naming-boolean-not-predicate"></a>`naming.boolean-not-predicate` (warn): Boolean name is not a predicate
+- <a id="rule-naming-cardinality-mismatch"></a>`naming.cardinality-mismatch` (warn): Cardinality mismatch
+- <a id="rule-naming-cross-layer-inconsistency"></a>`naming.cross-layer-inconsistency` (warn): Cross-layer naming inconsistency
+- <a id="rule-naming-domain-vocabulary-drift"></a>`naming.domain-vocabulary-drift` (warn): Domain vocabulary drift
+- <a id="rule-naming-implementation-leak"></a>`naming.implementation-leak` (warn): Implementation vocabulary leak
+- <a id="rule-naming-missing-unit"></a>`naming.missing-unit` (warn): Missing unit in numeric name
+- <a id="rule-naming-role-suffix-overuse"></a>`naming.role-suffix-overuse` (warn): Role suffix overuse
+- <a id="rule-naming-unknown-abbreviation"></a>`naming.unknown-abbreviation` (warn): Unknown abbreviation
+- <a id="rule-quality-ai-change-risk"></a>`quality.ai.change-risk` (warn): AI change risk
+- <a id="rule-quality-ai-contract-drift"></a>`quality.ai.contract-drift` (warn): Semantic contract drift
+- <a id="rule-quality-ai-dead-code"></a>`quality.ai.dead-code` (warn): Plausible but dead code
+- <a id="rule-quality-ai-error-style-drift"></a>`quality.ai.error-style-drift` (warn): Error-handling style drift
+- <a id="rule-quality-ai-hallucinated-import"></a>`quality.ai.hallucinated-import` (warn): Hallucinated import
+- <a id="rule-quality-ai-local-idiom-drift"></a>`quality.ai.local-idiom-drift` (warn): Codebase idiom drift
+- <a id="rule-quality-ai-naming-drift"></a>`quality.ai.naming-drift` (warn): Identifier naming drift
+- <a id="rule-quality-ai-narrative-comment"></a>`quality.ai.narrative-comment` (warn): Narrative comment
+- <a id="rule-quality-ai-over-mocked-test"></a>`quality.ai.over-mocked-test` (warn): Over-mocked test
+- <a id="rule-quality-ai-provenance-policy"></a>`quality.ai.provenance-policy` (warn): AI provenance policy
+- <a id="rule-quality-ai-semantic-doc-mismatch"></a>`quality.ai.semantic-doc-mismatch` (warn): Semantic function and docs mismatch
+- <a id="rule-quality-ai-semantic-error-message"></a>`quality.ai.semantic-error-message` (warn): Semantic error-message mismatch
+- <a id="rule-quality-ai-semantic-runtime"></a>`quality.ai.semantic-runtime` (fail): Semantic review runtime failure
+- <a id="rule-quality-ai-semantic-test-adequacy"></a>`quality.ai.semantic-test-adequacy` (warn): Semantic test adequacy gap
+- <a id="rule-quality-ai-semantic-test-coverage"></a>`quality.ai.semantic-test-coverage` (warn): Semantic changed-behavior test gap
+- <a id="rule-quality-ai-swallowed-error"></a>`quality.ai.swallowed-error` (warn): AI-style swallowed error
+- <a id="rule-quality-ambiguous-name"></a>`quality.ambiguous-name` (warn): Ambiguous identifier
+- <a id="rule-quality-boolean-argument"></a>`quality.boolean-argument` (warn): Boolean argument
+- <a id="rule-quality-command-check"></a>`quality.command-check` (fail): Language quality command
+- <a id="rule-quality-coverage-delta"></a>`quality.coverage-delta` (warn): Changed-line test coverage
+- <a id="rule-quality-cpp-clang-format"></a>`quality.cpp.clang-format` (fail): C++ clang-format validation
+- <a id="rule-quality-cpp-compiler-parse"></a>`quality.cpp.compiler-parse` (fail): C++ compiler syntax validation
+- <a id="rule-quality-cyclomatic-complexity"></a>`quality.cyclomatic-complexity` (warn): Cyclomatic complexity
+- <a id="rule-quality-dead-code-toolchain"></a>`quality.dead-code.toolchain` (warn): Toolchain dead code
+- <a id="rule-quality-dependency-direction"></a>`quality.dependency-direction` (warn): Dependency direction
+- <a id="rule-quality-duplicate-code"></a>`quality.duplicate-code` (warn): Duplicate code
+- <a id="rule-quality-duplicated-knowledge"></a>`quality.duplicated-knowledge` (warn): Duplicated business knowledge
+- <a id="rule-quality-environment-branching"></a>`quality.environment-branching` (warn): Environment branching
+- <a id="rule-quality-gofmt"></a>`quality.gofmt` (fail): Go formatting
+- <a id="rule-quality-hidden-side-effect"></a>`quality.hidden-side-effect` (warn): Hidden side effect
+- <a id="rule-quality-javascript-debugger-statement"></a>`quality.javascript.debugger-statement` (warn): JavaScript debugger statement
+- <a id="rule-quality-javascript-double-assertion"></a>`quality.javascript.double-assertion` (warn): JavaScript double assertion
+- <a id="rule-quality-javascript-explicit-any"></a>`quality.javascript.explicit-any` (warn): JavaScript explicit any
+- <a id="rule-quality-javascript-non-null-assertion"></a>`quality.javascript.non-null-assertion` (warn): JavaScript non-null assertion
+- <a id="rule-quality-javascript-ts-expect-error"></a>`quality.javascript.ts-expect-error` (warn): JavaScript expectation suppression
+- <a id="rule-quality-javascript-ts-ignore"></a>`quality.javascript.ts-ignore` (warn): JavaScript suppression comment
+- <a id="rule-quality-javascript-ts-nocheck"></a>`quality.javascript.ts-nocheck` (warn): JavaScript file-level suppression
+- <a id="rule-quality-max-file-lines"></a>`quality.max-file-lines` (warn): File length
+- <a id="rule-quality-max-function-lines"></a>`quality.max-function-lines` (warn): Function length
+- <a id="rule-quality-max-parameters"></a>`quality.max-parameters` (warn): Function parameters
+- <a id="rule-quality-mutable-global-state"></a>`quality.mutable-global-state` (warn): Mutable global state
+- <a id="rule-quality-parse-error"></a>`quality.parse-error` (fail): Go parseability
+- <a id="rule-quality-primitive-obsession"></a>`quality.primitive-obsession` (warn): Primitive obsession
+- <a id="rule-quality-redundant-comment"></a>`quality.redundant-comment` (warn): Redundant comment
+- <a id="rule-quality-typescript-debugger-statement"></a>`quality.typescript.debugger-statement` (warn): TypeScript debugger statement
+- <a id="rule-quality-typescript-double-assertion"></a>`quality.typescript.double-assertion` (warn): TypeScript double assertion
+- <a id="rule-quality-typescript-explicit-any"></a>`quality.typescript.explicit-any` (warn): TypeScript explicit any
+- <a id="rule-quality-typescript-non-null-assertion"></a>`quality.typescript.non-null-assertion` (warn): TypeScript non-null assertion
+- <a id="rule-quality-typescript-ts-expect-error"></a>`quality.typescript.ts-expect-error` (warn): TypeScript expectation suppression
+- <a id="rule-quality-typescript-ts-ignore"></a>`quality.typescript.ts-ignore` (warn): TypeScript suppression comment
+- <a id="rule-quality-typescript-ts-nocheck"></a>`quality.typescript.ts-nocheck` (warn): TypeScript file-level suppression
+- <a id="rule-smell-data-clump"></a>`smell.data-clump` (warn): Data clump
+- <a id="rule-smell-feature-envy"></a>`smell.feature-envy` (warn): Feature envy
+- <a id="rule-smell-god-object"></a>`smell.god-object` (warn): God object
+- <a id="rule-smell-message-chain"></a>`smell.message-chain` (warn): Message chain
+- <a id="rule-smell-middle-man"></a>`smell.middle-man` (warn): Middle man
+- <a id="rule-smell-refused-bequest"></a>`smell.refused-bequest` (warn): Refused bequest
+- <a id="rule-smell-switch-on-type"></a>`smell.switch-on-type` (warn): Switch on type
+
+### Code Quality / Local Precision rules
+
+- <a id="rule-defensive-bounds-assumption"></a>`defensive.bounds-assumption` (warn): Bounds assumption
+- <a id="rule-defensive-fail-open-authorization"></a>`defensive.fail-open-authorization` (warn): Fail-open authorization
+- <a id="rule-defensive-integer-overflow"></a>`defensive.integer-overflow` (warn): Integer overflow assumption
+- <a id="rule-defensive-invalid-state-representable"></a>`defensive.invalid-state-representable` (warn): Invalid state representable
+- <a id="rule-defensive-invalid-state-transition"></a>`defensive.invalid-state-transition` (warn): Invalid state transition
+- <a id="rule-defensive-missing-resource-limit"></a>`defensive.missing-resource-limit` (warn): Missing resource limit
+- <a id="rule-defensive-missing-schema-validation"></a>`defensive.missing-schema-validation` (warn): Missing schema validation
+- <a id="rule-defensive-non-exhaustive-branch"></a>`defensive.non-exhaustive-branch` (warn): Non-exhaustive branch
+- <a id="rule-defensive-null-assumption"></a>`defensive.null-assumption` (warn): Null assumption
+- <a id="rule-defensive-sequence-collision-risk"></a>`defensive.sequence-collision-risk` (warn): Sequence collision risk
+- <a id="rule-defensive-unchecked-external-response"></a>`defensive.unchecked-external-response` (warn): Unchecked external response
+- <a id="rule-defensive-unchecked-type-assertion"></a>`defensive.unchecked-type-assertion` (warn): Unchecked type assertion
+- <a id="rule-defensive-unsafe-default"></a>`defensive.unsafe-default` (warn): Unsafe default
+- <a id="rule-defensive-unsafe-numeric-conversion"></a>`defensive.unsafe-numeric-conversion` (warn): Unsafe numeric conversion
+- <a id="rule-defensive-unvalidated-boundary-input"></a>`defensive.unvalidated-boundary-input` (warn): Unvalidated boundary input
+- <a id="rule-error-cleanup-error-ignored"></a>`error.cleanup-error-ignored` (warn): Cleanup error ignored
+- <a id="rule-error-context-lost"></a>`error.context-lost` (warn): Error context lost
+- <a id="rule-error-exception-used-for-control-flow"></a>`error.exception-used-for-control-flow` (warn): Exception used for control flow
+- <a id="rule-error-fallback-hides-corruption"></a>`error.fallback-hides-corruption` (warn): Fallback hides corruption
+- <a id="rule-error-generic-message"></a>`error.generic-message` (warn): Generic error message
+- <a id="rule-error-inconsistent-wrapping"></a>`error.inconsistent-wrapping` (warn): Inconsistent error wrapping
+- <a id="rule-error-logged-and-ignored"></a>`error.logged-and-ignored` (warn): Logged and ignored error
+- <a id="rule-error-logged-and-returned"></a>`error.logged-and-returned` (warn): Logged and returned error
+- <a id="rule-error-panic-on-recoverable-path"></a>`error.panic-on-recoverable-path` (warn): Panic on recoverable path
+- <a id="rule-error-partial-failure-hidden"></a>`error.partial-failure-hidden` (warn): Partial failure hidden
+- <a id="rule-error-retryable-not-distinguished"></a>`error.retryable-not-distinguished` (warn): Retryable failure not distinguished
+- <a id="rule-error-user-message-leaks-internals"></a>`error.user-message-leaks-internals` (warn): User message leaks internals
+- <a id="rule-error-wrong-abstraction-level"></a>`error.wrong-abstraction-level` (warn): Wrong abstraction level in error
+- <a id="rule-function-command-query-mix"></a>`function.command-query-mix` (warn): Command/query mix
+- <a id="rule-function-excessive-parameters"></a>`function.excessive-parameters` (warn): Excessive parameters
+- <a id="rule-function-mixed-abstraction-level"></a>`function.mixed-abstraction-level` (warn): Mixed abstraction level
+- <a id="rule-naming-generic-identifier"></a>`naming.generic-identifier` (warn): Generic identifier
+
+### Code Smells / History rules
+
+- <a id="rule-smell-divergent-change-history"></a>`smell.divergent-change-history` (warn): Divergent change history
+- <a id="rule-smell-shotgun-surgery-history"></a>`smell.shotgun-surgery-history` (warn): Shotgun surgery history
+
+### Data Correctness rules
+
+- <a id="rule-data-cache-without-policy"></a>`data.cache-without-policy` (warn): Cache without policy
+- <a id="rule-data-exactly-once-assumption"></a>`data.exactly-once-assumption` (warn): Exactly-once delivery assumption
+- <a id="rule-data-missing-deduplication"></a>`data.missing-deduplication` (warn): Missing deduplication
+- <a id="rule-data-missing-outbox-strategy"></a>`data.missing-outbox-strategy` (fail): Missing outbox strategy
+- <a id="rule-data-missing-transaction-boundary"></a>`data.missing-transaction-boundary` (fail): Missing transaction boundary
+- <a id="rule-data-non-idempotent-consumer"></a>`data.non-idempotent-consumer` (fail): Non-idempotent consumer
+- <a id="rule-data-read-modify-write-race"></a>`data.read-modify-write-race` (fail): Read-modify-write race
+- <a id="rule-data-side-effect-in-transaction"></a>`data.side-effect-in-transaction` (fail): External side effect in transaction
+- <a id="rule-data-unbounded-read"></a>`data.unbounded-read` (warn): Unbounded database read
+- <a id="rule-data-unsafe-dual-write"></a>`data.unsafe-dual-write` (fail): Unsafe dual write
+- <a id="rule-data-unstable-pagination"></a>`data.unstable-pagination` (warn): Unstable pagination
+
+### Delivery rules
+
+- <a id="rule-delivery-high-risk-change-without-kill-switch"></a>`delivery.high-risk-change-without-kill-switch` (warn): High-risk change without kill switch
+- <a id="rule-delivery-missing-post-deploy-verification"></a>`delivery.missing-post-deploy-verification` (warn): Missing post-deploy verification
+- <a id="rule-delivery-missing-rollback-strategy"></a>`delivery.missing-rollback-strategy` (warn): Missing rollback strategy
+- <a id="rule-delivery-unsafe-migration-order"></a>`delivery.unsafe-migration-order` (warn): Unsafe migration order
+
+### Design Patterns rules
+
+- <a id="rule-design-capability-boundary"></a>`design.capability-boundary` (fail): Technical capability boundary
+- <a id="rule-design-cmd-through-internal-cli"></a>`design.cmd-through-internal-cli` (fail): Command layer routing
+- <a id="rule-design-command-check"></a>`design.command-check` (fail): Language design command
+- <a id="rule-design-configuration-leak"></a>`design.configuration-leak` (warn): Configuration leak
+- <a id="rule-design-cpp-generic-module-name"></a>`design.cpp.generic-module-name` (warn): C++ generic file name
+- <a id="rule-design-cpp-import-cycle"></a>`design.cpp.import-cycle` (fail): C++ include or module cycle
+- <a id="rule-design-cpp-max-decls-per-file"></a>`design.cpp.max-decls-per-file` (warn): C++ declarations per file
+- <a id="rule-design-cpp-max-interface-methods"></a>`design.cpp.max-interface-methods` (warn): C++ contract surface size
+- <a id="rule-design-cpp-max-methods-per-type"></a>`design.cpp.max-methods-per-type` (warn): C++ methods per type
+- <a id="rule-design-data-ownership"></a>`design.data-ownership` (fail): Domain data ownership
+- <a id="rule-design-diff-command-check"></a>`design.diff-command-check` (fail): Contract diff command
+- <a id="rule-design-domain-boundary"></a>`design.domain-boundary` (fail): Domain dependency boundary
+- <a id="rule-design-domain-logic-in-handler"></a>`design.domain-logic-in-handler` (warn): Domain logic in handler
+- <a id="rule-design-excessive-public-surface"></a>`design.excessive-public-surface` (warn): Excessive public surface
+- <a id="rule-design-generic-package-name"></a>`design.generic-package-name` (warn): Generic package name
+- <a id="rule-design-god-module"></a>`design.god-module` (warn): God module
+- <a id="rule-design-high-impact-change"></a>`design.high-impact-change` (warn): High impact change
+- <a id="rule-design-infrastructure-type-leak"></a>`design.infrastructure-type-leak` (warn): Infrastructure type leak
+- <a id="rule-design-java-import-cycle"></a>`design.java.import-cycle` (fail): Java import cycle
+- <a id="rule-design-javascript-import-cycle"></a>`design.javascript.import-cycle` (fail): JavaScript import cycle
+- <a id="rule-design-layer-boundary"></a>`design.layer-boundary` (fail): Layer dependency boundary
+- <a id="rule-design-max-decls-per-file"></a>`design.max-decls-per-file` (warn): Declarations per file
+- <a id="rule-design-max-interface-methods"></a>`design.max-interface-methods` (warn): Interface size
+- <a id="rule-design-max-methods-per-type"></a>`design.max-methods-per-type` (warn): Methods per type
+- <a id="rule-design-pass-through-abstraction"></a>`design.pass-through-abstraction` (warn): Pass-through abstraction
+- <a id="rule-design-persistence-model-leak"></a>`design.persistence-model-leak` (warn): Persistence model leak
+- <a id="rule-design-private-module-import"></a>`design.private-module-import` (fail): Private module import
+- <a id="rule-design-production-imports-test"></a>`design.production-imports-test` (fail): Production imports test code
+- <a id="rule-design-python-generic-module-name"></a>`design.python.generic-module-name` (warn): Python generic module name
+- <a id="rule-design-python-import-cycle"></a>`design.python.import-cycle` (fail): Python import cycle
+- <a id="rule-design-python-max-methods-per-type"></a>`design.python.max-methods-per-type` (warn): Python methods per type
+- <a id="rule-design-python-max-protocol-members"></a>`design.python.max-protocol-members` (warn): Python protocol surface size
+- <a id="rule-design-python-public-depends-on-cli"></a>`design.python.public-depends-on-cli` (fail): Python transitive entrypoint dependency
+- <a id="rule-design-python-public-imports-cli"></a>`design.python.public-imports-cli` (fail): Python public-to-entrypoint import
+- <a id="rule-design-python-public-imports-private"></a>`design.python.public-imports-private` (fail): Python public-to-private import
+- <a id="rule-design-rust-generic-module-name"></a>`design.rust.generic-module-name` (warn): Rust generic module name
+- <a id="rule-design-rust-import-cycle"></a>`design.rust.import-cycle` (fail): Rust module cycle
+- <a id="rule-design-rust-max-methods-per-type"></a>`design.rust.max-methods-per-type` (warn): Rust methods per type
+- <a id="rule-design-rust-max-trait-members"></a>`design.rust.max-trait-members` (warn): Rust trait surface size
+- <a id="rule-design-service-import-cmd"></a>`design.service-import-cmd` (fail): Service to cmd import
+- <a id="rule-design-service-import-internal"></a>`design.service-import-internal` (fail): Service to internal import
+- <a id="rule-design-shallow-module"></a>`design.shallow-module` (warn): Shallow module
+- <a id="rule-design-stability-direction"></a>`design.stability-direction` (warn): Stable module depends on volatile module
+- <a id="rule-design-temporal-coupling"></a>`design.temporal-coupling` (warn): Temporal coupling
+- <a id="rule-design-typescript-generic-module-name"></a>`design.typescript.generic-module-name` (warn): TypeScript generic module name
+- <a id="rule-design-typescript-import-cycle"></a>`design.typescript.import-cycle` (fail): TypeScript import cycle
+- <a id="rule-design-typescript-max-interface-members"></a>`design.typescript.max-interface-members` (warn): TypeScript interface size
+- <a id="rule-design-typescript-max-methods-per-type"></a>`design.typescript.max-methods-per-type` (warn): TypeScript methods per type
+- <a id="rule-design-unassigned-module"></a>`design.unassigned-module` (fail): Unassigned architecture module
+- <a id="rule-design-unreachable-module"></a>`design.unreachable-module` (warn): Module unreachable from approved entrypoints
+
+### Maintainability Delta rules
+
+- <a id="rule-maintainability-dependency-growth"></a>`maintainability.dependency-growth` (warn): Dependency growth
+- <a id="rule-maintainability-public-surface-growth"></a>`maintainability.public-surface-growth` (warn): Public surface growth
+
+### Maintainability History rules
+
+- <a id="rule-maintainability-change-amplification"></a>`maintainability.change-amplification` (warn): Change amplification
+- <a id="rule-maintainability-high-churn-hotspot"></a>`maintainability.high-churn-hotspot` (warn): High-churn hotspot
+- <a id="rule-maintainability-hotspot"></a>`maintainability.hotspot` (warn): Maintainability hotspot
+- <a id="rule-maintainability-repeat-defect-area"></a>`maintainability.repeat-defect-area` (warn): Repeat defect area
+- <a id="rule-maintainability-unstable-interface"></a>`maintainability.unstable-interface` (warn): Unstable interface
+
+### Observability rules
+
+- <a id="rule-observability-critical-path-uninstrumented"></a>`observability.critical-path-uninstrumented` (warn): Critical path without instrumentation
+- <a id="rule-observability-error-without-context"></a>`observability.error-without-context` (warn): Error log without context
+- <a id="rule-observability-high-cardinality-label"></a>`observability.high-cardinality-label` (warn): High-cardinality metric label
+- <a id="rule-observability-log-and-ignore"></a>`observability.log-and-ignore` (warn): Logged and ignored failure
+- <a id="rule-observability-sensitive-log-data"></a>`observability.sensitive-log-data` (fail): Sensitive log data
+- <a id="rule-observability-shallow-health-check"></a>`observability.shallow-health-check` (warn): Shallow health check
+- <a id="rule-observability-unstructured-log"></a>`observability.unstructured-log` (warn): Unstructured log
+
+### Operations rules
+
+- <a id="rule-operations-missing-owner"></a>`operations.missing-owner` (warn): Missing service owner
+- <a id="rule-operations-missing-runbook"></a>`operations.missing-runbook` (warn): Missing runbook
+
+### Performance rules
+
+- <a id="rule-performance-ai-semantic-perf"></a>`performance.ai.semantic-perf` (warn): AI-assisted performance review
+- <a id="rule-performance-ai-semantic-runtime"></a>`performance.ai.semantic-runtime` (fail): Semantic performance review runtime failure
+- <a id="rule-performance-benchmark-regression"></a>`performance.benchmark-regression` (warn): Benchmark regression
+- <a id="rule-performance-budget"></a>`performance.budget` (warn): Performance budget exceeded
+- <a id="rule-performance-build-regression"></a>`performance.build-regression` (warn): Build regression
+- <a id="rule-performance-complexity-regression"></a>`performance.complexity-regression` (warn): Loop-nesting complexity regression
+- <a id="rule-performance-cpp-alloc-in-loop"></a>`performance.cpp.alloc-in-loop` (warn): C++ string growth in loop
+- <a id="rule-performance-cpp-flush-in-loop"></a>`performance.cpp.flush-in-loop` (warn): C++ stream flush inside loop
+- <a id="rule-performance-cpp-hot-header"></a>`performance.cpp.hot-header` (warn): C++ rebuild hot header/module
+- <a id="rule-performance-cpp-range-for-copy"></a>`performance.cpp.range-for-copy` (warn): C++ range-for copies each element
+- <a id="rule-performance-cpp-rebuild-amplifier"></a>`performance.cpp.rebuild-amplifier` (warn): C++ rebuild cascade amplifier
+- <a id="rule-performance-cpp-sleep-in-loop"></a>`performance.cpp.sleep-in-loop` (warn): C++ sleep inside loop
+- <a id="rule-performance-cpp-unbounded-concurrency"></a>`performance.cpp.unbounded-concurrency` (warn): C++ unbounded concurrency
+- <a id="rule-performance-go-alloc-in-loop"></a>`performance.go.alloc-in-loop` (warn): Allocation-heavy loop
+- <a id="rule-performance-go-defer-in-loop"></a>`performance.go.defer-in-loop` (warn): Defer inside loop
+- <a id="rule-performance-go-hot-package"></a>`performance.go.hot-package` (warn): Go rebuild hot package
+- <a id="rule-performance-go-lock-held-across-blocking-call"></a>`performance.go.lock-held-across-blocking-call` (warn): Lock held across blocking call
+- <a id="rule-performance-go-nested-loop-scan"></a>`performance.go.nested-loop-scan` (warn): Nested loop membership scan
+- <a id="rule-performance-go-rebuild-amplifier"></a>`performance.go.rebuild-amplifier` (warn): Go rebuild cascade amplifier
+- <a id="rule-performance-go-sleep-in-loop"></a>`performance.go.sleep-in-loop` (warn): Sleep inside loop
+- <a id="rule-performance-go-slice-membership-in-loop"></a>`performance.go.slice-membership-in-loop` (warn): Slice membership scan in loop
+- <a id="rule-performance-go-timer-leak-in-loop"></a>`performance.go.timer-leak-in-loop` (warn): Timer leaked in loop
+- <a id="rule-performance-javascript-await-in-loop"></a>`performance.javascript.await-in-loop` (warn): JavaScript await in loop
+- <a id="rule-performance-javascript-express-sync-middleware"></a>`performance.javascript.express-sync-middleware` (warn): JavaScript CPU-heavy sync call in Express middleware
+- <a id="rule-performance-javascript-react-expensive-render"></a>`performance.javascript.react-expensive-render` (warn): JavaScript expensive work in React render
+- <a id="rule-performance-javascript-sync-io-in-handler"></a>`performance.javascript.sync-io-in-handler` (warn): JavaScript sync I/O in handler
+- <a id="rule-performance-javascript-timer-listener-leak"></a>`performance.javascript.timer-listener-leak` (warn): JavaScript leaked timer or listener
+- <a id="rule-performance-javascript-unbounded-concurrency"></a>`performance.javascript.unbounded-concurrency` (warn): JavaScript unbounded concurrency
+- <a id="rule-performance-n-plus-one-query"></a>`performance.n-plus-one-query` (warn): N+1 query in loop
+- <a id="rule-performance-python-django-nplusone-relation"></a>`performance.python.django-nplusone-relation` (warn): Django relation access in queryset loop
+- <a id="rule-performance-python-orm-query-in-loop"></a>`performance.python.orm-query-in-loop` (warn): ORM point query in loop
+- <a id="rule-performance-python-sync-io-in-async"></a>`performance.python.sync-io-in-async` (warn): Python blocking call in async function
+- <a id="rule-performance-python-unbounded-concurrency"></a>`performance.python.unbounded-concurrency` (warn): Python unbounded concurrency
+- <a id="rule-performance-regex-compile-in-loop"></a>`performance.regex-compile-in-loop` (warn): Regex compiled in loop
+- <a id="rule-performance-rust-alloc-in-loop"></a>`performance.rust.alloc-in-loop` (warn): Rust string growth in loop
+- <a id="rule-performance-rust-sleep-in-loop"></a>`performance.rust.sleep-in-loop` (warn): Rust sleep inside loop
+- <a id="rule-performance-string-concat-in-loop"></a>`performance.string-concat-in-loop` (warn): String concatenation in loop
+- <a id="rule-performance-sync-io-in-request-path"></a>`performance.sync-io-in-request-path` (warn): Synchronous I/O in request path
+- <a id="rule-performance-typescript-await-in-loop"></a>`performance.typescript.await-in-loop` (warn): TypeScript await in loop
+- <a id="rule-performance-typescript-express-sync-middleware"></a>`performance.typescript.express-sync-middleware` (warn): TypeScript CPU-heavy sync call in Express middleware
+- <a id="rule-performance-typescript-react-expensive-render"></a>`performance.typescript.react-expensive-render` (warn): TypeScript expensive work in React render
+- <a id="rule-performance-typescript-sync-io-in-handler"></a>`performance.typescript.sync-io-in-handler` (warn): TypeScript sync I/O in handler
+- <a id="rule-performance-typescript-timer-listener-leak"></a>`performance.typescript.timer-listener-leak` (warn): TypeScript leaked timer or listener
+- <a id="rule-performance-typescript-unbounded-concurrency"></a>`performance.typescript.unbounded-concurrency` (warn): TypeScript unbounded concurrency
+- <a id="rule-performance-unbounded-goroutines-in-loop"></a>`performance.unbounded-goroutines-in-loop` (warn): Goroutines launched from loops
+- <a id="rule-performance-unbounded-read"></a>`performance.unbounded-read` (warn): Unbounded read into memory
+
+### Reliability rules
+
+- <a id="rule-reliability-lost-error-context"></a>`reliability.lost-error-context` (warn): Lost error context
+- <a id="rule-reliability-missing-cancellation"></a>`reliability.missing-cancellation` (warn): Missing cancellation propagation
+- <a id="rule-reliability-missing-concurrency-limit"></a>`reliability.missing-concurrency-limit` (warn): Missing concurrency limit
+- <a id="rule-reliability-missing-graceful-shutdown"></a>`reliability.missing-graceful-shutdown` (warn): Missing graceful shutdown
+- <a id="rule-reliability-missing-timeout"></a>`reliability.missing-timeout` (fail): Missing timeout
+- <a id="rule-reliability-non-idempotent-retry"></a>`reliability.non-idempotent-retry` (fail): Non-idempotent retry
+- <a id="rule-reliability-partial-failure-hidden"></a>`reliability.partial-failure-hidden` (fail): Partial failure hidden
+- <a id="rule-reliability-recoverable-panic"></a>`reliability.recoverable-panic` (fail): Recoverable failure handled with panic
+- <a id="rule-reliability-resource-leak"></a>`reliability.resource-leak` (fail): Resource leak
+- <a id="rule-reliability-retry-without-backoff"></a>`reliability.retry-without-backoff` (warn): Retry without backoff
+- <a id="rule-reliability-swallowed-error"></a>`reliability.swallowed-error` (fail): Swallowed error
+- <a id="rule-reliability-unbounded-retry"></a>`reliability.unbounded-retry` (fail): Unbounded retry
+- <a id="rule-reliability-unbounded-work"></a>`reliability.unbounded-work` (warn): Unbounded work
+
+### Security rules
+
+- <a id="rule-security-bind-all-interfaces"></a>`security.bind-all-interfaces` (warn): Service binds to all interfaces
+- <a id="rule-security-command-check"></a>`security.command-check` (fail): Language security command
+- <a id="rule-security-cors-wildcard"></a>`security.cors-wildcard` (warn): Wildcard CORS origin
+- <a id="rule-security-cpp-insecure-tls"></a>`security.cpp.insecure-tls` (fail): C++ insecure TLS
+- <a id="rule-security-cpp-shell-execution"></a>`security.cpp.shell-execution` (warn): C++ shell execution review
+- <a id="rule-security-cpp-unsafe-c-api"></a>`security.cpp.unsafe-c-api` (warn): C++ unbounded C string API
+- <a id="rule-security-csharp-insecure-tls"></a>`security.csharp.insecure-tls` (fail): C# insecure TLS
+- <a id="rule-security-csharp-shell-execution"></a>`security.csharp.shell-execution` (warn): C# shell execution review
+- <a id="rule-security-debug-enabled"></a>`security.debug-enabled` (warn): Debug mode enabled
+- <a id="rule-security-dockerfile-root"></a>`security.dockerfile-root` (warn): Container runs as root
+- <a id="rule-security-govulncheck"></a>`security.govulncheck` (fail): Govulncheck finding
+- <a id="rule-security-hardcoded-credential"></a>`security.hardcoded-credential` (fail): Hardcoded credential
+- <a id="rule-security-hardcoded-secret"></a>`security.hardcoded-secret` (warn): Hardcoded secret
+- <a id="rule-security-high-entropy-string"></a>`security.high-entropy-string` (warn): High-entropy string
+- <a id="rule-security-insecure-deserialization"></a>`security.insecure-deserialization` (warn): Insecure deserialization
+- <a id="rule-security-insecure-tls"></a>`security.insecure-tls` (fail): Insecure TLS
+- <a id="rule-security-java-insecure-tls"></a>`security.java.insecure-tls` (fail): Java insecure TLS
+- <a id="rule-security-java-shell-execution"></a>`security.java.shell-execution` (warn): Java shell execution review
+- <a id="rule-security-javascript-dynamic-code"></a>`security.javascript.dynamic-code` (warn): JavaScript dynamic code execution
+- <a id="rule-security-javascript-insecure-tls"></a>`security.javascript.insecure-tls` (fail): JavaScript insecure TLS
+- <a id="rule-security-javascript-postmessage-wildcard"></a>`security.javascript.postmessage-wildcard` (warn): JavaScript postMessage wildcard origin
+- <a id="rule-security-javascript-shell-execution"></a>`security.javascript.shell-execution` (warn): JavaScript shell execution review
+- <a id="rule-security-javascript-string-timer-code"></a>`security.javascript.string-timer-code` (warn): JavaScript string timer execution
+- <a id="rule-security-javascript-taint-flow"></a>`security.javascript.taint-flow` (warn): JavaScript tainted data flow
+- <a id="rule-security-javascript-unsafe-html-sink"></a>`security.javascript.unsafe-html-sink` (warn): JavaScript unsafe HTML sink
+- <a id="rule-security-javascript-untrusted-input-flow"></a>`security.javascript.untrusted-input-flow` (warn): JavaScript untrusted input flow
+- <a id="rule-security-javascript-vm-dynamic-code"></a>`security.javascript.vm-dynamic-code` (warn): JavaScript Node vm execution
+- <a id="rule-security-log-secret-exposure"></a>`security.log-secret-exposure` (warn): Secret-bearing value passed to a logging call
+- <a id="rule-security-private-key"></a>`security.private-key` (fail): Private key material
+- <a id="rule-security-python-dynamic-code"></a>`security.python.dynamic-code` (warn): Python dynamic code execution
+- <a id="rule-security-python-insecure-tls"></a>`security.python.insecure-tls` (fail): Python insecure TLS
+- <a id="rule-security-python-shell-execution"></a>`security.python.shell-execution` (warn): Python shell execution review
+- <a id="rule-security-ruby-dynamic-code"></a>`security.ruby.dynamic-code` (warn): Ruby dynamic code execution
+- <a id="rule-security-ruby-insecure-tls"></a>`security.ruby.insecure-tls` (fail): Ruby insecure TLS
+- <a id="rule-security-ruby-shell-execution"></a>`security.ruby.shell-execution` (warn): Ruby shell execution review
+- <a id="rule-security-rust-insecure-tls"></a>`security.rust.insecure-tls` (fail): Rust insecure TLS
+- <a id="rule-security-rust-shell-execution"></a>`security.rust.shell-execution` (warn): Rust shell execution review
+- <a id="rule-security-secrets-config"></a>`security.secrets-config` (fail): Invalid secret-scan configuration
+- <a id="rule-security-shell-execution"></a>`security.shell-execution` (warn): Shell execution review
+- <a id="rule-security-ssrf-cpp"></a>`security.ssrf.cpp` (fail): C++ server-side request forgery
+- <a id="rule-security-ssrf-go"></a>`security.ssrf.go` (fail): Go server-side request forgery
+- <a id="rule-security-ssrf-python"></a>`security.ssrf.python` (fail): Python server-side request forgery
+- <a id="rule-security-taint-cpp"></a>`security.taint.cpp` (fail): C++ taint flow
+- <a id="rule-security-taint-go"></a>`security.taint.go` (fail): Go taint flow
+- <a id="rule-security-taint-python"></a>`security.taint.python` (fail): Python taint flow
+- <a id="rule-security-typescript-dynamic-code"></a>`security.typescript.dynamic-code` (warn): TypeScript dynamic code execution
+- <a id="rule-security-typescript-insecure-tls"></a>`security.typescript.insecure-tls` (fail): TypeScript insecure TLS
+- <a id="rule-security-typescript-postmessage-wildcard"></a>`security.typescript.postmessage-wildcard` (warn): TypeScript postMessage wildcard origin
+- <a id="rule-security-typescript-shell-execution"></a>`security.typescript.shell-execution` (warn): TypeScript shell execution review
+- <a id="rule-security-typescript-string-timer-code"></a>`security.typescript.string-timer-code` (warn): TypeScript string timer execution
+- <a id="rule-security-typescript-taint-flow"></a>`security.typescript.taint-flow` (warn): TypeScript tainted data flow
+- <a id="rule-security-typescript-unsafe-html-sink"></a>`security.typescript.unsafe-html-sink` (warn): TypeScript unsafe HTML sink
+- <a id="rule-security-typescript-untrusted-input-flow"></a>`security.typescript.untrusted-input-flow` (warn): TypeScript untrusted input flow
+- <a id="rule-security-typescript-vm-dynamic-code"></a>`security.typescript.vm-dynamic-code` (warn): TypeScript Node vm execution
+- <a id="rule-security-unsanitized-error-response"></a>`security.unsanitized-error-response` (warn): Raw error value written to HTTP response
+- <a id="rule-security-weak-cipher"></a>`security.weak-cipher` (warn): Weak or insecure cipher
+- <a id="rule-security-weak-hash"></a>`security.weak-hash` (warn): Weak hash algorithm
+
+### Supply Chain rules
+
+- <a id="rule-supply_chain-cargo-missing-package-license"></a>`supply_chain.cargo.missing-package-license` (warn): Cargo package license missing
+- <a id="rule-supply_chain-cargo-non-hermetic-source"></a>`supply_chain.cargo.non-hermetic-source` (warn): Cargo dependency source is non-hermetic
+- <a id="rule-supply_chain-denied-license"></a>`supply_chain.denied-license` (fail): Denied dependency license
+- <a id="rule-supply_chain-lockfile-drift"></a>`supply_chain.lockfile-drift` (fail): Lockfile drift
+- <a id="rule-supply_chain-missing-lockfile"></a>`supply_chain.missing-lockfile` (fail): Missing lockfile
+- <a id="rule-supply_chain-missing-provenance"></a>`supply_chain.missing-provenance` (fail): Missing artifact provenance
+- <a id="rule-supply_chain-unpinned-dependency"></a>`supply_chain.unpinned-dependency` (warn): Unpinned dependency
+- <a id="rule-supply_chain-vulnerable-dependency"></a>`supply_chain.vulnerable-dependency` (fail): Vulnerable dependency

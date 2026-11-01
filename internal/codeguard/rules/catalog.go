@@ -1,8 +1,12 @@
 package rules
 
-import "github.com/devr-tools/codeguard/internal/codeguard/core"
+import (
+	"slices"
 
-var catalog = withSecurityOWASP(mergeRuleCatalogs(
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
+)
+
+var catalog = withRuleCWE(withSecurityOWASP(mergeRuleCatalogs(
 	qualityCatalog,
 	qualitySmellCatalog,
 	qualityErrorDefensiveCatalog,
@@ -32,11 +36,12 @@ var catalog = withSecurityOWASP(mergeRuleCatalogs(
 	coverageCatalog,
 	testQualityCatalog,
 	ciWorkflowCatalog,
-))
+)))
 
 func Catalog() map[string]core.RuleMetadata {
 	out := make(map[string]core.RuleMetadata, len(catalog))
 	for id, meta := range catalog {
+		meta.CWE = slices.Clone(meta.CWE)
 		out[id] = core.NormalizeRuleMetadata(applyFixTemplate(meta))
 	}
 	return out
