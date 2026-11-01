@@ -83,8 +83,17 @@ func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string)
 // sharing the per-scan corpus walk with every other section (the same listing
 // VisitTargetFiles iterates). Callers apply their own include filter to the
 // result.
+//
+// The returned slice is the caller's own copy. The corpus listing is shared by
+// every section and pass running concurrently, and callers routinely sort or
+// normalize the result in place, which raced with every other reader of the
+// shared slice.
 func ListTargetFiles(sc Context, target core.TargetConfig) ([]string, error) {
-	return sc.corpusFiles(target)
+	files, err := sc.corpusFiles(target)
+	if files == nil {
+		return nil, err
+	}
+	return append([]string(nil), files...), err
 }
 
 // ReadTargetFile returns the bytes of target-root-relative rel via the shared
