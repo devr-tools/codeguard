@@ -16,10 +16,17 @@ const (
 
 // secretPattern is the lower-confidence name-based heuristic: an assignment
 // whose identifier looks secret-bearing next to a quoted value. It reports at
-// warn. privateKeyPattern detects PEM key material and reports at fail.
+// warn. The value must close with the quote that opened it and may not cross
+// a backtick, so a credential name whose quote opens inside a Go raw string
+// (`secret = "` + f() + `"`) cannot capture the code up to the next quote.
+// privateKeyPattern detects PEM key material and reports at fail.
 var (
-	secretPattern     = regexp.MustCompile(`(?i)["']?((?:test|fake|mock|fixture)?(?:secret|token|api[_-]?key|password|db[_-]?pass))["']?\s*(?::=|[:=])\s*["']([^"']{8,})["']`)
-	privateKeyPattern = regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`)
+	secretPattern = regexp.MustCompile("(?i)[\"']?((?:test|fake|mock|fixture)?(?:secret|token|api[_-]?key|password|db[_-]?pass))[\"']?\\s*(?::=|[:=])\\s*(?:\"([^\"`]{8,})\"|'([^'`]{8,})')")
+	// concatenationInValuePattern spots a quote meeting a + operator inside a
+	// captured value: the quote-matched capture in 'token = "' + f() + '"'
+	// is code between two string literals, not a literal.
+	concatenationInValuePattern = regexp.MustCompile("[\"'`]\\s*\\+|\\+\\s*[\"'`]")
+	privateKeyPattern           = regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`)
 
 	// quotedLiteralPattern captures whitespace-free quoted literals for the
 	// entropy pass (secrets are contiguous, so requiring no whitespace skips prose).
@@ -120,11 +127,17 @@ func matchCredential(line string) *Match {
 }
 
 func matchNameBased(line string) *Match {
-	match := secretPattern.FindStringSubmatch(line)
-	if match == nil || isPlaceholderSecret(match[len(match)-1]) {
-		return nil
+	for _, match := range secretPattern.FindAllStringSubmatch(line, -1) {
+		value := match[2]
+		if value == "" {
+			value = match[3]
+		}
+		if concatenationInValuePattern.MatchString(value) || isPlaceholderSecret(value) {
+			continue
+		}
+		return &Match{RuleID: hardcodedSecretRule, Level: "warn", Message: "possible hardcoded secret detected: " + maskSecret(value), SecretType: namedSecretType(match[1]), Confidence: core.ConfidenceLow}
 	}
-	return &Match{RuleID: hardcodedSecretRule, Level: "warn", Message: "possible hardcoded secret detected: " + maskSecret(match[len(match)-1]), SecretType: namedSecretType(match[1]), Confidence: core.ConfidenceLow}
+	return nil
 }
 
 func credentialSecretType(description string) string {

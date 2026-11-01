@@ -1887,7 +1887,9 @@ full scan. It has two confidence tiers:
   is not enough: each format requires its documented body length and alphabet, and
   Stripe test-mode (`sk_test_`) and publishable (`pk_live_`) keys are not in this tier.
 - `security.hardcoded-secret` (**warn**, low confidence) — the name-based heuristic: a
-  `secret`/`token`/`api_key`/`password` identifier assigned a quoted literal.
+  `secret`/`token`/`api_key`/`password` identifier assigned a quoted literal. The value
+  must be one literal closed by the quote that opened it: a match never spans string
+  concatenation or code, so `` `secret = "` + build() + `"` `` is not reported.
 - `security.high-entropy-string` (**warn**, opt-in) — a high-entropy string literal that
   may be an unknown/random secret matching no known format. Enabled via
   `secrets.entropy.enabled`.
