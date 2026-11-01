@@ -68,7 +68,12 @@ func RunWorkspace(ctx context.Context, dir string, cmdName string, sc runnersupp
 			message += ": " + module.Err.Error()
 		}
 		diagnosticID, failureKind := classifyModuleFailure(module)
-		diagnostics = append(diagnostics, core.Diagnostic{ID: diagnosticID, Level: "fail", Kind: "infrastructure", Message: message, Path: module.Module.Dir, Operational: true, Evidence: []string{"failure_kind:" + failureKind}, Metadata: map[string]string{"module": module.Module.ModulePath, "status": string(module.Status), "failure_kind": failureKind}})
+		metadata := map[string]string{"module": module.Module.ModulePath, "status": string(module.Status), "failure_kind": failureKind}
+		var failure *FailureError
+		if errors.As(module.Err, &failure) && failure.StderrTail != "" {
+			metadata["stderr_tail"] = failure.StderrTail
+		}
+		diagnostics = append(diagnostics, core.Diagnostic{ID: diagnosticID, Level: "fail", Kind: "infrastructure", Message: message, Path: module.Module.Dir, Operational: true, Evidence: []string{"failure_kind:" + failureKind}, Metadata: metadata})
 	}
 	return findings, diagnostics
 }
@@ -117,16 +122,36 @@ func Run(ctx context.Context, dir string, cmdName string, sc runnersupport.Conte
 			return nil, err
 		}
 	}
-	text, err := runnersupport.RunLimitedCommand(ctx, dir, maxOutputBytes, cmdName, "./...")
-	parsed := parseOutput(text, sc)
+	output, err := runnersupport.RunLimitedCommandCapture(ctx, dir, maxOutputBytes, cmdName, "./...")
+	parsed := parseOutput(output.Combined, sc)
 	if err != nil {
 		var exitErr *exec.ExitError
 		if len(parsed) > 0 && errors.As(err, &exitErr) && exitErr.ExitCode() == 3 {
 			return parsed, nil
 		}
-		return parsed, fmt.Errorf("govulncheck integration failed: %w", err)
+		return parsed, &FailureError{Err: err, StderrTail: output.StderrTail}
 	}
 	return parsed, nil
+}
+
+// FailureError is a govulncheck run that did not produce a usable result. It
+// carries the tail of the tool's stderr because the exit status alone ("exit
+// status 1") hides the real cause, such as a Go toolchain mismatch.
+type FailureError struct {
+	Err        error
+	StderrTail string
+}
+
+func (e *FailureError) Error() string {
+	message := fmt.Sprintf("govulncheck integration failed: %v", e.Err)
+	if e.StderrTail != "" {
+		message += "\ngovulncheck stderr (last lines):\n" + e.StderrTail
+	}
+	return message
+}
+
+func (e *FailureError) Unwrap() error {
+	return e.Err
 }
 
 func parseOutput(output string, sc runnersupport.Context) []core.Finding {
