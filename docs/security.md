@@ -106,6 +106,18 @@ taint engine and default to `fail`.
 | `security.taint.cpp` | A03 | environment, argv/stdin, or recognized request input flowing into process execution through bounded same-file summaries |
 | `security.ssrf.cpp` | A10 | untrusted input flowing into libcurl, cpr, Boost resolver, cpprestsdk, or Poco outbound destinations |
 
+### Go taint sources and sinks
+
+`security.taint.go` / `security.ssrf.go` follow `os.Args`, `os.Getenv`, stdin
+readers, `*http.Request` fields and methods, and gin `Context` query/form
+methods through local assignments and same-file function summaries into
+`exec.Command` / `exec.CommandContext`, file-open APIs, `database/sql` and
+gorm query methods, `template.Parse`, and `net/http` request constructors.
+A sink is detected whether its result is bound (`cmd := exec.Command(arg)`)
+or consumed in the same expression (`exec.Command(arg).Run()`,
+`if err := exec.Command(arg).Start(); ...`). `strconv` parsing clears taint,
+and constant arguments never fire.
+
 ## Release integrity (supply chain)
 
 codeguard's own releases are hardened against tampering:
