@@ -11,8 +11,13 @@ import (
 	"github.com/devr-tools/codeguard/internal/codeguard/suggest"
 )
 
+// Validate runs every section validator and reports all failures at once, so
+// fixing a config is one edit-and-rerun loop instead of one per mistake. The
+// result is an errors.Join: its first line is the first failing validator's
+// message (what callers matched on before), later lines are the rest, and
+// errors.Is/As still reach each underlying error.
 func Validate(cfg core.Config) error {
-	return firstError(
+	return errors.Join(
 		validateNameAndProfile(cfg),
 		validateDisabledChecks(cfg.Checks.Disabled),
 		validateTargets(cfg.Targets),

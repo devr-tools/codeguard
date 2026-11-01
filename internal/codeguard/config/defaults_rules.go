@@ -35,15 +35,15 @@ func applyQualityNamingDefaults(dst *core.QualityNamingConfig, def core.QualityN
 func applyRiskScoringDefaults(dst *core.RiskScoringConfig) {
 	defaultBoolPtr(&dst.Enabled, true)
 	defaultInt(&dst.MaxHotspots, 5)
-	defaultInt(&dst.ChangedFileWeight, 5)
-	defaultInt(&dst.FailFindingWeight, 30)
-	defaultInt(&dst.WarnFindingWeight, 15)
-	defaultInt(&dst.SecurityWeight, 10)
-	defaultInt(&dst.SupplyChainWeight, 10)
-	defaultInt(&dst.CoverageGapWeight, 15)
-	defaultInt(&dst.AIProvenanceWeight, 15)
-	defaultInt(&dst.AISignalWeight, 10)
-	defaultInt(&dst.SlopScoreDivisor, 10)
+	defaultIntPtr(&dst.ChangedFileWeight, 5)
+	defaultIntPtr(&dst.FailFindingWeight, 30)
+	defaultIntPtr(&dst.WarnFindingWeight, 15)
+	defaultIntPtr(&dst.SecurityWeight, 10)
+	defaultIntPtr(&dst.SupplyChainWeight, 10)
+	defaultIntPtr(&dst.CoverageGapWeight, 15)
+	defaultIntPtr(&dst.AIProvenanceWeight, 15)
+	defaultIntPtr(&dst.AISignalWeight, 10)
+	defaultIntPtr(&dst.SlopScoreDivisor, 10)
 }
 
 func applyCPPToolingDefaults(dst *core.CPPToolingConfig) {
@@ -337,8 +337,8 @@ func applyProductionRiskDefaults(dst *core.ProductionRiskConfig, def core.Produc
 	defaultBoolPtr(&dst.Enabled, boolValueOrTrue(def.Enabled))
 	defaultInt(&dst.WarnThreshold, def.WarnThreshold)
 	defaultInt(&dst.FailThreshold, def.FailThreshold)
-	defaultInt(&dst.ReliabilityWeight, def.ReliabilityWeight)
-	defaultInt(&dst.DataWeight, def.DataWeight)
-	defaultInt(&dst.FailWeight, def.FailWeight)
-	defaultInt(&dst.WarnWeight, def.WarnWeight)
+	defaultIntPtr(&dst.ReliabilityWeight, core.IntValue(def.ReliabilityWeight))
+	defaultIntPtr(&dst.DataWeight, core.IntValue(def.DataWeight))
+	defaultIntPtr(&dst.FailWeight, core.IntValue(def.FailWeight))
+	defaultIntPtr(&dst.WarnWeight, core.IntValue(def.WarnWeight))
 }
