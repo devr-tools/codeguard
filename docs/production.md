@@ -168,6 +168,23 @@ For most teams:
 Prefer SARIF or GitHub output when you want code-host annotations, and JSON when
 another system or agent will consume the report programmatically.
 
+Pick the exit policy to match the rollout stage with `-fail-on` (or
+`output.fail_on` in the config):
+
+- rollout: `codeguard scan -fail-on none` reports everything and never blocks
+  on findings, so a new check family can land without breaking builds
+- steady state: the default `-fail-on fail` blocks only on `fail`-level results
+- strict: `-fail-on warn` also blocks on warnings, for repositories that have
+  burned down their warning debt
+
+`-fail-on none` never hides a broken scan: invalid config, a missing target,
+a crashed section (`scan.section.panic`) or a failed target walk
+(`scan.target-walk`) still exit 1. Add `-min-confidence medium` to drop
+low-confidence findings from the gate and the report; filtered findings stay
+counted in `confidence_filtered_count`. In CI the text banner is omitted
+automatically (stdout piped, `CI` or `NO_COLOR` set); `-quiet` additionally
+drops progress lines.
+
 ## Human and agent workflows
 
 For humans:

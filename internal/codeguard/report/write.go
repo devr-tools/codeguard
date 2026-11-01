@@ -12,10 +12,24 @@ import (
 	"github.com/devr-tools/codeguard/internal/version"
 )
 
+// WriteOptions adjusts how a report is rendered. The zero value is the
+// historical rendering.
+type WriteOptions struct {
+	// OmitBanner drops the brand logo from text output. The CLI sets it when
+	// stdout is not a terminal, in CI, under NO_COLOR, or with -quiet; the
+	// library keeps the banner by default so existing callers are unchanged.
+	OmitBanner bool
+}
+
 func Write(w io.Writer, report core.Report, format string) error {
+	return WriteWithOptions(w, report, format, WriteOptions{})
+}
+
+// WriteWithOptions renders report in format, applying opts.
+func WriteWithOptions(w io.Writer, report core.Report, format string, opts WriteOptions) error {
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "", "text":
-		return writeText(w, report)
+		return writeText(w, report, opts)
 	case "json":
 		return writeJSON(w, report)
 	case "sarif":
@@ -44,8 +58,8 @@ func writeJSON(w io.Writer, report core.Report) error {
 	return enc.Encode(payload)
 }
 
-func writeText(w io.Writer, report core.Report) error {
-	if err := writeTextHeader(w, report); err != nil {
+func writeText(w io.Writer, report core.Report, opts WriteOptions) error {
+	if err := writeTextHeader(w, report, !opts.OmitBanner); err != nil {
 		return err
 	}
 	if err := writeTextOverview(w, report); err != nil {

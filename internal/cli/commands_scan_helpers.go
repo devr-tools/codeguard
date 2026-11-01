@@ -60,33 +60,46 @@ func parseScanMode(mode string) (service.ScanMode, error) {
 	return scanMode, nil
 }
 
-func executeScan(stdout io.Writer, stderr io.Writer, cfg service.Config, scanMode service.ScanMode, baseRef string, targetPath string, enableAI bool, includeSuppressed bool, heapProfilePath string) error {
+// scanRequest carries one CLI scan invocation into executeScan.
+type scanRequest struct {
+	cfg               service.Config
+	mode              service.ScanMode
+	baseRef           string
+	targetPath        string
+	enableAI          bool
+	includeSuppressed bool
+	heapProfilePath   string
+	quiet             bool
+}
+
+func executeScan(stdout io.Writer, stderr io.Writer, req scanRequest) error {
+	cfg := req.cfg
 	monitor := newScanMonitor(stderr, time.Now())
-	stopMonitoring := startScanMonitoring(monitor, strings.TrimSpace(heapProfilePath), scanHeartbeatInterval)
+	monitor.quiet = req.quiet
+	stopMonitoring := startScanMonitoring(monitor, strings.TrimSpace(req.heapProfilePath), scanHeartbeatInterval)
 	report, scanErr := service.RunWithOptions(context.Background(), cfg, service.ScanOptions{
-		Mode:              scanMode,
-		BaseRef:           baseRef,
-		TargetPath:        targetPath,
-		EnableAI:          enableAI,
-		IncludeSuppressed: includeSuppressed,
+		Mode:              req.mode,
+		BaseRef:           req.baseRef,
+		TargetPath:        req.targetPath,
+		EnableAI:          req.enableAI,
+		IncludeSuppressed: req.includeSuppressed,
 		OnSectionComplete: monitor.writeSectionComplete,
 	})
 	monitorErr := stopMonitoring()
 	if scanErr != nil {
 		return scanErr
 	}
-	if err := writeScanMetadata(stdout, cfg.Output.Format, scanMode, baseRef); err != nil {
+	if err := writeScanMetadata(stdout, cfg.Output.Format, req.mode, req.baseRef); err != nil {
 		return err
 	}
-	if err := service.WriteReport(stdout, report, cfg.Output.Format); err != nil {
+	writeOpts := service.ReportWriteOptions{OmitBanner: !bannerEnabled(stdout, req.quiet)}
+	if err := service.WriteReportWithOptions(stdout, report, cfg.Output.Format, writeOpts); err != nil {
 		return fmt.Errorf("write report: %w", err)
 	}
-	writePerformanceUpgradeHint(stdout, cfg)
-	var findingsErr error
-	if report.Summary.FailedSections > 0 {
-		findingsErr = fmt.Errorf("one or more sections failed")
+	if !req.quiet {
+		writePerformanceUpgradeHint(stdout, cfg)
 	}
-	return errors.Join(findingsErr, monitorErr)
+	return errors.Join(service.ReportGateError(report, cfg.Output.FailOn), monitorErr)
 }
 
 func scanTargetPath(folderPath string, pathAlias string) (string, error) {

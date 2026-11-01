@@ -526,6 +526,11 @@ Confidence policy (opt-in):
   `confidence_filtered_count`, and listed with reason `confidence` under
   `--include-suppressed`. They are excluded from `suppression_ratio`, which
   keeps meaning "findings teams work around"
+- `codeguard scan -min-confidence <low|medium|high>` sets
+  `checks.min_confidence.default` for one run. It is applied as a config
+  override (the same as `-set checks.min_confidence.default=<level>`), so it is
+  validated the same way and per-section overrides from the config still win
+  for their sections
 - `checks.confidence_demotion: true` reports a `low`-confidence finding on a
   failing rule as a warning instead. It never promotes and never applies to
   `medium` or `high`. Off by default
@@ -2386,10 +2391,36 @@ Config keys:
 ```json
 {
   "output": {
-    "format": "text"
+    "format": "text",
+    "fail_on": "fail"
   }
 }
 ```
+
+`output.fail_on` is the exit policy (`codeguard scan -fail-on` overrides it
+for one run; `validate-patch` honours the config key):
+
+| `fail_on` | Exit 0 when | Exit 1 when |
+| --- | --- | --- |
+| `fail` (default) | no section failed | any section failed |
+| `warn` | every section passed | any section warned or failed |
+| `none` | the scan completed | only on errors (see below) |
+
+Under every policy, including `none`, the scan exits 1 when it could not do
+its job: an invalid config or flag, a missing or unreadable target path, a
+report write error, or a fail-level operational diagnostic such as
+`scan.section.panic` or `scan.target-walk`. Those mean part of the repository
+was not checked, so they are never relaxed by the exit policy. `none` relaxes
+only finding-driven section status. Warn-level diagnostics such as
+`scan.file-read` follow the section status like findings do.
+
+Text output prints the brand banner only when stdout is an interactive
+terminal, `CI` is unset (or `0`/`false`/`no`/`off`), `NO_COLOR` is unset and
+`TERM` is not `dumb`. `codeguard scan -quiet` also drops the banner, the
+progress lines on stderr (`scan started`, `completed <section>`, heartbeats)
+and the performance-section upgrade note, but still prints the findings and
+the summary. The SDK's `WriteReport` keeps the banner; use
+`WriteReportWithOptions(..., ReportWriteOptions{OmitBanner: true})` to drop it.
 
 Supported values:
 - `text`

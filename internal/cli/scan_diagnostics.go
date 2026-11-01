@@ -20,6 +20,9 @@ type scanMonitor struct {
 	mu      sync.Mutex
 	writer  io.Writer
 	started time.Time
+	// quiet drops progress lines (started, heartbeat, section complete) but
+	// keeps warnings such as a failed heap profile write.
+	quiet bool
 }
 
 func newScanMonitor(writer io.Writer, started time.Time) *scanMonitor {
@@ -27,17 +30,24 @@ func newScanMonitor(writer io.Writer, started time.Time) *scanMonitor {
 }
 
 func (monitor *scanMonitor) writeStarted() {
-	monitor.write("scan started\n")
+	monitor.progress("scan started\n")
 }
 
 func (monitor *scanMonitor) writeHeartbeat(now time.Time, heapBytes uint64, memoryLimit int64) {
 	elapsed := now.Sub(monitor.started).Round(time.Second)
-	monitor.write("scan in progress: elapsed=%s heap=%d MiB memory_limit=%s\n",
+	monitor.progress("scan in progress: elapsed=%s heap=%d MiB memory_limit=%s\n",
 		elapsed, heapBytes/(1<<20), formatMemoryLimit(memoryLimit))
 }
 
 func (monitor *scanMonitor) writeSectionComplete(section service.SectionResult) {
-	monitor.write("completed %s: %s (%d findings)\n", section.Name, section.Status, len(section.Findings))
+	monitor.progress("completed %s: %s (%d findings)\n", section.Name, section.Status, len(section.Findings))
+}
+
+func (monitor *scanMonitor) progress(format string, args ...any) {
+	if monitor == nil || monitor.quiet {
+		return
+	}
+	monitor.write(format, args...)
 }
 
 func (monitor *scanMonitor) write(format string, args ...any) {

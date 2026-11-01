@@ -85,8 +85,14 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	includeSuppressed := fs.Bool("include-suppressed", false, "include individual suppressed findings in JSON output")
 	heapProfile := fs.String("memprofile", "", "optional path for rolling Go heap profiles during the scan")
 	interactive := fs.Bool("interactive", false, "prompt for scan inputs in the terminal")
+	outputFlags := registerScanOutputFlags(fs)
 	if ok, code := parseFlags(fs, args, stderr); !ok {
 		return code
+	}
+	outputOverrides, err := outputFlags.configOverrides()
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return exitError
 	}
 	configFlagSet := flagWasSet(fs, "config")
 	flags.applyTrustPolicy()
@@ -116,12 +122,16 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
 		cfg.Output.Format = trimmedFormat
 	}
-	if err := applyConfigOverrides(&cfg, *flags.overrides); err != nil {
+	// Dedicated flags (-fail-on, -min-confidence) apply after -set, so they win.
+	if err := applyConfigOverrides(&cfg, append(*flags.overrides, outputOverrides...)); err != nil {
 		_, _ = fmt.Fprintf(stderr, "invalid config override: %v\n", err)
 		return exitError
 	}
 
-	if err := executeScan(stdout, stderr, cfg, scanMode, strings.TrimSpace(*inputs.baseRef), targetPath, *enableAI, *includeSuppressed, *heapProfile); err != nil {
+	if err := executeScan(stdout, stderr, scanRequest{
+		cfg: cfg, mode: scanMode, baseRef: strings.TrimSpace(*inputs.baseRef), targetPath: targetPath,
+		enableAI: *enableAI, includeSuppressed: *includeSuppressed, heapProfilePath: *heapProfile, quiet: *outputFlags.quiet,
+	}); err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
 		return exitError
 	}
@@ -177,7 +187,8 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 		_, _ = fmt.Fprintf(stderr, "write report: %v\n", err)
 		return exitError
 	}
-	if report.Summary.FailedSections > 0 {
+	if err := service.ReportGateError(report, cfg.Output.FailOn); err != nil {
+		_, _ = fmt.Fprintf(stderr, "patch validation failed: %v\n", err)
 		return exitError
 	}
 	return exitOK
