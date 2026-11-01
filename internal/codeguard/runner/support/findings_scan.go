@@ -1,10 +1,7 @@
 package support
 
 import (
-	"runtime"
-	"sync"
-	"sync/atomic"
-
+	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -27,8 +24,6 @@ type fileScanSpec struct {
 	// inputs its findings depend on; see ScanTargetFilesWithDependencies.
 	dependencies func(rel string) string
 }
-
-const maxFileScanWorkers = 4
 
 func ScanTargetFiles(sc Context, target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 	return scanTargetFiles(sc, target, fileScanSpec{
@@ -110,37 +105,9 @@ func scanTargetFilesSequentially(selected []string, scanOne func(string) []core.
 }
 
 func scanTargetFilesInParallel(selected []string, workers int, scanOne func(string) []core.Finding) []core.Finding {
-	slots := make([][]core.Finding, len(selected))
-	var next atomic.Int64
-	var panicked atomic.Bool
-	var panicValue any
-	var panicOnce sync.Once
-	var wg sync.WaitGroup
-	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					panicOnce.Do(func() {
-						panicValue = r
-						panicked.Store(true)
-					})
-				}
-			}()
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= len(selected) {
-					return
-				}
-				slots[i] = scanOne(selected[i])
-			}
-		}()
-	}
-	wg.Wait()
-	if panicked.Load() {
-		panic(panicValue)
-	}
+	slots := checkSupport.ParallelIndexed(len(selected), workers, func(i int) []core.Finding {
+		return scanOne(selected[i])
+	})
 	total := 0
 	for _, slot := range slots {
 		total += len(slot)
@@ -150,20 +117,6 @@ func scanTargetFilesInParallel(selected []string, workers int, scanOne func(stri
 		findings = append(findings, slot...)
 	}
 	return findings
-}
-
-func fileScanWorkers(files int) int {
-	workers := runtime.NumCPU()
-	if workers > maxFileScanWorkers {
-		workers = maxFileScanWorkers
-	}
-	if workers > files {
-		workers = files
-	}
-	if workers < 1 {
-		workers = 1
-	}
-	return workers
 }
 
 func cachedFileFindings(sc Context, input fileScanInput, compute func() []core.Finding) []core.Finding {

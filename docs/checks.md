@@ -54,6 +54,15 @@ not findings, so they cannot be baselined or waived:
 - `scan.file-limit` (warn): the walk stopped at the file-count limit.
 - `scan.section.panic` (fail): the section crashed; see above.
 
+Scan parallelism follows the CPUs the process may use: sections, per-section
+file workers, corpus reads, and Go parses each run up to `GOMAXPROCS` wide
+(never more than the CPU count; reads and parses at least 2, every pool at
+most 16). Set the `GOMAXPROCS` environment variable to narrow a scan, for
+example to a container's CPU quota. Findings do not depend on the worker
+count. The shared file corpus retains up to 256 MiB of source per scan (an
+eighth of `GOMEMLIMIT` when one is set); past that, files are still analysed,
+just re-read per section (`scan.corpus-budget`, info).
+
 ## Check glossary
 
 This glossary is the quick map of every built-in check family and the main subsections users will see in reports, rule IDs, and config.
@@ -393,9 +402,6 @@ Precedence:
 - ignore rules compose with `exclude` and the built-in exclusions: a path is
   scanned only when none of them drops it, and a `!` entry in `exclude`
   re-includes a path whichever of them excluded it.
-
-Use a `!` re-include if one of the unconditional defaults hides real source in
-your repository.
 
 Use a `!` re-include if one of the unconditional defaults hides real source in
 your repository.

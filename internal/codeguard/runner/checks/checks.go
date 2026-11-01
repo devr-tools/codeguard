@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -60,13 +59,14 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 	return results
 }
 
-// sectionConcurrency bounds the number of sections running at once to the CPU
-// count (and never more than there are sections to run).
+// sectionConcurrency bounds the number of sections running at once to the
+// usable CPU count (GOMAXPROCS, never more than runtime.NumCPU) and never more
+// than there are sections to run.
 func sectionConcurrency(sections int) int {
 	if sections <= 1 {
 		return 1
 	}
-	limit := runtime.NumCPU()
+	limit := runnersupport.ScanParallelism()
 	if limit < 1 {
 		limit = 1
 	}
@@ -224,6 +224,9 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context, baseFiles 
 		ChangedFiles: runnersupport.ChangedDiffFiles(sc),
 		VisitTargetFiles: func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
 			runnersupport.VisitTargetFiles(sc, target, include, visit)
+		},
+		VisitTargetFilesOrdered: func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte) func()) {
+			runnersupport.VisitTargetFilesOrdered(sc, target, include, visit)
 		},
 		ListTargetFiles: func(target core.TargetConfig) ([]string, error) {
 			return runnersupport.ListTargetFiles(sc, target)

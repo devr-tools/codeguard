@@ -85,6 +85,11 @@ type Context struct {
 	ReadBaseFile     func(target core.TargetConfig, rel string) ([]byte, error)
 	DiffScope        func() map[string]core.ChangedLineRanges
 	VisitTargetFiles func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte))
+	// VisitTargetFilesOrdered runs visit concurrently over the included files
+	// and then runs the commit each call returns sequentially, in listing
+	// order. Call it via the package-level VisitTargetFilesOrdered helper,
+	// which falls back to a sequential VisitTargetFiles when this hook is nil.
+	VisitTargetFilesOrdered func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte) func())
 	// ListTargetFiles returns every non-excluded file under the target root from
 	// the shared per-scan corpus walk (the same listing VisitTargetFiles
 	// iterates). Nil in unit-test contexts; callers fall back to a direct walk.

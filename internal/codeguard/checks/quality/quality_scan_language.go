@@ -41,8 +41,9 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 					return goFindingsForFileWithIndex(env, file, data, index, &modules)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
-					env.VisitTargetFiles(target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) {
-						addUnresolved(goUnresolvedMutationEvidenceWithIndex(env, file, data, index))
+					support.VisitTargetFilesOrdered(env, target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) func() {
+						items := goUnresolvedMutationEvidenceWithIndex(env, file, data, index)
+						return func() { addUnresolved(items) }
 					})
 				}
 				return findings
@@ -59,12 +60,24 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"typescript", "javascript", "ts", "tsx", "js", "jsx"},
 			Run: func() []core.Finding {
-				findings := typeScriptTargetFindings(ctx, env, target)
-				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
-					env.VisitTargetFiles(target, isTypeScriptLikeFile, func(file string, data []byte) {
-						addUnresolved(typeScriptUnresolvedMutationEvidence(env, file, data))
-					})
+				var findings []core.Finding
+				targetFindings := func() { findings = typeScriptTargetFindings(ctx, env, target) }
+				if !localPrecisionEnabled(env) || env.VisitTargetFiles == nil {
+					targetFindings()
+					return findings
 				}
+				// The unresolved-mutation pass does not depend on the target
+				// findings, and typeScriptTargetFindings spends most of its wall
+				// time waiting on the TypeScript semantic runner subprocess, so
+				// the two overlap. This dispatch branch is the only producer of
+				// unresolved evidence, so the order addUnresolved sees is
+				// unchanged.
+				support.RunBoth(func() {
+					support.VisitTargetFilesOrdered(env, target, isTypeScriptLikeFile, func(file string, data []byte) func() {
+						items := typeScriptUnresolvedMutationEvidence(env, file, data)
+						return func() { addUnresolved(items) }
+					})
+				}, targetFindings)
 				return findings
 			},
 		},
@@ -83,8 +96,9 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 					return cppFindingsForFile(env, file, data)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
-					env.VisitTargetFiles(target, func(file string) bool { return support.IsCPPPath(file, true) }, func(file string, data []byte) {
-						addUnresolved(cppUnresolvedMutationEvidence(env, file, data))
+					support.VisitTargetFilesOrdered(env, target, func(file string) bool { return support.IsCPPPath(file, true) }, func(file string, data []byte) func() {
+						items := cppUnresolvedMutationEvidence(env, file, data)
+						return func() { addUnresolved(items) }
 					})
 				}
 				return findings

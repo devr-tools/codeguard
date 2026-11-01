@@ -4,6 +4,7 @@ import (
 	"sort"
 	"sync"
 
+	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -76,6 +77,41 @@ func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string)
 			continue
 		}
 		visit(file, data)
+	}
+}
+
+// VisitTargetFilesOrdered is VisitTargetFiles for a per-file computation that
+// can run concurrently. visit is called for each included file on up to
+// fileScanWorkers goroutines and must not touch shared state; the commit
+// function it returns (which may be nil) is then run on the caller's goroutine
+// for each file in listing order, exactly as a sequential VisitTargetFiles
+// would have delivered them. That keeps any state the commits build, and so
+// the findings, identical to a sequential pass whatever the scheduling.
+//
+// Only the commits are retained until the pass completes, never file contents,
+// so memory stays bounded by the per-file results plus the in-flight files.
+func VisitTargetFilesOrdered(sc Context, target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte) func()) {
+	files, _ := sc.corpusFiles(target)
+	selected := make([]string, 0, len(files))
+	for _, file := range files {
+		if include(file) {
+			selected = append(selected, file)
+		}
+	}
+	visitOne := func(i int) func() {
+		file := selected[i]
+		data, err := sc.corpusRead(target.Path, file)
+		if err != nil {
+			sc.corpus.recordReadError(target.Path, file, err)
+			return nil
+		}
+		return visit(file, data)
+	}
+	commits := checkSupport.ParallelIndexed(len(selected), fileScanWorkers(len(selected)), visitOne)
+	for _, commit := range commits {
+		if commit != nil {
+			commit()
+		}
 	}
 }
 
