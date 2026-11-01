@@ -23,18 +23,22 @@ func scanTool() mcpTool {
 	return mcpTool{
 		Name:        "scan",
 		Title:       "Scan Repository",
-		Description: "Run codeguard against the configured repository targets and return a structured report.",
+		Description: "Run codeguard against the configured repository targets. Returns a compact summary (per-section status and counts, filtered-out counts, top rules) followed by at most max_findings findings (default 50) ordered by level, confidence, then path. When truncated is true, pass next_cursor back as cursor to read the next page of the same scan without re-running it.",
 		InputSchema: map[string]any{
 			"type": "object",
-			"properties": map[string]any{
+			"properties": withFindingFilterProperties(map[string]any{
 				"config_path": map[string]any{"type": "string"},
 				"profile":     map[string]any{"type": "string"},
 				"mode":        map[string]any{"type": "string", "enum": []string{"full", "diff"}},
-				"base_ref":    map[string]any{"type": "string"},
+				"base_ref":    map[string]any{"type": "string", "description": "Git ref diff mode compares the working tree against. Defaults to main."},
 				"target_path": map[string]any{"type": "string", "description": "Optional folder path to scan instead of all configured targets."},
-			},
+				"changed_only": map[string]any{
+					"type":        "boolean",
+					"description": "Scan only files changed relative to base_ref (diff mode, working tree included). Equivalent to mode \"diff\".",
+				},
+			}),
 		},
-		OutputSchema: reportOutputSchema(),
+		OutputSchema: findingsOutputSchema(),
 	}
 }
 
@@ -58,17 +62,16 @@ func validatePatchTool() mcpTool {
 	return mcpTool{
 		Name:        "validate_patch",
 		Title:       "Validate Patch",
-		Description: "Evaluate a unified diff against policy without mutating the working tree and return a structured report.",
+		Description: "Evaluate a unified diff against policy without mutating the working tree. Returns the same summary-first, paginated findings shape as scan; pass next_cursor back as cursor to read further pages.",
 		InputSchema: map[string]any{
 			"type": "object",
-			"properties": map[string]any{
+			"properties": withFindingFilterProperties(map[string]any{
 				"config_path": map[string]any{"type": "string"},
 				"profile":     map[string]any{"type": "string"},
-				"diff":        map[string]any{"type": "string"},
-			},
-			"required": []string{"diff"},
+				"diff":        map[string]any{"type": "string", "description": "Unified diff to validate. Required unless cursor is set."},
+			}),
 		},
-		OutputSchema: reportOutputSchema(),
+		OutputSchema: findingsOutputSchema(),
 	}
 }
 

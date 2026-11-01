@@ -74,7 +74,7 @@ func getPrompt(params json.RawMessage) (map[string]any, string) {
 	case "triage-findings":
 		return promptResult(
 			"Triage codeguard findings for the repository.",
-			"Call the scan tool with mode \"full\". Group the resulting findings by section, list every failing section first, and for each failing finding give the rule id, the file:line, and a one-line fix suggestion drawn from the finding's how_to_fix field.",
+			"Call the scan tool with mode \"full\" and min_level \"fail\". Read the summary first: list every failing section, then for each returned finding give the rule id, its location (file:line), and a one-line fix suggestion drawn from the finding's how_to_fix field. If truncated is true, call scan again with cursor set to next_cursor (and the same filters) to read the remaining findings.",
 		), ""
 	case "explain-rule":
 		ruleID := strings.TrimSpace(args.Arguments["rule_id"])
