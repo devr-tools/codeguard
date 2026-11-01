@@ -38,10 +38,17 @@ func TestSafeRunTurnsSectionPanicIntoFailingDiagnostic(t *testing.T) {
 	if len(result.Diagnostics) != 1 {
 		t.Fatalf("diagnostics = %+v, want exactly one", result.Diagnostics)
 	}
-	diagnostic := result.Diagnostics[0]
 	if runnerchecks.SectionPanicDiagnosticID != "scan.section.panic" {
 		t.Fatalf("SectionPanicDiagnosticID = %q; it is a stable id consumers match on", runnerchecks.SectionPanicDiagnosticID)
 	}
+	assertSectionPanicDiagnostic(t, result.Diagnostics[0])
+}
+
+// assertSectionPanicDiagnostic checks the diagnostic SafeRun records for a
+// crashed section: stable id, operational fail level, a message that names
+// the section without leaking the panic, and a short stack excerpt.
+func assertSectionPanicDiagnostic(t *testing.T, diagnostic core.Diagnostic) {
+	t.Helper()
 	if diagnostic.ID != runnerchecks.SectionPanicDiagnosticID {
 		t.Fatalf("diagnostic id = %q, want scan.section.panic", diagnostic.ID)
 	}

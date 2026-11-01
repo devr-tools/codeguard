@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"testing"
 
 	"github.com/devr-tools/codeguard/pkg/codeguard"
@@ -94,14 +95,8 @@ func TestSelfScanConfigStatesCodeguardConventions(t *testing.T) {
 		{"ci_rules.required_gates", ci.RequiredGates, []string{"test"}},
 		{"ci_rules.allowed_test_paths", ci.AllowedTestPaths, []string{"tests/**"}},
 	} {
-		have := make(map[string]bool, len(tc.have))
-		for _, value := range tc.have {
-			have[value] = true
-		}
-		for _, want := range tc.want {
-			if !have[want] {
-				t.Errorf("self-scan %s = %v, missing %q", tc.key, tc.have, want)
-			}
+		for _, missing := range missingValues(tc.have, tc.want) {
+			t.Errorf("self-scan %s = %v, missing %q", tc.key, tc.have, missing)
 		}
 	}
 	if ci.RequireWorkflowDir == nil || !*ci.RequireWorkflowDir {
@@ -119,14 +114,12 @@ func TestSelfScanConfigStatesCodeguardConventions(t *testing.T) {
 		}
 	}
 	design := cfg.Checks.DesignRules
-	for name, value := range map[string]*bool{
+	for _, name := range togglesNotTrue(map[string]*bool{
 		"require_cmd_through_internal_cli": design.RequireCmdThroughInternalCLI,
 		"forbid_service_import_internal":   design.ForbidServiceImportInternal,
 		"forbid_service_import_cmd":        design.ForbidServiceImportCmd,
-	} {
-		if value == nil || !*value {
-			t.Errorf("self-scan design_rules.%s must be true", name)
-		}
+	}) {
+		t.Errorf("self-scan design_rules.%s must be true", name)
 	}
 	if !cfg.Checks.CI || !cfg.Checks.SupplyChain {
 		t.Errorf("self-scan must run ci and supply_chain, got ci=%v supply_chain=%v", cfg.Checks.CI, cfg.Checks.SupplyChain)
@@ -134,4 +127,32 @@ func TestSelfScanConfigStatesCodeguardConventions(t *testing.T) {
 	if len(cfg.Targets) != 1 || cfg.Targets[0].Language != "go" || !slices.Contains(cfg.Targets[0].Entrypoints, "cmd/codeguard") {
 		t.Errorf("self-scan target = %+v, want the go target with the cmd/codeguard entrypoint", cfg.Targets)
 	}
+}
+
+// missingValues returns the entries of want that are absent from have.
+func missingValues(have []string, want []string) []string {
+	present := make(map[string]bool, len(have))
+	for _, value := range have {
+		present[value] = true
+	}
+	var missing []string
+	for _, value := range want {
+		if !present[value] {
+			missing = append(missing, value)
+		}
+	}
+	return missing
+}
+
+// togglesNotTrue returns, sorted, the names of toggles that are unset or
+// false.
+func togglesNotTrue(toggles map[string]*bool) []string {
+	var names []string
+	for name, value := range toggles {
+		if value == nil || !*value {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
