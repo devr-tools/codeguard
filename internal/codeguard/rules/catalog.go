@@ -37,7 +37,7 @@ var catalog = withSecurityOWASP(mergeRuleCatalogs(
 func Catalog() map[string]core.RuleMetadata {
 	out := make(map[string]core.RuleMetadata, len(catalog))
 	for id, meta := range catalog {
-		out[id] = core.NormalizeRuleMetadata(applyFixTemplate(meta))
+		out[id] = core.NormalizeRuleMetadata(applyRuleDiscovery(applyFixTemplate(meta)))
 	}
 	return out
 }
