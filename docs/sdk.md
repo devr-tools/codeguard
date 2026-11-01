@@ -124,6 +124,47 @@ cfg := codeguard.Config{
 codeguard.ApplyDefaults(&cfg)
 ```
 
+### Risk weights and explicit `0`
+
+The risk-scoring weights (`RiskScoringConfig`: `ChangedFileWeight`,
+`FailFindingWeight`, `WarnFindingWeight`, `SecurityWeight`,
+`SupplyChainWeight`, `CoverageGapWeight`, `AIProvenanceWeight`,
+`AISignalWeight`, `SlopScoreDivisor`) and the production-risk weights
+(`ProductionRiskConfig`: `ReliabilityWeight`, `DataWeight`, `FailWeight`,
+`WarnWeight`) are plain `int` fields. In Go, `0` means "use the default", as
+it always has: `ApplyDefaults` replaces a `0` with the built-in weight.
+
+To make a `0` mean "this signal contributes nothing", mark the key explicit
+before calling `ApplyDefaults`:
+
+```go
+cfg.Checks.QualityRules.RiskScoring.SecurityWeight = 0
+if err := cfg.Checks.QualityRules.RiskScoring.SetExplicit("security_weight"); err != nil {
+	return err
+}
+cfg.Checks.ProductionRisk.FailWeight = 0
+_ = cfg.Checks.ProductionRisk.SetExplicit("FailWeight") // Go field names work too
+codeguard.ApplyDefaults(&cfg) // both weights stay 0
+```
+
+- `SetExplicit(keys...)` accepts the YAML key or the Go field name. It returns
+  an error, and marks nothing, for a key that is not one of the struct's
+  weights. `ExplicitKeys()` lists the accepted keys.
+- `IsExplicit(key)` reports a mark. `ClearExplicit(keys...)` removes one, so
+  a `0` takes the default again.
+- A config loaded with `LoadConfigFile` (or decoded with `encoding/json` or
+  `gopkg.in/yaml.v3`) already carries a mark for every weight key the file
+  writes, so `security_weight: 0` stays `0`. CLI `-set` overrides mark the key
+  they set.
+- Marks are part of the struct value: assigning or copying the struct, applying
+  a profile, and repeated `ApplyDefaults` calls keep them. Encoding writes an
+  explicit `0` even though the tags say `omitempty`, so `WriteConfigFile`
+  round-trips it.
+
+The marks live in an unexported field, so unkeyed composite literals such as
+`codeguard.ProductionRiskConfig{nil, 35, 70, 12, 15, 25, 10}` do not compile.
+Use keyed literals.
+
 ### Loading standalone design policies
 
 `LoadConfigFile` also loads a standalone architecture policy. It auto-discovers

@@ -200,23 +200,30 @@ type AIChangeRiskConfig struct {
 }
 
 // RiskScoringConfig controls the explainable, diff-only file-risk ranking.
-// Nil weights use stable defaults so reports remain comparable across scans.
-// The weights and the divisor are pointers so an explicit 0 ("this signal
-// contributes nothing") is distinguishable from unset ("use the default");
-// read them with IntValue.
+// Zero weights take stable defaults so reports remain comparable across scans.
+//
+// Explicit 0: a weight (or the divisor) of 0 normally means "use the default",
+// as it always has. To make a 0 mean "this signal contributes nothing", the
+// key must be marked explicit. A config file does that by writing the key
+// (`security_weight: 0`), a -set override does it for the key it sets, and Go
+// callers call SetExplicit("security_weight") before ApplyDefaults. The marks
+// travel with every copy of the struct.
 type RiskScoringConfig struct {
 	Enabled            *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 	MaxHotspots        int   `json:"max_hotspots,omitempty" yaml:"max_hotspots,omitempty"`
-	ChangedFileWeight  *int  `json:"changed_file_weight,omitempty" yaml:"changed_file_weight,omitempty"`
-	FailFindingWeight  *int  `json:"fail_finding_weight,omitempty" yaml:"fail_finding_weight,omitempty"`
-	WarnFindingWeight  *int  `json:"warn_finding_weight,omitempty" yaml:"warn_finding_weight,omitempty"`
-	SecurityWeight     *int  `json:"security_weight,omitempty" yaml:"security_weight,omitempty"`
-	SupplyChainWeight  *int  `json:"supply_chain_weight,omitempty" yaml:"supply_chain_weight,omitempty"`
-	CoverageGapWeight  *int  `json:"coverage_gap_weight,omitempty" yaml:"coverage_gap_weight,omitempty"`
-	AIProvenanceWeight *int  `json:"ai_provenance_weight,omitempty" yaml:"ai_provenance_weight,omitempty"`
-	AISignalWeight     *int  `json:"ai_signal_weight,omitempty" yaml:"ai_signal_weight,omitempty"`
-	// SlopScoreDivisor of 0 turns the slop_score component off.
-	SlopScoreDivisor *int `json:"slop_score_divisor,omitempty" yaml:"slop_score_divisor,omitempty"`
+	ChangedFileWeight  int   `json:"changed_file_weight,omitempty" yaml:"changed_file_weight,omitempty"`
+	FailFindingWeight  int   `json:"fail_finding_weight,omitempty" yaml:"fail_finding_weight,omitempty"`
+	WarnFindingWeight  int   `json:"warn_finding_weight,omitempty" yaml:"warn_finding_weight,omitempty"`
+	SecurityWeight     int   `json:"security_weight,omitempty" yaml:"security_weight,omitempty"`
+	SupplyChainWeight  int   `json:"supply_chain_weight,omitempty" yaml:"supply_chain_weight,omitempty"`
+	CoverageGapWeight  int   `json:"coverage_gap_weight,omitempty" yaml:"coverage_gap_weight,omitempty"`
+	AIProvenanceWeight int   `json:"ai_provenance_weight,omitempty" yaml:"ai_provenance_weight,omitempty"`
+	AISignalWeight     int   `json:"ai_signal_weight,omitempty" yaml:"ai_signal_weight,omitempty"`
+	// SlopScoreDivisor of 0, when explicit, turns the slop_score component off.
+	SlopScoreDivisor int `json:"slop_score_divisor,omitempty" yaml:"slop_score_divisor,omitempty"`
+
+	// explicit records which weights were stated explicitly; see SetExplicit.
+	explicit explicitKeys
 }
 
 type DesignRulesConfig struct {
@@ -438,15 +445,21 @@ type ChangeRulesConfig struct {
 }
 
 // ProductionRiskConfig controls the additive PR-summary production-risk
-// artifact. It never changes individual rule severities. The weights are
-// pointers so an explicit 0 is distinguishable from unset; read them with
-// IntValue.
+// artifact. It never changes individual rule severities.
+//
+// Explicit 0: a weight of 0 normally means "use the default", as it always
+// has. A config file key (`fail_weight: 0`), a -set override, or a Go call to
+// SetExplicit("fail_weight") before ApplyDefaults makes the 0 stick. The
+// marks travel with every copy of the struct.
 type ProductionRiskConfig struct {
 	Enabled           *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 	WarnThreshold     int   `json:"warn_threshold,omitempty" yaml:"warn_threshold,omitempty"`
 	FailThreshold     int   `json:"fail_threshold,omitempty" yaml:"fail_threshold,omitempty"`
-	ReliabilityWeight *int  `json:"reliability_weight,omitempty" yaml:"reliability_weight,omitempty"`
-	DataWeight        *int  `json:"data_weight,omitempty" yaml:"data_weight,omitempty"`
-	FailWeight        *int  `json:"fail_weight,omitempty" yaml:"fail_weight,omitempty"`
-	WarnWeight        *int  `json:"warn_weight,omitempty" yaml:"warn_weight,omitempty"`
+	ReliabilityWeight int   `json:"reliability_weight,omitempty" yaml:"reliability_weight,omitempty"`
+	DataWeight        int   `json:"data_weight,omitempty" yaml:"data_weight,omitempty"`
+	FailWeight        int   `json:"fail_weight,omitempty" yaml:"fail_weight,omitempty"`
+	WarnWeight        int   `json:"warn_weight,omitempty" yaml:"warn_weight,omitempty"`
+
+	// explicit records which weights were stated explicitly; see SetExplicit.
+	explicit explicitKeys
 }

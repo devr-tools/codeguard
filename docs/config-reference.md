@@ -25,7 +25,18 @@ those rules off, use the matching `detect_*` or `enabled` toggle, or
 `checks.disabled`. Negative values are rejected.
 
 The keys below are the exceptions. An explicit `0` is kept, and only an
-omitted key takes the default.
+omitted key (or one set to `null`) takes the default. "Explicit" means the key
+is written in the YAML or JSON config file, including through a YAML `<<`
+merge, or set with a CLI override such as
+`-set checks.quality_rules.risk_scoring.security_weight=0`. A profile, whether
+from `profile:` or `-profile`, does not undo it, and `codeguard` writes an
+explicit `0` back out when it rewrites a config.
+
+For Go SDK callers the weight fields are plain `int`, and `0` still means "use
+the default" unless the key is marked with `SetExplicit`. See
+[the SDK guide](sdk.md#risk-weights-and-explicit-0). The two coverage
+thresholds at the bottom of the table are `*int` in Go, where a non-nil `0`
+is explicit.
 
 | Key | What `0` means |
 | --- | --- |

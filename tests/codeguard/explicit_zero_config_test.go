@@ -6,13 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
-// Risk weights used to be plain ints defaulted with "0 means unset", so a user
-// could not switch one signal off: `security_weight: 0` silently became 10.
-// They are *int now; these tests pin both directions in YAML and JSON.
+// Risk weights are plain ints defaulted with "0 means unset", which used to
+// mean a user could not switch one signal off: `security_weight: 0` silently
+// became 10. The config types now record which weight keys a file states, so
+// an explicit 0 survives defaulting; these tests pin both directions in YAML
+// and JSON.
 
 const explicitZeroYAML = `name: zero
 targets:
@@ -70,7 +71,7 @@ func TestUnsetRiskWeightsTakeDocumentedDefaults(t *testing.T) {
 	cfg := loadConfigFixture(t, "codeguard.yaml", "name: defaults\ntargets:\n  - name: app\n    path: .\n    language: go\n")
 	risk := cfg.Checks.QualityRules.RiskScoring
 	for name, want := range map[string]struct {
-		got  *int
+		got  int
 		want int
 	}{
 		"changed_file_weight":  {risk.ChangedFileWeight, 5},
@@ -142,12 +143,9 @@ func loadConfigFixture(t *testing.T, name, body string) codeguard.Config {
 	return cfg
 }
 
-func assertIntSetting(t *testing.T, name string, got *int, want int) {
+func assertIntSetting(t *testing.T, name string, got int, want int) {
 	t.Helper()
-	if got == nil {
-		t.Fatalf("%s = nil after defaulting, want %d", name, want)
-	}
-	if core.IntValue(got) != want {
-		t.Fatalf("%s = %d, want %d", name, *got, want)
+	if got != want {
+		t.Fatalf("%s = %d, want %d", name, got, want)
 	}
 }
