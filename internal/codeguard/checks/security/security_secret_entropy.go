@@ -2,6 +2,7 @@ package security
 
 import (
 	"math"
+	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -97,7 +98,30 @@ func isPlaceholderSecret(value string) bool {
 		strings.HasPrefix(trimmed, "$("):    // shell command substitution
 		return true
 	}
-	return allSameRune(trimmed)
+	if allSameRune(trimmed) {
+		return true
+	}
+	return isProviderPrefixedPlaceholder(trimmed)
+}
+
+// providerPrefixPattern splits a provider-style prefix (sk_test_, sk-live-,
+// ghp_, xoxb-, ...) from the body that follows it.
+var providerPrefixPattern = regexp.MustCompile(`(?i)^(?:sk|pk|rk|whsec|ghp|gho|ghu|ghs|ghr|github_pat|glpat|xox[baprs]|npm|pypi|dckr_pat|hf)[_-](?:(?:test|live|proj|ant|api[0-9]*)[_-])*(.*)$`)
+
+// isProviderPrefixedPlaceholder recognizes documentation stand-ins such as
+// sk_test_xxx or ghp_000...: a provider prefix carries no secret by itself,
+// so the value is filler when the body after it is empty or filler. The
+// provider tier is not routed through this check (its uncaptured patterns
+// never call isPlaceholderSecret), so a filler-bodied key in production code
+// keeps failing exactly as before; only the name-based heuristic and captured
+// values drop these.
+func isProviderPrefixedPlaceholder(value string) bool {
+	match := providerPrefixPattern.FindStringSubmatch(value)
+	if match == nil {
+		return false
+	}
+	body := match[1]
+	return body == "" || placeholderPattern.MatchString(body) || allSameRune(body)
 }
 
 func allSameRune(value string) bool {

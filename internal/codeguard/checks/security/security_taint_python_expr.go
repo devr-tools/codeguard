@@ -12,7 +12,7 @@ var (
 	pyInputSourcePattern          = regexp.MustCompile(`(?:^|[^\w.])input\s*\(`)
 	pyEnvironSourcePattern        = regexp.MustCompile(`(?:^|[^\w.])os\.environ\b`)
 	pyArgvSourcePattern           = regexp.MustCompile(`(?:^|[^\w.])sys\.argv\b`)
-	pyRequestSourcePattern        = regexp.MustCompile(`(?:^|[^\w.])request\.(?:args|form|values|json|data|cookies|headers|GET|POST|FILES|query_params|get_json)\b`)
+	pyRequestSourcePattern        = regexp.MustCompile(`(?:^|[^\w.])(?:flask\.)?request\.(?:args|form|values|json|data|cookies|headers|GET|POST|FILES|query_params|get_json)\b`)
 	pyDjangoRequestSourcePattern  = regexp.MustCompile(`(?:^|[^\w.])([A-Za-z_]\w*)\.(?:GET|POST|FILES|COOKIES|META|body)\b`)
 	pyFastAPIRequestSourcePattern = regexp.MustCompile(`(?:^|[^\w.])([A-Za-z_]\w*)\.(?:query_params|path_params|headers|cookies|body|json|form)\b`)
 	pyIdentScanPattern            = regexp.MustCompile(`[A-Za-z_]\w*`)
@@ -94,7 +94,7 @@ func (s *pyScope) requestSourcesEnabled() bool {
 // localCallTaint applies same-file function summaries to calls inside the
 // expression: tainted returns and tainted parameters that reach returns.
 func (s *pyScope) localCallTaint(stripped string, line int) *pyTaint {
-	for _, call := range support.ExtractCalls(stripped, line) {
+	for _, call := range support.ExtractCallsPositional(stripped, line) {
 		summary, known := s.analyzer.summaries[call.Callee]
 		if !known || summary == nil {
 			continue

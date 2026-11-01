@@ -244,6 +244,9 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context, baseFiles 
 		ScanTargetFilesWithDependencies: func(target core.TargetConfig, sectionID string, include func(string) bool, deps checkSupport.FileScanDependencies, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFilesWithDependencies(sc, target, sectionID, include, deps, evaluator)
 		},
+		ScanTargetFilesWithDiagnostics: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) ([]core.Finding, []core.Diagnostic)) ([]core.Finding, []core.Diagnostic) {
+			return runnersupport.ScanTargetFilesWithDiagnostics(sc, target, sectionID, include, evaluator)
+		},
 		ParseGoFile: func(path string, data []byte) (*token.FileSet, *ast.File, error) {
 			return runnersupport.ParseGoFile(sc, path, data)
 		},

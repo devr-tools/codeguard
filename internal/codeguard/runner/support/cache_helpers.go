@@ -116,3 +116,12 @@ func cloneFindings(findings []core.Finding) []core.Finding {
 	copy(out, findings)
 	return out
 }
+
+func cloneDiagnostics(diagnostics []core.Diagnostic) []core.Diagnostic {
+	if len(diagnostics) == 0 {
+		return nil
+	}
+	out := make([]core.Diagnostic, len(diagnostics))
+	copy(out, diagnostics)
+	return out
+}

@@ -19,10 +19,10 @@ func ScanTargetFilesWithDependencies(sc Context, target core.TargetConfig, secti
 	return scanTargetFiles(sc, target, fileScanSpec{
 		sectionID:    sectionID,
 		include:      include,
-		evaluator:    evaluator,
+		evaluator:    findingsOnly(evaluator),
 		parallel:     true,
 		dependencies: dependencyDigests(sc, target, deps),
-	})
+	}).findings
 }
 
 // dependencyDigests precomputes, once per scan pass, the dependency digest of
