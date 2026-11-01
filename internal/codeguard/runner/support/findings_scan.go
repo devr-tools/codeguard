@@ -1,10 +1,7 @@
 package support
 
 import (
-	"runtime"
-	"sync"
-	"sync/atomic"
-
+	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -21,40 +18,69 @@ type fileScanInput struct {
 type fileScanSpec struct {
 	sectionID string
 	include   func(string) bool
-	evaluator func(string, []byte) []core.Finding
+	evaluator func(string, []byte) fileScanResult
 	parallel  bool
 	// dependencies, when set, maps a file to the digest of the cross-file
 	// inputs its findings depend on; see ScanTargetFilesWithDependencies.
 	dependencies func(rel string) string
 }
 
-const maxFileScanWorkers = 4
+// fileScanResult is everything one file's evaluation produces. Diagnostics
+// travel with the findings, through the cache, so a warm run reports the same
+// diagnostics as a cold one.
+type fileScanResult struct {
+	findings    []core.Finding
+	diagnostics []core.Diagnostic
+}
+
+func findingsOnly(evaluator func(string, []byte) []core.Finding) func(string, []byte) fileScanResult {
+	return func(file string, data []byte) fileScanResult {
+		return fileScanResult{findings: evaluator(file, data)}
+	}
+}
 
 func ScanTargetFiles(sc Context, target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 	return scanTargetFiles(sc, target, fileScanSpec{
 		sectionID: sectionID,
 		include:   include,
-		evaluator: evaluator,
+		evaluator: findingsOnly(evaluator),
 		parallel:  true,
+	}).findings
+}
+
+// ScanTargetFilesWithDiagnostics is ScanTargetFiles for an evaluator that
+// also reports per-file diagnostics. The diagnostics are stored in the same
+// cache entry as the findings; collecting them as a side effect of the
+// evaluator instead would lose them whenever a file is served from cache.
+func ScanTargetFilesWithDiagnostics(sc Context, target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) ([]core.Finding, []core.Diagnostic)) ([]core.Finding, []core.Diagnostic) {
+	result := scanTargetFiles(sc, target, fileScanSpec{
+		sectionID: sectionID,
+		include:   include,
+		evaluator: func(file string, data []byte) fileScanResult {
+			findings, diagnostics := evaluator(file, data)
+			return fileScanResult{findings: findings, diagnostics: diagnostics}
+		},
+		parallel: true,
 	})
+	return result.findings, result.diagnostics
 }
 
 func ScanTargetFilesSequential(sc Context, target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) []core.Finding) []core.Finding {
 	return scanTargetFiles(sc, target, fileScanSpec{
 		sectionID: sectionID,
 		include:   include,
-		evaluator: evaluator,
+		evaluator: findingsOnly(evaluator),
 		parallel:  false,
-	})
+	}).findings
 }
 
-func scanTargetFiles(sc Context, target core.TargetConfig, spec fileScanSpec) []core.Finding {
+func scanTargetFiles(sc Context, target core.TargetConfig, spec fileScanSpec) fileScanResult {
 	selected := selectedTargetFiles(sc, target, spec.include)
-	scanOne := func(file string) []core.Finding {
+	scanOne := func(file string) fileScanResult {
 		data, err := sc.corpusRead(target.Path, file)
 		if err != nil {
 			sc.corpus.recordReadError(target.Path, file, err)
-			return nil
+			return fileScanResult{}
 		}
 		// Binary content produces only noise: a line/regex detector run over
 		// object code reports findings at offsets inside a compiled artifact.
@@ -62,7 +88,7 @@ func scanTargetFiles(sc Context, target core.TargetConfig, spec fileScanSpec) []
 		// pass can skip the check. See LooksBinary for why this is not pushed
 		// down to the corpus read or to VisitTargetFiles.
 		if LooksBinary(data) {
-			return nil
+			return fileScanResult{}
 		}
 		input := fileScanInput{
 			sectionID: spec.sectionID,
@@ -73,7 +99,7 @@ func scanTargetFiles(sc Context, target core.TargetConfig, spec fileScanSpec) []
 		if spec.dependencies != nil {
 			input.depsHash = spec.dependencies(file)
 		}
-		return cachedFileFindings(sc, input, func() []core.Finding {
+		return cachedFileResult(sc, input, func() fileScanResult {
 			return spec.evaluator(file, data)
 		})
 	}
@@ -101,72 +127,41 @@ func selectedTargetFiles(sc Context, target core.TargetConfig, include func(stri
 	return selected
 }
 
-func scanTargetFilesSequentially(selected []string, scanOne func(string) []core.Finding) []core.Finding {
-	findings := make([]core.Finding, 0, len(selected))
-	for _, file := range selected {
-		findings = append(findings, scanOne(file)...)
+func scanTargetFilesSequentially(selected []string, scanOne func(string) fileScanResult) fileScanResult {
+	slots := make([]fileScanResult, len(selected))
+	for i, file := range selected {
+		slots[i] = scanOne(file)
 	}
-	return findings
+	return mergeFileScanResults(slots)
 }
 
-func scanTargetFilesInParallel(selected []string, workers int, scanOne func(string) []core.Finding) []core.Finding {
-	slots := make([][]core.Finding, len(selected))
-	var next atomic.Int64
-	var panicked atomic.Bool
-	var panicValue any
-	var panicOnce sync.Once
-	var wg sync.WaitGroup
-	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					panicOnce.Do(func() {
-						panicValue = r
-						panicked.Store(true)
-					})
-				}
-			}()
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= len(selected) {
-					return
-				}
-				slots[i] = scanOne(selected[i])
-			}
-		}()
-	}
-	wg.Wait()
-	if panicked.Load() {
-		panic(panicValue)
-	}
-	total := 0
+// mergeFileScanResults concatenates per-file results in file order, so the
+// output is deterministic regardless of which worker evaluated which file.
+func mergeFileScanResults(slots []fileScanResult) fileScanResult {
+	findingCount, diagnosticCount := 0, 0
 	for _, slot := range slots {
-		total += len(slot)
+		findingCount += len(slot.findings)
+		diagnosticCount += len(slot.diagnostics)
 	}
-	findings := make([]core.Finding, 0, total)
+	merged := fileScanResult{findings: make([]core.Finding, 0, findingCount)}
+	if diagnosticCount > 0 {
+		merged.diagnostics = make([]core.Diagnostic, 0, diagnosticCount)
+	}
 	for _, slot := range slots {
-		findings = append(findings, slot...)
+		merged.findings = append(merged.findings, slot.findings...)
+		merged.diagnostics = append(merged.diagnostics, slot.diagnostics...)
 	}
-	return findings
+	return merged
 }
 
-func fileScanWorkers(files int) int {
-	workers := runtime.NumCPU()
-	if workers > maxFileScanWorkers {
-		workers = maxFileScanWorkers
-	}
-	if workers > files {
-		workers = files
-	}
-	if workers < 1 {
-		workers = 1
-	}
-	return workers
+func scanTargetFilesInParallel(selected []string, workers int, scanOne func(string) fileScanResult) fileScanResult {
+	slots := checkSupport.ParallelIndexed(len(selected), workers, func(i int) fileScanResult {
+		return scanOne(selected[i])
+	})
+	return mergeFileScanResults(slots)
 }
 
-func cachedFileFindings(sc Context, input fileScanInput, compute func() []core.Finding) []core.Finding {
+func cachedFileResult(sc Context, input fileScanInput, compute func() fileScanResult) fileScanResult {
 	if sc.Cache == nil {
 		return compute()
 	}
@@ -178,19 +173,20 @@ func cachedFileFindings(sc Context, input fileScanInput, compute func() []core.F
 	entry, ok := sc.Cache.entries[key]
 	sc.Cache.mu.Unlock()
 	if ok && entry.FileHash == fileHash && entry.ConfigHash == configHash && entry.DepsHash == input.depsHash {
-		return cloneFindings(entry.Findings)
+		return fileScanResult{findings: cloneFindings(entry.Findings), diagnostics: cloneDiagnostics(entry.Diagnostics)}
 	}
 
-	findings := compute()
+	result := compute()
 
 	sc.Cache.mu.Lock()
 	sc.Cache.entries[key] = cacheEntry{
-		FileHash:   fileHash,
-		ConfigHash: configHash,
-		DepsHash:   input.depsHash,
-		Findings:   cloneFindings(findings),
+		FileHash:    fileHash,
+		ConfigHash:  configHash,
+		DepsHash:    input.depsHash,
+		Findings:    cloneFindings(result.findings),
+		Diagnostics: cloneDiagnostics(result.diagnostics),
 	}
 	sc.Cache.dirty = true
 	sc.Cache.mu.Unlock()
-	return findings
+	return result
 }

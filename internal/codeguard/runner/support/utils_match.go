@@ -2,12 +2,10 @@ package support
 
 import (
 	"path/filepath"
-	"regexp"
 	"strings"
-	"sync"
-)
 
-var patternCache sync.Map // map[string]*regexp.Regexp
+	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
+)
 
 func IsInternalOrCmdFile(path string) bool {
 	return isInternalFile(path) || IsCmdFile(path)
@@ -76,6 +74,16 @@ func matchesReinclude(rel string, excludes []string) bool {
 			continue
 		}
 		if MatchPattern(strings.TrimPrefix(trimmed, "!"), rel) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasReincludePattern reports whether any exclude entry is a "!" re-include.
+func hasReincludePattern(excludes []string) bool {
+	for _, pattern := range excludes {
+		if strings.HasPrefix(strings.TrimSpace(pattern), "!") {
 			return true
 		}
 	}
@@ -279,47 +287,8 @@ func isGeneratedFileName(normalized string) bool {
 	return false
 }
 
+// MatchPattern forwards to checks/support.MatchPattern, the shared glob
+// matcher used by excludes, waivers, and check-level path filters.
 func MatchPattern(pattern string, value string) bool {
-	pattern = filepath.ToSlash(strings.TrimSpace(pattern))
-	value = filepath.ToSlash(strings.TrimSpace(value))
-	if pattern == "" {
-		return false
-	}
-	re, ok := compilePattern(pattern)
-	if !ok {
-		return false
-	}
-	return re.MatchString(value)
-}
-
-func compilePattern(pattern string) (*regexp.Regexp, bool) {
-	if cached, ok := patternCache.Load(pattern); ok {
-		re, _ := cached.(*regexp.Regexp)
-		return re, re != nil
-	}
-	replacer := strings.NewReplacer(
-		`\`, `\\`,
-		`.`, `\.`,
-		`+`, `\+`,
-		`(`, `\(`,
-		`)`, `\)`,
-		`[`, `\[`,
-		`]`, `\]`,
-		`{`, `\{`,
-		`}`, `\}`,
-		`^`, `\^`,
-		`$`, `\$`,
-	)
-	expr := replacer.Replace(pattern)
-	expr = strings.ReplaceAll(expr, "**", "§§DOUBLESTAR§§")
-	expr = strings.ReplaceAll(expr, "*", `[^/]*`)
-	expr = strings.ReplaceAll(expr, "§§DOUBLESTAR§§", `.*`)
-	expr = strings.ReplaceAll(expr, "?", `[^/]`)
-	re, err := regexp.Compile("^" + expr + "$")
-	if err != nil {
-		patternCache.Store(pattern, (*regexp.Regexp)(nil))
-		return nil, false
-	}
-	patternCache.Store(pattern, re)
-	return re, true
+	return checkSupport.MatchPattern(pattern, value)
 }

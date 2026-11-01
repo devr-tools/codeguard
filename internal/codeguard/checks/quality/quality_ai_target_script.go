@@ -39,11 +39,9 @@ func typeScriptAITargetFindings(env support.Context, target core.TargetConfig) [
 		errorStyle: dominantScriptErrorStyle(env, target, files),
 		naming:     dominantNamingConvention(env, target, files, scriptDeclaredNames),
 	}
-	findings := make([]core.Finding, 0)
-	for _, rel := range files {
-		findings = append(findings, scriptFileAIQualityFindings(env, target, rel, input)...)
-	}
-	return findings
+	return fileFindingsInParallel(files, func(rel string) []core.Finding {
+		return scriptFileAIQualityFindings(env, target, rel, input)
+	})
 }
 
 type scriptFileScanInput struct {

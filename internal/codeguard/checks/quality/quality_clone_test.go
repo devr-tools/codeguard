@@ -19,8 +19,8 @@ func BenchmarkCloneWindowIndexHighEntropy(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				index, truncated := cloneWindowIndexBounded([]cloneDocument{doc}, 90, defaultCloneAnalysisBudget.maxWindows)
-				if truncated || len(index) == 0 {
-					b.Fatalf("unexpected bounded index result: keys=%d truncated=%v", len(index), truncated)
+				if truncated || index.len() == 0 {
+					b.Fatalf("unexpected bounded index result: windows=%d truncated=%v", index.len(), truncated)
 				}
 			}
 		})
@@ -30,13 +30,13 @@ func BenchmarkCloneWindowIndexHighEntropy(b *testing.B) {
 func TestCollectCloneCandidatesCapsIdenticalDocuments(t *testing.T) {
 	const documentCount = 100
 	docs := make([]cloneDocument, documentCount)
-	occurrences := make([]cloneOccurrence, documentCount)
+	windows := make([]cloneWindow, documentCount)
 	for i := range docs {
 		docs[i] = cloneDocument{Path: "same.go", Tokens: []cloneToken{{Value: "same", Hash: 1}}}
-		occurrences[i] = cloneOccurrence{DocIndex: i}
+		windows[i] = cloneWindow{Hash: 1, DocIndex: int32(i)}
 	}
 
-	candidates := collectCloneCandidates(cloneIndex{1: occurrences}, docs, 1)
+	candidates := collectCloneCandidates(cloneIndex{windows: windows}, docs, 1)
 	if len(candidates) != maxCloneCandidates {
 		t.Fatalf("candidate count = %d, want safety cap %d", len(candidates), maxCloneCandidates)
 	}
@@ -49,8 +49,8 @@ func TestCloneWindowIndexSkipsMultiplierForOversizedThreshold(t *testing.T) {
 	}
 	threshold := int(^uint(0) >> 1)
 
-	if index, _ := cloneWindowIndexBounded(docs, threshold, defaultCloneAnalysisBudget.maxWindows); len(index) != 0 {
-		t.Fatalf("cloneWindowIndex() returned %d windows, want 0", len(index))
+	if index, _ := cloneWindowIndexBounded(docs, threshold, defaultCloneAnalysisBudget.maxWindows); index.len() != 0 {
+		t.Fatalf("cloneWindowIndex() returned %d windows, want 0", index.len())
 	}
 }
 
@@ -63,11 +63,7 @@ func TestCloneWindowIndexStopsAtOccurrenceBudget(t *testing.T) {
 	if !truncated {
 		t.Fatal("clone window index did not report the exhausted occurrence budget")
 	}
-	occurrences := 0
-	for _, bucket := range index {
-		occurrences += len(bucket)
-	}
-	if occurrences != 5 {
+	if occurrences := index.len(); occurrences != 5 {
 		t.Fatalf("indexed occurrences = %d, want hard budget 5", occurrences)
 	}
 }

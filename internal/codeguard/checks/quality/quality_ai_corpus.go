@@ -32,6 +32,7 @@ func listAITargetFiles(env support.Context, target core.TargetConfig, include fu
 	files, err := runnersupport.WalkFilesWithOptions(target.Path, env.Config.Exclude, runnersupport.FileWalkOptions{
 		LogicalPath:        target.LogicalPath,
 		ScanVendoredSource: env.Config.ScanVendoredSource,
+		RespectGitignore:   env.Config.RespectGitignoreEnabled(),
 	}, include)
 	if err != nil {
 		return nil

@@ -14,8 +14,21 @@ func ExtractCalls(text string, startLine int) []ParsedCall {
 	return maskedCalls(text, startLine)
 }
 
+// ExtractCallsPositional is ExtractCalls for callers that index arguments by
+// position. Masking blanks a string literal argument entirely, and
+// ExtractCalls drops blank arguments, so in cursor.execute("...", (x,)) the
+// parameter tuple would otherwise be reported as argument 0. Here a blank
+// argument is kept as "" so later indexes stay aligned with the source.
+func ExtractCallsPositional(text string, startLine int) []ParsedCall {
+	return extractMaskedCalls(text, startLine, true)
+}
+
 // maskedCalls extracts call expressions from masked statement text.
 func maskedCalls(text string, startLine int) []ParsedCall {
+	return extractMaskedCalls(text, startLine, false)
+}
+
+func extractMaskedCalls(text string, startLine int, keepBlank bool) []ParsedCall {
 	matches := pythonCallPattern.FindAllStringSubmatchIndex(text, -1)
 	spans := pythonCallSpans(text, matches)
 	calls := make([]ParsedCall, 0, len(matches))
@@ -32,7 +45,7 @@ func maskedCalls(text string, startLine int) []ParsedCall {
 		}
 		line += strings.Count(text[lineOffset:match[2]], "\n")
 		lineOffset = match[2]
-		args := spans[matchIndex].args(text, trimmedEnds)
+		args := spans[matchIndex].args(text, trimmedEnds, keepBlank)
 		calls = append(calls, ParsedCall{Callee: callee, Args: args, Line: line})
 	}
 	return calls
@@ -44,7 +57,7 @@ type pythonCallSpan struct {
 	commas []int
 }
 
-func (span pythonCallSpan) args(text string, trimmedEnds map[int]int) []string {
+func (span pythonCallSpan) args(text string, trimmedEnds map[int]int, keepBlank bool) []string {
 	if span.close <= span.open+1 {
 		return nil
 	}
@@ -59,7 +72,7 @@ func (span pythonCallSpan) args(text string, trimmedEnds map[int]int) []string {
 		if trimmedEnd < start {
 			trimmedEnd = start
 		}
-		if arg := strings.TrimLeftFunc(text[start:trimmedEnd], unicode.IsSpace); arg != "" {
+		if arg := strings.TrimLeftFunc(text[start:trimmedEnd], unicode.IsSpace); arg != "" || keepBlank {
 			args = append(args, arg)
 		}
 		start = end + 1

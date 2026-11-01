@@ -2,9 +2,11 @@ package cli
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/rules"
+	"github.com/devr-tools/codeguard/internal/codeguard/suggest"
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
@@ -43,12 +45,16 @@ func waiverDoctorChecks(cfg service.Config, today time.Time) []doctorCheck {
 }
 
 func waiverHealthCheck(waiver service.WaiverConfig, catalog map[string]bool, today time.Time) (doctorCheck, bool) {
+	if canonical, aliased := rules.RuleAliases()[waiver.Rule]; aliased && catalog[canonical] {
+		return warnDoctorCheck("waiver:"+waiver.Rule,
+			fmt.Sprintf("rule id is a retired alias for %s; the waiver still applies, but update its rule id", canonical)), true
+	}
 	if waiver.Rule != "*" && !catalog[waiver.Rule] {
 		if renamed, retired := rules.RetiredPerformanceRuleIDs()[waiver.Rule]; retired {
 			return warnDoctorCheck("waiver:"+waiver.Rule,
 				fmt.Sprintf("rule moved to the performance section as %s; update the waiver's rule id (the section is opt-in via checks.performance)", renamed)), true
 		}
-		return warnDoctorCheck("waiver:"+waiver.Rule, "waiver matches no catalog rule and never suppresses anything; remove it or fix the rule id"), true
+		return warnDoctorCheck("waiver:"+waiver.Rule, "waiver matches no catalog rule and never suppresses anything; remove it or fix the rule id"+suggest.Hint(waiver.Rule, sortedCatalogIDs(catalog))), true
 	}
 	if waiverExpired(waiver.ExpiresOn, today) {
 		return warnDoctorCheck("waiver:"+waiver.Rule, fmt.Sprintf("waiver expired on %s and no longer suppresses findings; remove it or extend expires_on", waiver.ExpiresOn)), true
@@ -68,6 +74,15 @@ func waiverExpired(expiresOn string, today time.Time) bool {
 	}
 	day := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, parsed.Location())
 	return parsed.Before(day)
+}
+
+func sortedCatalogIDs(catalog map[string]bool) []string {
+	ids := make([]string, 0, len(catalog))
+	for id := range catalog {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 func catalogRuleIDs(cfg service.Config) map[string]bool {

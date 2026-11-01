@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/suggest"
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
@@ -70,7 +71,8 @@ func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
 		return exitError
 	}
 	if !ok {
-		_, _ = fmt.Fprintf(stderr, "unknown rule %q\n", ruleID)
+		_, _ = fmt.Fprintf(stderr, "unknown rule %q%s\n", ruleID, suggest.Hint(ruleID, explainCandidateIDs(*configPath, *profile)))
+		_, _ = fmt.Fprintln(stderr, "run `codeguard rules` to list every rule id")
 		return exitError
 	}
 
@@ -87,6 +89,26 @@ func runExplain(args []string, stdout io.Writer, stderr io.Writer) int {
 		return exitError
 	}
 	return exitOK
+}
+
+// explainCandidateIDs lists the rule ids explain could have meant: the
+// built-in catalog, plus custom rule packs when a config was named.
+func explainCandidateIDs(configPath string, profile string) []string {
+	rules := service.Rules()
+	if strings.TrimSpace(configPath) != "" {
+		if cfg, err := loadConfigWithProfile(configPath, profile); err == nil {
+			rules = service.RulesForConfig(cfg)
+		}
+	}
+	return ruleIDs(rules)
+}
+
+func ruleIDs(rules []service.RuleMetadata) []string {
+	ids := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		ids = append(ids, rule.ID)
+	}
+	return ids
 }
 
 func resolveExplainRule(configPath string, profile string, ruleID string) (service.RuleMetadata, bool, error) {

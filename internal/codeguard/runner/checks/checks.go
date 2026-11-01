@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -60,13 +59,14 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 	return results
 }
 
-// sectionConcurrency bounds the number of sections running at once to the CPU
-// count (and never more than there are sections to run).
+// sectionConcurrency bounds the number of sections running at once to the
+// usable CPU count (GOMAXPROCS, never more than runtime.NumCPU) and never more
+// than there are sections to run.
 func sectionConcurrency(sections int) int {
 	if sections <= 1 {
 		return 1
 	}
-	limit := runtime.NumCPU()
+	limit := runnersupport.ScanParallelism()
 	if limit < 1 {
 		limit = 1
 	}
@@ -225,6 +225,9 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context, baseFiles 
 		VisitTargetFiles: func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
 			runnersupport.VisitTargetFiles(sc, target, include, visit)
 		},
+		VisitTargetFilesOrdered: func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte) func()) {
+			runnersupport.VisitTargetFilesOrdered(sc, target, include, visit)
+		},
 		ListTargetFiles: func(target core.TargetConfig) ([]string, error) {
 			return runnersupport.ListTargetFiles(sc, target)
 		},
@@ -243,6 +246,9 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context, baseFiles 
 		},
 		ScanTargetFilesWithDependencies: func(target core.TargetConfig, sectionID string, include func(string) bool, deps checkSupport.FileScanDependencies, evaluator func(string, []byte) []core.Finding) []core.Finding {
 			return runnersupport.ScanTargetFilesWithDependencies(sc, target, sectionID, include, deps, evaluator)
+		},
+		ScanTargetFilesWithDiagnostics: func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) ([]core.Finding, []core.Diagnostic)) ([]core.Finding, []core.Diagnostic) {
+			return runnersupport.ScanTargetFilesWithDiagnostics(sc, target, sectionID, include, evaluator)
 		},
 		ParseGoFile: func(path string, data []byte) (*token.FileSet, *ast.File, error) {
 			return runnersupport.ParseGoFile(sc, path, data)
@@ -269,6 +275,7 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context, baseFiles 
 		FinalizeSectionWithDiagnostics: func(id string, name string, findings []core.Finding, diagnostics []core.Diagnostic) core.SectionResult {
 			return runnersupport.FinalizeSectionWithDiagnostics(sc, id, name, findings, diagnostics)
 		},
+		ReportDiagnostic: sc.ReportDiagnostic,
 		PutArtifact: func(artifact core.Artifact) {
 			sc.Artifacts.Put(artifact)
 		},

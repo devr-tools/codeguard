@@ -38,7 +38,10 @@ func recordSlopHistory(env support.Context, artifact *core.Artifact) {
 		Signals:    artifact.SlopScore.Signals,
 		Components: append([]core.SlopScoreComponent(nil), artifact.SlopScore.Components...),
 	}
-	previous, hasPrevious := runnersupport.AppendSlopHistory(path, artifact.ID, entry, cfg.SlopHistoryLimit)
+	previous, hasPrevious, err := runnersupport.AppendSlopHistory(path, artifact.ID, entry, cfg.SlopHistoryLimit)
+	if err != nil {
+		support.ReportDiagnostic(env, runnersupport.HistoryWriteDiagnostic("slop", path, err))
+	}
 	if !hasPrevious {
 		return
 	}

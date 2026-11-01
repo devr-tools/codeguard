@@ -1,6 +1,10 @@
 package support
 
-import "github.com/devr-tools/codeguard/internal/codeguard/core"
+import (
+	"sync"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
+)
 
 // FileScanDependencies declares the inputs beyond a file's own content that a
 // per-file evaluator reads. The per-file findings cache keys an entry on the
@@ -28,6 +32,26 @@ func (deps FileScanDependencies) IsZero() bool {
 	return deps.Key == "" && deps.PackageFiles == nil && deps.SharedFiles == nil
 }
 
+// VisitTargetFilesOrdered visits the included target files with a per-file
+// computation that may run concurrently (visit must not touch shared state)
+// and applies each returned commit sequentially in listing order, so the
+// result matches a sequential VisitTargetFiles pass. Contexts without the
+// hook run visit and its commit back to back through VisitTargetFiles.
+func VisitTargetFilesOrdered(env Context, target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte) func()) {
+	if env.VisitTargetFilesOrdered != nil {
+		env.VisitTargetFilesOrdered(target, include, visit)
+		return
+	}
+	if env.VisitTargetFiles == nil {
+		return
+	}
+	env.VisitTargetFiles(target, include, func(rel string, data []byte) {
+		if commit := visit(rel, data); commit != nil {
+			commit()
+		}
+	})
+}
+
 // ScanTargetFilesWithDependencies is ScanTargetFiles for an evaluator whose
 // findings depend on more than the scanned file. Contexts without the
 // dependency-aware hook (unit-test contexts) fall back to ScanTargetFiles,
@@ -37,4 +61,25 @@ func ScanTargetFilesWithDependencies(env Context, target core.TargetConfig, sect
 		return env.ScanTargetFilesWithDependencies(target, sectionID, include, deps, evaluator)
 	}
 	return env.ScanTargetFiles(target, sectionID, include, evaluator)
+}
+
+// ScanTargetFilesWithDiagnostics runs a per-file evaluator that reports
+// diagnostics beside its findings. With the runner hook the diagnostics are
+// stored in the findings cache entry, so a cache hit replays them. Contexts
+// without the hook (unit-test contexts) run without a findings cache, so
+// gathering the diagnostics as the evaluator runs is equivalent there.
+func ScanTargetFilesWithDiagnostics(env Context, target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) ([]core.Finding, []core.Diagnostic)) ([]core.Finding, []core.Diagnostic) {
+	if env.ScanTargetFilesWithDiagnostics != nil {
+		return env.ScanTargetFilesWithDiagnostics(target, sectionID, include, evaluator)
+	}
+	var mu sync.Mutex
+	var diagnostics []core.Diagnostic
+	findings := env.ScanTargetFiles(target, sectionID, include, func(file string, data []byte) []core.Finding {
+		fileFindings, fileDiagnostics := evaluator(file, data)
+		mu.Lock()
+		diagnostics = append(diagnostics, fileDiagnostics...)
+		mu.Unlock()
+		return fileFindings
+	})
+	return findings, diagnostics
 }

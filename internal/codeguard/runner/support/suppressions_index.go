@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/rules"
 )
 
 // inlineSuppressionIndex holds every inline directive of one file, parsed once
@@ -205,7 +206,7 @@ func (index *inlineSuppressionIndex) match(sc Context, finding core.Finding) (in
 }
 
 func (directive inlineSuppression) appliesTo(sc Context, finding core.Finding) bool {
-	if directive.ruleID != "*" && directive.ruleID != finding.RuleID {
+	if directive.ruleID != "*" && rules.ResolveRuleAlias(directive.ruleID) != finding.RuleID {
 		return false
 	}
 	return !suppressionExpired(directive.expires, sc.Today)

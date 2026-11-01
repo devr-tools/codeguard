@@ -22,6 +22,12 @@ const maxScanFileCount = 100_000
 type FileWalkOptions struct {
 	LogicalPath        string
 	ScanVendoredSource bool
+	// RespectGitignore skips paths ignored by the repository's .gitignore
+	// files and .git/info/exclude (see gitignore_walk.go). It composes with
+	// the built-in and configured excludes: a path is walked only when none of
+	// them excludes it, and a "!" exclude entry re-includes a path whichever
+	// of them excluded it.
+	RespectGitignore bool
 }
 
 func SummarizeSections(sections []core.SectionResult) core.ReportSummary {
@@ -53,6 +59,11 @@ func WalkFilesWithOptions(root string, excludes []string, opts FileWalkOptions, 
 func walkFilesBounded(root string, excludes []string, opts FileWalkOptions, include func(string) bool, maxFiles int) ([]string, bool, error) {
 	var files []string
 	truncated := false
+	var ignores *gitignoreWalker
+	if opts.RespectGitignore {
+		ignores = newGitignoreWalker(root)
+	}
+	hasReincludes := hasReincludePattern(excludes)
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -82,6 +93,19 @@ func walkFilesBounded(root string, excludes []string, opts FileWalkOptions, incl
 		case walkSkipFile:
 			return nil
 		case walkInclude:
+		}
+		if ignores != nil {
+			reincluded, keepDir := false, false
+			if hasReincludes {
+				reincluded = matchesReinclude(rel, excludes) || matchesReinclude(logicalRel, excludes)
+				keepDir = d.IsDir() && reincludeCoversSubtree(rel, logicalRel, excludes)
+			}
+			if ignores.skip(path, rel, d.IsDir(), reincluded, keepDir) {
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 		}
 		if d.IsDir() {
 			return nil

@@ -9,6 +9,7 @@ import (
 var goTaintPropagators = []string{"fmt.", "strings.", "filepath.", "path.", "bytes.", "io.", "bufio."}
 
 func (s *goScope) evalCall(call *ast.CallExpr) *goTaint {
+	s.evalChainedReceiver(call.Fun)
 	args := make([]*goTaint, len(call.Args))
 	for idx, arg := range call.Args {
 		args[idx] = s.evalExpr(arg)
@@ -25,6 +26,34 @@ func (s *goScope) evalCall(call *ast.CallExpr) *goTaint {
 		return taint
 	}
 	return s.propagatedCallTaint(call, callee, args)
+}
+
+// evalChainedReceiver exists so exec.Command(arg).Run() is held to the same
+// standard as cmd := exec.Command(arg); cmd.Run(). exprTypeText flattens the
+// receiver call into the outer callee text, so its arguments would otherwise
+// never reach checkSinks. The result is discarded on purpose: the outer
+// call's taint stays governed by the propagation rules, so this cannot widen
+// what a chained call returns.
+func (s *goScope) evalChainedReceiver(fun ast.Expr) {
+	selector, ok := fun.(*ast.SelectorExpr)
+	if !ok {
+		return
+	}
+	receiver := selector.X
+	for {
+		paren, isParen := receiver.(*ast.ParenExpr)
+		if !isParen {
+			break
+		}
+		receiver = paren.X
+	}
+	if inner, isCall := receiver.(*ast.CallExpr); isCall {
+		s.evalCall(inner)
+		return
+	}
+	if inner, isSelector := receiver.(*ast.SelectorExpr); isSelector {
+		s.evalChainedReceiver(inner)
+	}
 }
 
 // callSourceTaint recognizes calls that introduce fresh taint.

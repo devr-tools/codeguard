@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -18,24 +19,44 @@ func goAITargetFindings(env support.Context, target core.TargetConfig) []core.Fi
 	}
 	resolver := newGoModuleResolver(target.Path)
 	profile := goRepoStyleProfile(env, target, files)
-	packageFiles := map[string][]goParsedFile{}
-	findings := make([]core.Finding, 0)
-	for _, rel := range files {
+	// Each file's analysis reads only its own source, the shared read-only
+	// profile and the mutex-guarded resolver, so the files are analysed on a
+	// bounded pool. Results land in a slot per file and are merged in file
+	// order, which keeps the findings order identical to a sequential loop.
+	type fileResult struct {
+		findings []core.Finding
+		parsed   *goParsedFile
+	}
+	results := make([]fileResult, len(files))
+	support.ParallelFor(len(files), func(i int) {
+		rel := files[i]
 		fileFindings, parsedFile := goFileAIQualityFindings(env, target, rel, goFileScanInput{
 			metadata:   resolver.metadataForFile(rel),
 			dominant:   profile.testFramework,
 			errorStyle: profile.errorStyle,
 			naming:     profile.naming,
 		})
-		findings = append(findings, fileFindings...)
-		if parsedFile != nil {
-			dir := filepath.Dir(rel)
-			packageFiles[dir] = append(packageFiles[dir], *parsedFile)
+		results[i] = fileResult{findings: fileFindings, parsed: parsedFile}
+	})
+	packageFiles := map[string][]goParsedFile{}
+	findings := make([]core.Finding, 0)
+	for i, result := range results {
+		findings = append(findings, result.findings...)
+		if result.parsed != nil {
+			dir := filepath.Dir(files[i])
+			packageFiles[dir] = append(packageFiles[dir], *result.parsed)
 		}
 	}
 	if aiCheckEnabled(env.Config.Checks.QualityRules.AIChecks.DeadCode) {
-		for _, parsedFiles := range packageFiles {
-			findings = append(findings, goUnusedPrivateFunctionFindings(env, parsedFiles)...)
+		// Visit packages in sorted order: ranging over the map directly made
+		// the order of unused-function findings vary between runs.
+		dirs := make([]string, 0, len(packageFiles))
+		for dir := range packageFiles {
+			dirs = append(dirs, dir)
+		}
+		sort.Strings(dirs)
+		for _, dir := range dirs {
+			findings = append(findings, goUnusedPrivateFunctionFindings(env, packageFiles[dir])...)
 		}
 	}
 	return findings
@@ -60,13 +81,23 @@ type goRepoStyle struct {
 // independent per-file sum, so folding them into one loop is
 // behavior-identical to the previous three passes.
 func goRepoStyleProfile(env support.Context, target core.TargetConfig, files []string) goRepoStyle {
-	totals := newGoRepoStyleTotals()
-	for _, rel := range files {
-		data, err := readAITargetFile(env, target, rel)
+	// Every signal is a per-file count summed across the corpus, so files are
+	// counted on a bounded pool into per-file totals and folded together
+	// afterwards; addition is order-independent, so the profile is identical
+	// to a sequential pass.
+	perFile := make([]goRepoStyleTotals, len(files))
+	support.ParallelFor(len(files), func(i int) {
+		data, err := readAITargetFile(env, target, files[i])
 		if err != nil {
-			continue
+			return
 		}
+		totals := newGoRepoStyleTotals()
 		totals.add(string(data))
+		perFile[i] = totals
+	})
+	totals := newGoRepoStyleTotals()
+	for _, fileTotals := range perFile {
+		totals.merge(fileTotals)
 	}
 	return totals.profile()
 }
@@ -92,6 +123,20 @@ func (t goRepoStyleTotals) add(source string) {
 		t.styles[style] += count
 	}
 	for convention, count := range namingCounts(source, goDeclaredNames) {
+		t.naming[convention] += count
+	}
+}
+
+// merge folds other's counts into t. A zero-value other (an unreadable file)
+// contributes nothing.
+func (t goRepoStyleTotals) merge(other goRepoStyleTotals) {
+	for framework, count := range other.frameworks {
+		t.frameworks[framework] += count
+	}
+	for style, count := range other.styles {
+		t.styles[style] += count
+	}
+	for convention, count := range other.naming {
 		t.naming[convention] += count
 	}
 }

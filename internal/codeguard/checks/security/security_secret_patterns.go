@@ -16,10 +16,17 @@ const (
 
 // secretPattern is the lower-confidence name-based heuristic: an assignment
 // whose identifier looks secret-bearing next to a quoted value. It reports at
-// warn. privateKeyPattern detects PEM key material and reports at fail.
+// warn. The value must close with the quote that opened it and may not cross
+// a backtick, so a credential name whose quote opens inside a Go raw string
+// (`secret = "` + f() + `"`) cannot capture the code up to the next quote.
+// privateKeyPattern detects PEM key material and reports at fail.
 var (
-	secretPattern     = regexp.MustCompile(`(?i)["']?((?:test|fake|mock|fixture)?(?:secret|token|api[_-]?key|password|db[_-]?pass))["']?\s*(?::=|[:=])\s*["']([^"']{8,})["']`)
-	privateKeyPattern = regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`)
+	secretPattern = regexp.MustCompile("(?i)[\"']?((?:test|fake|mock|fixture)?(?:secret|token|api[_-]?key|password|db[_-]?pass))[\"']?\\s*(?::=|[:=])\\s*(?:\"([^\"`]{8,})\"|'([^'`]{8,})')")
+	// concatenationInValuePattern spots a quote meeting a + operator inside a
+	// captured value: the quote-matched capture in 'token = "' + f() + '"'
+	// is code between two string literals, not a literal.
+	concatenationInValuePattern = regexp.MustCompile("[\"'`]\\s*\\+|\\+\\s*[\"'`]")
+	privateKeyPattern           = regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`)
 
 	// quotedLiteralPattern captures whitespace-free quoted literals for the
 	// entropy pass (secrets are contiguous, so requiring no whitespace skips prose).
@@ -48,7 +55,13 @@ var credentialPatterns = []credentialPattern{
 	// precede or follow the match (satisfies CodeQL go/regex/missing-regexp-anchor);
 	// the captured group is the webhook URL itself.
 	{regexp.MustCompile(`(?:^|[^A-Za-z0-9_])(https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]{16,})(?:$|[^A-Za-z0-9_])`), "Slack webhook URL"},
-	{regexp.MustCompile(`\b(?:sk|rk)_live_[0-9A-Za-z]{20,}\b`), "Stripe live secret key"},
+	// Stripe documents underscores; the hyphenated spelling is accepted too
+	// because "sk-live-"/"rk-live-" is unmistakably a live key either way.
+	{regexp.MustCompile(`\b(?:sk|rk)(?:_live_|-live-)[0-9A-Za-z]{20,}\b`), "Stripe live secret key"},
+	{regexp.MustCompile(`\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}`), "OpenAI API key"},
+	{regexp.MustCompile(`\bsk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}\b`), "OpenAI API key"},
+	{regexp.MustCompile(`\bsk-ant-(?:api|admin)[0-9]{2}-[A-Za-z0-9_-]{32,}`), "Anthropic API key"},
+	{regexp.MustCompile(`\bhf_[A-Za-z]{34}\b`), "Hugging Face access token"},
 	{regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`), "Google API key"},
 	{regexp.MustCompile(`\bnpm_[0-9A-Za-z]{36}\b`), "npm access token"},
 	{regexp.MustCompile(`\bSG\.[0-9A-Za-z_-]{22}\.[0-9A-Za-z_-]{43}\b`), "SendGrid API key"},
@@ -76,8 +89,8 @@ var placeholderPattern = regexp.MustCompile(`(?i)^(?:[x*.\-_0]+|redacted|changem
 var (
 	gateLiterals = []string{
 		"AKIA", "ASIA", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_",
-		"glpat-", "xox", "hooks.slack.com", "_live_", "AIza", "npm_", "SG.", "SK",
-		"pypi-", "dckr_pat_", "PRIVATE KEY", "://",
+		"glpat-", "xox", "hooks.slack.com", "_live_", "-live-", "sk-", "hf_", "AIza",
+		"npm_", "SG.", "SK", "pypi-", "dckr_pat_", "PRIVATE KEY", "://",
 	}
 	gateFoldLiterals = []string{
 		"secret", "token", "password", "dbpass", "db_pass", "db-pass", "apikey", "api_key", "api-key", "bearer", "accountkey",
@@ -114,11 +127,17 @@ func matchCredential(line string) *Match {
 }
 
 func matchNameBased(line string) *Match {
-	match := secretPattern.FindStringSubmatch(line)
-	if match == nil || isPlaceholderSecret(match[len(match)-1]) {
-		return nil
+	for _, match := range secretPattern.FindAllStringSubmatch(line, -1) {
+		value := match[2]
+		if value == "" {
+			value = match[3]
+		}
+		if concatenationInValuePattern.MatchString(value) || isPlaceholderSecret(value) {
+			continue
+		}
+		return &Match{RuleID: hardcodedSecretRule, Level: "warn", Message: "possible hardcoded secret detected: " + maskSecret(value), SecretType: namedSecretType(match[1]), Confidence: core.ConfidenceLow}
 	}
-	return &Match{RuleID: hardcodedSecretRule, Level: "warn", Message: "possible hardcoded secret detected: " + maskSecret(match[len(match)-1]), SecretType: namedSecretType(match[1]), Confidence: core.ConfidenceLow}
+	return nil
 }
 
 func credentialSecretType(description string) string {

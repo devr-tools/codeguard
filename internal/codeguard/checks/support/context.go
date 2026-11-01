@@ -85,6 +85,11 @@ type Context struct {
 	ReadBaseFile     func(target core.TargetConfig, rel string) ([]byte, error)
 	DiffScope        func() map[string]core.ChangedLineRanges
 	VisitTargetFiles func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte))
+	// VisitTargetFilesOrdered runs visit concurrently over the included files
+	// and then runs the commit each call returns sequentially, in listing
+	// order. Call it via the package-level VisitTargetFilesOrdered helper,
+	// which falls back to a sequential VisitTargetFiles when this hook is nil.
+	VisitTargetFilesOrdered func(target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte) func())
 	// ListTargetFiles returns every non-excluded file under the target root from
 	// the shared per-scan corpus walk (the same listing VisitTargetFiles
 	// iterates). Nil in unit-test contexts; callers fall back to a direct walk.
@@ -100,7 +105,12 @@ type Context struct {
 	// the package-level ScanTargetFilesWithDependencies helper, which falls
 	// back to ScanTargetFiles when this hook is nil.
 	ScanTargetFilesWithDependencies func(target core.TargetConfig, sectionID string, include func(string) bool, deps FileScanDependencies, evaluator func(string, []byte) []core.Finding) []core.Finding
-	ParseGoFile                     func(path string, data []byte) (*token.FileSet, *ast.File, error)
+	// ScanTargetFilesWithDiagnostics exists because diagnostics gathered as a
+	// side effect of a ScanTargetFiles evaluator vanish on a cache hit; this
+	// hook stores them in the cache entry instead. Reach it through the
+	// package-level helper so contexts without a cache keep working.
+	ScanTargetFilesWithDiagnostics func(target core.TargetConfig, sectionID string, include func(string) bool, evaluator func(string, []byte) ([]core.Finding, []core.Diagnostic)) ([]core.Finding, []core.Diagnostic)
+	ParseGoFile                    func(path string, data []byte) (*token.FileSet, *ast.File, error)
 	// ParseCLikeFile returns the structured C-like parse of one file through
 	// the per-scan corpus cache. The result is shared across sections and
 	// goroutines, so callers must treat it as read-only. Call it via
@@ -113,14 +123,18 @@ type Context struct {
 	NewFinding                     func(FindingInput) core.Finding
 	FinalizeSection                func(id string, name string, findings []core.Finding) core.SectionResult
 	FinalizeSectionWithDiagnostics func(id string, name string, findings []core.Finding, diagnostics []core.Diagnostic) core.SectionResult
-	PutArtifact                    func(core.Artifact)
-	GetArtifact                    func(string) (core.Artifact, bool)
-	CountLines                     func(data []byte) int
-	CyclomaticComplexity           func(body *ast.BlockStmt) int
-	TypeName                       func(expr ast.Expr) string
-	IsInternalOrCmdFile            func(path string) bool
-	IsCmdFile                      func(path string) bool
-	IsPublicPackageFile            func(path string) bool
+	// ReportDiagnostic queues an operational diagnostic (for example a failed
+	// history write) for the section report. Nil in unit-test contexts; call it
+	// via the package-level ReportDiagnostic helper.
+	ReportDiagnostic     func(core.Diagnostic)
+	PutArtifact          func(core.Artifact)
+	GetArtifact          func(string) (core.Artifact, bool)
+	CountLines           func(data []byte) int
+	CyclomaticComplexity func(body *ast.BlockStmt) int
+	TypeName             func(expr ast.Expr) string
+	IsInternalOrCmdFile  func(path string) bool
+	IsCmdFile            func(path string) bool
+	IsPublicPackageFile  func(path string) bool
 	// SDKFacadeFor resolves the scanned repository's published facade package
 	// for one target. Nil in unit-test contexts; use SDKFacadeForTarget, which
 	// degrades to a matcher that matches nothing.
@@ -133,4 +147,12 @@ type Context struct {
 	RunCommandCheckWithEnv func(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error)
 	RunDiffCommandCheck    func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error)
 	NormalizedSeverity     func(level string) string
+}
+
+// ReportDiagnostic forwards diagnostic to env's ReportDiagnostic hook, doing
+// nothing when the hook is unwired.
+func ReportDiagnostic(env Context, diagnostic core.Diagnostic) {
+	if env.ReportDiagnostic != nil {
+		env.ReportDiagnostic(diagnostic)
+	}
 }

@@ -52,7 +52,20 @@ not findings, so they cannot be baselined or waived:
   skipped. The first 20 such files are listed individually and the rest are
   summarised.
 - `scan.file-limit` (warn): the walk stopped at the file-count limit.
+- `scan.history-write` (warn): a trend history file under the cache directory
+  (slop, performance score, legibility, rule stats, or waiver audit; named in
+  the `history` metadata key) could not be written. The scan results are
+  complete, but that history is missing this scan's observation.
 - `scan.section.panic` (fail): the section crashed; see above.
+
+Scan parallelism follows the CPUs the process may use: sections, per-section
+file workers, corpus reads, and Go parses each run up to `GOMAXPROCS` wide
+(never more than the CPU count; reads and parses at least 2, every pool at
+most 16). Set the `GOMAXPROCS` environment variable to narrow a scan, for
+example to a container's CPU quota. Findings do not depend on the worker
+count. The shared file corpus retains up to 256 MiB of source per scan (an
+eighth of `GOMEMLIMIT` when one is set); past that, files are still analysed,
+just re-read per section (`scan.corpus-budget`, info).
 
 ## Check glossary
 
@@ -357,6 +370,42 @@ the directory is that build system's output (for example `target/` next to
 `Cargo.toml` or `pom.xml`, `bin/` and `obj/` next to a `.csproj`, `build/` next
 to `CMakeLists.txt` or `build.gradle`). A Go package named `build`, a Rust crate's
 `src/bin`, or a Python `coverage` source package therefore stays scanned.
+
+### `.gitignore`
+
+The file walk honours the repository's ignore rules by default, so generated
+and vendored output that the repository already declares ignored (a bundled
+`public/monaco`, a local build tree) is not scanned:
+
+```yaml
+respect_gitignore: false   # default true; false walks ignored paths too
+```
+
+What is honoured:
+- every `.gitignore` from the work-tree root down to each directory, plus
+  `.git/info/exclude` (for worktrees, the shared one), with gitignore(5)
+  semantics: `!` negation, last match wins, closer files override parents,
+  trailing `/` for directories only, a leading or middle `/` anchors a pattern
+  to its file's directory, `*`/`?`/`[...]`, and `**` segments. A file under an
+  ignored directory cannot be re-included by a later `!` pattern, as in git.
+- nested work trees (submodules, vendored checkouts) use their own rules, not
+  their parent's. Outside a git work tree no ignore rules apply.
+- not honoured: the per-user `core.excludesFile` (it would make results depend
+  on the machine running the scan), and `core.ignorecase` (matching is always
+  case-sensitive, so a macOS checkout and a Linux runner scan the same files).
+  A `.gitignore` larger than 256 KiB, or a symlinked one, is ignored.
+
+Precedence:
+- **tracked files are scanned even when an ignore rule matches them**, matching
+  git, which keeps tracking a committed or force-added file. CodeGuard asks
+  `git ls-files` for those once per repository, only if some path is actually
+  ignored; if git cannot answer, the repository is walked as if it had no
+  ignore rules (scanning too much is the safe failure).
+- an explicitly configured `targets[].path` or a `-folder` that is itself
+  inside an ignored directory is scanned in full.
+- ignore rules compose with `exclude` and the built-in exclusions: a path is
+  scanned only when none of them drops it, and a `!` entry in `exclude`
+  re-includes a path whichever of them excluded it.
 
 Use a `!` re-include if one of the unconditional defaults hides real source in
 your repository.
@@ -1553,6 +1602,13 @@ These rules live outside the repository-wide `Change Safety` section in report o
 | Code smell history | `smell.shotgun-surgery-history` | warn | A changed file repeatedly co-changes with several partners, suggesting scattered responsibility. |
 | Code smell history | `smell.divergent-change-history` | warn | A changed file has recent commit subjects spanning several concern families. |
 
+**Retired alias:** `quality.mixed-abstraction-levels` was catalogued alongside
+`function.mixed-abstraction-level` but never emitted. It is no longer a
+separate rule. Unlike the retired performance ids, it is aliased at runtime:
+waivers, inline suppressions, and `codeguard explain` that name it act on
+`function.mixed-abstraction-level`, and `codeguard doctor` suggests updating
+the id.
+
 Deeper `maintainability.*` deltas remain follow-on roadmap unless they appear in
 `codeguard rules` for the active build.
 
@@ -1871,15 +1927,25 @@ TypeScript/JavaScript) and reports in both full scans and `-mode diff` scans, so
 hardcoded credential introduced in a PR fails the changed-lines diff check as well as a
 full scan. It has two confidence tiers:
 
-- `security.hardcoded-credential` (**fail**) — a value matching a known provider format:
-  AWS access keys, GitHub/GitLab tokens, Slack tokens and webhook URLs, Stripe live keys,
+- `security.hardcoded-credential` (**fail**, high confidence) — a value matching a known
+  provider format: AWS access keys, GitHub classic (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`)
+  and fine-grained (`github_pat_`) tokens, GitLab tokens, Slack tokens and webhook URLs,
+  Stripe live secret/restricted keys (`sk_live_`/`rk_live_`, and the hyphenated
+  `sk-live-` spelling), OpenAI (`sk-proj-`/`sk-svcacct-`/`sk-admin-` and legacy
+  `sk-…T3BlbkFJ…`) and Anthropic (`sk-ant-api03-…`) API keys, Hugging Face (`hf_`) tokens,
   Google API keys, npm/PyPI/Docker Hub tokens, SendGrid and Twilio keys, Azure storage
   account keys, database connection strings with embedded passwords
   (`postgres://user:pass@…`), `Authorization: Bearer …` tokens,
   `aws_secret_access_key`/`client_secret`/`private_token` assignments, plus any configured
-  `custom_patterns`.
-- `security.hardcoded-secret` (**warn**) — the lower-confidence name-based heuristic: a
-  `secret`/`token`/`api_key`/`password` identifier assigned a quoted literal.
+  `custom_patterns`. The provider tier is checked before the name-based heuristic, so a
+  valid-shaped provider key assigned to a `secret`/`api_key` identifier is reported here
+  at high confidence rather than as a low-confidence `hardcoded-secret`. The prefix alone
+  is not enough: each format requires its documented body length and alphabet, and
+  Stripe test-mode (`sk_test_`) and publishable (`pk_live_`) keys are not in this tier.
+- `security.hardcoded-secret` (**warn**, low confidence) — the name-based heuristic: a
+  `secret`/`token`/`api_key`/`password` identifier assigned a quoted literal. The value
+  must be one literal closed by the quote that opened it: a match never spans string
+  concatenation or code, so `` `secret = "` + build() + `"` `` is not reported.
 - `security.high-entropy-string` (**warn**, opt-in) — a high-entropy string literal that
   may be an unknown/random secret matching no known format. Enabled via
   `secrets.entropy.enabled`.
@@ -1888,7 +1954,10 @@ Findings report the value **masked** (`AKIA…CDEF`) so the message itself never
 the secret. Obvious placeholders are skipped automatically (`REDACTED`, `xxxx…`,
 `example`, `your-…`, `${ENV}` / `{{ }}` / `<…>` interpolations, `$(...)` command
 substitutions, `op://` / `vault://` secret references, all-same-character fillers,
-`process.env.*` / `os.environ[...]` references).
+`process.env.*` / `os.environ[...]` references, and provider-prefixed stand-ins whose body
+is empty or filler such as `sk_test_xxx` or `ghp_xxxx…` when they reach the name-based
+heuristic). Fixture and documentation grading (below) applies on top of these tiers
+unchanged.
 
 Config keys (under `checks.security_rules.secrets`):
 
@@ -2544,6 +2613,7 @@ Config keys:
 
 Current behavior:
 - caches quality, design, security, prompt, and custom-rule file findings by file hash
+- stores per-file diagnostics with the findings (for example the `security.credential-fixture` diagnostics for suppressed synthetic fixtures), so a warm run reports the same diagnostics as a cold run; caches written by older versions are discarded on upgrade
 - caches optional semantic-review verdicts by hashed request content in a sibling semantic cache file
 - invalidates cached entries when file content or config changes, or when a cross-file input the finding depends on changes (sibling Go files in the same package when `local_precision` is on, `go.mod`/`go.work`, or the resolved SDK facade)
 
@@ -2561,9 +2631,43 @@ codeguard doctor -config codeguard.yaml
 Current behavior:
 - validates config loading
 - checks Git availability and worktree detection
-- checks `govulncheck` availability when security integration is enabled
+- runs `govulncheck -version` in the first Go target when security integration is enabled, instead of only checking PATH. A failing probe reports the exit status and the last lines of govulncheck's stderr (`[FAIL]` under `govulncheck_mode: required`, `[WARN]` under `auto`); a probe that runs but reports no `Go:` toolchain line warns, because every real scan would then fail to load packages. A custom `govulncheck_command` is only run when config commands are trusted via `CODEGUARD_ALLOW_CONFIG_COMMANDS=1`; otherwise doctor warns that it was not run
 - checks configured language command binaries when design, quality, or security command checks are enabled
 - checks target paths, baseline path, and cache destination
+- fails when a `targets[].entrypoints` entry does not exist under its target path (globs pass when they match at least one path)
+- warns when a target's `language` has no matching source files under its path (for example `language: go` on a Python tree), skipping hidden, dependency and `exclude`d directories; the message names the source extensions it found instead
+- suggests the closest catalog rule for a waiver whose rule id matches nothing
+
+Exit status is 1 when any check is `[FAIL]`; `[WARN]` lines do not fail.
+Multi-line messages, such as a stderr tail, are indented under their check.
+
+## Error messages and suggestions
+
+Mistyped names fail fast with a "did you mean" hint instead of a bare error.
+Suggestions are conservative: at most three, only for near-miss typos (edit
+distance, including swapped letters) or ids that contain the input as a
+segment, and none at all when nothing is close.
+
+| Input | Example error |
+| --- | --- |
+| `codeguard explain taint` | `unknown rule "taint"; did you mean one of "security.taint.go", "security.taint.cpp", "security.taint.python"?` |
+| `-profile strct` | `invalid -profile: unknown profile "strct"; did you mean "strict"? (valid profiles: ai-safe, enterprise, startup, strict)` |
+| `-set checks.qualty=true` | `invalid config override: override "checks.qualty" references unknown config field "qualty"; did you mean "checks.quality"?` |
+| `-format sarf` | `invalid -format: unknown output format "sarf"; did you mean "sarif"? (valid formats: ...)` |
+| `checks.disabled: [securty]` | `checks.disabled contains unknown section "securty"; did you mean "security"? (valid sections: ...)` |
+
+The same hints cover `checks.min_confidence.sections` keys, `output.format` in
+a config file, waiver rule ids in `codeguard doctor` and `codeguard waivers
+audit`, and the MCP `explain` tool. `scan`, `validate`, `validate-patch` and
+`baseline` check `-format` and `-profile` before loading config or printing any
+progress, so a typo produces one error line and no `scan started` output.
+
+When `govulncheck` fails during a scan, the `scan.govulncheck.*` diagnostic
+message includes the last lines of its stderr (at most 20 lines / 2 KB, shown
+verbatim) after the exit status, and JSON/SARIF output also carries it as the
+`stderr_tail` metadata field. A toolchain mismatch such as
+`go: go.mod requires go >= 1.27 (running go 1.26; GOTOOLCHAIN=local)` is then
+visible instead of only `exit status 1`.
 
 ## Inline suppressions
 

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "entries": {
+    "ai_slop:other": [
+      {
+        "timestamp": "2026-10-02T00:00:00Z",
+        "score": 0,
+        "signals": 0
+      }
+    ],
+    "ai_slop:repo": [
+      {
+        "timestamp": "2026-10-01T00:00:00Z",
+        "score": 20,
+        "signals": 2,
+        "components": [
+          {
+            "rule_id": "quality.ai.narrative-comment",
+            "count": 2,
+            "weight": 1,
+            "contribution": 2
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-02T00:00:00Z",
+        "score": 10,
+        "signals": 1
+      }
+    ]
+  }
+}

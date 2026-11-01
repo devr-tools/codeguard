@@ -33,7 +33,10 @@ func recordLegibilityHistory(env support.Context, artifact *core.Artifact) {
 		Score:      artifact.RepoLegibility.Score,
 		Components: append([]core.RepoLegibilityComponent(nil), artifact.RepoLegibility.Components...),
 	}
-	previous, hasPrevious := runnersupport.AppendLegibilityHistory(path, artifact.ID, entry, rules.LegibilityHistoryLimit)
+	previous, hasPrevious, err := runnersupport.AppendLegibilityHistory(path, artifact.ID, entry, rules.LegibilityHistoryLimit)
+	if err != nil {
+		support.ReportDiagnostic(env, runnersupport.HistoryWriteDiagnostic("legibility", path, err))
+	}
 	if !hasPrevious {
 		return
 	}

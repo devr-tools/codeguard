@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/devr-tools/codeguard/internal/codeguard/runner/buildregression"
+	"github.com/devr-tools/codeguard/internal/codeguard/buildregression"
 	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 	"github.com/devr-tools/codeguard/pkg/codeguard"
 )

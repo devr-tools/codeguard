@@ -3,6 +3,7 @@ package quality
 import (
 	"context"
 	"go/ast"
+	"go/token"
 	"path"
 	"path/filepath"
 	"strings"
@@ -41,8 +42,9 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 					return goFindingsForFileWithIndex(env, file, data, index, &modules)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
-					env.VisitTargetFiles(target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) {
-						addUnresolved(goUnresolvedMutationEvidenceWithIndex(env, file, data, index))
+					support.VisitTargetFilesOrdered(env, target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) func() {
+						items := goUnresolvedMutationEvidenceWithIndex(env, file, data, index)
+						return func() { addUnresolved(items) }
 					})
 				}
 				return findings
@@ -59,12 +61,24 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"typescript", "javascript", "ts", "tsx", "js", "jsx"},
 			Run: func() []core.Finding {
-				findings := typeScriptTargetFindings(ctx, env, target)
-				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
-					env.VisitTargetFiles(target, isTypeScriptLikeFile, func(file string, data []byte) {
-						addUnresolved(typeScriptUnresolvedMutationEvidence(env, file, data))
-					})
+				var findings []core.Finding
+				targetFindings := func() { findings = typeScriptTargetFindings(ctx, env, target) }
+				if !localPrecisionEnabled(env) || env.VisitTargetFiles == nil {
+					targetFindings()
+					return findings
 				}
+				// The unresolved-mutation pass does not depend on the target
+				// findings, and typeScriptTargetFindings spends most of its wall
+				// time waiting on the TypeScript semantic runner subprocess, so
+				// the two overlap. This dispatch branch is the only producer of
+				// unresolved evidence, so the order addUnresolved sees is
+				// unchanged.
+				support.RunBoth(func() {
+					support.VisitTargetFilesOrdered(env, target, isTypeScriptLikeFile, func(file string, data []byte) func() {
+						items := typeScriptUnresolvedMutationEvidence(env, file, data)
+						return func() { addUnresolved(items) }
+					})
+				}, targetFindings)
 				return findings
 			},
 		},
@@ -83,8 +97,9 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 					return cppFindingsForFile(env, file, data)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
-					env.VisitTargetFiles(target, func(file string) bool { return support.IsCPPPath(file, true) }, func(file string, data []byte) {
-						addUnresolved(cppUnresolvedMutationEvidence(env, file, data))
+					support.VisitTargetFilesOrdered(env, target, func(file string) bool { return support.IsCPPPath(file, true) }, func(file string, data []byte) func() {
+						items := cppUnresolvedMutationEvidence(env, file, data)
+						return func() { addUnresolved(items) }
 					})
 				}
 				return findings
@@ -142,10 +157,24 @@ func isGoManifestPath(rel string) bool {
 
 func buildGoPackageIndex(env support.Context, target core.TargetConfig) *goPackageIndex {
 	index := newGoPackageIndex()
-	env.VisitTargetFiles(target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) {
-		fset, parsed, err := support.ParseGoSource(env, file, data)
-		if err == nil {
-			index.addFile(file, fset, parsed)
+	type parsedSource struct {
+		fset   *token.FileSet
+		parsed *ast.File
+	}
+	// Parsing dominates; it is per-file and runs on the bounded pool. addFile
+	// lets a later declaration overwrite an earlier one, so the parsed files
+	// are folded into the index sequentially in visit order.
+	visitTargetFileBatches(env, target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(batch []visitedFile) {
+		parsed := make([]parsedSource, len(batch))
+		support.ParallelFor(len(batch), func(i int) {
+			if fset, file, err := support.ParseGoSource(env, batch[i].rel, batch[i].data); err == nil {
+				parsed[i] = parsedSource{fset: fset, parsed: file}
+			}
+		})
+		for i, source := range parsed {
+			if source.parsed != nil {
+				index.addFile(batch[i].rel, source.fset, source.parsed)
+			}
 		}
 	})
 	return index
