@@ -56,8 +56,8 @@ func newBaseReaderRepo(t *testing.T, withLarge bool) string {
 	return dir
 }
 
-func showSC(baseRef string) runnersupport.Context {
-	return runnersupport.Context{Opts: core.ScanOptions{Mode: core.ScanModeDiff, BaseRef: baseRef}}
+func showSC() runnersupport.Context {
+	return runnersupport.Context{Opts: core.ScanOptions{Mode: core.ScanModeDiff, BaseRef: "main"}}
 }
 
 // TestBaseFileReaderMatchesGitShow checks the batch reader returns exactly
@@ -84,7 +84,7 @@ func TestBaseFileReaderMatchesGitShow(t *testing.T) {
 		if !bytes.Equal(got, []byte(content)) {
 			t.Fatalf("read %s = %q, want %q", rel, got, content)
 		}
-		show, err := runnersupport.ReadBaseFile(context.Background(), showSC("main"), target, rel)
+		show, err := runnersupport.ReadBaseFile(context.Background(), showSC(), target, rel)
 		if err != nil {
 			t.Fatalf("git show %s: %v", rel, err)
 		}
@@ -99,7 +99,7 @@ func TestBaseFileReaderMatchesGitShow(t *testing.T) {
 		if _, err := reader.Read(target, rel); err == nil {
 			t.Fatalf("read %s: expected error for path missing at base", rel)
 		}
-		if _, err := runnersupport.ReadBaseFile(context.Background(), showSC("main"), target, rel); err == nil {
+		if _, err := runnersupport.ReadBaseFile(context.Background(), showSC(), target, rel); err == nil {
 			t.Fatalf("git show %s: expected error", rel)
 		}
 	}
@@ -146,7 +146,7 @@ func TestBaseFileReaderLargeFileHonoursOutputCap(t *testing.T) {
 	if _, err := reader.Read(target, "large.txt"); err == nil || !strings.Contains(err.Error(), "exceeded") {
 		t.Fatalf("expected output-cap error for large file, got %v", err)
 	}
-	if _, err := runnersupport.ReadBaseFile(context.Background(), showSC("main"), target, "large.txt"); err == nil || !strings.Contains(err.Error(), "exceeded") {
+	if _, err := runnersupport.ReadBaseFile(context.Background(), showSC(), target, "large.txt"); err == nil || !strings.Contains(err.Error(), "exceeded") {
 		t.Fatalf("expected git show path to reject large file too, got %v", err)
 	}
 	got, err := reader.Read(target, "modified.go")
@@ -302,7 +302,7 @@ func TestBaseFileReaderConcurrentGitReads(t *testing.T) {
 			defer wg.Done()
 			for _, rel := range paths {
 				got, err := reader.Read(target, rel)
-				show, showErr := runnersupport.ReadBaseFile(context.Background(), showSC("main"), target, rel)
+				show, showErr := runnersupport.ReadBaseFile(context.Background(), showSC(), target, rel)
 				if (err == nil) != (showErr == nil) || !bytes.Equal(got, show) {
 					failures <- rel
 				}

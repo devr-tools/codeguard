@@ -105,19 +105,19 @@ func monorepoFixture(t *testing.T) string {
 	return root
 }
 
-func runInit(t *testing.T, args ...string) (string, string) {
+func runInit(t *testing.T, args ...string) string {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
 	if code := cli.Run(append([]string{"init"}, args...), strings.NewReader(""), &stdout, &stderr); code != 0 {
 		t.Fatalf("init %v exit = %d, stderr = %s", args, code, stderr.String())
 	}
-	return stdout.String(), stderr.String()
+	return stdout.String()
 }
 
 func initFixture(t *testing.T, root string, extra ...string) (codeguard.Config, string) {
 	t.Helper()
 	configPath := filepath.Join(root, "codeguard.yaml")
-	stdout, _ := runInit(t, append([]string{"-path", root, "-output", configPath}, extra...)...)
+	stdout := runInit(t, append([]string{"-path", root, "-output", configPath}, extra...)...)
 	cfg, err := codeguard.LoadConfigFile(configPath)
 	if err != nil {
 		t.Fatalf("load generated config: %v", err)

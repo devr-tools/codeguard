@@ -129,7 +129,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	configFlagSet := flagWasSet(fs, "config")
 	flags.applyTrustPolicy()
 
-	if err := promptScanInputs(*interactive, stdin, stdout, &inputs); err != nil {
+	if err = promptScanInputs(*interactive, stdin, stdout, &inputs); err != nil {
 		_, _ = fmt.Fprintf(stderr, "interactive scan: %v\n", err)
 		return exitError
 	}

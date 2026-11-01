@@ -167,12 +167,12 @@ func TestBannerPolicy(t *testing.T) {
 func TestScanQuietSuppressesProgressButKeepsFindingsAndSummary(t *testing.T) {
 	configPath := ciFixture(t, "warn")
 
-	code, stdout, stderr := runCLI(t, "scan", "-config", configPath)
+	code, _, stderr := runCLI(t, "scan", "-config", configPath)
 	if code != 0 || !strings.Contains(stderr, "scan started") {
 		t.Fatalf("baseline run: exit = %d, stderr = %q; want progress lines without -quiet", code, stderr)
 	}
 
-	code, stdout, stderr = runCLI(t, "scan", "-quiet", "-config", configPath)
+	code, stdout, stderr := runCLI(t, "scan", "-quiet", "-config", configPath)
 	if code != 0 {
 		t.Fatalf("exit = %d, stderr = %s", code, stderr)
 	}
