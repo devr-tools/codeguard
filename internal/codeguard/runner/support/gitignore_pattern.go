@@ -252,34 +252,26 @@ func bracketChar(pattern string, i int) (byte, int) {
 	return pattern[i], 1
 }
 
+// posixCharClasses implements the bracket-expression character classes
+// ([:alpha:] and friends) over ASCII.
+var posixCharClasses = map[string]func(ch byte) bool{
+	"alnum":  func(ch byte) bool { return isASCIILetter(ch) || isASCIIDigit(ch) },
+	"alpha":  isASCIILetter,
+	"digit":  isASCIIDigit,
+	"lower":  func(ch byte) bool { return 'a' <= ch && ch <= 'z' },
+	"upper":  func(ch byte) bool { return 'A' <= ch && ch <= 'Z' },
+	"space":  func(ch byte) bool { return ch == ' ' || ('\t' <= ch && ch <= '\r') },
+	"blank":  func(ch byte) bool { return ch == ' ' || ch == '\t' },
+	"xdigit": func(ch byte) bool { return isASCIIDigit(ch) || ('a' <= ch && ch <= 'f') || ('A' <= ch && ch <= 'F') },
+	"punct":  func(ch byte) bool { return ch > ' ' && ch < 0x7f && !isASCIILetter(ch) && !isASCIIDigit(ch) },
+	"print":  func(ch byte) bool { return ch >= ' ' && ch < 0x7f },
+	"graph":  func(ch byte) bool { return ch > ' ' && ch < 0x7f },
+	"cntrl":  func(ch byte) bool { return ch < ' ' || ch == 0x7f },
+}
+
 func matchCharClass(class string, ch byte) bool {
-	switch class {
-	case "alnum":
-		return isASCIILetter(ch) || isASCIIDigit(ch)
-	case "alpha":
-		return isASCIILetter(ch)
-	case "digit":
-		return isASCIIDigit(ch)
-	case "lower":
-		return 'a' <= ch && ch <= 'z'
-	case "upper":
-		return 'A' <= ch && ch <= 'Z'
-	case "space":
-		return ch == ' ' || ('\t' <= ch && ch <= '\r')
-	case "blank":
-		return ch == ' ' || ch == '\t'
-	case "xdigit":
-		return isASCIIDigit(ch) || ('a' <= ch && ch <= 'f') || ('A' <= ch && ch <= 'F')
-	case "punct":
-		return ch > ' ' && ch < 0x7f && !isASCIILetter(ch) && !isASCIIDigit(ch)
-	case "print":
-		return ch >= ' ' && ch < 0x7f
-	case "graph":
-		return ch > ' ' && ch < 0x7f
-	case "cntrl":
-		return ch < ' ' || ch == 0x7f
-	}
-	return false
+	matches, ok := posixCharClasses[class]
+	return ok && matches(ch)
 }
 
 func isASCIILetter(ch byte) bool { return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') }

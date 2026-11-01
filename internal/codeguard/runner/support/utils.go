@@ -57,77 +57,112 @@ func WalkFilesWithOptions(root string, excludes []string, opts FileWalkOptions, 
 }
 
 func walkFilesBounded(root string, excludes []string, opts FileWalkOptions, include func(string) bool, maxFiles int) ([]string, bool, error) {
-	var files []string
-	truncated := false
-	var ignores *gitignoreWalker
-	if opts.RespectGitignore {
-		ignores = newGitignoreWalker(root)
+	walk := &boundedFileWalk{
+		root:          root,
+		excludes:      excludes,
+		opts:          opts,
+		include:       include,
+		maxFiles:      maxFiles,
+		hasReincludes: hasReincludePattern(excludes),
 	}
-	hasReincludes := hasReincludePattern(excludes)
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if path == root {
-			// The dependency/build policy is applied to the target's logical
-			// (repository-relative) root as well, so a target pointed straight
-			// at a dependency or output tree is skipped rather than scanned
-			// wholesale. shouldExclude already honours a "!" re-include, which
-			// is the escape hatch for a repository that really does keep source
-			// under one of those names.
-			logicalRoot := filepath.ToSlash(filepath.Clean(opts.LogicalPath))
-			if logicalRoot != "." && shouldExclude(logicalRoot, excludes, opts) {
-				return fs.SkipAll
-			}
-			return nil
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		logicalRel := joinLogicalPath(opts.LogicalPath, rel)
-		switch walkEntryDecision(path, rel, logicalRel, d.IsDir(), excludes, opts) {
-		case walkSkipDir:
-			return filepath.SkipDir
-		case walkSkipFile:
-			return nil
-		case walkInclude:
-		}
-		if ignores != nil {
-			reincluded, keepDir := false, false
-			if hasReincludes {
-				reincluded = matchesReinclude(rel, excludes) || matchesReinclude(logicalRel, excludes)
-				keepDir = d.IsDir() && reincludeCoversSubtree(rel, logicalRel, excludes)
-			}
-			if ignores.skip(path, rel, d.IsDir(), reincluded, keepDir) {
-				if d.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-		}
+	if opts.RespectGitignore {
+		walk.ignores = newGitignoreWalker(root)
+	}
+	err := filepath.WalkDir(root, walk.visit)
+	return walk.files, walk.truncated, err
+}
+
+// boundedFileWalk collects included files under root, applying the
+// exclusion policy and (optionally) .gitignore rules, and stops once
+// maxFiles files are collected.
+type boundedFileWalk struct {
+	root          string
+	excludes      []string
+	opts          FileWalkOptions
+	include       func(string) bool
+	maxFiles      int
+	ignores       *gitignoreWalker
+	hasReincludes bool
+	files         []string
+	truncated     bool
+}
+
+func (w *boundedFileWalk) visit(path string, d fs.DirEntry, err error) error {
+	if err != nil {
+		return err
+	}
+	if path == w.root {
+		return w.visitRoot()
+	}
+	rel, err := filepath.Rel(w.root, path)
+	if err != nil {
+		return err
+	}
+	rel = filepath.ToSlash(rel)
+	logicalRel := joinLogicalPath(w.opts.LogicalPath, rel)
+	switch walkEntryDecision(path, rel, logicalRel, d.IsDir(), w.excludes, w.opts) {
+	case walkSkipDir:
+		return filepath.SkipDir
+	case walkSkipFile:
+		return nil
+	case walkInclude:
+	}
+	if w.gitignored(path, rel, logicalRel, d) {
 		if d.IsDir() {
-			return nil
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		// Skip oversized files to bound scan memory (see maxScanFileBytes).
-		if info.Size() > maxScanFileBytes {
-			return nil
-		}
-		if include(rel) {
-			if len(files) >= maxFiles {
-				truncated = true
-				return fs.SkipAll
-			}
-			files = append(files, rel)
+			return filepath.SkipDir
 		}
 		return nil
-	})
-	return files, truncated, err
+	}
+	if d.IsDir() {
+		return nil
+	}
+	return w.collectFile(rel, d)
+}
+
+// visitRoot applies the dependency/build policy to the target's logical
+// (repository-relative) root as well, so a target pointed straight at a
+// dependency or output tree is skipped rather than scanned wholesale.
+// shouldExclude already honours a "!" re-include, which is the escape hatch
+// for a repository that really does keep source under one of those names.
+func (w *boundedFileWalk) visitRoot() error {
+	logicalRoot := filepath.ToSlash(filepath.Clean(w.opts.LogicalPath))
+	if logicalRoot != "." && shouldExclude(logicalRoot, w.excludes, w.opts) {
+		return fs.SkipAll
+	}
+	return nil
+}
+
+// gitignored reports whether .gitignore rules skip the entry, unless an
+// exclude re-include pattern brings it (or, for directories, part of its
+// subtree) back.
+func (w *boundedFileWalk) gitignored(path string, rel string, logicalRel string, d fs.DirEntry) bool {
+	if w.ignores == nil {
+		return false
+	}
+	reincluded, keepDir := false, false
+	if w.hasReincludes {
+		reincluded = matchesReinclude(rel, w.excludes) || matchesReinclude(logicalRel, w.excludes)
+		keepDir = d.IsDir() && reincludeCoversSubtree(rel, logicalRel, w.excludes)
+	}
+	return w.ignores.skip(path, rel, d.IsDir(), reincluded, keepDir)
+}
+
+// collectFile records an included file, skipping oversized files to bound
+// scan memory (see maxScanFileBytes) and stopping the walk at maxFiles.
+func (w *boundedFileWalk) collectFile(rel string, d fs.DirEntry) error {
+	info, err := d.Info()
+	if err != nil {
+		return err
+	}
+	if info.Size() > maxScanFileBytes || !w.include(rel) {
+		return nil
+	}
+	if len(w.files) >= w.maxFiles {
+		w.truncated = true
+		return fs.SkipAll
+	}
+	w.files = append(w.files, rel)
+	return nil
 }
 
 // walkDecision is the exclusion verdict for one walked entry.
