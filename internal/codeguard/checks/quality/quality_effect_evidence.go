@@ -73,51 +73,187 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 	if fn.Language == string(support.CLikeCPP) || language == "c++" || language == "cpp" {
 		return cppFunctionMutationEvidence(fn)
 	}
-	origins, targets := resolvedMutationBindings(fn)
+	return scriptFunctionMutationAnalysis(fn, language)
+}
 
-	var analysis mutationAnalysis
-	seen := map[string]struct{}{}
-	add := func(item mutationEvidence) {
-		key := item.Target + "|" + item.Effect + "|" + item.Origin + "|" + item.Detail
-		if _, ok := seen[key]; ok {
+// scriptMutationAnalyzer resolves mutation evidence for parsed (non-Go,
+// non-C++) functions from their binding origins and textual statements.
+type scriptMutationAnalyzer struct {
+	fn             precisionFunction
+	language       string
+	origins        map[string]string
+	targets        map[string]string
+	analysis       mutationAnalysis
+	seen           map[string]struct{}
+	unresolvedSeen map[string]struct{}
+	// escapedAt records the line where a locally allocated binding was stored
+	// into non-local state; later mutations through it are shared.
+	escapedAt map[string]int
+	// escapedNames records locally allocated bindings assigned anywhere in the
+	// body to a non-local value, so every field write through them is shared.
+	escapedNames map[string]bool
+}
+
+func scriptFunctionMutationAnalysis(fn precisionFunction, language string) mutationAnalysis {
+	origins, targets := resolvedMutationBindings(fn)
+	analyzer := &scriptMutationAnalyzer{
+		fn:             fn,
+		language:       language,
+		origins:        origins,
+		targets:        targets,
+		seen:           map[string]struct{}{},
+		unresolvedSeen: map[string]struct{}{},
+		escapedAt:      localEscapeLines(fn, origins),
+		escapedNames:   localsStoredInSharedState(fn, origins),
+	}
+	analyzer.scanFieldMutations()
+	analyzer.scanAssignmentMutations()
+	analyzer.scanCallMutations()
+	return analyzer.analysis
+}
+
+func (a *scriptMutationAnalyzer) add(item mutationEvidence) {
+	key := item.Target + "|" + item.Effect + "|" + item.Origin + "|" + item.Detail
+	if _, ok := a.seen[key]; ok {
+		return
+	}
+	a.seen[key] = struct{}{}
+	a.analysis.Mutations = append(a.analysis.Mutations, item)
+}
+
+func (a *scriptMutationAnalyzer) addUnresolved(line int, operation string, symbol string) {
+	key := a.language + "|" + operation + "|" + symbol + "|" + strconv.Itoa(line)
+	if _, ok := a.unresolvedSeen[key]; ok {
+		return
+	}
+	a.unresolvedSeen[key] = struct{}{}
+	a.analysis.Unresolved = append(a.analysis.Unresolved, unresolvedMutationEvidence{
+		Language:  a.language,
+		Line:      line,
+		Operation: operation,
+		Symbol:    symbol,
+		Reason:    "symbol ownership could not be resolved",
+	})
+}
+
+// escapedLocal reports whether a locally allocated binding had already
+// escaped into non-local state before line.
+func (a *scriptMutationAnalyzer) escapedLocal(name string, line int) bool {
+	at := a.escapedAt[name]
+	return at > 0 && line > at
+}
+
+// scanFieldMutations records field and index writes found anywhere in the
+// body on caller-owned, shared, or escaped bindings.
+func (a *scriptMutationAnalyzer) scanFieldMutations() {
+	for _, match := range bodyFieldMutationPattern.FindAllStringSubmatch(a.fn.Body, -1) {
+		name := match[1]
+		target, origin := a.targets[name], a.origins[name]
+		if origin == originUnknown {
+			continue
+		}
+		if origin == originLocal && a.escapedNames[name] {
+			target, origin = targetEscaped, originShared
+		} else if origin == originLocal || target == "" {
+			continue
+		}
+		a.add(mutationEvidence{Target: target, Effect: "shared_state", Origin: origin, Line: a.fn.StartLine, Detail: name})
+	}
+}
+
+// scanAssignmentMutations records assignments and increments whose left-hand
+// side writes through a non-local binding.
+func (a *scriptMutationAnalyzer) scanAssignmentMutations() {
+	for _, statement := range directStatements(a.fn) {
+		line := firstNonEmptyString(statement.Raw, statement.Text)
+		if !lineHasAssignmentOperator(line) && !strings.Contains(line, "++") && !strings.Contains(line, "--") {
+			continue
+		}
+		for _, match := range mutationRootPattern.FindAllStringSubmatch(assignmentLeftHandSide(line), -1) {
+			a.recordAssignment(statement.Line, match[1])
+		}
+	}
+}
+
+func (a *scriptMutationAnalyzer) recordAssignment(line int, name string) {
+	target, origin := a.targets[name], a.origins[name]
+	if origin == originLocal {
+		if !a.escapedLocal(name, line) {
 			return
 		}
-		seen[key] = struct{}{}
-		analysis.Mutations = append(analysis.Mutations, item)
+		target, origin = targetEscaped, originShared
 	}
-	unresolvedSeen := map[string]struct{}{}
-	addUnresolved := func(line int, operation string, symbol string) {
-		key := language + "|" + operation + "|" + symbol + "|" + strconv.Itoa(line)
-		if _, ok := unresolvedSeen[key]; ok {
-			return
+	if origin == originUnknown || target == "" {
+		a.addUnresolved(line, "assignment", name)
+		return
+	}
+	a.add(mutationEvidence{Target: target, Effect: "shared_state", Origin: origin, Line: line, Detail: name})
+}
+
+// scanCallMutations records observable or mutating calls on non-local
+// bindings, and calls whose receiver ownership cannot be resolved.
+func (a *scriptMutationAnalyzer) scanCallMutations() {
+	for _, call := range directCalls(a.fn) {
+		targetName := mutationCallTarget(call.Callee)
+		if isObjectAssignCall(call) {
+			targetName = firstCallArgName(call)
 		}
-		unresolvedSeen[key] = struct{}{}
-		analysis.Unresolved = append(analysis.Unresolved, unresolvedMutationEvidence{
-			Language:  language,
-			Line:      line,
-			Operation: operation,
-			Symbol:    symbol,
-			Reason:    "symbol ownership could not be resolved",
-		})
+		target, origin := a.targets[targetName], a.origins[targetName]
+		if origin == originUnknown {
+			target = ""
+		}
+		if origin == originLocal {
+			if !a.escapedLocal(targetName, call.Line) {
+				continue
+			}
+			target, origin = targetEscaped, originShared
+		}
+		symbol := targetName
+		if symbol == "" {
+			symbol = call.Callee
+		}
+		effect := observableCallEffect(call.Callee)
+		if effect == "" {
+			if !mutatingCallPattern.MatchString(call.Callee) {
+				continue
+			}
+			effect = "shared_state"
+		}
+		if target == "" {
+			a.addUnresolved(call.Line, "call", symbol)
+			continue
+		}
+		a.add(mutationEvidence{Target: target, Effect: effect, Origin: origin, Line: call.Line, Detail: call.Callee})
 	}
+}
+
+// localEscapeLines finds, for each locally allocated binding, the last
+// statement that stores it into a field, index, or undeclared name.
+func localEscapeLines(fn precisionFunction, origins map[string]string) map[string]int {
 	escapedAt := map[string]int{}
-	escapedNames := map[string]bool{}
 	for _, statement := range directStatements(fn) {
 		line := firstNonEmptyString(statement.Raw, statement.Text)
 		if !lineHasAssignmentOperator(line) {
 			continue
 		}
 		lhs := assignmentLeftHandSide(line)
+		lhsName := strings.TrimSpace(lhs)
+		if !mutationRootPattern.MatchString(lhs) && (!aliasExprPattern.MatchString(lhsName) || origins[lhsName] != "") {
+			continue
+		}
 		for name, origin := range origins {
-			if origin != originLocal || !strings.Contains(line, name) || strings.Contains(lhs, name) {
-				continue
-			}
-			lhsName := strings.TrimSpace(lhs)
-			if mutationRootPattern.MatchString(lhs) || (aliasExprPattern.MatchString(lhsName) && origins[lhsName] == "") {
+			if origin == originLocal && strings.Contains(line, name) && !strings.Contains(lhs, name) {
 				escapedAt[name] = statement.Line
 			}
 		}
 	}
+	return escapedAt
+}
+
+// localsStoredInSharedState finds locally allocated bindings assigned to a
+// name or field whose root is not itself locally allocated.
+func localsStoredInSharedState(fn precisionFunction, origins map[string]string) map[string]bool {
+	escapedNames := map[string]bool{}
 	for name, origin := range origins {
 		if origin != originLocal {
 			continue
@@ -130,86 +266,7 @@ func functionMutationAnalysis(fn precisionFunction, language string) mutationAna
 			}
 		}
 	}
-	for _, match := range bodyFieldMutationPattern.FindAllStringSubmatch(fn.Body, -1) {
-		name := match[1]
-		target, origin := targets[name], origins[name]
-		if origin == originUnknown {
-			continue
-		}
-		if origin == originLocal && escapedNames[name] {
-			target, origin = targetEscaped, originShared
-		} else if origin == originLocal || target == "" {
-			continue
-		}
-		add(mutationEvidence{Target: target, Effect: "shared_state", Origin: origin, Line: fn.StartLine, Detail: name})
-	}
-	for _, statement := range directStatements(fn) {
-		line := firstNonEmptyString(statement.Raw, statement.Text)
-		if !lineHasAssignmentOperator(line) && !strings.Contains(line, "++") && !strings.Contains(line, "--") {
-			continue
-		}
-		lhs := assignmentLeftHandSide(line)
-		for _, match := range mutationRootPattern.FindAllStringSubmatch(lhs, -1) {
-			name := match[1]
-			target, origin := targets[name], origins[name]
-			if origin == originUnknown {
-				addUnresolved(statement.Line, "assignment", name)
-				continue
-			}
-			if origin == originLocal {
-				if escapedAt[name] > 0 && statement.Line > escapedAt[name] {
-					target, origin = targetEscaped, originShared
-				} else {
-					continue
-				}
-			}
-			if target == "" {
-				addUnresolved(statement.Line, "assignment", name)
-				continue
-			}
-			add(mutationEvidence{Target: target, Effect: "shared_state", Origin: origin, Line: statement.Line, Detail: name})
-		}
-	}
-	for _, call := range directCalls(fn) {
-		effect := observableCallEffect(call.Callee)
-		targetName := mutationCallTarget(call.Callee)
-		if isObjectAssignCall(call) {
-			targetName = firstCallArgName(call)
-		}
-		unresolvedSymbol := targetName
-		if unresolvedSymbol == "" {
-			unresolvedSymbol = call.Callee
-		}
-		target, origin := targets[targetName], origins[targetName]
-		if origin == originUnknown {
-			target = ""
-		}
-		if origin == originLocal {
-			if escapedAt[targetName] > 0 && call.Line > escapedAt[targetName] {
-				target, origin = targetEscaped, originShared
-			} else {
-				continue
-			}
-		}
-		if effect == "" {
-			if target == "" {
-				if mutatingCallPattern.MatchString(call.Callee) {
-					addUnresolved(call.Line, "call", unresolvedSymbol)
-				}
-				continue
-			}
-			if !mutatingCallPattern.MatchString(call.Callee) {
-				continue
-			}
-			effect = "shared_state"
-		}
-		if target == "" {
-			addUnresolved(call.Line, "call", unresolvedSymbol)
-			continue
-		}
-		add(mutationEvidence{Target: target, Effect: effect, Origin: origin, Line: call.Line, Detail: call.Callee})
-	}
-	return analysis
+	return escapedNames
 }
 
 func resolvedMutationBindings(fn precisionFunction) (map[string]string, map[string]string) {
