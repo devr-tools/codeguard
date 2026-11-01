@@ -10,7 +10,7 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	"github.com/devr-tools/codeguard/internal/codeguard/cpp/compdb"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
+	"github.com/devr-tools/codeguard/internal/codeguard/execlimit"
 	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
 
@@ -37,7 +37,7 @@ func CheckFormat(ctx context.Context, root string, cfg core.CPPToolingConfig, fi
 		if !safeRelative(file) {
 			continue
 		}
-		output, runErr := runnersupport.RunLimitedCommand(ctx, root, maxToolOutputBytes, command, "--dry-run", "--Werror", "--", filepath.FromSlash(file))
+		output, runErr := execlimit.Run(ctx, root, nil, maxToolOutputBytes, command, "--dry-run", "--Werror", "--", filepath.FromSlash(file))
 		if runErr != nil {
 			var exitErr *exec.ExitError
 			if !errors.As(runErr, &exitErr) {
@@ -78,7 +78,7 @@ func CheckSyntax(ctx context.Context, root string, cfg core.CPPToolingConfig) ([
 		seen[entry.RelativeFile] = true
 		checked++
 		args := safeSyntaxArgs(entry)
-		output, runErr := runnersupport.RunLimitedCommand(ctx, root, maxToolOutputBytes, command, args...)
+		output, runErr := execlimit.Run(ctx, root, nil, maxToolOutputBytes, command, args...)
 		if runErr != nil {
 			var exitErr *exec.ExitError
 			if !errors.As(runErr, &exitErr) {

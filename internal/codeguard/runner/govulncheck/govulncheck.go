@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/execlimit"
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
@@ -117,7 +118,7 @@ func Run(ctx context.Context, dir string, cmdName string, sc runnersupport.Conte
 			return nil, err
 		}
 	}
-	text, err := runnersupport.RunLimitedCommand(ctx, dir, maxOutputBytes, cmdName, "./...")
+	text, err := execlimit.Run(ctx, dir, nil, maxOutputBytes, cmdName, "./...")
 	parsed := parseOutput(text, sc)
 	if err != nil {
 		var exitErr *exec.ExitError

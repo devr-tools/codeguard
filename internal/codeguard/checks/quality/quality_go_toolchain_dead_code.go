@@ -1,12 +1,10 @@
 package quality
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"go/ast"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"sort"
@@ -14,6 +12,7 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/execlimit"
 )
 
 const (
@@ -395,7 +394,7 @@ func linkedGoSymbols(ctx context.Context, targetDir string, entrypoints []string
 	env := goToolchainCommandEnv(tmpDir)
 	for idx, entrypoint := range entrypoints {
 		outputPath := filepath.Join(tmpDir, fmt.Sprintf("entrypoint-%d", idx))
-		output, err := runGoToolchainCommand(ctx, targetDir, env, "go", "build", "-gcflags=all=-l", "-ldflags=-dumpdep", "-o", outputPath, entrypoint)
+		output, err := execlimit.Run(ctx, targetDir, env, goToolchainCommandOutputLimit, "go", "build", "-gcflags=all=-l", "-ldflags=-dumpdep", "-o", outputPath, entrypoint)
 		if err != nil {
 			if strings.TrimSpace(output) != "" {
 				return nil, fmt.Errorf("%s: %w: %s", entrypoint, err, strings.TrimSpace(output))
@@ -422,53 +421,6 @@ func goToolchainCommandEnv(tmpDir string) []string {
 		"GO111MODULE=on",
 	)
 	return env
-}
-
-func runGoToolchainCommand(ctx context.Context, dir string, env []string, name string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // fixed Go tool invocation; config only supplies validated package patterns
-	cmd.Dir = dir
-	cmd.Env = env
-	var buf bytes.Buffer
-	limited := newGoToolchainLimitedWriter(&buf, goToolchainCommandOutputLimit)
-	cmd.Stdout = limited
-	cmd.Stderr = limited
-	err := cmd.Run()
-	if limited.Truncated() {
-		return "", fmt.Errorf("%s output exceeded %d bytes", name, goToolchainCommandOutputLimit)
-	}
-	return buf.String(), err
-}
-
-type goToolchainLimitedWriter struct {
-	buf       *bytes.Buffer
-	limit     int
-	truncated bool
-}
-
-func newGoToolchainLimitedWriter(buf *bytes.Buffer, limit int) *goToolchainLimitedWriter {
-	return &goToolchainLimitedWriter{buf: buf, limit: limit}
-}
-
-func (w *goToolchainLimitedWriter) Write(p []byte) (int, error) {
-	if w.truncated {
-		return len(p), nil
-	}
-	remaining := w.limit - w.buf.Len()
-	if remaining <= 0 {
-		w.truncated = true
-		return len(p), nil
-	}
-	if len(p) > remaining {
-		_, _ = w.buf.Write(p[:remaining])
-		w.truncated = true
-		return len(p), nil
-	}
-	_, _ = w.buf.Write(p)
-	return len(p), nil
-}
-
-func (w *goToolchainLimitedWriter) Truncated() bool {
-	return w.truncated
 }
 
 func parseGoLinkerDumpSymbols(output string) []string {

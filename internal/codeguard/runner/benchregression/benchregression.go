@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
+	"github.com/devr-tools/codeguard/internal/codeguard/execlimit"
 	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
 
@@ -53,7 +53,7 @@ func RunBenchmarks(ctx context.Context, dir string, packages []string) (string, 
 	}
 	ctx, cancel := context.WithTimeout(ctx, runTimeout)
 	defer cancel()
-	text, err := runnersupport.RunLimitedCommand(ctx, dir, maxOutputBytes, "go", args...)
+	text, err := execlimit.Run(ctx, dir, nil, maxOutputBytes, "go", args...)
 	if err != nil {
 		return text, fmt.Errorf("go test -bench failed: %w", err)
 	}

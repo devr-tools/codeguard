@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
+	"github.com/devr-tools/codeguard/internal/codeguard/execlimit"
 	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
 
@@ -47,7 +47,7 @@ func RunCommand(ctx context.Context, dir string, target core.TargetConfig, check
 	cmd := exec.CommandContext(ctx, command, check.Args...) //nolint:gosec // command gated by trust.GuardConfigCommand above
 	cmd.Dir = dir
 	var buf bytes.Buffer
-	limited := runnersupport.NewLimitedBufferWriter(&buf, maxOutputBytes)
+	limited := execlimit.NewWriter(&buf, maxOutputBytes)
 	cmd.Stdout = limited
 	cmd.Stderr = limited
 	start := time.Now()
