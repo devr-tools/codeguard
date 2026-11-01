@@ -22,6 +22,8 @@ This document is a short status brief for `codeguard` features aimed at AI agent
   - declares a `logging` capability (accepts `logging/setLevel`)
   - consumes the client's `sampling` and `roots` capabilities when advertised (server→client requests; see below)
   - `scan` streams a progress notification per check section as it completes
+  - `scan` and `validate_patch` return a compact summary first (per-section status and counts, filtered-out counts by reason, top rules) and then at most `max_findings` findings (default 50), ordered by level, confidence, then path; `truncated` and `next_cursor` page through the rest of the same cached report without re-scanning
+  - both accept `sections`, `rules` (ids or `security.`-style prefixes), `min_level`, `min_confidence`, `paths` (globs), `max_findings`, `cursor`, and `verbose`; `scan` also accepts `changed_only` (diff mode against `base_ref`). See [integrations.md](integrations.md#filtering-and-paginating-findings)
   - supports `initialize`, `tools/list`, `tools/call`, `ping`, progress notifications, and cancellation
   - covered by CLI compatibility tests and host-shaped smoke tests in `tests/cli/` and `tests/mcp/`
 
