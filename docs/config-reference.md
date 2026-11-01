@@ -9,6 +9,8 @@ base profile, before any `profile` adjustments), and what it controls.
   `checks.quality_rules.risk_scoring.security_weight` is `security_weight`
   under `risk_scoring` under `quality_rules` under `checks`.
 - YAML and JSON use the same key names.
+- Validation reports every invalid setting at once, one per line. The first
+  line is the first failure in validation order.
 - *Reserved* keys are parsed and validated but no check reads them yet.
   Setting them is harmless and has no effect today.
 - `tests/rules/docs_coverage_test.go` walks the config structs' `yaml` tags and
