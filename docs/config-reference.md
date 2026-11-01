@@ -98,6 +98,7 @@ Toggles for the AI-failure-mode pack. An unset toggle means enabled.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
+| `checks.quality_rules.cyclomatic_counting` | `legacy` (unset) | How Go cyclomatic complexity is counted, for `quality.cyclomatic-complexity` and anything derived from it. `legacy` is the 1.x default: the count codeguard reported through v1.10.1, where `default:` clauses count and `&&`/`\|\|` do not, so upgrading within 1.x raises no complexity numbers. `gocyclo` (recommended) matches [`gocyclo`](https://github.com/fzipp/gocyclo): `&&` and `\|\|` count, `default:` does not. The default is expected to flip to `gocyclo` in the next major version. Other languages are unaffected. Any other value is rejected. See [the quality section](checks.md) for the full counting rules. |
 | `checks.quality_rules.dead_code.include_tests` | `false` | Includes test files and test-only targets in toolchain dead-code analysis (`quality.dead-code.toolchain`) for Python, Rust, and C++. When off, symbols that only tests use are not reported, and test code is not a dead-code candidate. |
 | `checks.quality_rules.maintainability_history` | see below | Groups the maintainability-history settings. |
 | `checks.quality_rules.maintainability_history.report_as_findings` | `false` | Emits the history-derived maintainability results as findings. When off, they are published only as a report artifact. |

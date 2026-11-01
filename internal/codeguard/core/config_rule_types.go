@@ -6,6 +6,7 @@ type QualityRulesConfig struct {
 	MaxParameters           int                             `json:"max_parameters" yaml:"max_parameters"`
 	MaxCyclomaticComplexity int                             `json:"max_cyclomatic_complexity" yaml:"max_cyclomatic_complexity"`
 	CloneTokenThreshold     int                             `json:"clone_token_threshold,omitempty" yaml:"clone_token_threshold,omitempty"`
+	CyclomaticCounting      string                          `json:"cyclomatic_counting,omitempty" yaml:"cyclomatic_counting,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
 	DeadCode                QualityDeadCodeConfig           `json:"dead_code,omitempty" yaml:"dead_code,omitempty"`
 	AIProvenance            AIProvenanceConfig              `json:"ai_provenance,omitempty" yaml:"ai_provenance,omitempty"`

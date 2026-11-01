@@ -46,6 +46,9 @@ checks:
     max_function_lines: 200
     max_parameters: 10
     max_cyclomatic_complexity: 18
+    # Dogfood the recommended gocyclo counting (&& and || count, default:
+    # does not) rather than the legacy 1.x default.
+    cyclomatic_counting: gocyclo
     clone_token_threshold: 140
     # Local precision rules are PR-review heuristics. Keep the repository
     # full self-scan on the established baseline until CodeGuard itself is

@@ -128,10 +128,13 @@ type Context struct {
 	// ReportDiagnostic queues an operational diagnostic (for example a failed
 	// history write) for the section report. Nil in unit-test contexts; call it
 	// via the package-level ReportDiagnostic helper.
-	ReportDiagnostic     func(core.Diagnostic)
-	PutArtifact          func(core.Artifact)
-	GetArtifact          func(string) (core.Artifact, bool)
-	CountLines           func(data []byte) int
+	ReportDiagnostic func(core.Diagnostic)
+	PutArtifact      func(core.Artifact)
+	GetArtifact      func(string) (core.Artifact, bool)
+	CountLines       func(data []byte) int
+	// CyclomaticComplexity is the Go complexity function selected by
+	// quality_rules.cyclomatic_counting (legacy by default in 1.x). Every
+	// consumer of the Go complexity number must go through it.
 	CyclomaticComplexity func(body *ast.BlockStmt) int
 	TypeName             func(expr ast.Expr) string
 	IsInternalOrCmdFile  func(path string) bool
