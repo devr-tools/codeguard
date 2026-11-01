@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -117,7 +116,7 @@ func ExampleConfigForProfile(profile string) (core.Config, error) {
 
 	spec, ok := profileCatalog[normalized]
 	if !ok {
-		return core.Config{}, fmt.Errorf("unknown profile %q", profile)
+		return core.Config{}, unknownProfileError(profile)
 	}
 	spec.apply(&cfg)
 	cfg.Profile = normalized
