@@ -56,7 +56,6 @@ func targetFindings(env support.Context, target core.TargetConfig) []core.Findin
 	artifact := legibilityArtifact(target, assessment)
 	findings = append(findings, legibilityThresholdFindings(env, artifact.RepoLegibility)...)
 	if env.PutArtifact != nil {
-		recordLegibilityHistory(env, &artifact)
 		env.PutArtifact(artifact)
 	}
 	return findings

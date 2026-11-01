@@ -65,7 +65,6 @@ func maybePutPerformanceScoreArtifact(env support.Context, target core.TargetCon
 	if !ok {
 		return
 	}
-	recordPerformanceScoreHistory(env, &artifact)
 	env.PutArtifact(artifact)
 }
 

@@ -51,6 +51,9 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	defer sc.Close()
 
 	sections := runnerchecks.Build(ctx, sc)
+	// Score histories are recorded here, after every section has finalized,
+	// so the checks that compute the scores stay free of side effects.
+	scoreHistoryDiagnostics := runnersupport.RecordScoreHistories(sc)
 	sections, triageArtifact := aitriage.Apply(ctx, sc.Cfg, sc.Opts, sections, sc.Cache)
 	// External reports can contain scanner-provided evidence. Keep them out of
 	// optional AI triage and import them only after CodeGuard's native checks.
@@ -82,6 +85,7 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 		historyDiagnostics = append(historyDiagnostics, diagnostics...)
 		sc.Artifacts.Put(core.NewWaiverAuditArtifact(waiverAudit))
 	}
+	attachScoreHistoryDiagnostics(report.Sections, scoreHistoryDiagnostics)
 	attachRunDiagnostics(report.Sections, historyDiagnostics)
 	report.Artifacts = sc.Artifacts.List()
 	report.Summary = runnersupport.SummarizeSections(report.Sections)
