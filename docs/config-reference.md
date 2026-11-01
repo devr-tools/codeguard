@@ -15,6 +15,42 @@ base profile, before any `profile` adjustments), and what it controls.
   fails when a key appears nowhere under `docs/`. Document new keys here, or in
   the owning section of `checks.md`.
 
+## Numeric keys and explicit `0`
+
+Most numeric keys treat `0` as unset, so `0` and omitting the key both give
+the default. Writing `max_inline_goroutines_per_function: 0` gets you 4, not 0. To switch
+those rules off, use the matching `detect_*` or `enabled` toggle, or
+`checks.disabled`. Negative values are rejected.
+
+The keys below are the exceptions. An explicit `0` is kept, and only an
+omitted key takes the default.
+
+| Key | What `0` means |
+| --- | --- |
+| `checks.quality_rules.risk_scoring.changed_file_weight` | Changed files get no base weight. |
+| `checks.quality_rules.risk_scoring.fail_finding_weight` | Fail-level findings add no weight. |
+| `checks.quality_rules.risk_scoring.warn_finding_weight` | Warn-level findings add no weight. |
+| `checks.quality_rules.risk_scoring.security_weight` | `security.*` findings get no extra weight. |
+| `checks.quality_rules.risk_scoring.supply_chain_weight` | `supply_chain.*` findings get no extra weight. |
+| `checks.quality_rules.risk_scoring.coverage_gap_weight` | Coverage gaps add no weight. |
+| `checks.quality_rules.risk_scoring.ai_provenance_weight` | AI-assisted provenance adds no weight. |
+| `checks.quality_rules.risk_scoring.ai_signal_weight` | `quality.ai.*` findings add no weight. |
+| `checks.quality_rules.risk_scoring.slop_score_divisor` | The `slop_score` component is turned off. |
+| `checks.production_risk.reliability_weight` | `reliability.*` findings add no category weight. |
+| `checks.production_risk.data_weight` | Data-correctness findings add no category weight. |
+| `checks.production_risk.fail_weight` | Fail level adds nothing on top of the category weight. |
+| `checks.production_risk.warn_weight` | Warn level adds nothing on top of the category weight. |
+| `checks.quality_rules.coverage_delta.min_changed_line_coverage` | No warn threshold. |
+| `checks.quality_rules.coverage_delta.fail_under` | No fail threshold. |
+
+A `risk_scoring` signal whose weight is `0` is left out of the `file_risk`
+components entirely, rather than listed with a zero contribution.
+
+Three keys default to `0` and treat it as "use the built-in value":
+`baseline.governance.max_entries` (no limit), `baseline.governance.sample_limit`
+(3 samples), and `checks.quality_rules.ai_checks.slop_history_limit`
+(100 entries).
+
 ## Quality
 
 ### `checks.quality_rules.risk_scoring`
@@ -22,7 +58,7 @@ base profile, before any `profile` adjustments), and what it controls.
 Diff-mode file-risk ranking. It produces the `file_risk` and `pr_hotspots`
 artifacts. Each changed file collects weighted components, and the file's
 score is their sum, capped at 100. These keys do not change any finding's
-level.
+level. Every weight and the divisor accept an explicit `0` (see above).
 
 | Key | Default | Meaning |
 | --- | --- | --- |
@@ -152,7 +188,8 @@ All under `checks.delivery_rules`.
 
 ## PR summary production risk
 
-All under `checks.production_risk`. They add to the `enabled`,
+All under `checks.production_risk`. Each weight accepts an explicit `0`.
+They add to the `enabled`,
 `warn_threshold`, and `fail_threshold` keys shown in
 [checks.md](checks.md#pr-summary-production-risk).
 
