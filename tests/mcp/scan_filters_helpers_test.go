@@ -85,6 +85,13 @@ func newMCPStdioClient(t *testing.T, configPath string) *mcpStdioClient {
 	t.Helper()
 	cmd := exec.Command(testBinary(t), "-test.run=TestMCPServeHelperProcess", "--", configPath)
 	cmd.Env = append(os.Environ(), "GO_WANT_MCP_HELPER_PROCESS=1")
+	return newMCPCommandClient(t, cmd)
+}
+
+// newMCPCommandClient drives an arbitrary `serve --mcp` command, such as an
+// older codeguard binary the legacy golden is captured from.
+func newMCPCommandClient(t *testing.T, cmd *exec.Cmd) *mcpStdioClient {
+	t.Helper()
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		t.Fatalf("stdin pipe: %v", err)

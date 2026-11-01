@@ -149,14 +149,29 @@ capabilities and negotiates protocol versions `2025-11-25` (current) and
 
 ### Filtering and paginating findings
 
-`scan` and `validate_patch` do not return the raw report: on a real repository
-that is thousands of findings, which floods an agent's context window. They
-return a summary-first payload instead.
+`scan` and `validate_patch` have two response shapes:
 
-Optional inputs (all tools that return findings):
+- **Full report (the default).** A call that passes none of the inputs in the
+  table below gets the full report, exactly as in 1.10: top-level `sections[]`
+  with every finding and all of its evidence, plus `summary` and `artifacts`.
+  Existing MCP clients keep working unchanged. `format: "report"` asks for it
+  explicitly.
+- **Summary-first (recommended).** On a real repository the full report is
+  thousands of findings, which floods an agent's context window. Pass
+  `format: "summary"` (or any filter or paging input below) to get a compact
+  summary and one page of findings instead. New clients should always opt in.
+
+The full report stays the default for the rest of 1.x. The next major
+version may make the summary the default, so pass `format` explicitly if you
+depend on either shape.
+
+Optional inputs (all tools that return findings). Passing any of them, with any
+non-null value (even `verbose: false` or `max_findings: 50`), selects the
+summary shape; combining one with `format: "report"` is an error:
 
 | Input | Type | Meaning |
 |---|---|---|
+| `format` | `report` \| `summary` | Response shape. Omitted: `summary` if any other input below is passed, else `report`. |
 | `sections` | string[] | Only findings from these section ids (`security`, `quality`, `prompts`, ...). Unknown ids are rejected. |
 | `rules` | string[] | Rule ids. An entry ending in `.` or `*` is a prefix (`security.`, `prompts.secret*`); anything else is exact. |
 | `min_level` | `warn` \| `fail` | Drop findings below this level. |
@@ -169,9 +184,10 @@ Optional inputs (all tools that return findings):
 `scan` additionally accepts `changed_only: true`, which runs diff mode against
 `base_ref` (default `main`; the working tree is compared, so uncommitted edits
 count). It is equivalent to `mode: "diff"` and is rejected together with
-`mode: "full"`. `validate_patch` takes `diff` (required unless `cursor` is set).
+`mode: "full"`. Like the other inputs it selects the summary shape; use
+`mode: "diff"` to keep the full report. `validate_patch` takes `diff` (required unless `cursor` is set).
 
-Response (`structuredContent`; the text content carries the same JSON):
+Summary response (`structuredContent`; the text content carries the same JSON):
 
 ```json
 {
@@ -214,11 +230,16 @@ Response (`structuredContent`; the text content carries the same JSON):
   cursor (a mismatch is an error); `max_findings` and `verbose` may change
   between pages, and scan-shaping inputs (`config_path`, `mode`, ...) are
   ignored. An expired cursor returns an error asking you to re-run the call.
-- **Compatibility.** A call without the new inputs still works but returns the
-  summary plus the first 50 findings, not the full report; check `truncated`.
-  Clients that need every finding follow `next_cursor` (or pass
-  `max_findings: 500` per page); the CLI `codeguard scan -format json` still
-  emits the full report.
+- **Output schema.** `tools/list` advertises one `outputSchema` per tool whose
+  top-level properties are a superset of the 1.10 schema, so a client that
+  ignores schema combinators validates either shape. A `oneOf` with a `report`
+  branch (requires `sections` and `summary`) and a `summary` branch (requires
+  `summary`, `findings`, and `truncated`) says which fields each shape carries;
+  exactly one branch matches any response.
+- **Compatibility.** The full report is still the default in 1.x, as described
+  above. Summary-shape clients that need every finding follow `next_cursor`
+  (or pass `max_findings: 500` per page); the CLI `codeguard scan -format json`
+  also emits the full report.
 
 ### Verified auto-fix
 

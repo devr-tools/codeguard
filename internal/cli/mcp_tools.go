@@ -33,6 +33,10 @@ func (s *mcpToolService) callScan(ctx context.Context, raw json.RawMessage) (map
 	if err := json.Unmarshal(raw, &args); err != nil {
 		return nil, fmt.Errorf("invalid scan arguments")
 	}
+	format, err := resolveFindingsFormat(raw, mcpScanOnlySummaryInputKeys...)
+	if err != nil {
+		return toolErrorResult(err.Error()), nil
+	}
 	filters, err := args.normalize()
 	if err != nil {
 		return toolErrorResult(err.Error()), nil
@@ -62,7 +66,7 @@ func (s *mcpToolService) callScan(ctx context.Context, raw json.RawMessage) (map
 	if err != nil {
 		return toolErrorResult(fmt.Sprintf("scan failed: %v", err)), nil
 	}
-	return s.findingsResult("scan", report, filters), nil
+	return s.findingsToolResult("scan", format, report, filters), nil
 }
 
 // applyMinConfidence maps the min_confidence argument onto the same config
@@ -166,6 +170,10 @@ func (s *mcpToolService) callValidatePatch(ctx context.Context, raw json.RawMess
 	if err := json.Unmarshal(raw, &args); err != nil {
 		return nil, fmt.Errorf("invalid validate_patch arguments")
 	}
+	format, err := resolveFindingsFormat(raw)
+	if err != nil {
+		return toolErrorResult(err.Error()), nil
+	}
 	filters, err := args.normalize()
 	if err != nil {
 		return toolErrorResult(err.Error()), nil
@@ -190,7 +198,7 @@ func (s *mcpToolService) callValidatePatch(ctx context.Context, raw json.RawMess
 	if err != nil {
 		return toolErrorResult(fmt.Sprintf("patch validation failed: %v", err)), nil
 	}
-	return s.findingsResult("validate_patch", report, filters), nil
+	return s.findingsToolResult("validate_patch", format, report, filters), nil
 }
 
 func (s *mcpToolService) callExplain(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
