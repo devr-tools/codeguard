@@ -35,18 +35,6 @@ func visitTargetFileBatches(env support.Context, target core.TargetConfig, inclu
 	}
 }
 
-// visitTargetFilesInParallel is env.VisitTargetFiles with visit run on the
-// bounded worker pool. visit may be called concurrently and in any order, so
-// it must only accumulate order-independent results under its own
-// synchronization.
-func visitTargetFilesInParallel(env support.Context, target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
-	visitTargetFileBatches(env, target, include, func(batch []visitedFile) {
-		support.ParallelFor(len(batch), func(i int) {
-			visit(batch[i].rel, batch[i].data)
-		})
-	})
-}
-
 // fileFindingsInParallel runs analyze for every file on the bounded worker
 // pool and concatenates the results in files order, so the output is
 // identical to a sequential loop. analyze must only read shared state.
