@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/suggest"
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
@@ -160,7 +161,7 @@ func waiverAuditStatusMessage(waiver service.WaiverAuditEntry) string {
 	case service.WaiverAuditStatusExpired:
 		return fmt.Sprintf("expired on %s and no longer suppresses findings", waiver.ExpiresOn)
 	case service.WaiverAuditStatusUnknownRule:
-		return "references a rule that is not enabled in the current catalog"
+		return "references a rule that is not enabled in the current catalog" + suggest.Hint(waiver.Rule, ruleIDs(service.Rules()))
 	default:
 		return waiver.Status
 	}

@@ -125,13 +125,21 @@ Use this sequence for a real repository:
 
 1. `codeguard init`
 2. `codeguard validate -config codeguard.yaml`
-3. `codeguard doctor -config codeguard.yaml`
+3. `codeguard doctor -config codeguard.yaml` — runs `govulncheck -version`,
+   checks every configured entrypoint exists, and warns when a target's
+   language has no matching files; fix any `[FAIL]` before the first scan
 4. `codeguard scan -mode diff -config codeguard.yaml`
 5. `codeguard waivers audit -config codeguard.yaml` after CodeGuard upgrades
 6. `codeguard baseline -config codeguard.yaml -output codeguard-baseline.json` if the repo has pre-existing debt
 
 After that, add a full scan in scheduled CI and tighten check families
 incrementally. The detailed rollout guidance lives in [Production rollout](production.md).
+
+A typo in a flag or name fails before the scan starts, with a suggestion:
+`codeguard scan -format sarf` prints
+`invalid -format: unknown output format "sarf"; did you mean "sarif"? ...`, and
+`codeguard explain taint` lists the matching `security.taint.*` rule ids. See
+[Error messages and suggestions](checks.md#error-messages-and-suggestions).
 
 ## Understanding results
 
@@ -184,7 +192,8 @@ func main() {
 - Custom rule packs for repo-specific regex, content, and path policies
 - Policy profiles such as `startup`, `strict`, `enterprise`, and `ai-safe`
 - Cached file-hash scan results for faster repeat runs
-- `doctor` checks for config, Git, govulncheck, targets, and cache setup
+- `doctor` checks for config, Git, a runnable govulncheck (with its stderr on failure), targets, entrypoints, target language vs. files present, and cache setup
+- "Did you mean" suggestions for mistyped rule ids, profiles, output formats and `-set` keys
 - `text`, `json`, `sarif`, `github`, `github-comment`, and `cyclonedx` report formats
 - Diff-mode filtering down to changed lines when Git history is available
 - Production rollout tools such as baselines, waivers, diff scans, and rule metadata discovery

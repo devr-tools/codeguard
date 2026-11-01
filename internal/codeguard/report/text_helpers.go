@@ -111,8 +111,11 @@ func writeTextDiagnostics(w io.Writer, diagnostics []core.Diagnostic) error {
 		if diagnostic.Level != "warn" && diagnostic.Level != "fail" {
 			continue
 		}
+		// Multi-line messages (such as a tool's stderr tail) stay indented
+		// under their diagnostic instead of breaking the report layout.
+		message := strings.ReplaceAll(strings.TrimRight(diagnostic.Message, "\n"), "\n", "\n      ")
 		if _, err := fmt.Fprintf(w, "  %s %s: %s\n",
-			renderStatus(diagnostic.Level, true), diagnostic.ID, diagnostic.Message); err != nil {
+			renderStatus(diagnostic.Level, true), diagnostic.ID, message); err != nil {
 			return err
 		}
 	}

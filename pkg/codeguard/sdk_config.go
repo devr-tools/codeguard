@@ -60,6 +60,19 @@ func ValidateConfig(cfg Config) error {
 	return config.Validate(cfg)
 }
 
+// ValidateOutputFormat reports whether format names a supported report format
+// (empty means "use the config's format"). The error suggests the closest
+// valid format, so a CLI can reject a typo before any scan output.
+func ValidateOutputFormat(format string) error {
+	return config.ValidateOutputFormat(format)
+}
+
+// ValidateProfileName reports whether profile names a built-in policy profile
+// (empty means "no profile"), suggesting the closest one on error.
+func ValidateProfileName(profile string) error {
+	return config.ValidateProfileName(profile)
+}
+
 // ValidateTargetPaths checks that every target path in cfg names an existing,
 // readable directory. Unlike ValidateConfig it touches the filesystem, so call
 // it only where the targets are expected to exist. Relative paths resolve

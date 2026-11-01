@@ -2575,9 +2575,43 @@ codeguard doctor -config codeguard.yaml
 Current behavior:
 - validates config loading
 - checks Git availability and worktree detection
-- checks `govulncheck` availability when security integration is enabled
+- runs `govulncheck -version` in the first Go target when security integration is enabled, instead of only checking PATH. A failing probe reports the exit status and the last lines of govulncheck's stderr (`[FAIL]` under `govulncheck_mode: required`, `[WARN]` under `auto`); a probe that runs but reports no `Go:` toolchain line warns, because every real scan would then fail to load packages. A custom `govulncheck_command` is only run when config commands are trusted via `CODEGUARD_ALLOW_CONFIG_COMMANDS=1`; otherwise doctor warns that it was not run
 - checks configured language command binaries when design, quality, or security command checks are enabled
 - checks target paths, baseline path, and cache destination
+- fails when a `targets[].entrypoints` entry does not exist under its target path (globs pass when they match at least one path)
+- warns when a target's `language` has no matching source files under its path (for example `language: go` on a Python tree), skipping hidden, dependency and `exclude`d directories; the message names the source extensions it found instead
+- suggests the closest catalog rule for a waiver whose rule id matches nothing
+
+Exit status is 1 when any check is `[FAIL]`; `[WARN]` lines do not fail.
+Multi-line messages, such as a stderr tail, are indented under their check.
+
+## Error messages and suggestions
+
+Mistyped names fail fast with a "did you mean" hint instead of a bare error.
+Suggestions are conservative: at most three, only for near-miss typos (edit
+distance, including swapped letters) or ids that contain the input as a
+segment, and none at all when nothing is close.
+
+| Input | Example error |
+| --- | --- |
+| `codeguard explain taint` | `unknown rule "taint"; did you mean one of "security.taint.go", "security.taint.cpp", "security.taint.python"?` |
+| `-profile strct` | `invalid -profile: unknown profile "strct"; did you mean "strict"? (valid profiles: ai-safe, enterprise, startup, strict)` |
+| `-set checks.qualty=true` | `invalid config override: override "checks.qualty" references unknown config field "qualty"; did you mean "checks.quality"?` |
+| `-format sarf` | `invalid -format: unknown output format "sarf"; did you mean "sarif"? (valid formats: ...)` |
+| `checks.disabled: [securty]` | `checks.disabled contains unknown section "securty"; did you mean "security"? (valid sections: ...)` |
+
+The same hints cover `checks.min_confidence.sections` keys, `output.format` in
+a config file, waiver rule ids in `codeguard doctor` and `codeguard waivers
+audit`, and the MCP `explain` tool. `scan`, `validate`, `validate-patch` and
+`baseline` check `-format` and `-profile` before loading config or printing any
+progress, so a typo produces one error line and no `scan started` output.
+
+When `govulncheck` fails during a scan, the `scan.govulncheck.*` diagnostic
+message includes the last lines of its stderr (at most 20 lines / 2 KB, shown
+verbatim) after the exit status, and JSON/SARIF output also carries it as the
+`stderr_tail` metadata field. A toolchain mismatch such as
+`go: go.mod requires go >= 1.27 (running go 1.26; GOTOOLCHAIN=local)` is then
+visible instead of only `exit status 1`.
 
 ## Inline suppressions
 

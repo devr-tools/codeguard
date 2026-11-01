@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
+	"github.com/devr-tools/codeguard/internal/codeguard/suggest"
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
@@ -214,7 +215,7 @@ func (s *mcpToolService) callExplain(ctx context.Context, raw json.RawMessage) (
 		return toolErrorResult(fmt.Sprintf("load config: %v", err)), nil
 	}
 	if !ok {
-		return toolErrorResult(fmt.Sprintf("unknown rule %q", args.RuleID)), nil
+		return toolErrorResult(fmt.Sprintf("unknown rule %q%s", args.RuleID, suggest.Hint(args.RuleID, ruleIDs(service.Rules())))), nil
 	}
 	return toolSuccessResult(buildExplainAgentOutput(rule)), nil
 }

@@ -1,8 +1,6 @@
 package config
 
 import (
-	"fmt"
-
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -35,7 +33,7 @@ func DefaultScanConfig(profile string) (core.Config, error) {
 	normalized := normalizeProfile(profile)
 	if normalized != "" {
 		if _, ok := profileCatalog[normalized]; !ok {
-			return core.Config{}, fmt.Errorf("unknown profile %q", profile)
+			return core.Config{}, unknownProfileError(profile)
 		}
 	}
 

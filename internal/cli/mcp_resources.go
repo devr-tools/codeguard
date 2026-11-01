@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/suggest"
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
@@ -99,7 +100,7 @@ func (s *mcpToolService) readResource(params json.RawMessage) (map[string]any, s
 			return nil, fmt.Sprintf("load config: %v", err)
 		}
 		if !ok {
-			return nil, fmt.Sprintf("unknown rule %q", ruleID)
+			return nil, fmt.Sprintf("unknown rule %q%s", ruleID, suggest.Hint(ruleID, ruleIDs(service.Rules())))
 		}
 		return resourceResult(uri, buildExplainAgentOutput(rule)), ""
 	default:

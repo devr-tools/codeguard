@@ -83,6 +83,10 @@ func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 	if ok, code := parseFlags(fs, args, stderr); !ok {
 		return code
 	}
+	if err := validateCommonFlags("", *profile); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return exitError
+	}
 
 	cfg, ok := loadConfigOrFail(*configPath, *profile, stderr)
 	if !ok {
@@ -121,6 +125,12 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	if ok, code := parseFlags(fs, args, stderr); !ok {
 		return code
 	}
+	// Cheap flag checks run before any prompt, config load or progress line, so
+	// a typo like -format sarf fails without printing "scan started".
+	if err := validateCommonFlags(*format, *flags.profile); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return exitError
+	}
 	outputOverrides, err := outputFlags.configOverrides()
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
@@ -151,9 +161,6 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return exitError
 	}
-	if usedDefaults {
-		_, _ = fmt.Fprintln(stderr, configlessScanHint)
-	}
 	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
 		cfg.Output.Format = trimmedFormat
 	}
@@ -161,6 +168,9 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	if err := applyConfigOverrides(&cfg, append(*flags.overrides, outputOverrides...)); err != nil {
 		_, _ = fmt.Fprintf(stderr, "invalid config override: %v\n", err)
 		return exitError
+	}
+	if usedDefaults {
+		_, _ = fmt.Fprintln(stderr, configlessScanHint)
 	}
 
 	if err := executeScan(stdout, stderr, scanRequest{
@@ -184,6 +194,10 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	fs.Var(&overrides, "set", "override a config value after loading config, repeatable; use dotted YAML paths like checks.quality=false")
 	if ok, code := parseFlags(fs, args, stderr); !ok {
 		return code
+	}
+	if err := validateCommonFlags(*format, *profile); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return exitError
 	}
 
 	diffText, err := io.ReadAll(stdin)
@@ -237,6 +251,10 @@ func runBaselineCreate(args []string, stdout io.Writer, stderr io.Writer) int {
 	if ok, code := parseFlags(fs, args, stderr); !ok {
 		return code
 	}
+	if err := validateCommonFlags("", *flags.profile); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return exitError
+	}
 	flags.applyTrustPolicy()
 
 	cfg, ok := loadConfigOrFail(*flags.configPath, *flags.profile, stderr)
@@ -263,4 +281,17 @@ func runBaselineCreate(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	_, _ = fmt.Fprintf(stdout, "wrote %s\n", *outputPath)
 	return exitOK
+}
+
+// validateCommonFlags checks the -format and -profile flag values against the
+// known formats and profiles without touching the filesystem. Empty values
+// mean "use the config" and pass.
+func validateCommonFlags(format string, profile string) error {
+	if err := service.ValidateOutputFormat(format); err != nil {
+		return fmt.Errorf("invalid -format: %w", err)
+	}
+	if err := service.ValidateProfileName(profile); err != nil {
+		return fmt.Errorf("invalid -profile: %w", err)
+	}
+	return nil
 }
