@@ -3,6 +3,7 @@ package quality
 import (
 	"context"
 	"go/ast"
+	"go/token"
 	"path"
 	"path/filepath"
 	"strings"
@@ -41,7 +42,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 					return goFindingsForFileWithIndex(env, file, data, index, &modules)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
-					env.VisitTargetFiles(target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) {
+					visitTargetFilesInParallel(env, target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) {
 						addUnresolved(goUnresolvedMutationEvidenceWithIndex(env, file, data, index))
 					})
 				}
@@ -61,7 +62,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 			Run: func() []core.Finding {
 				findings := typeScriptTargetFindings(ctx, env, target)
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
-					env.VisitTargetFiles(target, isTypeScriptLikeFile, func(file string, data []byte) {
+					visitTargetFilesInParallel(env, target, isTypeScriptLikeFile, func(file string, data []byte) {
 						addUnresolved(typeScriptUnresolvedMutationEvidence(env, file, data))
 					})
 				}
@@ -142,10 +143,24 @@ func isGoManifestPath(rel string) bool {
 
 func buildGoPackageIndex(env support.Context, target core.TargetConfig) *goPackageIndex {
 	index := newGoPackageIndex()
-	env.VisitTargetFiles(target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(file string, data []byte) {
-		fset, parsed, err := support.ParseGoSource(env, file, data)
-		if err == nil {
-			index.addFile(file, fset, parsed)
+	type parsedSource struct {
+		fset   *token.FileSet
+		parsed *ast.File
+	}
+	// Parsing dominates; it is per-file and runs on the bounded pool. addFile
+	// lets a later declaration overwrite an earlier one, so the parsed files
+	// are folded into the index sequentially in visit order.
+	visitTargetFileBatches(env, target, func(file string) bool { return strings.HasSuffix(file, ".go") }, func(batch []visitedFile) {
+		parsed := make([]parsedSource, len(batch))
+		support.ParallelFor(len(batch), func(i int) {
+			if fset, file, err := support.ParseGoSource(env, batch[i].rel, batch[i].data); err == nil {
+				parsed[i] = parsedSource{fset: fset, parsed: file}
+			}
+		})
+		for i, source := range parsed {
+			if source.parsed != nil {
+				index.addFile(batch[i].rel, source.fset, source.parsed)
+			}
 		}
 	})
 	return index

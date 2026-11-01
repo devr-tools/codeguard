@@ -92,31 +92,88 @@ func cloneFindingsForTargetWithBudget(env support.Context, target core.TargetCon
 func cloneDocumentsForTargetWithBudget(env support.Context, target core.TargetConfig, budget cloneAnalysisBudget) ([]cloneDocument, bool) {
 	docs := make([]cloneDocument, 0)
 	include := cloneIncludeForLanguage(target.Language)
-	totalSourceBytes := 0
-	totalTokens := 0
-	truncated := false
+	state := cloneBudgetState{budget: budget}
 	// Clone detection builds cross-file state (the document list) rather than
 	// per-file findings, so it must visit every file directly. Routing it
 	// through the per-file findings cache would skip the tokenizer on a cache
 	// hit and silently drop every clone once a warm cache exists.
-	env.VisitTargetFiles(target, func(rel string) bool {
+	visitTargetFileBatches(env, target, func(rel string) bool {
 		return include(rel) && !cloneExcludedPath(target.Language, rel)
-	}, func(file string, data []byte) {
-		if totalTokens >= budget.maxTokens || totalSourceBytes+len(data) > budget.maxSourceBytes {
-			truncated = true
-			return
-		}
-		tokens, tokenLimitReached := tokenizeNormalizedCloneTextBounded(string(data), budget.maxTokens-totalTokens)
-		if tokenLimitReached {
-			truncated = true
-		}
-		if len(tokens) > 0 {
-			docs = append(docs, cloneDocument{Path: file, Tokens: tokens})
-			totalSourceBytes += len(data)
-			totalTokens += len(tokens)
+	}, func(batch []visitedFile) {
+		tokenized := tokenizeCloneBatch(batch, &state)
+		for i, file := range batch {
+			if tokens := state.admit(len(file.data), tokenized[i]); len(tokens) > 0 {
+				docs = append(docs, cloneDocument{Path: file.rel, Tokens: tokens})
+			}
 		}
 	})
-	return docs, truncated
+	return docs, state.truncated
+}
+
+// clonedFileTokens is one file's tokenization under the whole-corpus token
+// budget: at most budget.maxTokens tokens, and whether the file had more.
+type clonedFileTokens struct {
+	tokens    []cloneToken
+	truncated bool
+	skipped   bool
+}
+
+// tokenizeCloneBatch tokenizes a batch of files on the bounded worker pool.
+// Each file is tokenized against the full corpus budget; cloneBudgetState.admit
+// then applies the running budget in visit order, which yields exactly the
+// documents a sequential tokenize-and-count loop would. Files that can never
+// fit (the corpus token budget is already spent, or the file alone exceeds the
+// byte budget) are not tokenized at all.
+func tokenizeCloneBatch(batch []visitedFile, state *cloneBudgetState) []clonedFileTokens {
+	tokenized := make([]clonedFileTokens, len(batch))
+	if state.tokensExhausted() {
+		return tokenized
+	}
+	support.ParallelFor(len(batch), func(i int) {
+		if len(batch[i].data) > state.budget.maxSourceBytes {
+			tokenized[i].skipped = true
+			return
+		}
+		tokens, truncated := tokenizeNormalizedCloneTextBounded(string(batch[i].data), state.budget.maxTokens)
+		tokenized[i] = clonedFileTokens{tokens: tokens, truncated: truncated}
+	})
+	return tokenized
+}
+
+// cloneBudgetState applies the clone corpus budget to files in visit order.
+type cloneBudgetState struct {
+	budget           cloneAnalysisBudget
+	totalSourceBytes int
+	totalTokens      int
+	truncated        bool
+}
+
+func (s *cloneBudgetState) tokensExhausted() bool {
+	return s.totalTokens >= s.budget.maxTokens
+}
+
+// admit charges one file against the budget and returns the tokens it
+// contributes. It reproduces the sequential rule: a file that would overflow
+// either budget is dropped, and a file with more tokens than the budget has
+// left contributes only its first remaining tokens.
+func (s *cloneBudgetState) admit(sourceBytes int, file clonedFileTokens) []cloneToken {
+	if s.tokensExhausted() || s.totalSourceBytes+sourceBytes > s.budget.maxSourceBytes || file.skipped {
+		s.truncated = true
+		return nil
+	}
+	remaining := s.budget.maxTokens - s.totalTokens
+	tokens := file.tokens
+	if file.truncated || len(tokens) > remaining {
+		s.truncated = true
+	}
+	if len(tokens) > remaining {
+		tokens = tokens[:remaining:remaining]
+	}
+	if len(tokens) > 0 {
+		s.totalSourceBytes += sourceBytes
+		s.totalTokens += len(tokens)
+	}
+	return tokens
 }
 
 func cloneBudgetDiagnostic(target core.TargetConfig, budget cloneAnalysisBudget) core.Diagnostic {
@@ -159,59 +216,92 @@ const (
 	maxCloneCandidates      = 1_000
 )
 
-// cloneWindowIndex groups every threshold-token window by a rolling polynomial
-// hash over the per-token hashes computed at tokenize time. Compared with the
-// previous implementation (a fresh FNV over every token's bytes per window)
-// this allocates nothing and slides in O(1) per window instead of O(threshold).
-// Equal windows always collide (the hash is a deterministic function of the
-// normalized tokens), and unequal windows that collide are discarded by the
-// token-by-token verification in sharedCloneLength, so the resulting clone
-// candidates are identical to the old per-window byte hashing.
+// cloneWindowIndexBounded hashes every threshold-token window with a rolling
+// polynomial hash over the per-token hashes computed at tokenize time (O(1)
+// per slide, no allocation), and groups the windows by hash. Equal windows
+// always collide (the hash is a deterministic function of the normalized
+// tokens), and unequal windows that collide are discarded by the
+// token-by-token verification in sharedCloneLength.
+//
+// The grouping is a stable radix sort of a flat window slice rather than a
+// map of per-hash slices: it allocates two slices instead of one slice per
+// distinct window, and it yields the hashes in ascending order with each
+// hash's windows in (document, token) order — exactly the visit order
+// collectCloneCandidates needs, with no separate key sort.
+//
+// At most maxOccurrences windows are indexed, taken in (document, token)
+// order; truncated reports that more windows existed.
 func cloneWindowIndexBounded(docs []cloneDocument, threshold int, maxOccurrences int) (cloneIndex, bool) {
-	index := make(cloneIndex)
-	hasWindow := false
+	total := 0
 	for _, doc := range docs {
 		if len(doc.Tokens) >= threshold {
-			hasWindow = true
-			break
+			total += len(doc.Tokens) - threshold + 1
 		}
 	}
-	if !hasWindow {
-		return index, false
+	if total == 0 {
+		return cloneIndex{}, false
 	}
-	if maxOccurrences <= 0 {
-		return index, true
+	truncated := total > maxOccurrences
+	if truncated {
+		total = maxOccurrences
 	}
+	if total <= 0 {
+		return cloneIndex{}, true
+	}
+	windows := make([]cloneWindow, 0, total)
 	// top = multiplier^(threshold-1), the weight of the token leaving the
 	// window on each slide.
 	top := uint64(1)
 	for i := 0; i < threshold-1; i++ {
 		top *= cloneWindowMultiplier
 	}
-	occurrences := 0
 	for docIdx, doc := range docs {
-		if len(doc.Tokens) < threshold {
+		if len(doc.Tokens) < threshold || len(windows) == total {
 			continue
 		}
 		var hash uint64
 		for i := 0; i < threshold; i++ {
 			hash = hash*cloneWindowMultiplier + doc.Tokens[i].Hash
 		}
-		if occurrences >= maxOccurrences {
-			return index, true
-		}
-		index[hash] = append(index[hash], cloneOccurrence{DocIndex: docIdx, TokenIndex: 0})
-		occurrences++
-		for tokenIdx := 1; tokenIdx+threshold <= len(doc.Tokens); tokenIdx++ {
-			if occurrences >= maxOccurrences {
-				return index, true
-			}
+		windows = append(windows, cloneWindow{Hash: hash, DocIndex: int32(docIdx), TokenIndex: 0}) //nolint:gosec // bounded by the clone corpus budget
+		for tokenIdx := 1; tokenIdx+threshold <= len(doc.Tokens) && len(windows) < total; tokenIdx++ {
 			hash = (hash-doc.Tokens[tokenIdx-1].Hash*top)*cloneWindowMultiplier + doc.Tokens[tokenIdx+threshold-1].Hash
-			index[hash] = append(index[hash], cloneOccurrence{DocIndex: docIdx, TokenIndex: tokenIdx})
-			occurrences++
+			windows = append(windows, cloneWindow{Hash: hash, DocIndex: int32(docIdx), TokenIndex: int32(tokenIdx)}) //nolint:gosec // bounded by the clone corpus budget
 		}
 	}
-	return index, false
+	return cloneIndex{windows: radixSortCloneWindows(windows)}, truncated
+}
+
+// radixSortCloneWindows stably sorts windows by hash with an LSD radix sort
+// (four 16-bit digits). Stability keeps each hash's windows in the order they
+// were indexed. Digits on which every window agrees are skipped.
+func radixSortCloneWindows(windows []cloneWindow) []cloneWindow {
+	if len(windows) < 2 {
+		return windows
+	}
+	scratch := make([]cloneWindow, len(windows))
+	counts := make([]int, 1<<16)
+	for shift := uint(0); shift < 64; shift += 16 {
+		clear(counts)
+		for i := range windows {
+			counts[(windows[i].Hash>>shift)&0xffff]++
+		}
+		if counts[(windows[0].Hash>>shift)&0xffff] == len(windows) {
+			continue
+		}
+		offset := 0
+		for digit, count := range counts {
+			counts[digit] = offset
+			offset += count
+		}
+		for i := range windows {
+			digit := (windows[i].Hash >> shift) & 0xffff
+			scratch[counts[digit]] = windows[i]
+			counts[digit]++
+		}
+		windows, scratch = scratch, windows
+	}
+	return windows
 }
 
 func collectCloneCandidates(index cloneIndex, docs []cloneDocument, threshold int) []cloneCandidate {
@@ -221,35 +311,38 @@ func collectCloneCandidates(index cloneIndex, docs []cloneDocument, threshold in
 	// into a scan of just the (usually tiny) bucket for that file pair.
 	byPair := make(map[[2]int][]cloneCandidate)
 	comparisons := 0
-	// Walk the index in a fixed order. Collection stops early once
-	// maxClonePairComparisons or maxCloneCandidates is reached, so the
-	// iteration order decides *which* window hashes are examined before the
-	// cap - and Go randomizes map iteration, which made the surviving
-	// candidate set differ between runs on the same input. sortCloneCandidates
-	// orders the result but cannot recover what was never collected. Any fixed
-	// order fixes this; the key order is the cheapest one available.
-	for _, hash := range sortedCloneIndexKeys(index) {
-		if addClonePairs(byPair, index[hash], docs, threshold, &comparisons) {
-			break
+	// Walk the hash groups in a fixed (ascending hash) order. Collection stops
+	// early once maxClonePairComparisons or maxCloneCandidates is reached, so
+	// the iteration order decides *which* window hashes are examined before
+	// the cap; a randomized order made the surviving candidate set differ
+	// between runs on the same input. sortCloneCandidates orders the result
+	// but cannot recover what was never collected.
+	var occurrences []cloneOccurrence
+	index.forEachRepeatedHash(func(group []cloneWindow) bool {
+		occurrences = occurrences[:0]
+		for _, window := range group {
+			occurrences = append(occurrences, cloneOccurrence{DocIndex: int(window.DocIndex), TokenIndex: int(window.TokenIndex)})
 		}
-	}
+		return addClonePairs(byPair, occurrences, docs, threshold, &comparisons)
+	})
 	return flattenCloneCandidates(byPair)
 }
 
-// sortedCloneIndexKeys returns, in ascending order, the window hashes that
-// occur at least twice, so candidate collection visits them deterministically.
-// A hash seen once cannot pair with anything: addClonePairs returns at once
-// for it without counting a comparison, so dropping it before the sort (most
-// windows are unique) changes nothing but the sort's size.
-func sortedCloneIndexKeys(index cloneIndex) []uint64 {
-	keys := make([]uint64, 0, len(index)/4)
-	for hash, occurrences := range index {
-		if len(occurrences) >= 2 {
-			keys = append(keys, hash)
+// forEachRepeatedHash calls visit with the windows of each hash that occurs
+// at least twice, in ascending hash order, until visit returns true. A hash
+// seen once cannot pair with anything, so it is skipped.
+func (index cloneIndex) forEachRepeatedHash(visit func(group []cloneWindow) bool) {
+	windows := index.windows
+	for start := 0; start < len(windows); {
+		end := start + 1
+		for end < len(windows) && windows[end].Hash == windows[start].Hash {
+			end++
 		}
+		if end-start >= 2 && visit(windows[start:end]) {
+			return
+		}
+		start = end
 	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	return keys
 }
 
 // addClonePairs reports whether candidate collection has reached a safety

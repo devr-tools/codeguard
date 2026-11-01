@@ -26,16 +26,15 @@ func pythonAITargetFindings(env support.Context, target core.TargetConfig) []cor
 	localModules := pythonLocalModuleNames(target.Path, files)
 	repoErrorStyle := pythonRepoErrorStyle(env, target, files)
 	repoNaming := dominantNamingConvention(env, target, files, pythonDeclaredNames)
-	findings := make([]core.Finding, 0)
-	for _, rel := range files {
-		findings = append(findings, pythonFileAIQualityFindings(env, target, rel, pythonFileScanInput{
-			catalog:      catalog,
-			localModules: localModules,
-			errorStyle:   repoErrorStyle,
-			naming:       repoNaming,
-		})...)
+	input := pythonFileScanInput{
+		catalog:      catalog,
+		localModules: localModules,
+		errorStyle:   repoErrorStyle,
+		naming:       repoNaming,
 	}
-	return findings
+	return fileFindingsInParallel(files, func(rel string) []core.Finding {
+		return pythonFileAIQualityFindings(env, target, rel, input)
+	})
 }
 
 type pythonFileScanInput struct {

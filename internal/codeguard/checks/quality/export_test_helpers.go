@@ -1,5 +1,10 @@
 package quality
 
+import (
+	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
+	"github.com/devr-tools/codeguard/internal/codeguard/core"
+)
+
 // SplitIdentifierWordsForTest exposes splitIdentifierWords to the external
 // test packages under tests/. The repo keeps tests out of this package, so a
 // differential test against the regex implementation this replaced needs a
@@ -13,9 +18,12 @@ func SplitIdentifierWordsForTest(name string) []string {
 // naming convention. It lets tests/ benchmark the profile without a scan
 // context.
 func GoRepoStyleProfileForTest(sources []string) (testFramework, errorStyle, naming string) {
+	// Mirror goRepoStyleProfile: count each source on its own, then merge.
 	totals := newGoRepoStyleTotals()
 	for _, source := range sources {
-		totals.add(source)
+		fileTotals := newGoRepoStyleTotals()
+		fileTotals.add(source)
+		totals.merge(fileTotals)
 	}
 	profile := totals.profile()
 	return profile.testFramework, profile.errorStyle, profile.naming
@@ -104,3 +112,68 @@ func CloneTokenCountForTest(source string, maxTokens int) int {
 	tokens, _ := tokenizeNormalizedCloneTextBounded(source, maxTokens)
 	return len(tokens)
 }
+
+// CloneSourceForTest is one in-memory file for CloneDocumentsForTest.
+type CloneSourceForTest struct {
+	Path   string
+	Source string
+}
+
+// CloneDocumentsForTest runs the clone document collection (batched, parallel
+// tokenizing plus in-order budget accounting) over in-memory files visited in
+// the given order, and returns each admitted document's path and token count
+// and whether the corpus budget truncated the collection.
+func CloneDocumentsForTest(files []CloneSourceForTest, maxSourceBytes int, maxTokens int) (paths []string, tokenCounts []int, truncated bool) {
+	env := support.Context{
+		VisitTargetFiles: func(_ core.TargetConfig, include func(string) bool, visit func(string, []byte)) {
+			for _, file := range files {
+				if include(file.Path) {
+					visit(file.Path, []byte(file.Source))
+				}
+			}
+		},
+	}
+	docs, truncated := cloneDocumentsForTargetWithBudget(env, core.TargetConfig{Language: "go"}, cloneAnalysisBudget{
+		maxSourceBytes: maxSourceBytes,
+		maxTokens:      maxTokens,
+		maxWindows:     defaultCloneAnalysisBudget.maxWindows,
+	})
+	for _, doc := range docs {
+		paths = append(paths, doc.Path)
+		tokenCounts = append(tokenCounts, len(doc.Tokens))
+	}
+	return paths, tokenCounts, truncated
+}
+
+// CloneWindowForTest is one indexed clone window: its rolling hash and the
+// (document, token) position it starts at.
+type CloneWindowForTest struct {
+	Hash     uint64
+	Document int
+	Token    int
+}
+
+// CloneWindowIndexForTest builds the clone window index over documents given
+// as per-token hashes and returns the indexed windows in index order (hash
+// ascending, each hash's windows in document/token order) plus the truncation
+// flag.
+func CloneWindowIndexForTest(tokenHashes [][]uint64, threshold int, maxWindows int) ([]CloneWindowForTest, bool) {
+	docs := make([]cloneDocument, len(tokenHashes))
+	for i, hashes := range tokenHashes {
+		tokens := make([]cloneToken, len(hashes))
+		for j, hash := range hashes {
+			tokens[j] = cloneToken{Hash: hash}
+		}
+		docs[i] = cloneDocument{Tokens: tokens}
+	}
+	index, truncated := cloneWindowIndexBounded(docs, threshold, maxWindows)
+	windows := make([]CloneWindowForTest, 0, index.len())
+	for _, window := range index.windows {
+		windows = append(windows, CloneWindowForTest{Hash: window.Hash, Document: int(window.DocIndex), Token: int(window.TokenIndex)})
+	}
+	return windows, truncated
+}
+
+// CloneWindowMultiplierForTest is the rolling-hash multiplier, so a test can
+// compute reference window hashes independently.
+const CloneWindowMultiplierForTest = cloneWindowMultiplier
