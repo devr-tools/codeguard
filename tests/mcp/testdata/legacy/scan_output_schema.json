@@ -1,0 +1,1 @@
+{"properties":{"name":{"type":"string"},"profile":{"type":"string"},"sections":{"type":"array"},"summary":{"type":"object"}},"type":"object"}

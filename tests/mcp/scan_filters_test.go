@@ -13,11 +13,14 @@ import (
 // 30 prompt files -> 30 fail + 30 warn prompt findings, plus 1 fail in other/.
 const largeFixtureFiles = 30
 
-func TestMCPScanDefaultsToSummaryAndFiftyFindings(t *testing.T) {
+// format "summary" alone (no filter) is how a new client opts into the
+// summary-first shape; a call with no inputs at all keeps the 1.10 full report
+// (see legacy_format_test.go).
+func TestMCPScanSummaryFormatDefaultsToFiftyFindings(t *testing.T) {
 	dir := t.TempDir()
 	client := newMCPStdioClient(t, writePromptFixture(t, dir, largeFixtureFiles))
 
-	got := client.mustCall("scan", map[string]any{})
+	got := client.mustCall("scan", map[string]any{"format": "summary"})
 	if got.Summary.TotalFindings < 2*largeFixtureFiles+1 {
 		t.Fatalf("total_findings = %d, want at least %d", got.Summary.TotalFindings, 2*largeFixtureFiles+1)
 	}
@@ -327,7 +330,7 @@ func TestMCPValidatePatchSharesFiltersAndPaging(t *testing.T) {
 	client := newMCPStdioClient(t, replacements["__CONFIG_PATH__"])
 	diff := replacements["__DIFF__"]
 
-	whole := client.mustCall("validate_patch", map[string]any{"diff": diff})
+	whole := client.mustCall("validate_patch", map[string]any{"diff": diff, "format": "summary"})
 	if whole.Summary.FailedSections == 0 || whole.Summary.TotalFindings == 0 || len(whole.Findings) == 0 {
 		t.Fatalf("expected failing patch findings: %+v", whole.Summary)
 	}
@@ -369,7 +372,7 @@ func TestMCPToolsListAdvertisesFindingFilters(t *testing.T) {
 		} `json:"result"`
 	}
 	decodeLine(t, line, &resp)
-	shared := []string{"sections", "rules", "min_level", "min_confidence", "paths", "max_findings", "cursor", "verbose"}
+	shared := []string{"format", "sections", "rules", "min_level", "min_confidence", "paths", "max_findings", "cursor", "verbose"}
 	want := map[string][]string{
 		"scan":           append([]string{"changed_only", "base_ref", "mode", "target_path"}, shared...),
 		"validate_patch": append([]string{"diff"}, shared...),
