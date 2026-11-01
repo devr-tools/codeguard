@@ -80,6 +80,16 @@ func matchesReinclude(rel string, excludes []string) bool {
 	return false
 }
 
+// hasReincludePattern reports whether any exclude entry is a "!" re-include.
+func hasReincludePattern(excludes []string) bool {
+	for _, pattern := range excludes {
+		if strings.HasPrefix(strings.TrimSpace(pattern), "!") {
+			return true
+		}
+	}
+	return false
+}
+
 // reincludeMayCoverSubtree reports whether any "!" exclude entry could match a
 // path beneath dir.
 //

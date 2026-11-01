@@ -32,6 +32,26 @@ func (deps FileScanDependencies) IsZero() bool {
 	return deps.Key == "" && deps.PackageFiles == nil && deps.SharedFiles == nil
 }
 
+// VisitTargetFilesOrdered visits the included target files with a per-file
+// computation that may run concurrently (visit must not touch shared state)
+// and applies each returned commit sequentially in listing order, so the
+// result matches a sequential VisitTargetFiles pass. Contexts without the
+// hook run visit and its commit back to back through VisitTargetFiles.
+func VisitTargetFilesOrdered(env Context, target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte) func()) {
+	if env.VisitTargetFilesOrdered != nil {
+		env.VisitTargetFilesOrdered(target, include, visit)
+		return
+	}
+	if env.VisitTargetFiles == nil {
+		return
+	}
+	env.VisitTargetFiles(target, include, func(rel string, data []byte) {
+		if commit := visit(rel, data); commit != nil {
+			commit()
+		}
+	})
+}
+
 // ScanTargetFilesWithDependencies is ScanTargetFiles for an evaluator whose
 // findings depend on more than the scanned file. Contexts without the
 // dependency-aware hook (unit-test contexts) fall back to ScanTargetFiles,

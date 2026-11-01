@@ -99,7 +99,15 @@ type fileCorpus struct {
 // Go AST budget converts source length through goASTBytesPerSourceByte instead
 // of counting source bytes directly. The previous constant counted source, so
 // a nominal "64 MiB" Go AST budget admitted roughly 576 MiB of live AST.
-const maxCorpusReadBytes = 128 << 20
+//
+// The read budget is 256 MiB. At 128 MiB a 16k-file TypeScript repository
+// exhausted it after 11,295 files, and from then on every section re-read
+// every remaining file (each read also queued on readWork). Source bytes are
+// the cheapest thing the corpus retains (1:1, against 5x for a C-like parse
+// and 9x for a Go AST, whose budgets are already 256 MiB), retention can never
+// exceed the bytes the walk actually lists, and an explicit GOMEMLIMIT still
+// scales the budget down to an eighth of the limit.
+const maxCorpusReadBytes = 256 << 20
 const maxCorpusGoASTBytes = 256 << 20
 const maxCorpusReadEntries = 50_000
 const maxCorpusGoASTEntries = 25_000
@@ -131,6 +139,8 @@ const minCorpusCLikeBytes = 16 << 20
 // set, so inferring headroom from host memory would be wrong exactly where it
 // matters. With no limit set, debug.SetMemoryLimit(-1) reports math.MaxInt64
 // and the default applies unchanged.
+//
+//nolint:unparam // the read, Go AST and C-like defaults are tuned independently; they coincide at 256 MiB today
 func corpusRetentionBudget(def int, minimum int, share int64) int {
 	limit := debug.SetMemoryLimit(-1)
 	if limit <= 0 || limit == math.MaxInt64 {
@@ -192,12 +202,12 @@ func newFileCorpus() *fileCorpus {
 		reads:           map[string]*fileRead{},
 		maxReadBytes:    corpusRetentionBudget(maxCorpusReadBytes, minCorpusReadBytes, 8),
 		maxReadEntries:  maxCorpusReadEntries,
-		readWork:        make(chan struct{}, 2),
+		readWork:        make(chan struct{}, corpusReadWorkers()),
 		readFile:        readCappedFile,
 		asts:            map[string]*goParse{},
 		maxGoASTBytes:   corpusRetentionBudget(maxCorpusGoASTBytes, minCorpusGoASTBytes, 4),
 		maxGoASTEntries: maxCorpusGoASTEntries,
-		goParseWork:     make(chan struct{}, 2),
+		goParseWork:     make(chan struct{}, goParseWorkers()),
 		clike:           map[string]*clikeParse{},
 		maxCLikeBytes:   corpusRetentionBudget(maxCorpusCLikeBytes, minCorpusCLikeBytes, 4),
 		maxCLikeEntries: maxCorpusCLikeEntries,
@@ -211,7 +221,7 @@ func newFileCorpus() *fileCorpus {
 // per target. Callers apply their own include filter to the returned slice; the
 // walk itself is identical regardless of the filter, so sharing it is safe.
 func (c *fileCorpus) list(root string, excludes []string, opts FileWalkOptions) ([]string, error) {
-	key := fmt.Sprintf("%s\x00%s\x00%t", filepath.Clean(root), opts.LogicalPath, opts.ScanVendoredSource)
+	key := fmt.Sprintf("%s\x00%s\x00%t\x00%t", filepath.Clean(root), opts.LogicalPath, opts.ScanVendoredSource, opts.RespectGitignore)
 	c.mu.Lock()
 	entry, ok := c.targets[key]
 	if !ok {
@@ -301,9 +311,10 @@ func (c *fileCorpus) cachedRead(root string, rel string) ([]byte, bool) {
 	return entry.data, true
 }
 
-// readUncached performs the file read itself. Reads stay serialized through
-// readWork whether or not the result will be retained, so an overflowing scan
-// cannot multiply the number of large buffers in flight at once.
+// readUncached performs the file read itself. Reads stay gated through
+// readWork (sized by corpusReadWorkers) whether or not the result will be
+// retained, so an overflowing scan cannot multiply the number of large buffers
+// in flight at once.
 func (c *fileCorpus) readUncached(path string) ([]byte, error) {
 	c.readWork <- struct{}{}
 	defer func() { <-c.readWork }()
@@ -392,8 +403,9 @@ func (c *fileCorpus) parseCLike(path string, data []byte, lang checkSupport.CLik
 	return entry.file
 }
 
-// parseGoUncached runs the parse itself. It keeps the goParseWork gate so the
-// transient parser working set stays bounded whether or not the tree is kept.
+// parseGoUncached runs the parse itself. It keeps the goParseWork gate (sized
+// by goParseWorkers) so the transient parser working set stays bounded whether
+// or not the tree is kept.
 func (c *fileCorpus) parseGoUncached(path string, data []byte) (*token.FileSet, *ast.File, error) {
 	c.goParseWork <- struct{}{}
 	defer func() { <-c.goParseWork }()

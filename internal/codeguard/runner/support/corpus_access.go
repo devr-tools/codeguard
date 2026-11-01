@@ -16,6 +16,7 @@ func (sc Context) corpusFiles(target core.TargetConfig) ([]string, error) {
 	opts := FileWalkOptions{
 		LogicalPath:        target.LogicalPath,
 		ScanVendoredSource: sc.Cfg.ScanVendoredSource,
+		RespectGitignore:   sc.Cfg.RespectGitignoreEnabled(),
 	}
 	if sc.corpus != nil {
 		return sc.corpus.list(target.Path, sc.Cfg.Exclude, opts)

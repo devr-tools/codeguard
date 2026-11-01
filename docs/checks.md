@@ -58,6 +58,15 @@ not findings, so they cannot be baselined or waived:
   complete, but that history is missing this scan's observation.
 - `scan.section.panic` (fail): the section crashed; see above.
 
+Scan parallelism follows the CPUs the process may use: sections, per-section
+file workers, corpus reads, and Go parses each run up to `GOMAXPROCS` wide
+(never more than the CPU count; reads and parses at least 2, every pool at
+most 16). Set the `GOMAXPROCS` environment variable to narrow a scan, for
+example to a container's CPU quota. Findings do not depend on the worker
+count. The shared file corpus retains up to 256 MiB of source per scan (an
+eighth of `GOMEMLIMIT` when one is set); past that, files are still analysed,
+just re-read per section (`scan.corpus-budget`, info).
+
 ## Check glossary
 
 This glossary is the quick map of every built-in check family and the main subsections users will see in reports, rule IDs, and config.
@@ -361,6 +370,42 @@ the directory is that build system's output (for example `target/` next to
 `Cargo.toml` or `pom.xml`, `bin/` and `obj/` next to a `.csproj`, `build/` next
 to `CMakeLists.txt` or `build.gradle`). A Go package named `build`, a Rust crate's
 `src/bin`, or a Python `coverage` source package therefore stays scanned.
+
+### `.gitignore`
+
+The file walk honours the repository's ignore rules by default, so generated
+and vendored output that the repository already declares ignored (a bundled
+`public/monaco`, a local build tree) is not scanned:
+
+```yaml
+respect_gitignore: false   # default true; false walks ignored paths too
+```
+
+What is honoured:
+- every `.gitignore` from the work-tree root down to each directory, plus
+  `.git/info/exclude` (for worktrees, the shared one), with gitignore(5)
+  semantics: `!` negation, last match wins, closer files override parents,
+  trailing `/` for directories only, a leading or middle `/` anchors a pattern
+  to its file's directory, `*`/`?`/`[...]`, and `**` segments. A file under an
+  ignored directory cannot be re-included by a later `!` pattern, as in git.
+- nested work trees (submodules, vendored checkouts) use their own rules, not
+  their parent's. Outside a git work tree no ignore rules apply.
+- not honoured: the per-user `core.excludesFile` (it would make results depend
+  on the machine running the scan), and `core.ignorecase` (matching is always
+  case-sensitive, so a macOS checkout and a Linux runner scan the same files).
+  A `.gitignore` larger than 256 KiB, or a symlinked one, is ignored.
+
+Precedence:
+- **tracked files are scanned even when an ignore rule matches them**, matching
+  git, which keeps tracking a committed or force-added file. CodeGuard asks
+  `git ls-files` for those once per repository, only if some path is actually
+  ignored; if git cannot answer, the repository is walked as if it had no
+  ignore rules (scanning too much is the safe failure).
+- an explicitly configured `targets[].path` or a `-folder` that is itself
+  inside an ignored directory is scanned in full.
+- ignore rules compose with `exclude` and the built-in exclusions: a path is
+  scanned only when none of them drops it, and a `!` entry in `exclude`
+  re-includes a path whichever of them excluded it.
 
 Use a `!` re-include if one of the unconditional defaults hides real source in
 your repository.

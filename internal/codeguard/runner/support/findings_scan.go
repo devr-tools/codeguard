@@ -1,10 +1,7 @@
 package support
 
 import (
-	"runtime"
-	"sync"
-	"sync/atomic"
-
+	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -27,8 +24,6 @@ type fileScanSpec struct {
 	// inputs its findings depend on; see ScanTargetFilesWithDependencies.
 	dependencies func(rel string) string
 }
-
-const maxFileScanWorkers = 4
 
 // fileScanResult is everything one file's evaluation produces. Diagnostics
 // travel with the findings, through the cache, so a warm run reports the same
@@ -160,52 +155,10 @@ func mergeFileScanResults(slots []fileScanResult) fileScanResult {
 }
 
 func scanTargetFilesInParallel(selected []string, workers int, scanOne func(string) fileScanResult) fileScanResult {
-	slots := make([]fileScanResult, len(selected))
-	var next atomic.Int64
-	var panicked atomic.Bool
-	var panicValue any
-	var panicOnce sync.Once
-	var wg sync.WaitGroup
-	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					panicOnce.Do(func() {
-						panicValue = r
-						panicked.Store(true)
-					})
-				}
-			}()
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= len(selected) {
-					return
-				}
-				slots[i] = scanOne(selected[i])
-			}
-		}()
-	}
-	wg.Wait()
-	if panicked.Load() {
-		panic(panicValue)
-	}
+	slots := checkSupport.ParallelIndexed(len(selected), workers, func(i int) fileScanResult {
+		return scanOne(selected[i])
+	})
 	return mergeFileScanResults(slots)
-}
-
-func fileScanWorkers(files int) int {
-	workers := runtime.NumCPU()
-	if workers > maxFileScanWorkers {
-		workers = maxFileScanWorkers
-	}
-	if workers > files {
-		workers = files
-	}
-	if workers < 1 {
-		workers = 1
-	}
-	return workers
 }
 
 func cachedFileResult(sc Context, input fileScanInput, compute func() fileScanResult) fileScanResult {
