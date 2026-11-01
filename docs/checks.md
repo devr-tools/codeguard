@@ -563,6 +563,11 @@ Current inference behavior:
 - rules with language prefixes such as `quality.typescript.*`, `quality.javascript.*`, `security.python.*`, `security.javascript.*`, `design.typescript.*`, or `design.python.*` automatically resolve to fixed coverage for that language
 - custom rule-pack metadata defaults to `execution_model: language-agnostic` and `language_coverage: configurable`
 
+### Rule and configuration reference
+
+- [Rule index](rule-index.md) lists every catalog rule by section, with its default level and a one-line summary.
+- [Configuration key reference](config-reference.md) documents keys that are not covered in the section prose below, with their defaults, and lists which numeric keys accept an explicit `0`.
+
 ## Built-in language coverage snapshot
 
 | Family | Go | C++ | Python | TypeScript | Rust | Java | C# | Ruby |
