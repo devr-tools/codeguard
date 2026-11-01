@@ -20,7 +20,9 @@ func failDoctorCheck(name string, message string) doctorCheck {
 
 func writeDoctorReport(w io.Writer, checks []doctorCheck) {
 	for _, check := range checks {
-		_, _ = fmt.Fprintf(w, "[%s] %s: %s\n", strings.ToUpper(check.Status), check.Name, check.Message)
+		// Continuation lines (a tool's stderr tail) are indented under their check.
+		message := strings.ReplaceAll(check.Message, "\n", "\n    ")
+		_, _ = fmt.Fprintf(w, "[%s] %s: %s\n", strings.ToUpper(check.Status), check.Name, message)
 	}
 }
 
