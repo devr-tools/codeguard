@@ -73,6 +73,7 @@ func baseDefaultPromptRules() core.PromptRulesConfig {
 		PathContains:              []string{"prompt", "system", "instruction", "template"},
 		ForbidSecretInterpolation: boolPtr(true),
 		ForbidUnsafeInstructions:  boolPtr(true),
+		RequireMCPRemoteAuth:      boolPtr(true),
 	}
 }
 

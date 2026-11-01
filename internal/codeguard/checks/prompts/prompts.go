@@ -25,5 +25,6 @@ func findingsForFile(env support.Context, file string, data []byte) []core.Findi
 	findings := basePromptFindings(env, file, data)
 	findings = append(findings, agentConfigFindings(env, file, data)...)
 	findings = append(findings, mcpConfigFindings(env, file, data)...)
+	findings = append(findings, hiddenUnicodeFindings(env, file, data)...)
 	return findings
 }

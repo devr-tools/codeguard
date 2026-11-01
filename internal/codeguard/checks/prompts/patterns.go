@@ -17,11 +17,6 @@ var (
 		regexp.MustCompile(`(?i)disregard all prior instructions`),
 		regexp.MustCompile(`(?i)(print|dump|reveal|exfiltrate|return)\s+(all\s+)?(env|environment variables|secrets|tokens)`),
 	}
-	agentDangerousInstructionPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)\bnever ask for approval\b`),
-		regexp.MustCompile(`(?i)\b(skip|disable|bypass|ignore|override)\b.{0,40}\b(approval|sandbox|policy|guardrail|safety|permission)\b`),
-		regexp.MustCompile(`(?i)\balways comply\b.{0,40}\bwithout\b.{0,20}\bapproval\b`),
-	}
 	standingPermissionPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?is)"(?:allow|allowed_tools|tools|permissions|tool_permissions|trusted_tools)"\s*:\s*\[[^\]]*"\*"`),
 		regexp.MustCompile(`(?is)(?:^|\n)\s*(?:allow|allowed_tools|tools|permissions|tool_permissions)\s*:\s*\[[^\]]*['"]\*['"]`),
@@ -32,8 +27,14 @@ var (
 	mcpConfigRiskPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?is)"command"\s*:\s*"(?:bash|sh|zsh)".{0,200}"-(?:c|lc)"`),
 		regexp.MustCompile(`(?is)"(?:command|args)"\s*:\s*(?:".*curl[^"\n]*\|[^"\n]*(?:sh|bash).*"|\[[^\]]*curl[^\]]*\|[^\]]*(?:sh|bash)[^\]]*\])`),
-		regexp.MustCompile(`(?i)\b(npx|uvx)\b.{0,30}\b-y\b`),
 	}
+	// mcpAutoInstallPattern is the line fallback for configs that cannot be
+	// parsed (TOML, malformed JSON). The flag is matched after a quote,
+	// bracket, comma or space: a word boundary never matches between `"`
+	// and `-`, which is why the previous `\b-y\b` form could not fire on
+	// "args": ["-y", ...].
+	mcpAutoInstallPattern = regexp.MustCompile(`(?i)\b(?:npx|uvx|bunx)\b.{0,40}?(?:^|[\s"'\[,=])(?:-y|--yes)(?:$|[\s"',\]])`)
+	mcpPinnedHint         = regexp.MustCompile(`@v?\d+\.\d+|==\s*\d`)
 )
 
 // mcpDirConfigExtensions are the config formats an MCP client reads its server
@@ -46,22 +47,17 @@ func isGovernedPromptFile(env support.Context, rel string) bool {
 	return env.IsPromptFile(rel) || isAgentConfigFile(rel) || isMCPConfigFile(rel)
 }
 
-func isAgentConfigFile(rel string) bool {
-	base := strings.ToLower(filepath.Base(filepath.ToSlash(rel)))
-	switch base {
-	case "agents.md", "claude.md", ".cursorrules":
-		return true
-	default:
-		return false
-	}
-}
-
 func isMCPConfigFile(rel string) bool {
 	rel = strings.ToLower(filepath.ToSlash(rel))
 	base := filepath.Base(rel)
 	switch base {
 	case ".mcp.json", "mcp.json", "mcp.yaml", "mcp.yml", "claude_desktop_config.json":
 		return true
+	case "settings.json":
+		// Gemini CLI declares its MCP servers in .gemini/settings.json.
+		if strings.HasSuffix("/"+rel, "/.gemini/settings.json") {
+			return true
+		}
 	}
 	ext := filepath.Ext(base)
 	// A directory named mcp holds MCP server code as often as MCP config, so
@@ -82,9 +78,13 @@ func isMCPConfigFile(rel string) bool {
 }
 
 func basePromptFindings(env support.Context, file string, data []byte) []core.Finding {
+	// Structured config files inject credentials through ${VAR} references by
+	// design - it is the remediation agent-config-literal-secret recommends -
+	// so secret interpolation is only a finding in prose prompt assets.
+	checkInterpolation := *env.Config.Checks.PromptRules.ForbidSecretInterpolation && !isStructuredConfigFile(file, data)
 	findings := make([]core.Finding, 0)
 	for idx, line := range splitLines(data) {
-		if *env.Config.Checks.PromptRules.ForbidSecretInterpolation && secretInterpolationRegex.MatchString(line) {
+		if checkInterpolation && secretInterpolationRegex.MatchString(line) {
 			findings = append(findings, env.NewFinding(support.FindingInput{
 				RuleID:  "prompts.secret-interpolation",
 				Level:   "fail",
@@ -111,53 +111,64 @@ func basePromptFindings(env support.Context, file string, data []byte) []core.Fi
 	return findings
 }
 
-func agentConfigFindings(env support.Context, file string, data []byte) []core.Finding {
-	if !isAgentConfigFile(file) {
-		return nil
+// isStructuredConfigFile reports whether file is an agent settings file or a
+// config that actually declares MCP servers. A YAML prompt that merely sits
+// in an mcp/ directory is still prose and keeps the interpolation check.
+func isStructuredConfigFile(file string, data []byte) bool {
+	if isClaudeSettingsFile(file) {
+		return true
 	}
-	findings := make([]core.Finding, 0)
-	for idx, line := range splitLines(data) {
-		if matchesAny(line, agentDangerousInstructionPatterns) {
-			findings = append(findings, env.NewFinding(support.FindingInput{
-				RuleID:  "prompts.agent-dangerous-instructions",
-				Level:   "fail",
-				Path:    file,
-				Line:    idx + 1,
-				Column:  1,
-				Message: "agent config contains dangerous instruction or approval bypass pattern",
-			}))
-		}
+	if !isMCPConfigFile(file) {
+		return false
 	}
-	content := string(data)
-	if matchesAny(content, standingPermissionPatterns) {
-		findings = append(findings, env.NewFinding(support.FindingInput{
-			RuleID:  "prompts.agent-standing-permissions",
-			Level:   "fail",
-			Path:    file,
-			Line:    1,
-			Column:  1,
-			Message: "agent config grants standing wildcard permissions or unrestricted tool access",
-		}))
-	}
-	return findings
+	root, ok := parseConfigDocument(file, data)
+	return ok && len(collectMCPServers(root)) > 0
 }
 
+func agentConfigFindings(env support.Context, file string, data []byte) []core.Finding {
+	switch {
+	case isClaudeSettingsFile(file):
+		return claudeSettingsFindings(env, file, data)
+	case isAgentInstructionFile(file):
+		findings := dangerousInstructionFindings(env, file, data)
+		return append(findings, standingPermissionRegexFindings(env, file, data)...)
+	default:
+		return nil
+	}
+}
+
+// mcpConfigFindings parses JSON, JSONC, and YAML MCP configs and evaluates
+// each declared server. A file that cannot be parsed (TOML, or a malformed
+// document) falls back to line heuristics rather than being skipped.
 func mcpConfigFindings(env support.Context, file string, data []byte) []core.Finding {
-	if !isMCPConfigFile(file) {
+	if !isMCPConfigFile(file) || isClaudeSettingsFile(file) {
 		return nil
 	}
+	if root, ok := parseConfigDocument(file, data); ok {
+		return mcpStructuredFindings(env, file, root)
+	}
+	return mcpRegexFindings(env, file, data)
+}
+
+func mcpRegexFindings(env support.Context, file string, data []byte) []core.Finding {
 	content := string(data)
-	if !matchesAny(content, standingPermissionPatterns) && !matchesAny(content, mcpConfigRiskPatterns) {
-		return nil
+	findings := make([]core.Finding, 0)
+	risky := make([]*regexp.Regexp, 0, len(standingPermissionPatterns)+len(mcpConfigRiskPatterns))
+	risky = append(append(risky, standingPermissionPatterns...), mcpConfigRiskPatterns...)
+	for _, pattern := range risky {
+		if loc := pattern.FindStringIndex(content); loc != nil {
+			findings = append(findings, settingsFinding(env, file, lineAtOffset(content, loc[0]), "prompts.mcp-config-risk", "fail", core.ConfidenceMedium,
+				"MCP config allows risky tool execution or overly broad permissions"))
+			break
+		}
 	}
-	return []core.Finding{env.NewFinding(support.FindingInput{
-		RuleID:  "prompts.mcp-config-risk",
-		Level:   "fail",
-		Path:    file,
-		Line:    1,
-		Column:  1,
-		Message: "MCP config allows risky tool execution or overly broad permissions",
-	})}
+	for idx, line := range splitLines(data) {
+		if mcpAutoInstallPattern.MatchString(line) && !mcpPinnedHint.MatchString(line) {
+			findings = append(findings, settingsFinding(env, file, idx+1, "prompts.mcp-unpinned-server", "warn", core.ConfidenceLow,
+				"MCP server auto-installs a package (-y) with no pinned version visible on this line; pin an exact version"))
+		}
+	}
+	return findings
 }
 
 func matchesAny(value string, patterns []*regexp.Regexp) bool {

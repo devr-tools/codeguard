@@ -124,6 +124,7 @@ func applyPromptDefaults(dst *core.PromptRulesConfig, def core.PromptRulesConfig
 	if dst.ForbidUnsafeInstructions == nil {
 		dst.ForbidUnsafeInstructions = boolPtr(true)
 	}
+	defaultBoolPtr(&dst.RequireMCPRemoteAuth, boolValue(def.RequireMCPRemoteAuth))
 }
 
 func applyCIDefaults(dst *core.CIRulesConfig, def core.CIRulesConfig) {

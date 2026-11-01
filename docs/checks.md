@@ -72,7 +72,7 @@ This glossary is the quick map of every built-in check family and the main subse
 | Design | `Design Patterns` | `checks.design` | architecture boundaries; import/module cycles; god modules; graph reachability and stability; high-impact changes; public surface policy; production/test isolation; package/module naming; declarations per file; methods per type; interface/protocol size |
 | Security | `Security` | `checks.security` | hardcoded secrets and credentials; private keys; insecure TLS; shell execution; dynamic code execution; unsafe HTML sinks; SSRF and taint-style flow; unsafe C string APIs; optional `govulncheck`; OWASP category metadata |
 | Supply Chain | `Supply Chain` | `checks.supply_chain` | manifest normalization; SBOM output; missing lockfiles; lockfile drift; unpinned dependencies; license policy; offline advisory-cache vulnerability matching; Cargo manifest hygiene; C++ package-manager metadata for vcpkg, Conan, and CMake |
-| Prompts | `Prompts` | `checks.prompts` | prompt-asset governance; secret interpolation; unsafe instructions; dangerous agent instructions; standing permissions; MCP config risk |
+| Prompts | `Prompts` | `checks.prompts` | prompt-asset governance; secret interpolation; unsafe instructions; dangerous agent instructions; standing permissions (incl. Claude settings); MCP config risk, unpinned servers, literal secrets, remote transport/auth; hidden Unicode |
 | CI/CD | `CI/CD` | `checks.ci` | required workflow directories/files; workflow content policy; GitHub Actions workflow security (script injection, privileged triggers, token permissions, remote script piping, fork-triggered secrets, unpinned actions); release automation files; test file location; test assertions; conditional/always-true assertions; cross-language test-quality heuristics |
 | Agent Context | `Agent Context` | `checks.context` | missing agent docs; README/doc drift; oversized files; ambiguous symbols; undocumented commands; oversized agent docs; doc link rot; repository readiness for coding agents |
 | External Reports | `External Reports` | `external_reports` | imported SARIF, Gitleaks JSON, and Trivy JSON findings from scanners that already ran; normalized into CodeGuard report sections with namespaced rule IDs |
@@ -2023,6 +2023,8 @@ Purpose:
 - Prompt asset discovery
 - Secret interpolation detection inside prompt files
 - Unsafe instruction pattern detection
+- AI-agent configuration governance: agent instruction files, Claude Code
+  settings, and MCP server configs
 
 Config keys:
 
@@ -2034,22 +2036,135 @@ Config keys:
       "file_extensions": [".prompt", ".md", ".txt", ".tmpl", ".yaml", ".yml", ".json"],
       "path_contains": ["prompt", "system", "instruction", "template"],
       "forbid_secret_interpolation": true,
-      "forbid_unsafe_instructions": true
+      "forbid_unsafe_instructions": true,
+      "require_mcp_remote_auth": true
     }
   }
 }
 ```
 
-Current behavior:
-- fails on secret interpolation patterns
-- warns on unsafe instruction patterns
-- besides `prompt_rules` matches, governs agent configs (`AGENTS.md`,
-  `CLAUDE.md`, `.cursorrules`) and MCP configs: `.mcp.json`, `mcp.json`,
-  `mcp.yaml`/`mcp.yml`, `claude_desktop_config.json`, any `*mcp*.json`/`.yaml`/
-  `.yml`, and config-format files (`.json`, `.jsonc`, `.yaml`, `.yml`, `.toml`)
-  inside an `mcp/` directory. Source code inside an `mcp/` directory (for
-  example an MCP server's Go or TypeScript files and their tests) is not a
-  prompt asset and is not governed by the directory name alone.
+- `require_mcp_remote_auth` (default `true`) enables
+  `prompts.mcp-remote-unauthenticated`. Set it to `false` when your remote MCP
+  servers authenticate through OAuth discovery, which leaves no header in the
+  config file.
+
+Governed files, besides `prompt_rules` matches:
+- agent instruction files, matched case-insensitively at any depth:
+  `AGENTS.md` (and `AGENT.md`, `AGENTS.override.md`, `AGENTS.local.md`),
+  `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md`, `.cursorrules`,
+  `.windsurfrules`, `.clinerules`, `.github/copilot-instructions.md`,
+  `.claude/agents/**/*.md`, `.claude/commands/**/*.md`,
+  `.claude/skills/**/SKILL.md`, `.cursor/rules/**/*.mdc|.md`,
+  `.windsurf/rules/*.md`, `.clinerules/*.md`,
+  `.github/instructions/*.instructions.md`, `.github/prompts/*.prompt.md`,
+  `.github/chatmodes/*.chatmode.md`, and `.gemini/commands/*`
+- Claude Code settings: `.claude/settings.json`, `.claude/settings.local.json`,
+  `.claude/managed-settings.json`
+- MCP configs: `.mcp.json`, `mcp.json` (including `.vscode/mcp.json` and
+  `.cursor/mcp.json`), `mcp.yaml`/`mcp.yml`, `claude_desktop_config.json`,
+  `.gemini/settings.json`, any `*mcp*.json`/`.yaml`/`.yml`, and config-format
+  files (`.json`, `.jsonc`, `.yaml`, `.yml`, `.toml`) inside an `mcp/`
+  directory. Source code inside an `mcp/` directory (for example an MCP
+  server's Go or TypeScript files and their tests) is not a prompt asset and is
+  not governed by the directory name alone.
+
+Settings and MCP configs are parsed structurally: JSON with JSONC extensions
+(`//` and `/* */` comments, trailing commas) and YAML. Every finding reports
+the line of the offending key or array entry. A file that does not parse
+(malformed JSON, or TOML) does not fail the section; it falls back to line
+heuristics. `${VAR}` references inside a config that declares MCP servers,
+or inside a Claude settings file, are not reported as
+`prompts.secret-interpolation`, because referencing the environment is how
+those files are meant to receive credentials.
+
+Rules:
+
+| Rule | Level | Catches |
+| --- | --- | --- |
+| `prompts.secret-interpolation` | fail | `${SECRET}`-style interpolation in prose prompt assets and agent instruction files |
+| `prompts.unsafe-instructions` | warn | instruction-override and prompt-exfiltration phrasing |
+| `prompts.agent-dangerous-instructions` | fail | instruction files that tell the agent to bypass approvals or its sandbox (see below) |
+| `prompts.agent-standing-permissions` | fail (warn for `enableAllProjectMcpServers`) | unrestricted standing grants in Claude settings or instruction files (see below) |
+| `prompts.mcp-config-risk` | fail | shell-wrapped MCP server commands (`bash -c`, `sh -lc`, `cmd /c`, `pwsh -Command`), `curl`/`wget` piped into a shell, wildcard `alwaysAllow`/`autoApprove`/`allow`/`tools` lists, and `trust`/`autoApprove`/`allowAllTools: true` |
+| `prompts.mcp-unpinned-server` | warn | registry-launched MCP servers without an exact version (see below) |
+| `prompts.agent-config-literal-secret` | fail | literal credentials in an MCP server's `env` or `headers`, or a Claude settings `env` block |
+| `prompts.mcp-insecure-transport` | fail | a remote MCP `url`/`serverUrl`/`httpUrl` over `http://` or `ws://` to a non-loopback host |
+| `prompts.mcp-remote-unauthenticated` | warn (low confidence) | a remote MCP server with no `Authorization`, token, API-key, or cookie header and no `oauth`/`auth` block |
+| `prompts.hidden-unicode` | fail (warn for zero-width only) | invisible characters in any governed file (see below) |
+
+`prompts.agent-dangerous-instructions` reports, with the real line and column:
+- bypass flags and modes: `--dangerously-skip-permissions`,
+  `--allow-dangerously-skip-permissions`,
+  `--dangerously-bypass-approvals-and-sandbox`, `--yolo`,
+  `--approval-mode yolo`, `--allow-all-tools`, `--trust-all-tools`,
+  `--ask-for-approval never`, `danger-full-access`, `bypassPermissions`
+  (confidence high)
+- bypass prose: "skip/disable/bypass/override ... approval/sandbox/permission/
+  confirmation", "without asking for approval", "auto-approve everything",
+  "yolo mode" (confidence medium)
+- "stop asking" phrasing: "never ask for confirmation", "don't ask for
+  permission", "you don't need to ask for approval", "never seek approval"
+  (confidence medium)
+
+A flag or bypass phrase is not reported when the same sentence forbids it
+("Never run with `--yolo`", "`bypassPermissions` is forbidden", "Do not delete
+files without asking for confirmation"), or when it sits under a heading or a
+list intro that forbids what follows ("## Never do this", "Avoid the
+following:"). "Stop asking" phrasing is always reported, since its negation is
+the instruction.
+
+`prompts.agent-standing-permissions` reports in `.claude/settings*.json`:
+- `permissions.allow` entries `*`, bare `Bash`, `Bash(*)`, `Bash(:*)`,
+  `Bash(*:*)` (confidence high)
+- `permissions.allow` prefix rules that name a program whose argument is
+  itself code, which is as broad as `Bash(*)`: shells (`bash`, `sh`, `zsh`,
+  ...), `eval`, `env`, `xargs`, `sudo`, and interpreters (`python3`, `node`,
+  `perl`, `ruby`, ...) followed by `:*`, ` *`, `-c` or `-e` (confidence
+  medium). Scoped rules such as `Bash(go test:*)`, `Bash(npm run lint:*)` or
+  `Bash(python3 scripts/gen.py:*)` pass.
+- `permissions.defaultMode: "bypassPermissions"` and
+  `skipDangerousModePermissionPrompt: true`
+- `enableAllProjectMcpServers: true` (warn): it auto-approves any server a
+  contributor adds to `.mcp.json`
+
+In instruction files the textual wildcard heuristics (`permissions: ["*"]`,
+`autoApprove: true`, "unrestricted shell", ...) still apply and report the
+line of the match.
+
+`prompts.mcp-unpinned-server` recognizes `npx`, `bunx`, `pnpx`, `pnpm dlx`,
+`yarn dlx`, `bun x`, `npm exec`, `uvx`, `uv tool run`, `pipx run`, and
+`docker`/`podman run`, in either the `command` string or the `args` array. A
+package is pinned by an exact version (`pkg@1.4.2`, `@scope/pkg@1.4.2`,
+`pkg==1.4.2`, `pkg@1.4.2` for uvx), a commit (`github:org/repo#<sha>`,
+`git+https://...@<sha>`), or for images an explicit non-floating tag or an
+`@sha256:` digest. Floating tags (`@latest`, `@next`, `:latest`, untagged
+images) are reported with high confidence; a bare package name with medium.
+Local paths (`./server.js`, `/opt/mcp`) are not packages. The message notes
+when `-y`/`--yes` also skips the install prompt. For configs that cannot be
+parsed, a line that holds `npx`/`uvx`/`bunx` with `-y` and no visible version
+is reported with low confidence.
+
+`prompts.agent-config-literal-secret` flags a value that carries an issuer
+prefix (`ghp_`, `github_pat_`, `glpat-`, `xox?-`, `sk-`, `sk-ant-`, `AKIA`,
+`AIza`, `npm_`, `hf_`, ...; confidence high) regardless of its key, or a value
+of 12+ characters under a credential-shaped key (`*TOKEN*`, `*SECRET*`,
+`*PASSWORD*`, `*API_KEY*`, `Authorization`, ...; confidence medium). A leading
+`Bearer`/`Basic`/`token` scheme is ignored. References are not reported:
+`${VAR}`, `$VAR`, `{{ template }}`, `%VAR%`, and `op://`, `env:`, `vault:`
+prefixes, nor are placeholders such as `<your-token>` or `changeme`. The
+message names the key, never the value.
+
+`prompts.hidden-unicode` reports one finding per line containing:
+- bidi controls U+202A-U+202E and U+2066-U+2069 (fail, confidence high)
+- tag characters U+E0000-U+E007F (fail, confidence high), which can spell an
+  invisible ASCII instruction
+- zero-width characters U+200B-U+200D, U+2060-U+2064, U+FEFF, U+180E (warn,
+  confidence medium)
+
+It does not report a byte-order mark at the start of a file, a zero-width
+joiner or non-joiner between two non-ASCII characters (emoji sequences,
+Persian and Indic text), or tag characters that complete an emoji subdivision
+flag.
 
 ## CI
 
