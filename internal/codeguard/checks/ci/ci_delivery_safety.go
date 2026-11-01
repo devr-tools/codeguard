@@ -53,34 +53,37 @@ func missingRequiredGateFindings(env support.Context, target core.TargetConfig) 
 	return findings
 }
 
+var (
+	// testGateMarkers are commands or job names that show a workflow runs tests.
+	testGateMarkers = []string{
+		"go test", "npm test", "pnpm test", "yarn test", "pytest", "cargo test", "dotnet test",
+		"mvn test", "gradle test", "\n  test:", "\n    name: test",
+	}
+	// securityGateMarkers are scanners that show a workflow runs a security gate.
+	securityGateMarkers = []string{"govulncheck", "gosec", "codeql", "trivy", "snyk", "semgrep"}
+)
+
 func workflowHasGate(content string, gate string) bool {
 	gate = strings.ToLower(strings.TrimSpace(gate))
-	if gate == "" {
-		return true
-	}
 	switch gate {
+	case "":
+		return true
 	case "test", "tests":
-		return strings.Contains(content, "go test") ||
-			strings.Contains(content, "npm test") ||
-			strings.Contains(content, "pnpm test") ||
-			strings.Contains(content, "yarn test") ||
-			strings.Contains(content, "pytest") ||
-			strings.Contains(content, "cargo test") ||
-			strings.Contains(content, "dotnet test") ||
-			strings.Contains(content, "mvn test") ||
-			strings.Contains(content, "gradle test") ||
-			strings.Contains(content, "\n  test:") ||
-			strings.Contains(content, "\n    name: test")
+		return containsAnySubstring(content, testGateMarkers)
 	case "security":
-		return strings.Contains(content, "govulncheck") ||
-			strings.Contains(content, "gosec") ||
-			strings.Contains(content, "codeql") ||
-			strings.Contains(content, "trivy") ||
-			strings.Contains(content, "snyk") ||
-			strings.Contains(content, "semgrep")
+		return containsAnySubstring(content, securityGateMarkers)
 	default:
 		return strings.Contains(content, gate)
 	}
+}
+
+func containsAnySubstring(text string, needles []string) bool {
+	for _, needle := range needles {
+		if strings.Contains(text, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func mutableDeploymentReferenceFindings(env support.Context, target core.TargetConfig) []core.Finding {
