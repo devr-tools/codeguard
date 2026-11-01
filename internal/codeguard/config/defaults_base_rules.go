@@ -85,20 +85,27 @@ func baseDefaultPromptRules() core.PromptRulesConfig {
 //
 //   - required_workflow_files / required_release_files /
 //     required_automation_paths: requiredPathFindings iterates the list.
+//
 //   - workflow_content_rules: workflowContentFindings iterates the list.
+//
 //   - required_gates: missingRequiredGateFindings returns early when empty.
+//
 //   - allowed_test_paths: testFileLocationFindings returns early when empty.
 //     A non-empty default here hard-failed every repository with co-located
 //     tests (idiomatic Go `_test.go`, `*.spec.ts`, pytest `test_*.py`).
+//
+//   - require_workflow_dir: off as well. It used to be the one CI default, on
+//     the theory that enabling the section asserts GitHub Actions; but the
+//     recommended set (and the config-less scan) enable the section for every
+//     repository, so it failed any repository on GitLab CI, Buildkite, or no
+//     CI yet, at fail level, on its first scan. `codeguard init` now enables
+//     the ci section only when .github/workflows exists.
 //
 // The opinionated versions of all of these live in the starter config and in
 // the enterprise/strict profiles.
 func baseDefaultCIRules() core.CIRulesConfig {
 	return core.CIRulesConfig{
-		// The only CI default: enabling the section is itself the assertion
-		// that the repository wants pipeline policy checked, and every other
-		// CI rule reads workflow files from .github/workflows.
-		RequireWorkflowDir: boolPtr(true),
+		RequireWorkflowDir: boolPtr(false),
 	}
 }
 

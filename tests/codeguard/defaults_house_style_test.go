@@ -16,7 +16,7 @@ import (
 // Each list below is one that its rule treats as "not configured" when empty,
 // so an empty default means "mechanism intact, nothing enforced". Do not make
 // any of them non-empty to express codeguard's own conventions; put those in
-// the starter config (config.applyStarterPolicy) or in a named profile.
+// codeguard's own .codeguard/codeguard.yaml or in a named profile.
 func TestDefaultsAssertNoRepositoryShapePolicy(t *testing.T) {
 	cfg := codeguard.Config{}
 	codeguard.ApplyDefaults(&cfg)
@@ -38,6 +38,12 @@ func TestDefaultsAssertNoRepositoryShapePolicy(t *testing.T) {
 	}
 	if len(ci.WorkflowContentRules) != 0 {
 		t.Errorf("default ci_rules.workflow_content_rules = %v, want empty", ci.WorkflowContentRules)
+	}
+	// GitHub Actions is a convention too: a repository on another CI system,
+	// or with no CI yet, must not fail its first scan on a missing workflow
+	// directory.
+	if ci.RequireWorkflowDir == nil || *ci.RequireWorkflowDir {
+		t.Errorf("default ci_rules.require_workflow_dir = %v, want an explicit false", ci.RequireWorkflowDir)
 	}
 
 	design := cfg.Checks.DesignRules
@@ -62,8 +68,9 @@ func TestDefaultsAssertNoRepositoryShapePolicy(t *testing.T) {
 	}
 }
 
-// The starter config keeps stating codeguard's conventions: the split must not
-// be achieved by thinning out what `codeguard init` writes.
+// ExampleConfig (the SDK's full example, which describes codeguard's own
+// repository) keeps stating codeguard's conventions. `codeguard init` no
+// longer writes it; see tests/cli/init_repo_aware_test.go.
 func TestStarterConfigStillStatesHouseConventions(t *testing.T) {
 	cfg := codeguard.ExampleConfig()
 

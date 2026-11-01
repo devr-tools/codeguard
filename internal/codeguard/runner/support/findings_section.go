@@ -102,6 +102,8 @@ func FinalizeSectionWithDiagnostics(sc Context, id string, name string, findings
 	if sc.corpus != nil {
 		diagnostics = append(diagnostics, sc.corpus.takeDiagnostics()...)
 	}
+	findings = dedupeFindings(findings)
+	diagnostics = dedupeDiagnostics(diagnostics)
 	section := core.SectionResult{ID: id, Name: name, Status: core.StatusPass}
 	active := make([]core.Finding, 0, len(findings))
 	for _, finding := range findings {
@@ -166,6 +168,56 @@ func FinalizeSectionWithDiagnostics(sc Context, id string, name string, findings
 		sc.Opts.OnSectionComplete(section)
 	}
 	return section
+}
+
+// dedupeFindings drops findings that are identical in every reported
+// coordinate. Targets are single-language, so a multi-language repository has
+// several targets over the same root, and the language-agnostic passes
+// (secrets, supply chain, CI files, prompts) visit each file once per target.
+// Their findings are byte-for-byte the same and would otherwise be listed and
+// counted once per target. Distinct findings that merely share a line keep
+// their own message, column, level or confidence and are left alone.
+func dedupeFindings(findings []core.Finding) []core.Finding {
+	if len(findings) < 2 {
+		return findings
+	}
+	type findingKey struct {
+		fingerprint, rule, path, level, confidence, message string
+		line, column                                        int
+	}
+	seen := make(map[findingKey]struct{}, len(findings))
+	out := make([]core.Finding, 0, len(findings))
+	for _, finding := range findings {
+		key := findingKey{finding.Fingerprint, finding.RuleID, finding.Path, finding.Level, finding.Confidence, finding.Message, finding.Line, finding.Column}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, finding)
+	}
+	return out
+}
+
+// dedupeDiagnostics applies the same per-target collapse to diagnostics.
+func dedupeDiagnostics(diagnostics []core.Diagnostic) []core.Diagnostic {
+	if len(diagnostics) < 2 {
+		return diagnostics
+	}
+	type diagnosticKey struct {
+		id, level, kind, message, path string
+		operational                    bool
+	}
+	seen := make(map[diagnosticKey]struct{}, len(diagnostics))
+	out := make([]core.Diagnostic, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		key := diagnosticKey{diagnostic.ID, diagnostic.Level, diagnostic.Kind, diagnostic.Message, diagnostic.Path, diagnostic.Operational}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, diagnostic)
+	}
+	return out
 }
 
 // demoteLowConfidence reports a low-confidence failing finding as a warning
