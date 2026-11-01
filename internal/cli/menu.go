@@ -26,6 +26,7 @@ var menuGroups = []menuGroup{
 		title: "Get started",
 		items: []menuItem{
 			{"init", "Create a codeguard config file"},
+			{"context", "Generate or refresh AGENTS.md / CLAUDE.md from detected facts"},
 			{"validate", "Check that a config file is valid"},
 			{"profiles", "List built-in policy profiles"},
 		},

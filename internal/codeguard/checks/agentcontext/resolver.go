@@ -20,6 +20,7 @@ const maxDocFileBytes = 4 << 20
 type repoResolver struct {
 	root         string
 	makeTargets  map[string]struct{}
+	makeOrder    []string
 	makeReliable bool
 	npmScripts   map[string]struct{}
 	npmReliable  bool
@@ -77,10 +78,12 @@ func (r *repoResolver) loadMakeTargets() {
 	}
 	r.makeTargets = map[string]struct{}{}
 	r.makeReliable = true
+	// Parsing continues past an unreliable line so the command surface still
+	// lists every target it can see; the drift and undocumented rules consult
+	// makeReliable and never judge an unreliable Makefile.
 	for _, line := range strings.Split(string(data), "\n") {
 		if !r.recordMakeLine(line) {
 			r.makeReliable = false
-			return
 		}
 	}
 }
@@ -113,10 +116,20 @@ func (r *repoResolver) recordMakeLine(line string) bool {
 	}
 	for _, name := range names {
 		if !strings.ContainsAny(name, "$%") {
-			r.makeTargets[strings.TrimSuffix(name, ":")] = struct{}{}
+			r.addMakeTarget(strings.TrimSuffix(name, ":"))
 		}
 	}
 	return true
+}
+
+// addMakeTarget records a target once, keeping first-seen file order for the
+// command surface.
+func (r *repoResolver) addMakeTarget(name string) {
+	if _, seen := r.makeTargets[name]; seen {
+		return
+	}
+	r.makeTargets[name] = struct{}{}
+	r.makeOrder = append(r.makeOrder, name)
 }
 
 func isMakeIncludeDirective(trimmed string) bool {
@@ -137,13 +150,14 @@ func (r *repoResolver) loadNpmScripts() {
 		Scripts    map[string]string `json:"scripts"`
 		Workspaces json.RawMessage   `json:"workspaces"`
 	}
-	// Workspace roots delegate scripts to member packages, so absence at the
-	// root proves nothing; leave the resolver unreliable in that case.
-	if err := json.Unmarshal(data, &manifest); err != nil || manifest.Workspaces != nil {
+	if err := json.Unmarshal(data, &manifest); err != nil {
 		return
 	}
+	// Workspace roots delegate scripts to member packages, so absence at the
+	// root proves nothing; the scripts are kept for the command surface but
+	// the resolver stays unreliable in that case.
 	r.npmScripts = map[string]struct{}{}
-	r.npmReliable = true
+	r.npmReliable = manifest.Workspaces == nil
 	for name := range manifest.Scripts {
 		r.npmScripts[name] = struct{}{}
 	}
