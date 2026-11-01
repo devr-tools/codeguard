@@ -40,7 +40,7 @@ func functionDataFindings(env support.Context, file string, fset *token.FileSet,
 	findings := site.writeConsistencyFindings(rules, summary)
 	findings = append(findings, site.consumerFindings(rules, summary, fn)...)
 	if enabled(rules.DetectCacheWithoutPolicy) && summary.cacheSetWithoutTTL > 0 {
-		findings = append(findings, site.finding("data.cache-without-policy", "warn", "cache writes lack visible TTL, invalidation, or ownership policy", "medium", "cache_sets", fmt.Sprintf("%d", summary.cacheSetWithoutTTL)))
+		findings = append(findings, site.finding("data.cache-without-policy", "warn", "cache writes lack visible TTL, invalidation, or ownership policy", "cache_sets", fmt.Sprintf("%d", summary.cacheSetWithoutTTL)))
 	}
 	if enabled(rules.DetectSideEffectInTransaction) {
 		findings = append(findings, sideEffectsInTransactions(env, file, fset, fn.Body)...)
@@ -56,8 +56,9 @@ type goDataFindingSite struct {
 	pos  token.Position
 }
 
-func (site goDataFindingSite) finding(ruleID string, level string, message string, confidence string, metaKey string, metaValue string) core.Finding {
-	return newFinding(site.env, ruleID, level, site.file, site.pos.Line, site.pos.Column, message, confidence, metaKey, metaValue)
+// finding builds a medium-confidence finding at the function declaration.
+func (site goDataFindingSite) finding(ruleID string, level string, message string, metaKey string, metaValue string) core.Finding {
+	return newFinding(site.env, ruleID, level, site.file, site.pos.Line, site.pos.Column, message, "medium", metaKey, metaValue)
 }
 
 // writeConsistencyFindings reports read-modify-write races, multiple writes
@@ -67,16 +68,16 @@ func (site goDataFindingSite) writeConsistencyFindings(rules core.DataRulesConfi
 	findings := make([]core.Finding, 0)
 	inTransaction := summary.transactionCalls > 0
 	if enabled(rules.DetectReadModifyWriteRace) && summary.readCalls > 0 && summary.writeCalls > 0 && !inTransaction {
-		findings = append(findings, site.finding("data.read-modify-write-race", "fail", "function reads state and writes derived state without a transaction or atomic update boundary", "medium", "pattern", "read-modify-write"))
+		findings = append(findings, site.finding("data.read-modify-write-race", "fail", "function reads state and writes derived state without a transaction or atomic update boundary", "pattern", "read-modify-write"))
 	}
 	if enabled(rules.DetectMissingTransaction) && rules.MaxWritesWithoutTransaction >= 0 && summary.writeCalls > rules.MaxWritesWithoutTransaction && !inTransaction {
-		findings = append(findings, site.finding("data.missing-transaction-boundary", "fail", fmt.Sprintf("function performs %d persistence writes without an obvious transaction boundary", summary.writeCalls), "medium", "writes", fmt.Sprintf("%d", summary.writeCalls)))
+		findings = append(findings, site.finding("data.missing-transaction-boundary", "fail", fmt.Sprintf("function performs %d persistence writes without an obvious transaction boundary", summary.writeCalls), "writes", fmt.Sprintf("%d", summary.writeCalls)))
 	}
 	if enabled(rules.DetectUnsafeDualWrite) && summary.writeCalls > 0 && summary.sideEffectCalls > 0 && !summary.hasOutbox {
-		findings = append(findings, site.finding("data.unsafe-dual-write", "fail", "function writes state and performs an external side effect without an obvious consistency strategy", "medium", "pattern", "write-plus-side-effect"))
+		findings = append(findings, site.finding("data.unsafe-dual-write", "fail", "function writes state and performs an external side effect without an obvious consistency strategy", "pattern", "write-plus-side-effect"))
 	}
 	if enabled(rules.DetectMissingOutboxStrategy) && summary.writeCalls > 0 && summary.publishCalls > 0 && !summary.hasOutbox {
-		findings = append(findings, site.finding("data.missing-outbox-strategy", "fail", "state write is paired with event publishing without outbox evidence", "medium", "pattern", "write-plus-publish"))
+		findings = append(findings, site.finding("data.missing-outbox-strategy", "fail", "state write is paired with event publishing without outbox evidence", "pattern", "write-plus-publish"))
 	}
 	return findings
 }
@@ -89,10 +90,10 @@ func (site goDataFindingSite) consumerFindings(rules core.DataRulesConfig, summa
 	}
 	findings := make([]core.Finding, 0, 2)
 	if enabled(rules.DetectNonIdempotentConsumer) && summary.sideEffectCalls > 0 {
-		findings = append(findings, site.finding("data.non-idempotent-consumer", "fail", "message or event handler performs side effects without idempotency evidence", "medium", "consumer", fn.Name.Name))
+		findings = append(findings, site.finding("data.non-idempotent-consumer", "fail", "message or event handler performs side effects without idempotency evidence", "consumer", fn.Name.Name))
 	}
 	if enabled(rules.DetectMissingDeduplication) {
-		findings = append(findings, site.finding("data.missing-deduplication", "warn", "message or event handler has no visible deduplication guard", "medium", "consumer", fn.Name.Name))
+		findings = append(findings, site.finding("data.missing-deduplication", "warn", "message or event handler has no visible deduplication guard", "consumer", fn.Name.Name))
 	}
 	return findings
 }
