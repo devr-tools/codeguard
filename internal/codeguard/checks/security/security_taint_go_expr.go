@@ -26,35 +26,11 @@ func exprTypeText(expr ast.Expr) string {
 	}
 }
 
-func (s *goScope) sourceTaint(name string, pos token.Pos) *goTaint {
-	return s.sourceTaintWithModel(name, pos, "")
+func (s *goScope) sourceTaint(name string, pos token.Pos) *taintTrace {
+	return sourceTrace(name, s.analyzer.line(pos), "")
 }
 
-func (s *goScope) sourceTaintWithModel(name string, pos token.Pos, model string) *goTaint {
-	return &goTaint{
-		source:     name,
-		sourceLine: s.analyzer.line(pos),
-		chain:      []string{name},
-		paramIndex: -1,
-		model:      model,
-	}
-}
-
-// preferTaint picks a concrete source over a parameter-conditional taint.
-func preferTaint(left *goTaint, right *goTaint) *goTaint {
-	if left == nil {
-		return right
-	}
-	if right == nil {
-		return left
-	}
-	if left.paramIndex >= 0 && right.paramIndex < 0 {
-		return right
-	}
-	return left
-}
-
-func (s *goScope) evalExpr(expr ast.Expr) *goTaint {
+func (s *goScope) evalExpr(expr ast.Expr) *taintTrace {
 	switch typed := expr.(type) {
 	case *ast.Ident:
 		return s.vars[typed.Name]
@@ -71,7 +47,7 @@ func (s *goScope) evalExpr(expr ast.Expr) *goTaint {
 	}
 }
 
-func (s *goScope) evalOtherExpr(expr ast.Expr) *goTaint {
+func (s *goScope) evalOtherExpr(expr ast.Expr) *taintTrace {
 	switch typed := expr.(type) {
 	case *ast.ParenExpr:
 		return s.evalExpr(typed.X)
@@ -91,7 +67,7 @@ func (s *goScope) evalOtherExpr(expr ast.Expr) *goTaint {
 	}
 }
 
-func (s *goScope) evalBinary(expr *ast.BinaryExpr) *goTaint {
+func (s *goScope) evalBinary(expr *ast.BinaryExpr) *taintTrace {
 	left := s.evalExpr(expr.X)
 	right := s.evalExpr(expr.Y)
 	if expr.Op == token.ADD {
@@ -100,15 +76,15 @@ func (s *goScope) evalBinary(expr *ast.BinaryExpr) *goTaint {
 	return nil
 }
 
-func (s *goScope) evalComposite(lit *ast.CompositeLit) *goTaint {
-	var taint *goTaint
+func (s *goScope) evalComposite(lit *ast.CompositeLit) *taintTrace {
+	var taint *taintTrace
 	for _, element := range lit.Elts {
 		taint = preferTaint(taint, s.evalExpr(element))
 	}
 	return taint
 }
 
-func (s *goScope) evalIndex(expr *ast.IndexExpr) *goTaint {
+func (s *goScope) evalIndex(expr *ast.IndexExpr) *taintTrace {
 	if exprTypeText(expr.X) == "os.Args" {
 		return s.sourceTaint("os.Args", expr.Pos())
 	}
@@ -118,7 +94,7 @@ func (s *goScope) evalIndex(expr *ast.IndexExpr) *goTaint {
 
 var goRequestFields = map[string]bool{"Body": true, "Header": true, "URL": true, "Form": true, "PostForm": true, "RequestURI": true}
 
-func (s *goScope) evalSelector(expr *ast.SelectorExpr) *goTaint {
+func (s *goScope) evalSelector(expr *ast.SelectorExpr) *taintTrace {
 	if exprTypeText(expr) == "os.Args" {
 		return s.sourceTaint("os.Args", expr.Pos())
 	}

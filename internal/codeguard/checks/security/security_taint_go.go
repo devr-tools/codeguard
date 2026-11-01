@@ -13,14 +13,10 @@ import (
 // pass followed by one reporting pass, giving call-site resolution for
 // functions declared in the same file.
 type goTaintAnalyzer struct {
-	env       support.Context
-	file      string
+	taintEngine
 	fset      *token.FileSet
 	functions map[string]*ast.FuncDecl
 	models    goModelBindings
-	summaries map[string]*goFuncSummary
-	findings  []core.Finding
-	seen      map[string]struct{}
 }
 
 func goTaintFindings(env support.Context, file string, source string) []core.Finding {
@@ -30,35 +26,27 @@ func goTaintFindings(env support.Context, file string, source string) []core.Fin
 		return nil
 	}
 	analyzer := &goTaintAnalyzer{
-		env:       env,
-		file:      file,
-		fset:      fset,
-		functions: map[string]*ast.FuncDecl{},
-		models:    newGoModelBindings(parsed),
-		summaries: map[string]*goFuncSummary{},
-		seen:      map[string]struct{}{},
+		taintEngine: newTaintEngine(env, file, taintRules{taintRuleID: "security.taint.go", ssrfRuleID: "security.ssrf.go", isSSRFSink: isGoHTTPSink}, true),
+		fset:        fset,
+		functions:   map[string]*ast.FuncDecl{},
+		models:      newGoModelBindings(parsed),
 	}
 	for _, decl := range parsed.Decls {
 		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name != nil {
 			analyzer.functions[fn.Name.Name] = fn
 		}
 	}
-	analyzer.runPasses()
+	analyzer.runSummaryPasses(analyzer.analyzeAll)
 	return analyzer.findings
 }
 
-func (a *goTaintAnalyzer) runPasses() {
-	for pass := 0; pass < 3; pass++ {
-		emit := pass == 2
-		next := map[string]*goFuncSummary{}
-		for name, fn := range a.functions {
-			next[name] = a.analyzeFunction(fn, emit)
-		}
-		a.summaries = next
+func (a *goTaintAnalyzer) analyzeAll(emit bool, next map[string]*funcSummary) {
+	for name, fn := range a.functions {
+		next[name] = a.analyzeFunction(fn, emit)
 	}
 }
 
-func (a *goTaintAnalyzer) analyzeFunction(fn *ast.FuncDecl, emit bool) *goFuncSummary {
+func (a *goTaintAnalyzer) analyzeFunction(fn *ast.FuncDecl, emit bool) *funcSummary {
 	scope := newGoScope(a, fn, emit)
 	if fn.Body != nil {
 		scope.walkStmts(fn.Body.List)
@@ -70,40 +58,22 @@ func (a *goTaintAnalyzer) line(pos token.Pos) int {
 	return a.fset.Position(pos).Line
 }
 
-// emitFinding records one deduplicated source-to-sink finding.
-func (a *goTaintAnalyzer) emitFinding(taint *goTaint, sink string, sinkLine int) {
-	a.findings = appendTaintFinding(a.env, a.file, a.seen, a.findings, taintSinkInput{
-		ruleID:     goTaintRuleID(sink),
-		source:     taint.source,
-		sourceLine: taint.sourceLine,
-		chain:      taint.chain,
-		sink:       sink,
-		sinkLine:   sinkLine,
-		model:      taint.model,
-		sinkModel:  taint.sinkModel,
-	})
-}
-
 // goScope is the per-function taint state.
 type goScope struct {
+	taintScope
 	analyzer     *goTaintAnalyzer
-	emit         bool
-	vars         map[string]*goTaint
 	requestVars  map[string]bool
 	stdinReaders map[string]bool
 	templateVars map[string]bool
-	summary      *goFuncSummary
 }
 
 func newGoScope(a *goTaintAnalyzer, fn *ast.FuncDecl, emit bool) *goScope {
 	scope := &goScope{
+		taintScope:   newTaintScope(&a.taintEngine, emit),
 		analyzer:     a,
-		emit:         emit,
-		vars:         map[string]*goTaint{},
 		requestVars:  map[string]bool{},
 		stdinReaders: map[string]bool{},
 		templateVars: map[string]bool{},
-		summary:      &goFuncSummary{paramsToReturn: map[int]bool{}},
 	}
 	scope.bindParams(fn)
 	return scope
@@ -120,7 +90,7 @@ func (s *goScope) bindParams(fn *ast.FuncDecl) {
 			if _, isRequest := s.analyzer.models.requests[name.Name]; isRequest {
 				s.requestVars[name.Name] = true
 			} else {
-				s.vars[name.Name] = &goTaint{
+				s.vars[name.Name] = &taintTrace{
 					source:     "parameter " + name.Name,
 					sourceLine: s.analyzer.line(name.Pos()),
 					chain:      []string{name.Name},
