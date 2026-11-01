@@ -57,10 +57,12 @@ func TestRuleStatsHistoryRoundTripAndCap(t *testing.T) {
 	}
 
 	for i, ruleID := range []string{"first.rule", "second.rule", "third.rule"} {
-		runnersupport.AppendRuleStatsHistory(path, core.RuleStatsHistoryEntry{
+		if err := runnersupport.AppendRuleStatsHistory(path, core.RuleStatsHistoryEntry{
 			Timestamp: fmt.Sprintf("2026-07-%02dT00:00:00Z", i+1),
 			Rules:     []core.RuleStatsEntry{{RuleID: ruleID, Emitted: 1}},
-		}, 2)
+		}, 2); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	history := runnersupport.LoadRuleStatsHistory(path)

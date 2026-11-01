@@ -28,7 +28,6 @@ const (
 	qualityDuplicatedKnowledgeRuleID       = "quality.duplicated-knowledge"
 	qualityAmbiguousNameRuleID             = "quality.ambiguous-name"
 	qualityBooleanArgumentRuleID           = "quality.boolean-argument"
-	qualityMixedAbstractionLevelsRuleID    = "quality.mixed-abstraction-levels"
 	qualityPrimitiveObsessionRuleID        = "quality.primitive-obsession"
 	qualityHiddenSideEffectRuleID          = "quality.hidden-side-effect"
 	qualityMutableGlobalStateRuleID        = "quality.mutable-global-state"

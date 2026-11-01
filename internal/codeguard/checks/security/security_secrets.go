@@ -5,7 +5,6 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
 // concatenatedLiteralPattern folds `"abc" + "def"` into `"abcdef"` so a secret
@@ -110,10 +109,10 @@ func located(m *Match, lineNo int) []Match {
 
 func secretResultsForFile(env support.Context, file string, data []byte, scanner Scanner) ([]core.Finding, []core.Diagnostic) {
 	// The binary check is retained here as well as in the shared scan path
-	// (runnersupport.LooksBinary, applied in ScanTargetFiles) because
+	// (support.LooksBinary, applied in ScanTargetFiles) because
 	// secretResultsForFile is reachable from callers that do not go through the
 	// corpus scan; the shared helper is the single definition of the heuristic.
-	if scanner.SkipPath(file) || len(data) > maxScanFileBytes || runnersupport.LooksBinary(data) {
+	if scanner.SkipPath(file) || len(data) > maxScanFileBytes || support.LooksBinary(data) {
 		return nil, nil
 	}
 	content := string(data)

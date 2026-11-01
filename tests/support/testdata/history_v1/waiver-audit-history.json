@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "timestamp": "2026-10-01T00:00:00Z",
+      "codeguard_version": "1.2.3",
+      "config_fingerprint": "abc123",
+      "scan_mode": "full",
+      "waivers": [
+        {
+          "index": 0,
+          "rule": "quality.file-too-long",
+          "path": "a.go",
+          "reason": "legacy",
+          "expires_on": "2027-01-01",
+          "status": "used",
+          "matched_findings": 1,
+          "matched_fingerprints": [
+            "fp1"
+          ]
+        }
+      ]
+    }
+  ]
+}

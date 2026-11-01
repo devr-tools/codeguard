@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/buildregression"
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	"github.com/devr-tools/codeguard/internal/codeguard/runner/buildregression"
 )
 
 func buildRegressionFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {

@@ -5,59 +5,41 @@ import (
 	"strings"
 	"time"
 
-	"github.com/devr-tools/codeguard/internal/codeguard/cachefile"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	"github.com/devr-tools/codeguard/internal/version"
 )
 
-const waiverAuditHistoryVersion = 1
-
 const DefaultWaiverAuditHistoryLimit = 100
 
-type waiverAuditHistoryFile struct {
-	Version int                            `json:"version"`
-	Entries []core.WaiverAuditHistoryEntry `json:"entries"`
-}
+var waiverAuditHistory = listHistory[core.WaiverAuditHistoryEntry]{version: 1, defaultLimit: DefaultWaiverAuditHistoryLimit}
 
 func WaiverAuditHistoryPathForBase(base string) string {
 	return derivedCachePath(base, ".waiver-audit-history")
 }
 
 func LoadWaiverAuditHistory(path string) []core.WaiverAuditHistoryEntry {
-	if strings.TrimSpace(path) == "" {
-		return nil
-	}
-	var file waiverAuditHistoryFile
-	if !cachefile.Load(path, &file) || file.Version != waiverAuditHistoryVersion {
-		return nil
-	}
-	return file.Entries
+	return waiverAuditHistory.Load(path)
 }
 
-func AppendWaiverAuditHistory(path string, entry core.WaiverAuditHistoryEntry, limit int) {
-	if strings.TrimSpace(path) == "" {
-		return
-	}
-	if limit <= 0 {
-		limit = DefaultWaiverAuditHistoryLimit
-	}
-	entries := append(LoadWaiverAuditHistory(path), entry)
-	if len(entries) > limit {
-		entries = entries[len(entries)-limit:]
-	}
-	saveWaiverAuditHistory(path, entries)
+// AppendWaiverAuditHistory records entry, trims the history to limit entries,
+// and persists the file, returning any write error.
+func AppendWaiverAuditHistory(path string, entry core.WaiverAuditHistoryEntry, limit int) error {
+	return waiverAuditHistory.Append(path, entry, limit)
 }
 
-func RecordWaiverAuditHistory(sc Context, waivers []core.WaiverAuditEntry) []core.WaiverAuditEntry {
+// RecordWaiverAuditHistory annotates waivers with upgrade drift against the
+// previous persisted audit and records the current audit. A failed write is
+// returned as a warn-level operational diagnostic rather than dropped.
+func RecordWaiverAuditHistory(sc Context, waivers []core.WaiverAuditEntry) ([]core.WaiverAuditEntry, []core.Diagnostic) {
 	if len(waivers) == 0 || strings.TrimSpace(sc.Opts.DiffText) != "" {
-		return waivers
+		return waivers, nil
 	}
 	if sc.Cfg.Cache.Enabled != nil && !*sc.Cfg.Cache.Enabled {
-		return waivers
+		return waivers, nil
 	}
 	path := WaiverAuditHistoryPathForBase(sc.Cfg.Cache.Path)
 	if path == "" {
-		return waivers
+		return waivers, nil
 	}
 
 	history := LoadWaiverAuditHistory(path)
@@ -73,8 +55,10 @@ func RecordWaiverAuditHistory(sc Context, waivers []core.WaiverAuditEntry) []cor
 	previous, hasPrevious := latestWaiverAuditHistory(history)
 	annotated := annotateWaiverAuditWithHistory(current, previous, hasPrevious)
 	current.Waivers = cloneWaiverAuditEntries(annotated)
-	AppendWaiverAuditHistory(path, current, DefaultWaiverAuditHistoryLimit)
-	return annotated
+	if err := AppendWaiverAuditHistory(path, current, DefaultWaiverAuditHistoryLimit); err != nil {
+		return annotated, []core.Diagnostic{HistoryWriteDiagnostic("waiver-audit", path, err)}
+	}
+	return annotated, nil
 }
 
 func annotateWaiverAuditWithHistory(current core.WaiverAuditHistoryEntry, previous core.WaiverAuditHistoryEntry, hasPrevious bool) []core.WaiverAuditEntry {
@@ -139,9 +123,4 @@ func cloneWaiverAuditEntries(entries []core.WaiverAuditEntry) []core.WaiverAudit
 		out[idx].MatchedFingerprints = append([]string(nil), entry.MatchedFingerprints...)
 	}
 	return out
-}
-
-func saveWaiverAuditHistory(path string, entries []core.WaiverAuditHistoryEntry) {
-	payload := waiverAuditHistoryFile{Version: waiverAuditHistoryVersion, Entries: entries}
-	writeHistoryFile(path, payload)
 }

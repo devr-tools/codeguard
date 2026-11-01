@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/rules"
 )
 
 type WaiverAuditCollector struct {
@@ -76,7 +77,7 @@ func (collector *WaiverAuditCollector) Snapshot(catalog map[string]core.RuleMeta
 
 func waiverAuditStatus(waiver core.WaiverConfig, matched int, catalog map[string]core.RuleMetadata, today time.Time) string {
 	if waiver.Rule != "*" {
-		if _, ok := catalog[waiver.Rule]; !ok {
+		if _, ok := catalog[rules.ResolveRuleAlias(waiver.Rule)]; !ok {
 			return core.WaiverAuditStatusUnknownRule
 		}
 	}

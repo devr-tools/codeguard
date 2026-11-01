@@ -2,18 +2,17 @@ package quality
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/execlimit"
 	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
 
@@ -225,7 +224,7 @@ func rustToolchainDeadCodeIssuesForCrate(ctx context.Context, targetDir string, 
 		args = append(args, "--package", strings.TrimSpace(pkg))
 	}
 
-	output, err := runRustToolchainCommand(ctx, targetDir, rustToolchainCommandEnv(tmpDir), "cargo", args...)
+	output, err := execlimit.Run(ctx, targetDir, rustToolchainCommandEnv(tmpDir), rustToolchainCommandOutputLimit, "cargo", args...)
 	issues := parseCargoDeadCodeDiagnostics(output, targetDir)
 	if err != nil && len(issues) == 0 {
 		if strings.TrimSpace(output) != "" {
@@ -668,21 +667,6 @@ func rustToolchainCommandEnv(tmpDir string) []string {
 	return env
 }
 
-func runRustToolchainCommand(ctx context.Context, dir string, env []string, name string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // fixed Cargo invocation; config values are validated args, not commands
-	cmd.Dir = dir
-	cmd.Env = env
-	var buf bytes.Buffer
-	limited := newRustToolchainLimitedWriter(&buf, rustToolchainCommandOutputLimit)
-	cmd.Stdout = limited
-	cmd.Stderr = limited
-	err := cmd.Run()
-	if limited.Truncated() {
-		return "", fmt.Errorf("%s output exceeded %d bytes", name, rustToolchainCommandOutputLimit)
-	}
-	return buf.String(), err
-}
-
 func parseCargoDeadCodeDiagnostics(output string, targetDir string) []rustToolchainIssue {
 	seen := map[string]struct{}{}
 	issues := make([]rustToolchainIssue, 0)
@@ -902,36 +886,4 @@ func firstNonEmptyLine(output string) string {
 		}
 	}
 	return strings.TrimSpace(output)
-}
-
-type rustToolchainLimitedWriter struct {
-	buf       *bytes.Buffer
-	limit     int
-	truncated bool
-}
-
-func newRustToolchainLimitedWriter(buf *bytes.Buffer, limit int) *rustToolchainLimitedWriter {
-	return &rustToolchainLimitedWriter{buf: buf, limit: limit}
-}
-
-func (w *rustToolchainLimitedWriter) Write(p []byte) (int, error) {
-	if w.truncated {
-		return len(p), nil
-	}
-	remaining := w.limit - w.buf.Len()
-	if remaining <= 0 {
-		w.truncated = true
-		return len(p), nil
-	}
-	if len(p) > remaining {
-		_, _ = w.buf.Write(p[:remaining])
-		w.truncated = true
-		return len(p), nil
-	}
-	_, _ = w.buf.Write(p)
-	return len(p), nil
-}
-
-func (w *rustToolchainLimitedWriter) Truncated() bool {
-	return w.truncated
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/rules"
 )
 
 type inlineSuppression struct {
@@ -100,7 +101,7 @@ type WaiverMatch struct {
 func MatchingWaivers(sc Context, finding core.Finding) []WaiverMatch {
 	matches := make([]WaiverMatch, 0, 1)
 	for idx, waiver := range sc.Cfg.Waivers {
-		if waiver.Rule != "*" && waiver.Rule != finding.RuleID {
+		if waiver.Rule != "*" && rules.ResolveRuleAlias(waiver.Rule) != finding.RuleID {
 			continue
 		}
 		if waiver.Path != "" && !MatchPattern(waiver.Path, finding.Path) {

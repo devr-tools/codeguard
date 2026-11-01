@@ -118,14 +118,18 @@ type Context struct {
 	NewFinding                     func(FindingInput) core.Finding
 	FinalizeSection                func(id string, name string, findings []core.Finding) core.SectionResult
 	FinalizeSectionWithDiagnostics func(id string, name string, findings []core.Finding, diagnostics []core.Diagnostic) core.SectionResult
-	PutArtifact                    func(core.Artifact)
-	GetArtifact                    func(string) (core.Artifact, bool)
-	CountLines                     func(data []byte) int
-	CyclomaticComplexity           func(body *ast.BlockStmt) int
-	TypeName                       func(expr ast.Expr) string
-	IsInternalOrCmdFile            func(path string) bool
-	IsCmdFile                      func(path string) bool
-	IsPublicPackageFile            func(path string) bool
+	// ReportDiagnostic queues an operational diagnostic (for example a failed
+	// history write) for the section report. Nil in unit-test contexts; call it
+	// via the package-level ReportDiagnostic helper.
+	ReportDiagnostic     func(core.Diagnostic)
+	PutArtifact          func(core.Artifact)
+	GetArtifact          func(string) (core.Artifact, bool)
+	CountLines           func(data []byte) int
+	CyclomaticComplexity func(body *ast.BlockStmt) int
+	TypeName             func(expr ast.Expr) string
+	IsInternalOrCmdFile  func(path string) bool
+	IsCmdFile            func(path string) bool
+	IsPublicPackageFile  func(path string) bool
 	// SDKFacadeFor resolves the scanned repository's published facade package
 	// for one target. Nil in unit-test contexts; use SDKFacadeForTarget, which
 	// degrades to a matcher that matches nothing.
@@ -138,4 +142,12 @@ type Context struct {
 	RunCommandCheckWithEnv func(ctx context.Context, dir string, check core.CommandCheckConfig, env []string) (string, error)
 	RunDiffCommandCheck    func(ctx context.Context, dir string, baseRef string, check core.CommandCheckConfig) (string, error)
 	NormalizedSeverity     func(level string) string
+}
+
+// ReportDiagnostic forwards diagnostic to env's ReportDiagnostic hook, doing
+// nothing when the hook is unwired.
+func ReportDiagnostic(env Context, diagnostic core.Diagnostic) {
+	if env.ReportDiagnostic != nil {
+		env.ReportDiagnostic(diagnostic)
+	}
 }

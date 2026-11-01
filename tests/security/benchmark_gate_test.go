@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/devr-tools/codeguard/internal/codeguard/runner/benchregression"
+	"github.com/devr-tools/codeguard/internal/codeguard/benchregression"
 	"github.com/devr-tools/codeguard/internal/codeguard/trust"
 )
 

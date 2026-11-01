@@ -272,6 +272,7 @@ func buildCheckContext(ctx context.Context, sc runnersupport.Context, baseFiles 
 		FinalizeSectionWithDiagnostics: func(id string, name string, findings []core.Finding, diagnostics []core.Diagnostic) core.SectionResult {
 			return runnersupport.FinalizeSectionWithDiagnostics(sc, id, name, findings, diagnostics)
 		},
+		ReportDiagnostic: sc.ReportDiagnostic,
 		PutArtifact: func(artifact core.Artifact) {
 			sc.Artifacts.Put(artifact)
 		},

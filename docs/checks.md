@@ -52,6 +52,10 @@ not findings, so they cannot be baselined or waived:
   skipped. The first 20 such files are listed individually and the rest are
   summarised.
 - `scan.file-limit` (warn): the walk stopped at the file-count limit.
+- `scan.history-write` (warn): a trend history file under the cache directory
+  (slop, performance score, legibility, rule stats, or waiver audit; named in
+  the `history` metadata key) could not be written. The scan results are
+  complete, but that history is missing this scan's observation.
 - `scan.section.panic` (fail): the section crashed; see above.
 
 ## Check glossary
@@ -1552,6 +1556,13 @@ These rules live outside the repository-wide `Change Safety` section in report o
 | Maintainability history | `maintainability.change-amplification` | warn | A changed file historically fans out into many co-changed partner files. |
 | Code smell history | `smell.shotgun-surgery-history` | warn | A changed file repeatedly co-changes with several partners, suggesting scattered responsibility. |
 | Code smell history | `smell.divergent-change-history` | warn | A changed file has recent commit subjects spanning several concern families. |
+
+**Retired alias:** `quality.mixed-abstraction-levels` was catalogued alongside
+`function.mixed-abstraction-level` but never emitted. It is no longer a
+separate rule. Unlike the retired performance ids, it is aliased at runtime:
+waivers, inline suppressions, and `codeguard explain` that name it act on
+`function.mixed-abstraction-level`, and `codeguard doctor` suggests updating
+the id.
 
 Deeper `maintainability.*` deltas remain follow-on roadmap unless they appear in
 `codeguard rules` for the active build.

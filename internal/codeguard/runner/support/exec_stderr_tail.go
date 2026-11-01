@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/devr-tools/codeguard/internal/codeguard/execlimit"
 )
 
 // Bounds for the stderr tail attached to tool-failure diagnostics: enough to
@@ -18,7 +20,7 @@ const (
 )
 
 // CommandOutput is a bounded subprocess run's result: Combined interleaves
-// stdout and stderr exactly as RunLimitedCommand returns them, and StderrTail
+// stdout and stderr exactly as execlimit.Run returns them, and StderrTail
 // keeps the end of stderr alone so a failure message can show why the tool
 // failed.
 type CommandOutput struct {
@@ -26,13 +28,13 @@ type CommandOutput struct {
 	StderrTail string
 }
 
-// RunLimitedCommandCapture runs name like RunLimitedCommand and also returns
+// RunLimitedCommandCapture runs name like execlimit.Run and also returns
 // the last StderrTailMaxBytes of stderr, trimmed to StderrTailMaxLines lines.
 func RunLimitedCommandCapture(ctx context.Context, dir string, maxOutputBytes int, name string, args ...string) (CommandOutput, error) {
 	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // caller validates untrusted args before invoking this bounded subprocess helper
 	cmd.Dir = dir
 	var buf bytes.Buffer
-	limited := NewLimitedBufferWriter(&buf, maxOutputBytes)
+	limited := execlimit.NewWriter(&buf, maxOutputBytes)
 	combined := &lockedWriter{w: limited}
 	tail := &tailBuffer{limit: StderrTailMaxBytes}
 	cmd.Stdout = combined
