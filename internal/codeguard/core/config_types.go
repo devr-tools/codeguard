@@ -178,6 +178,12 @@ func (c ConfidencePolicyConfig) Threshold(sectionID string) string {
 
 type OutputConfig struct {
 	Format string `json:"format" yaml:"format"`
+	// FailOn is the exit policy: "fail" (default) exits non-zero when any
+	// section fails, "warn" when any section warns or fails, and "none" never
+	// exits non-zero because of findings. Operational failures such as a
+	// crashed section or a failed target walk exit non-zero under every
+	// policy. See ReportGateError.
+	FailOn string `json:"fail_on,omitempty" yaml:"fail_on,omitempty"`
 }
 
 type CacheConfig struct {

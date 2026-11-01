@@ -11,9 +11,11 @@ import (
 	"github.com/devr-tools/codeguard/internal/version"
 )
 
-func writeTextHeader(w io.Writer, report core.Report) error {
-	if _, err := io.WriteString(w, brandBanner()); err != nil {
-		return err
+func writeTextHeader(w io.Writer, report core.Report, banner bool) error {
+	if banner {
+		if _, err := io.WriteString(w, brandBanner()); err != nil {
+			return err
+		}
 	}
 	if _, err := fmt.Fprintf(w, "%s\n", report.Name); err != nil {
 		return err

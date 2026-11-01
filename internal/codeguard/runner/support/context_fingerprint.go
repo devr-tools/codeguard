@@ -66,7 +66,7 @@ func findingContextFingerprint(sc Context, ruleID string, normalizedPath string,
 }
 
 // findingSource resolves a finding's target-relative path against the scan
-// targets (mirroring findingFullPath) and reads it through the per-scan
+// targets (mirroring findingTargetPath) and reads it through the per-scan
 // corpus, so the bytes already loaded for scanning are reused rather than
 // re-read from disk.
 func findingSource(sc Context, rel string) ([]byte, bool) {

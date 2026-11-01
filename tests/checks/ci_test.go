@@ -30,9 +30,9 @@ func TestCICheckFailsWhenRequiredAssetsAreMissing(t *testing.T) {
 
 func TestCICheckPassesWhenRequiredAssetsExist(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, ".github", "workflows", "ci.yml"), "name: ci\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: go test ./...\n")
-	writeFile(t, filepath.Join(dir, ".github", "workflows", "cd.yml"), "name: cd\njobs:\n  release-please:\n    steps:\n      - uses: googleapis/release-please-action@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: echo RELEASE_PLEASE_TOKEN\n      - run: echo uses: ./.github/workflows/release.yml\n")
-	writeFile(t, filepath.Join(dir, ".github", "workflows", "release.yml"), "name: release\njobs:\n  build-release:\n    steps:\n      - uses: goreleaser/goreleaser-action@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: echo sync-homebrew-formula\n      - run: echo Formula/codeguard.rb\n")
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "ci.yml"), "name: ci\npermissions:\n  contents: read\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: go test ./...\n")
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "cd.yml"), "name: cd\npermissions:\n  contents: read\njobs:\n  release-please:\n    steps:\n      - uses: googleapis/release-please-action@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: echo RELEASE_PLEASE_TOKEN\n      - run: echo uses: ./.github/workflows/release.yml\n")
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "release.yml"), "name: release\npermissions:\n  contents: read\njobs:\n  build-release:\n    steps:\n      - uses: goreleaser/goreleaser-action@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: echo sync-homebrew-formula\n      - run: echo Formula/codeguard.rb\n")
 	writeFile(t, filepath.Join(dir, ".goreleaser.yaml"), "version: 2\n")
 	writeFile(t, filepath.Join(dir, ".github", "release-please-config.json"), "{}\n")
 	writeFile(t, filepath.Join(dir, ".release-please-manifest.json"), "{\n  \".\": \"0.1.0\"\n}\n")
@@ -211,9 +211,9 @@ func ciRuleMessages(report codeguard.Report, ruleID string) []string {
 
 func TestCICheckAllowsEmptyReleaseFileOverride(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, ".github", "workflows", "ci.yml"), "name: ci\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: make codeguard-ci\n")
-	writeFile(t, filepath.Join(dir, ".github", "workflows", "cd.yml"), "name: cd\njobs:\n  release-please:\n    steps:\n      - uses: googleapis/release-please-action@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: echo RELEASE_PLEASE_TOKEN\n      - run: echo uses: ./.github/workflows/release.yml\n")
-	writeFile(t, filepath.Join(dir, ".github", "workflows", "release.yml"), "name: release\njobs:\n  build-release:\n    steps:\n      - uses: goreleaser/goreleaser-action@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: echo sync-homebrew-formula\n      - run: echo Formula/codeguard.rb\n")
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "ci.yml"), "name: ci\npermissions:\n  contents: read\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: make codeguard-ci\n")
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "cd.yml"), "name: cd\npermissions:\n  contents: read\njobs:\n  release-please:\n    steps:\n      - uses: googleapis/release-please-action@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: echo RELEASE_PLEASE_TOKEN\n      - run: echo uses: ./.github/workflows/release.yml\n")
+	writeFile(t, filepath.Join(dir, ".github", "workflows", "release.yml"), "name: release\npermissions:\n  contents: read\njobs:\n  build-release:\n    steps:\n      - uses: goreleaser/goreleaser-action@8f3c2b1a4d5e6f7890abc1234567890abc123456\n      - run: echo sync-homebrew-formula\n      - run: echo Formula/codeguard.rb\n")
 	writeFile(t, filepath.Join(dir, "Makefile"), "codeguard-ci:\n\tgo test ./...\n")
 	writeFile(t, filepath.Join(dir, "scripts", "commit.sh"), "#!/usr/bin/env bash\n")
 

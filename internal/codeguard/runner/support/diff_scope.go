@@ -23,9 +23,13 @@ func (r LineRanges) Export() core.ChangedLineRanges {
 }
 
 func LoadDiffScope(ctx context.Context, targets []core.TargetConfig, baseRef string) (map[string]LineRanges, error) {
+	return loadDiffScope(ctx, nil, targets, baseRef)
+}
+
+func loadDiffScope(ctx context.Context, memo *scanGitMemo, targets []core.TargetConfig, baseRef string) (map[string]LineRanges, error) {
 	out := map[string]LineRanges{}
 	for _, target := range targets {
-		scope, err := gitChangedLines(ctx, target.Path, baseRef)
+		scope, err := gitChangedLines(ctx, memo, target.Path, baseRef)
 		if err != nil {
 			return nil, err
 		}
@@ -44,11 +48,11 @@ func mergeLineRanges(left LineRanges, right LineRanges) LineRanges {
 	return left
 }
 
-func gitChangedLines(ctx context.Context, dir string, baseRef string) (map[string]LineRanges, error) {
+func gitChangedLines(ctx context.Context, memo *scanGitMemo, dir string, baseRef string) (map[string]LineRanges, error) {
 	if err := ValidateBaseRef(baseRef); err != nil {
 		return nil, err
 	}
-	prefix := DiffPrefixForTarget(ctx, dir)
+	prefix := memo.diffPrefix(ctx, dir)
 	argsVariants := [][]string{
 		{"-C", dir, "diff", "--unified=0", "--no-color", "--end-of-options", baseRef, "--", "."},
 		{"-C", dir, "diff", "--unified=0", "--no-color", "--end-of-options", baseRef + "...HEAD", "--", "."},

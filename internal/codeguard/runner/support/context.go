@@ -39,6 +39,7 @@ type Context struct {
 	SectionConfigHash map[string]string
 	DiffCommand       map[string]diffCommandEnv
 	corpus            *fileCorpus
+	git               *scanGitMemo
 	cleanup           func()
 }
 
@@ -76,6 +77,7 @@ func NewContext(ctx context.Context, cfg core.Config, opts core.ScanOptions) (Co
 		SectionConfigHash: SectionConfigHashes(cfg, ruleCatalog, runtime.Fingerprint()),
 		DiffCommand:       map[string]diffCommandEnv{},
 		corpus:            newFileCorpus(),
+		git:               newScanGitMemo(),
 		cleanup:           func() {},
 	}
 	if opts.EnableWaiverAudit {
@@ -111,7 +113,7 @@ func NewContext(ctx context.Context, cfg core.Config, opts core.ScanOptions) (Co
 		if strings.TrimSpace(opts.DiffText) != "" {
 			diff = LoadDiffScopeFromUnifiedDiff(ctx, cfg.Targets, opts.DiffText)
 		} else {
-			diff, err = LoadDiffScope(ctx, cfg.Targets, opts.BaseRef)
+			diff, err = loadDiffScope(ctx, sc.git, cfg.Targets, opts.BaseRef)
 		}
 		if err != nil {
 			sc.cleanup()

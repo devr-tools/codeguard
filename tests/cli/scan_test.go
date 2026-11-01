@@ -270,7 +270,10 @@ func TestRunScanFolderWithoutConfigUsesDefaultProfile(t *testing.T) {
 	}
 }
 
-func TestRunScanWithoutConfigForCurrentDirectoryFails(t *testing.T) {
+// Plain `codeguard scan` with no config used to exit with "config file not
+// found" while `scan -folder .` ran the defaults. Both now run the built-in
+// defaults, and plain scan says so with a hint to run `codeguard init`.
+func TestRunScanWithoutConfigForCurrentDirectoryUsesDefaults(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
@@ -291,12 +294,15 @@ func TestRunScanWithoutConfigForCurrentDirectoryFails(t *testing.T) {
 	writeScanTestFile(t, filepath.Join(dir, ".github", "workflows", "ci.yml"), "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: go test ./...\n")
 
 	var stdout, stderr bytes.Buffer
-	code := cli.Run([]string{"scan", "-profile", "startup"}, strings.NewReader(""), &stdout, &stderr)
-	if code != 1 {
-		t.Fatalf("expected exit 1, got %d; stdout = %s", code, stdout.String())
+	cli.Run([]string{"scan", "-profile", "startup"}, strings.NewReader(""), &stdout, &stderr)
+	if strings.Contains(stderr.String(), "load config:") {
+		t.Fatalf("config-less scan should fall back to the defaults, got %s", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "load config:") {
-		t.Fatalf("expected load config error, got %s", stderr.String())
+	if !strings.Contains(stderr.String(), "codeguard init") {
+		t.Fatalf("expected a hint to run `codeguard init`, stderr = %s", stderr.String())
+	}
+	if !strings.Contains(stripANSI(stdout.String()), "Summary:") {
+		t.Fatalf("expected a scan report, stdout = %s", stdout.String())
 	}
 }
 

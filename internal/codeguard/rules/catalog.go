@@ -31,6 +31,7 @@ var catalog = withSecurityOWASP(mergeRuleCatalogs(
 	miscCatalog,
 	coverageCatalog,
 	testQualityCatalog,
+	ciWorkflowCatalog,
 ))
 
 func Catalog() map[string]core.RuleMetadata {

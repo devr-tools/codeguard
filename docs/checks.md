@@ -72,8 +72,8 @@ This glossary is the quick map of every built-in check family and the main subse
 | Design | `Design Patterns` | `checks.design` | architecture boundaries; import/module cycles; god modules; graph reachability and stability; high-impact changes; public surface policy; production/test isolation; package/module naming; declarations per file; methods per type; interface/protocol size |
 | Security | `Security` | `checks.security` | hardcoded secrets and credentials; private keys; insecure TLS; shell execution; dynamic code execution; unsafe HTML sinks; SSRF and taint-style flow; unsafe C string APIs; optional `govulncheck`; OWASP category metadata |
 | Supply Chain | `Supply Chain` | `checks.supply_chain` | manifest normalization; SBOM output; missing lockfiles; lockfile drift; unpinned dependencies; license policy; offline advisory-cache vulnerability matching; Cargo manifest hygiene; C++ package-manager metadata for vcpkg, Conan, and CMake |
-| Prompts | `Prompts` | `checks.prompts` | prompt-asset governance; secret interpolation; unsafe instructions; dangerous agent instructions; standing permissions; MCP config risk |
-| CI/CD | `CI/CD` | `checks.ci` | required workflow directories/files; workflow content policy; release automation files; test file location; test assertions; conditional/always-true assertions; cross-language test-quality heuristics |
+| Prompts | `Prompts` | `checks.prompts` | prompt-asset governance; secret interpolation; unsafe instructions; dangerous agent instructions; standing permissions (incl. Claude settings); MCP config risk, unpinned servers, literal secrets, remote transport/auth; hidden Unicode |
+| CI/CD | `CI/CD` | `checks.ci` | required workflow directories/files; workflow content policy; GitHub Actions workflow security (script injection, privileged triggers, token permissions, remote script piping, fork-triggered secrets, unpinned actions); release automation files; test file location; test assertions; conditional/always-true assertions; cross-language test-quality heuristics |
 | Agent Context | `Agent Context` | `checks.context` | missing agent docs; README/doc drift; oversized files; ambiguous symbols; undocumented commands; oversized agent docs; doc link rot; repository readiness for coding agents |
 | External Reports | `External Reports` | `external_reports` | imported SARIF, Gitleaks JSON, and Trivy JSON findings from scanners that already ran; normalized into CodeGuard report sections with namespaced rule IDs |
 
@@ -148,13 +148,48 @@ and `security`). Those activations apply wherever the profile is resolved:
 no-config-file scan path. `checks.disabled` is still applied last, so it is
 the way to turn a profile's section back off.
 
-A scan run with **no config file at all** (`codeguard scan -folder <path>`
-with no discoverable `codeguard.yaml`) resolves the built-in defaults with
-`use_recommended_defaults` behavior applied, plus any `-profile`. It does not
-use the config `codeguard init` writes, so none of the repository-shape policy
-in that starter config — required workflow/release/automation files, workflow
-content markers, required gates, `allowed_test_paths`, or the `design_rules`
-package-layering toggles — is in effect on that path.
+A scan run with **no config file at all** (`codeguard scan` or `codeguard
+scan -folder <path>` with no discoverable `codeguard.yaml` and no `-config`)
+resolves the same config `codeguard init` would write for the scanned
+directory, in memory, plus any `-profile`, and prints a one-line hint on
+stderr to run `codeguard init`. The SDK exposes it as
+`codeguard.DefaultScanConfig(root, profile)`. See
+[Generated config](#generated-config-codeguard-init).
+
+### Generated config (`codeguard init`)
+
+`codeguard init` detects the repository and writes only what it detected:
+
+- `targets`: one per language that holds at least 10% of the counted source
+  files, or at least 25 of them. A target is analyzed as a single language, so
+  a Python + TypeScript repository gets two. Every target uses the repository
+  root as its path (`..` when the file is written to `.codeguard/`). Files are
+  counted with the scanner's own walk, so dependency and build trees
+  (`node_modules`, `vendor`, `.venv`, `dist`, corroborated `build/`/`target/`)
+  are skipped, and so are hidden directories, `testdata` and `fixtures`.
+- `targets[].entrypoints`: Go `cmd/<name>` packages (with a `main.go`) and a
+  module-root `main.go`, next to each `go.mod`; `package.json` `bin` and
+  `main` when the file exists outside a skipped tree; Python
+  `[project.scripts]` / `[tool.poetry.scripts]` modules resolved to a file
+  (flat or `src/` layout) and every `__main__.py`.
+- `checks`: `quality`, `design`, `security` and `prompts` on; `ci` on only
+  when `.github/workflows/` exists; `supply_chain` on when a package manifest
+  exists (`go.mod`, `package.json`, `pyproject.toml`, `requirements*.txt`,
+  `Cargo.toml`, `vcpkg.json`, `conanfile.*`, CMake); `performance: false`
+  stated explicitly.
+- `profile`, when `-profile` is passed.
+
+Every other key is left out, so it resolves from the built-in defaults
+documented in this file. Language-agnostic findings (secrets, supply chain,
+CI files) are reported once even though several targets cover the same
+files. `codeguard init -full` writes the same effective config expanded to
+every key with its resolved value. `-path <dir>` detects a directory other
+than the current one.
+
+The SDK's `ExampleConfig()` is different: it is a complete example that
+describes CodeGuard's own repository (a Go target with a `cmd/codeguard`
+entrypoint, its workflow files, release files and `tests/**` layout). `init`
+does not write it.
 
 `performance` is opt-in and covers N+1 query patterns, allocation-heavy loops, blocking I/O in request paths, unbounded concurrency, memory-pressure and framework-aware smells, Rust loop-smell heuristics, diff-mode complexity regressions, and measurement gates (size budgets, benchmark regression); see [Performance](#performance) for the rule list and the migration note for the former `quality.*` ids.
 
@@ -408,8 +443,8 @@ The comparison below is generated from the profile definitions and verified by
 the configuration tests. The `Baseline` column is the built-in default policy —
 what a repository gets for any key it omits — and each profile column is that
 baseline with the profile overlaid. The configuration `codeguard init` writes
-is a richer, opinionated *starter* config on top of the same baseline; it is
-not what an omitted key resolves to.
+sets only targets and section switches on top of the same baseline (see
+[Generated config](#generated-config-codeguard-init)).
 
 <!-- BEGIN GENERATED: policy-profile-comparison -->
 | Setting | Baseline | Startup | Strict | Enterprise | AI-safe |
@@ -526,6 +561,11 @@ Confidence policy (opt-in):
   `confidence_filtered_count`, and listed with reason `confidence` under
   `--include-suppressed`. They are excluded from `suppression_ratio`, which
   keeps meaning "findings teams work around"
+- `codeguard scan -min-confidence <low|medium|high>` sets
+  `checks.min_confidence.default` for one run. It is applied as a config
+  override (the same as `-set checks.min_confidence.default=<level>`), so it is
+  validated the same way and per-section overrides from the config still win
+  for their sections
 - `checks.confidence_demotion: true` reports a `low`-confidence finding on a
   failing rule as a warning instead. It never promotes and never applies to
   `medium` or `high`. Off by default
@@ -1662,9 +1702,9 @@ Defaults: the four Go package-layering toggles
 default**. They describe one specific repository layout — `cmd/` delegating to
 `internal/cli`, and a `pkg/` facade that must not reach into `cmd/` — and
 report at fail level, and a `pkg/` package importing its own module's
-`internal/` is ordinary Go. Set them to `true` to enforce that layout; the
-config `codeguard init` writes does, and so does this repository's own
-self-scan config. The remaining design rules (import cycles, god modules,
+`internal/` is ordinary Go. Set them to `true` to enforce that layout; this
+repository's own self-scan config does. The config `codeguard init` writes
+leaves them off. The remaining design rules (import cycles, god modules,
 high-impact changes, the numeric thresholds, generic package names) stay on by
 default.
 
@@ -2023,6 +2063,8 @@ Purpose:
 - Prompt asset discovery
 - Secret interpolation detection inside prompt files
 - Unsafe instruction pattern detection
+- AI-agent configuration governance: agent instruction files, Claude Code
+  settings, and MCP server configs
 
 Config keys:
 
@@ -2034,22 +2076,135 @@ Config keys:
       "file_extensions": [".prompt", ".md", ".txt", ".tmpl", ".yaml", ".yml", ".json"],
       "path_contains": ["prompt", "system", "instruction", "template"],
       "forbid_secret_interpolation": true,
-      "forbid_unsafe_instructions": true
+      "forbid_unsafe_instructions": true,
+      "require_mcp_remote_auth": true
     }
   }
 }
 ```
 
-Current behavior:
-- fails on secret interpolation patterns
-- warns on unsafe instruction patterns
-- besides `prompt_rules` matches, governs agent configs (`AGENTS.md`,
-  `CLAUDE.md`, `.cursorrules`) and MCP configs: `.mcp.json`, `mcp.json`,
-  `mcp.yaml`/`mcp.yml`, `claude_desktop_config.json`, any `*mcp*.json`/`.yaml`/
-  `.yml`, and config-format files (`.json`, `.jsonc`, `.yaml`, `.yml`, `.toml`)
-  inside an `mcp/` directory. Source code inside an `mcp/` directory (for
-  example an MCP server's Go or TypeScript files and their tests) is not a
-  prompt asset and is not governed by the directory name alone.
+- `require_mcp_remote_auth` (default `true`) enables
+  `prompts.mcp-remote-unauthenticated`. Set it to `false` when your remote MCP
+  servers authenticate through OAuth discovery, which leaves no header in the
+  config file.
+
+Governed files, besides `prompt_rules` matches:
+- agent instruction files, matched case-insensitively at any depth:
+  `AGENTS.md` (and `AGENT.md`, `AGENTS.override.md`, `AGENTS.local.md`),
+  `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md`, `.cursorrules`,
+  `.windsurfrules`, `.clinerules`, `.github/copilot-instructions.md`,
+  `.claude/agents/**/*.md`, `.claude/commands/**/*.md`,
+  `.claude/skills/**/SKILL.md`, `.cursor/rules/**/*.mdc|.md`,
+  `.windsurf/rules/*.md`, `.clinerules/*.md`,
+  `.github/instructions/*.instructions.md`, `.github/prompts/*.prompt.md`,
+  `.github/chatmodes/*.chatmode.md`, and `.gemini/commands/*`
+- Claude Code settings: `.claude/settings.json`, `.claude/settings.local.json`,
+  `.claude/managed-settings.json`
+- MCP configs: `.mcp.json`, `mcp.json` (including `.vscode/mcp.json` and
+  `.cursor/mcp.json`), `mcp.yaml`/`mcp.yml`, `claude_desktop_config.json`,
+  `.gemini/settings.json`, any `*mcp*.json`/`.yaml`/`.yml`, and config-format
+  files (`.json`, `.jsonc`, `.yaml`, `.yml`, `.toml`) inside an `mcp/`
+  directory. Source code inside an `mcp/` directory (for example an MCP
+  server's Go or TypeScript files and their tests) is not a prompt asset and is
+  not governed by the directory name alone.
+
+Settings and MCP configs are parsed structurally: JSON with JSONC extensions
+(`//` and `/* */` comments, trailing commas) and YAML. Every finding reports
+the line of the offending key or array entry. A file that does not parse
+(malformed JSON, or TOML) does not fail the section; it falls back to line
+heuristics. `${VAR}` references inside a config that declares MCP servers,
+or inside a Claude settings file, are not reported as
+`prompts.secret-interpolation`, because referencing the environment is how
+those files are meant to receive credentials.
+
+Rules:
+
+| Rule | Level | Catches |
+| --- | --- | --- |
+| `prompts.secret-interpolation` | fail | `${SECRET}`-style interpolation in prose prompt assets and agent instruction files |
+| `prompts.unsafe-instructions` | warn | instruction-override and prompt-exfiltration phrasing |
+| `prompts.agent-dangerous-instructions` | fail | instruction files that tell the agent to bypass approvals or its sandbox (see below) |
+| `prompts.agent-standing-permissions` | fail (warn for `enableAllProjectMcpServers`) | unrestricted standing grants in Claude settings or instruction files (see below) |
+| `prompts.mcp-config-risk` | fail | shell-wrapped MCP server commands (`bash -c`, `sh -lc`, `cmd /c`, `pwsh -Command`), `curl`/`wget` piped into a shell, wildcard `alwaysAllow`/`autoApprove`/`allow`/`tools` lists, and `trust`/`autoApprove`/`allowAllTools: true` |
+| `prompts.mcp-unpinned-server` | warn | registry-launched MCP servers without an exact version (see below) |
+| `prompts.agent-config-literal-secret` | fail | literal credentials in an MCP server's `env` or `headers`, or a Claude settings `env` block |
+| `prompts.mcp-insecure-transport` | fail | a remote MCP `url`/`serverUrl`/`httpUrl` over `http://` or `ws://` to a non-loopback host |
+| `prompts.mcp-remote-unauthenticated` | warn (low confidence) | a remote MCP server with no `Authorization`, token, API-key, or cookie header and no `oauth`/`auth` block |
+| `prompts.hidden-unicode` | fail (warn for zero-width only) | invisible characters in any governed file (see below) |
+
+`prompts.agent-dangerous-instructions` reports, with the real line and column:
+- bypass flags and modes: `--dangerously-skip-permissions`,
+  `--allow-dangerously-skip-permissions`,
+  `--dangerously-bypass-approvals-and-sandbox`, `--yolo`,
+  `--approval-mode yolo`, `--allow-all-tools`, `--trust-all-tools`,
+  `--ask-for-approval never`, `danger-full-access`, `bypassPermissions`
+  (confidence high)
+- bypass prose: "skip/disable/bypass/override ... approval/sandbox/permission/
+  confirmation", "without asking for approval", "auto-approve everything",
+  "yolo mode" (confidence medium)
+- "stop asking" phrasing: "never ask for confirmation", "don't ask for
+  permission", "you don't need to ask for approval", "never seek approval"
+  (confidence medium)
+
+A flag or bypass phrase is not reported when the same sentence forbids it
+("Never run with `--yolo`", "`bypassPermissions` is forbidden", "Do not delete
+files without asking for confirmation"), or when it sits under a heading or a
+list intro that forbids what follows ("## Never do this", "Avoid the
+following:"). "Stop asking" phrasing is always reported, since its negation is
+the instruction.
+
+`prompts.agent-standing-permissions` reports in `.claude/settings*.json`:
+- `permissions.allow` entries `*`, bare `Bash`, `Bash(*)`, `Bash(:*)`,
+  `Bash(*:*)` (confidence high)
+- `permissions.allow` prefix rules that name a program whose argument is
+  itself code, which is as broad as `Bash(*)`: shells (`bash`, `sh`, `zsh`,
+  ...), `eval`, `env`, `xargs`, `sudo`, and interpreters (`python3`, `node`,
+  `perl`, `ruby`, ...) followed by `:*`, ` *`, `-c` or `-e` (confidence
+  medium). Scoped rules such as `Bash(go test:*)`, `Bash(npm run lint:*)` or
+  `Bash(python3 scripts/gen.py:*)` pass.
+- `permissions.defaultMode: "bypassPermissions"` and
+  `skipDangerousModePermissionPrompt: true`
+- `enableAllProjectMcpServers: true` (warn): it auto-approves any server a
+  contributor adds to `.mcp.json`
+
+In instruction files the textual wildcard heuristics (`permissions: ["*"]`,
+`autoApprove: true`, "unrestricted shell", ...) still apply and report the
+line of the match.
+
+`prompts.mcp-unpinned-server` recognizes `npx`, `bunx`, `pnpx`, `pnpm dlx`,
+`yarn dlx`, `bun x`, `npm exec`, `uvx`, `uv tool run`, `pipx run`, and
+`docker`/`podman run`, in either the `command` string or the `args` array. A
+package is pinned by an exact version (`pkg@1.4.2`, `@scope/pkg@1.4.2`,
+`pkg==1.4.2`, `pkg@1.4.2` for uvx), a commit (`github:org/repo#<sha>`,
+`git+https://...@<sha>`), or for images an explicit non-floating tag or an
+`@sha256:` digest. Floating tags (`@latest`, `@next`, `:latest`, untagged
+images) are reported with high confidence; a bare package name with medium.
+Local paths (`./server.js`, `/opt/mcp`) are not packages. The message notes
+when `-y`/`--yes` also skips the install prompt. For configs that cannot be
+parsed, a line that holds `npx`/`uvx`/`bunx` with `-y` and no visible version
+is reported with low confidence.
+
+`prompts.agent-config-literal-secret` flags a value that carries an issuer
+prefix (`ghp_`, `github_pat_`, `glpat-`, `xox?-`, `sk-`, `sk-ant-`, `AKIA`,
+`AIza`, `npm_`, `hf_`, ...; confidence high) regardless of its key, or a value
+of 12+ characters under a credential-shaped key (`*TOKEN*`, `*SECRET*`,
+`*PASSWORD*`, `*API_KEY*`, `Authorization`, ...; confidence medium). A leading
+`Bearer`/`Basic`/`token` scheme is ignored. References are not reported:
+`${VAR}`, `$VAR`, `{{ template }}`, `%VAR%`, and `op://`, `env:`, `vault:`
+prefixes, nor are placeholders such as `<your-token>` or `changeme`. The
+message names the key, never the value.
+
+`prompts.hidden-unicode` reports one finding per line containing:
+- bidi controls U+202A-U+202E and U+2066-U+2069 (fail, confidence high)
+- tag characters U+E0000-U+E007F (fail, confidence high), which can spell an
+  invisible ASCII instruction
+- zero-width characters U+200B-U+200D, U+2060-U+2064, U+FEFF, U+180E (warn,
+  confidence medium)
+
+It does not report a byte-order mark at the start of a file, a zero-width
+joiner or non-joiner between two non-ASCII characters (emoji sequences,
+Persian and Indic text), or tag characters that complete an emoji subdivision
+flag.
 
 ## CI
 
@@ -2058,6 +2213,7 @@ Purpose:
 - Workflow content checks
 - Release file presence checks
 - Automation entrypoint checks
+- GitHub Actions workflow security (script injection, privileged triggers, token permissions, remote script piping, secrets on fork-triggered jobs)
 
 Config keys:
 
@@ -2094,26 +2250,59 @@ Defaults: every list above is **empty by default**, and each rule treats an
 empty list as "not configured" and reports nothing. codeguard cannot know which
 workflow filenames, release artifacts, command strings, or test directories a
 repository uses, so none of them are enforced until the repository states them.
-The only CI default is `require_workflow_dir: true`, since enabling
-`checks.ci` is itself the assertion that the repository wants pipeline policy
-checked and every other CI rule reads `.github/workflows`.
+`require_workflow_dir` is `false` by default too. It used to default to
+`true`, which failed every repository on another CI system, or with no CI yet,
+on its first scan. `codeguard init` now turns `checks.ci` on only when
+`.github/workflows/` exists. Set `require_workflow_dir: true` to require it.
 
 `allowed_test_paths` in particular must stay unset for a repository with
 co-located tests — idiomatic Go `_test.go` files, `*.spec.ts` beside the
 source, or pytest `test_*.py` inside the package. Setting it to `["tests/**"]`
 means "every test file outside `tests/` is a failure".
 
-The configuration `codeguard init` writes is a *starter* config, not the
-defaults: it states codeguard's own conventions (`.github/workflows/ci.yml`,
-a `test` gate, `actions/checkout` + `go test ./...` markers,
-`.goreleaser.yaml`, `Makefile`, `tests/**`) so they are visible and editable.
-Delete or replace the keys that do not describe your repository.
+The example above is this repository's own policy, which lives in its
+`.codeguard/codeguard.yaml`. The config `codeguard init` writes sets no
+`ci_rules` at all. Add the lists that describe your repository.
 
 Current behavior:
 - fails when a configured required workflow, release, or automation file is missing
 - fails when a configured workflow content marker is missing
 - fails when a configured CI gate (`required_gates`) is absent from the repository's workflows; skipped entirely when the repository has no workflow files
 - fails when detected Go, Python, TypeScript, C++, Rust, Java, C#, or Ruby test files live outside `allowed_test_paths` — inactive while that list is unset
+- `ci.mutable-deployment-reference` fails when a workflow, composite `action.yml`/`action.yaml`, or deployment file uses an external action at a ref other than a full commit SHA, or a container image tagged `latest`
+
+### Workflow security
+
+These rules need no configuration. They parse every `.github/workflows/*.yml|yaml`
+file (direct children only, as GitHub does) and every composite action
+(`action.yml`/`action.yaml` with `runs.using: composite`) as YAML and report the
+real line and column, including lines inside multi-line `run: |` blocks.
+Expression whitespace (`${{github.event.x}}`, `${{   github.event.x   }}`) and
+bracket access (`github.event['issue']['title']`) are normalized. Files that do
+not parse are skipped. GitHub rejects them anyway, and guessing at their
+structure would produce misplaced findings.
+
+| Rule | Level | Fires when |
+| --- | --- | --- |
+| `ci.workflow-script-injection` | fail | An attacker-controlled `${{ }}` expression is interpolated directly into a `run:` script or an `actions/github-script` `script:`. Untrusted contexts: `github.event.issue.*` free text (title, body, labels; numbers, ids, timestamps, URLs and states are trusted), `github.event.pull_request.title/body/head.ref/head.label/head.repo.default_branch`, `github.event.comment.body`, `github.event.review.body`, `github.event.review_comment.body`, `github.event.head_commit.message/author.*`, `github.event.commits.*.message/author.*`, `github.event.discussion.title/body`, `github.event.workflow_run.head_branch/display_title/head_commit.message`, `github.event.pages.*.page_name`, `github.head_ref`, and `inputs.*` in composite actions. Expressions that evaluate to a boolean (`==`, `!=`, `contains(...)`, `startsWith(...)`) are not flagged. |
+| `ci.workflow-dangerous-trigger` | fail | A `pull_request_target` or `workflow_run` workflow checks out pull request code: an `actions/checkout` `ref:` built from `github.event.pull_request.head.sha/ref`, `merge_commit_sha`, `github.head_ref`, `github.event.workflow_run.head_sha/head_branch`, or `refs/pull/...`, or a `run:` script that uses `gh pr checkout` or fetches those refs with `git`. |
+| `ci.workflow-write-all-permissions` | fail | A workflow or job sets `permissions: write-all`. |
+| `ci.workflow-missing-permissions` | warn | The workflow has no top-level `permissions:` and at least one job sets none, so `GITHUB_TOKEN` gets the repository or organization default, which is read-write on every scope for repositories created before February 2023 or set to the permissive default. Workflows triggered only by `workflow_call` are skipped because the caller caps their token. |
+| `ci.workflow-remote-script-pipe` | warn | A `run:` script pipes `curl`/`wget` output into `sh`/`bash`/`zsh` (also `sudo bash`, `bash <(curl ...)`, `sh -c "$(curl ...)"`, and commands split with `\` continuations). |
+| `ci.workflow-fork-trigger-secrets` | warn | A job in a `pull_request_target` workflow reads `secrets.*` (other than `GITHUB_TOKEN`, which the permissions rules cover) or passes `secrets: inherit`. Reported once per job, listing every secret. |
+
+The safe pattern for untrusted values is environment indirection. The value
+reaches the shell as data and is never parsed as script:
+
+```yaml
+- env:
+    PR_TITLE: ${{ github.event.pull_request.title }}
+  run: echo "$PR_TITLE"
+```
+
+Unpinned actions in workflows and composite actions are reported by the
+existing `ci.mutable-deployment-reference` rule. No separate workflow rule
+duplicates it.
 
 ### Test quality
 
@@ -2236,10 +2425,36 @@ Config keys:
 ```json
 {
   "output": {
-    "format": "text"
+    "format": "text",
+    "fail_on": "fail"
   }
 }
 ```
+
+`output.fail_on` is the exit policy (`codeguard scan -fail-on` overrides it
+for one run; `validate-patch` honours the config key):
+
+| `fail_on` | Exit 0 when | Exit 1 when |
+| --- | --- | --- |
+| `fail` (default) | no section failed | any section failed |
+| `warn` | every section passed | any section warned or failed |
+| `none` | the scan completed | only on errors (see below) |
+
+Under every policy, including `none`, the scan exits 1 when it could not do
+its job: an invalid config or flag, a missing or unreadable target path, a
+report write error, or a fail-level operational diagnostic such as
+`scan.section.panic` or `scan.target-walk`. Those mean part of the repository
+was not checked, so they are never relaxed by the exit policy. `none` relaxes
+only finding-driven section status. Warn-level diagnostics such as
+`scan.file-read` follow the section status like findings do.
+
+Text output prints the brand banner only when stdout is an interactive
+terminal, `CI` is unset (or `0`/`false`/`no`/`off`), `NO_COLOR` is unset and
+`TERM` is not `dumb`. `codeguard scan -quiet` also drops the banner, the
+progress lines on stderr (`scan started`, `completed <section>`, heartbeats)
+and the performance-section upgrade note, but still prints the findings and
+the summary. The SDK's `WriteReport` keeps the banner; use
+`WriteReportWithOptions(..., ReportWriteOptions{OmitBanner: true})` to drop it.
 
 Supported values:
 - `text`

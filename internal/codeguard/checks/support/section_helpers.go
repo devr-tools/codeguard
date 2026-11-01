@@ -25,6 +25,19 @@ func ParseGoSource(env Context, file string, data []byte) (*token.FileSet, *ast.
 	return fset, parsed, err
 }
 
+// ParseCLikeSource returns the C-like parse of data, reusing the shared
+// per-scan parse cache when the runner wired one in (ParseCLikeFile) and
+// falling back to a fresh ParseCLike otherwise. The cached *ParsedFile (and
+// every ParsedFunction, slice, and statement reachable from it) is shared
+// across sections running concurrently, so callers must never mutate it:
+// copy a slice before sorting or appending to it.
+func ParseCLikeSource(env Context, file string, data []byte, lang CLikeLanguage) *ParsedFile {
+	if env.ParseCLikeFile != nil {
+		return env.ParseCLikeFile(file, data, lang)
+	}
+	return ParseCLike(string(data), lang)
+}
+
 func NormalizedLanguage(language string) string {
 	return strings.ToLower(strings.TrimSpace(language))
 }
