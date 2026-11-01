@@ -6,7 +6,6 @@ import (
 	"go/ast"
 	"go/printer"
 	"go/token"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -639,54 +638,14 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 	if isQualityFixturePath(file) {
 		return nil
 	}
-	findings := make([]core.Finding, 0)
-	if isGenericIdentifier(fn.Name) {
-		findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, fn.StartLine,
-			fmt.Sprintf("function name %q is too generic to communicate intent", fn.Name), core.ConfidenceHigh))
-	}
-	if isAmbiguousIdentifier(fn.Name) && !isUIConventionalAmbiguousName(file, fn, fn.Name, "", fn.StartLine) && !isLocallyClearAmbiguousName(fn, fn.Name) {
-		findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, fn.StartLine,
-			fmt.Sprintf("function name %q is ambiguous without domain context", fn.Name), core.ConfidenceHigh))
-	}
+	findings := functionNameFindings(env, file, fn)
 	for _, param := range fn.Params {
-		if isGenericIdentifier(param.Name) && !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) {
-			findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, fn.StartLine,
-				fmt.Sprintf("parameter %q is too generic to communicate intent", param.Name), core.ConfidenceHigh))
-		}
-		if isAmbiguousIdentifier(param.Name) && !isUIConventionalAmbiguousName(file, fn, param.Name, param.Type, fn.StartLine) && !isLocallyClearAmbiguousName(fn, param.Name) {
-			findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, fn.StartLine,
-				fmt.Sprintf("parameter %q is ambiguous without domain context", param.Name), core.ConfidenceHigh))
-		}
-		if isBooleanParameter(param) && !isAllowedBooleanArgumentFunction(fn.Name) && !isPredicateName(param.Name) && !isConventionalNonPredicateName(param.Name) &&
-			!isLocalBooleanParserFlag(fn, param.Name) &&
-			!isReactComponentOrHookBoundary(file, fn) && !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) {
-			findings = append(findings, precisionWarnFinding(env, qualityBooleanArgumentRuleID, file, fn.StartLine,
-				fmt.Sprintf("boolean parameter %q hides behavior behind a flag", param.Name), core.ConfidenceHigh))
-		}
+		findings = append(findings, parameterPrecisionFindings(env, file, fn, param)...)
 	}
 	for _, assignment := range fn.Assignments {
-		if isGenericIdentifier(assignment.Name) && !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) {
-			findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, assignment.Line,
-				fmt.Sprintf("identifier %q is too generic to explain its role", assignment.Name), core.ConfidenceHigh))
-		}
-		if isAmbiguousIdentifier(assignment.Name) && !isUIConventionalAmbiguousName(file, fn, assignment.Name, "", assignment.Line) && !isLocallyClearAmbiguousName(fn, assignment.Name) {
-			findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, assignment.Line,
-				fmt.Sprintf("identifier %q is ambiguous without domain context", assignment.Name), core.ConfidenceHigh))
-		}
+		findings = append(findings, assignmentNameFindings(env, file, fn, assignment)...)
 	}
-	if mixedAbstractionLevel(fn) &&
-		!isQualityFixturePath(file) &&
-		!isPostgresRepositoryPath(file) &&
-		!isAdapterOrOrchestrationFunction(file, fn) &&
-		!isFrameworkOrchestrationBoundary(file, fn) &&
-		!isScriptEntrypoint(file, fn.Name) &&
-		!isSeedOrScriptSourcePath(file) &&
-		!isSecurityOrConfigUtilityFunction(file, fn) &&
-		!isDomainSideEffectBoundaryName(fn.Name) &&
-		!isFactoryHelperName(fn.Name) &&
-		!isPureComputationHelperName(fn.Name) &&
-		!isReactComponentOrHookBoundary(file, fn) &&
-		!isUIHelperOrMappingContext(file, fn) {
+	if mixedAbstractionLevel(fn) && !anyPrecisionExemption(file, fn, mixedAbstractionExemptions) {
 		findings = append(findings, precisionWarnFinding(env, functionMixedAbstractionLevelRuleID, file, fn.StartLine,
 			fmt.Sprintf("function %s mixes orchestration calls with low-level infrastructure operations", fn.Name), core.ConfidenceMedium))
 	}
@@ -696,12 +655,9 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 			core.ConfidenceMedium, mutationEvidenceMetadata(evidence)))
 	}
 	findings = append(findings, additionalPrecisionFunctionFindings(env, file, fn)...)
-	if !isUIHelperOrMappingContext(file, fn) && !isSeedOrScriptSourcePath(file) && !isFrontendLibraryPath(file) &&
-		!isDomainSideEffectBoundaryName(fn.Name) && !isValidationOrExtractionHelperName(fn.Name) && primitiveObsession(fn) {
-		if !fn.ImplementsInterfaceSignature {
-			findings = append(findings, precisionWarnFinding(env, qualityPrimitiveObsessionRuleID, file, fn.StartLine,
-				fmt.Sprintf("function %s passes several domain concepts as raw primitives", fn.Name), core.ConfidenceMedium))
-		}
+	if reportsPrimitiveObsession(file, fn) {
+		findings = append(findings, precisionWarnFinding(env, qualityPrimitiveObsessionRuleID, file, fn.StartLine,
+			fmt.Sprintf("function %s passes several domain concepts as raw primitives", fn.Name), core.ConfidenceMedium))
 	}
 	if hiddenSideEffect(file, fn) {
 		findings = append(findings, precisionWarnFinding(env, qualityHiddenSideEffectRuleID, file, fn.StartLine,
@@ -711,6 +667,83 @@ func precisionFunctionFindings(env support.Context, file string, fn precisionFun
 	findings = append(findings, errorContractFindings(env, file, fn)...)
 	findings = append(findings, defensiveBoundaryFindings(env, file, fn)...)
 	return findings
+}
+
+// functionNameFindings reports generic or ambiguous names on the function
+// itself.
+func functionNameFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
+	findings := make([]core.Finding, 0)
+	if isGenericIdentifier(fn.Name) {
+		findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, fn.StartLine,
+			fmt.Sprintf("function name %q is too generic to communicate intent", fn.Name), core.ConfidenceHigh))
+	}
+	if reportsAmbiguousName(file, fn, fn.Name, "", fn.StartLine) {
+		findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, fn.StartLine,
+			fmt.Sprintf("function name %q is ambiguous without domain context", fn.Name), core.ConfidenceHigh))
+	}
+	return findings
+}
+
+// parameterPrecisionFindings reports generic, ambiguous, and boolean-flag
+// parameters, in that order.
+func parameterPrecisionFindings(env support.Context, file string, fn precisionFunction, param support.ParsedParam) []core.Finding {
+	findings := make([]core.Finding, 0)
+	if isGenericIdentifier(param.Name) && !anyPrecisionExemption(file, fn, uiOrScriptIdentifierExemptions) {
+		findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, fn.StartLine,
+			fmt.Sprintf("parameter %q is too generic to communicate intent", param.Name), core.ConfidenceHigh))
+	}
+	if reportsAmbiguousName(file, fn, param.Name, param.Type, fn.StartLine) {
+		findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, fn.StartLine,
+			fmt.Sprintf("parameter %q is ambiguous without domain context", param.Name), core.ConfidenceHigh))
+	}
+	if reportsBooleanArgument(file, fn, param) {
+		findings = append(findings, precisionWarnFinding(env, qualityBooleanArgumentRuleID, file, fn.StartLine,
+			fmt.Sprintf("boolean parameter %q hides behavior behind a flag", param.Name), core.ConfidenceHigh))
+	}
+	return findings
+}
+
+// assignmentNameFindings reports generic or ambiguous local identifiers.
+func assignmentNameFindings(env support.Context, file string, fn precisionFunction, assignment support.ParsedAssignment) []core.Finding {
+	findings := make([]core.Finding, 0)
+	if isGenericIdentifier(assignment.Name) && !anyPrecisionExemption(file, fn, uiOrScriptIdentifierExemptions) {
+		findings = append(findings, precisionWarnFinding(env, namingGenericIdentifierRuleID, file, assignment.Line,
+			fmt.Sprintf("identifier %q is too generic to explain its role", assignment.Name), core.ConfidenceHigh))
+	}
+	if reportsAmbiguousName(file, fn, assignment.Name, "", assignment.Line) {
+		findings = append(findings, precisionWarnFinding(env, qualityAmbiguousNameRuleID, file, assignment.Line,
+			fmt.Sprintf("identifier %q is ambiguous without domain context", assignment.Name), core.ConfidenceHigh))
+	}
+	return findings
+}
+
+// reportsAmbiguousName reports an ambiguous identifier unless UI conventions
+// or the surrounding function name make its meaning clear.
+func reportsAmbiguousName(file string, fn precisionFunction, name string, typ string, line int) bool {
+	return isAmbiguousIdentifier(name) &&
+		!isUIConventionalAmbiguousName(file, fn, name, typ, line) &&
+		!isLocallyClearAmbiguousName(fn, name)
+}
+
+// reportsBooleanArgument reports a boolean parameter whose name does not read
+// as a predicate, outside functions where boolean flags are conventional.
+func reportsBooleanArgument(file string, fn precisionFunction, param support.ParsedParam) bool {
+	if !isBooleanParameter(param) || isPredicateName(param.Name) || isConventionalNonPredicateName(param.Name) {
+		return false
+	}
+	if isLocalBooleanParserFlag(fn, param.Name) {
+		return false
+	}
+	return !anyPrecisionExemption(file, fn, booleanArgumentExemptions)
+}
+
+// reportsPrimitiveObsession reports functions passing several domain
+// primitives, unless they implement an interface signature they cannot change.
+func reportsPrimitiveObsession(file string, fn precisionFunction) bool {
+	if anyPrecisionExemption(file, fn, primitiveObsessionExemptions) || !primitiveObsession(fn) {
+		return false
+	}
+	return !fn.ImplementsInterfaceSignature
 }
 
 func isLocalBooleanParserFlag(fn precisionFunction, name string) bool {
@@ -778,10 +811,7 @@ func primitiveObsession(fn precisionFunction) bool {
 }
 
 func hiddenSideEffect(file string, fn precisionFunction) bool {
-	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || isUIHelperOrMappingContext(file, fn) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) || isSecurityOrConfigUtilityFunction(file, fn) || explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) {
-		return false
-	}
-	if isDomainSideEffectBoundaryName(fn.Name) {
+	if anyPrecisionExemption(file, fn, sideEffectBoundaryExemptions) {
 		return false
 	}
 	if isPureComputationHelperName(fn.Name) && !hasPersistentCollaboratorSideEffect(fn) {
@@ -794,16 +824,29 @@ func hiddenSideEffect(file string, fn precisionFunction) bool {
 		return false
 	}
 	if fn.GoDecl != nil {
-		for _, evidence := range functionMutationEvidence(fn) {
-			if evidence.Target != targetLocal {
-				return true
-			}
-		}
-		return false
+		return hasNonLocalMutationEvidence(fn)
 	}
+	return hasUnownedMutatingCall(fn)
+}
+
+// hasNonLocalMutationEvidence reports whether resolved Go mutation evidence
+// reaches any state the function does not own.
+func hasNonLocalMutationEvidence(fn precisionFunction) bool {
+	for _, evidence := range functionMutationEvidence(fn) {
+		if evidence.Target != targetLocal {
+			return true
+		}
+	}
+	return false
+}
+
+// hasUnownedMutatingCall reports whether a non-Go function calls a mutating
+// API on something other than a local value, builder, or accumulator.
+func hasUnownedMutatingCall(fn precisionFunction) bool {
 	localTargets := localMutationTargets(fn)
 	for _, call := range directCalls(fn) {
-		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call, localTargets) && !isLocalBuilderMutationCall(fn, call) && !isBuilderAccumulatorMutationCall(fn, call) {
+		if mutatingCallPattern.MatchString(call.Callee) && !isLocalMutationCall(call, localTargets) &&
+			!isLocalBuilderMutationCall(fn, call) && !isBuilderAccumulatorMutationCall(fn, call) {
 			return true
 		}
 	}
@@ -843,239 +886,49 @@ func isDomainLevelCall(callee string) bool {
 }
 
 func commandQueryEvidence(file string, fn precisionFunction) (mutationEvidence, bool) {
-	if isQualityFixturePath(file) {
-		return mutationEvidence{}, false
-	}
-	if explicitRepositoryCommandResultContract(file, fn) {
-		return mutationEvidence{}, false
-	}
-	if isFrameworkOrchestrationBoundary(file, fn) || isReactComponentOrNamedHookBoundary(file, fn) || isUIHelperOrMappingContext(file, fn) || isScriptEntrypoint(file, fn.Name) || isSeedOrScriptSourcePath(file) || isAdapterOrOrchestrationFunction(file, fn) || isPostgresRepositoryPath(file) || isSecurityOrConfigUtilityFunction(file, fn) || explicitMutationName(fn.Name) || isUICommandHelperName(file, fn.Name) || isDomainSideEffectBoundaryName(fn.Name) {
-		return mutationEvidence{}, false
-	}
-	if !fn.Returns {
-		return mutationEvidence{}, false
-	}
-	if isAccumulatorBuilderFunctionName(fn.Name) && !hasLikelyExternalMutationCall(fn) {
-		return mutationEvidence{}, false
-	}
-	if isFactoryHelperName(fn.Name) {
-		return mutationEvidence{}, false
-	}
-	if isPureComputationHelperName(fn.Name) && !hasLikelyParameterAssignment(fn) && !hasIOOrPersistenceSideEffect(fn) {
-		return mutationEvidence{}, false
-	}
-	if isUIHelperOrMappingContext(file, fn) && !hasLikelyParameterAssignment(fn) && !predicateHasObviousSideEffect(fn) {
-		return mutationEvidence{}, false
-	}
-	if isPredicateName(fn.Name) && !hasLikelyParameterAssignment(fn) && !predicateHasObviousSideEffect(fn) {
-		return mutationEvidence{}, false
-	}
-	name := strings.ToLower(fn.Name)
-	if !queryFunctionPrefixPattern.MatchString(name) && !strings.Contains(fn.Body, "return ") {
+	if !isCommandQueryCandidate(file, fn) {
 		return mutationEvidence{}, false
 	}
 	for _, evidence := range functionMutationEvidence(fn) {
-		if evidence.Effect == "persistence" || evidence.Effect == "network" || evidence.Effect == "event" ||
-			(evidence.Effect == "shared_state" && evidence.Target != targetLocal) {
+		if isCommandQueryEffect(evidence) {
 			return evidence, true
 		}
 	}
 	return mutationEvidence{}, false
 }
 
-func errorHandlingFindings(env support.Context, file string, fn precisionFunction) []core.Finding {
-	if isUIHelperOrMappingContext(file, fn) || isSeedOrScriptSourcePath(file) {
-		return nil
+// isCommandQueryCandidate reports whether a function returns a value and is
+// not a boundary, builder, factory, pure helper, or side-effect-free
+// predicate, so a command effect inside it would be surprising.
+func isCommandQueryCandidate(file string, fn precisionFunction) bool {
+	if isQualityFixturePath(file) || explicitRepositoryCommandResultContract(file, fn) ||
+		anyPrecisionExemption(file, fn, commandQueryExemptions) {
+		return false
 	}
-	findings := make([]core.Finding, 0)
-	statements := fn.Statements
-	for idx, statement := range statements {
-		line := strings.TrimSpace(statement.Text)
-		lowered := strings.ToLower(line)
-		if strings.Contains(lowered, "err") || strings.Contains(lowered, "except") || strings.Contains(lowered, "catch") {
-			if logsError(line) && nearbyIgnoredError(statements, idx) && !nearbyExplicitDegradedFallback(statements, idx) {
-				findings = append(findings, precisionWarnFinding(env, errorLoggedAndIgnoredRuleID, file, statement.Line,
-					"error is logged and then ignored or converted to success", core.ConfidenceHigh))
-			}
-			if returnsBareError(line) || throwsBareError(line) {
-				findings = append(findings, precisionWarnFinding(env, errorContextLostRuleID, file, statement.Line,
-					"error is returned without contextual wrapping", core.ConfidenceMedium))
-			}
-		}
+	if !fn.Returns || isFactoryHelperName(fn.Name) {
+		return false
 	}
-	return findings
+	if isAccumulatorBuilderFunctionName(fn.Name) && !hasLikelyExternalMutationCall(fn) {
+		return false
+	}
+	if isPureComputationHelperName(fn.Name) && !hasLikelyParameterAssignment(fn) && !hasIOOrPersistenceSideEffect(fn) {
+		return false
+	}
+	if isPredicateName(fn.Name) && !hasLikelyParameterAssignment(fn) && !predicateHasObviousSideEffect(fn) {
+		return false
+	}
+	return queryFunctionPrefixPattern.MatchString(strings.ToLower(fn.Name)) || strings.Contains(fn.Body, "return ")
 }
 
-func nearbyExplicitDegradedFallback(statements []support.ParsedStatement, idx int) bool {
-	for lookahead := idx; lookahead < len(statements) && lookahead <= idx+4; lookahead++ {
-		line := strings.ToLower(strings.TrimSpace(firstNonEmptyString(statements[lookahead].Raw, statements[lookahead].Text)))
-		if containsAny(line, []string{
-			"return []", "return {}", "return reports", "return fallback", "return default",
-			"return;",
-		}) {
-			return true
-		}
+// isCommandQueryEffect reports whether mutation evidence is a command effect:
+// persistence, network, events, or writes to shared state the function does
+// not own.
+func isCommandQueryEffect(evidence mutationEvidence) bool {
+	switch evidence.Effect {
+	case "persistence", "network", "event":
+		return true
+	case "shared_state":
+		return evidence.Target != targetLocal
 	}
 	return false
-}
-
-func logsError(line string) bool {
-	lowered := strings.ToLower(line)
-	return strings.Contains(lowered, "log.") || strings.Contains(lowered, "logger.") ||
-		strings.Contains(lowered, "logging.") || strings.Contains(lowered, "console.error")
-}
-
-func nearbyIgnoredError(statements []support.ParsedStatement, idx int) bool {
-	for lookahead := idx; lookahead < len(statements) && lookahead <= idx+4; lookahead++ {
-		line := strings.TrimSpace(statements[lookahead].Text)
-		lowered := strings.ToLower(line)
-		if strings.Contains(lowered, "return nil") || strings.Contains(lowered, "return none") ||
-			strings.Contains(lowered, "return undefined") || lowered == "return;" ||
-			lowered == "pass" || strings.Contains(lowered, "// ignore") {
-			return true
-		}
-		if strings.HasPrefix(lowered, "return ") && !strings.Contains(lowered, "err") && !strings.Contains(lowered, "error") {
-			return true
-		}
-	}
-	return false
-}
-
-func returnsBareError(line string) bool {
-	trimmed := strings.TrimSpace(line)
-	return trimmed == "return err" || trimmed == "return err;" || trimmed == "return error" || trimmed == "return error;"
-}
-
-func throwsBareError(line string) bool {
-	trimmed := strings.TrimSpace(line)
-	return trimmed == "throw err;" || trimmed == "throw err" || trimmed == "throw error;" || trimmed == "throw error" ||
-		trimmed == "raise err" || trimmed == "raise error"
-}
-
-func parsedDefensiveFindings(env support.Context, file string, parsed *support.ParsedFile) []core.Finding {
-	findings := make([]core.Finding, 0)
-	for _, statement := range parsed.Module.Statements {
-		findings = append(findings, defensiveStatementFindings(env, file, statement)...)
-	}
-	for _, fn := range parsed.AllFunctions() {
-		for _, statement := range fn.Statements {
-			findings = append(findings, defensiveStatementFindings(env, file, statement)...)
-		}
-	}
-	return findings
-}
-
-func defensiveStatementFindings(env support.Context, file string, statement support.ParsedStatement) []core.Finding {
-	text := statement.Text
-	findings := make([]core.Finding, 0, 2)
-	if strings.Contains(text, " as unknown as ") || strings.Contains(text, " as any as ") || strings.Contains(text, "typing.cast(") {
-		if !isScriptTestOrHelperFile(file) {
-			findings = append(findings, precisionWarnFinding(env, defensiveUncheckedTypeAssertionRuleID, file, statement.Line,
-				"type assertion bypasses runtime validation", core.ConfidenceHigh))
-		}
-	}
-	if unsafeScriptNumericConversion(text) {
-		findings = append(findings, precisionWarnFinding(env, defensiveUnsafeNumericConversionRuleID, file, statement.Line,
-			"numeric conversion can truncate, wrap, or lose precision; validate bounds before converting", core.ConfidenceMedium))
-	}
-	return findings
-}
-
-func parsedMutableGlobalFindings(env support.Context, file string, parsed *support.ParsedFile) []core.Finding {
-	if isQualityFixturePath(file) {
-		return nil
-	}
-	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
-	if strings.HasPrefix(normalized, "bin/") || strings.Contains(normalized, "/integrations/") || strings.Contains(normalized, "integrations/") {
-		return nil
-	}
-	findings := make([]core.Finding, 0)
-	for _, statement := range parsed.Module.Statements {
-		text := strings.TrimSpace(statement.Text)
-		if text == "" || strings.HasPrefix(text, "const ") || strings.HasPrefix(text, "final ") {
-			continue
-		}
-		if isScriptLikeSourcePath(file) && !moduleStatementLooksTopLevel(statement) {
-			continue
-		}
-		if mutableGlobalLinePattern.MatchString(text) {
-			findings = append(findings, precisionWarnFinding(env, qualityMutableGlobalStateRuleID, file, statement.Line,
-				"mutable module-level state makes behavior harder to isolate and test", core.ConfidenceHigh))
-		}
-	}
-	return findings
-}
-
-func redundantCommentFindings(env support.Context, file string, source string) []core.Finding {
-	if isQualityFixturePath(file) {
-		return nil
-	}
-	if isSeedOrScriptSourcePath(file) {
-		return nil
-	}
-	lines := strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
-	for idx := 0; idx+1 < len(lines); idx++ {
-		comment := strings.TrimSpace(lines[idx])
-		next := strings.TrimSpace(lines[idx+1])
-		if !redundantCommentPattern.MatchString(comment) || next == "" {
-			continue
-		}
-		verb := redundantCommentVerb(comment)
-		if verb != "" && strings.Contains(strings.ToLower(next), verb) {
-			return []core.Finding{precisionWarnFinding(env, qualityRedundantCommentRuleID, file, idx+1,
-				"comment restates the next line without adding design intent or constraints", core.ConfidenceLow)}
-		}
-	}
-	return nil
-}
-
-func sourceMutableGlobalFindings(env support.Context, file string, source string) []core.Finding {
-	if isQualityFixturePath(file) {
-		return nil
-	}
-	if strings.EqualFold(filepath.Ext(file), ".go") {
-		return nil
-	}
-	normalized := strings.ToLower(strings.ReplaceAll(file, "\\", "/"))
-	if strings.HasPrefix(normalized, "bin/") || strings.Contains(normalized, "/integrations/") || strings.Contains(normalized, "integrations/") {
-		return nil
-	}
-	var moduleScope []bool
-	if isScriptLikeSourcePath(file) {
-		moduleScope = scriptSourceModuleScopeLines(source)
-	}
-	for idx, line := range strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n") {
-		if moduleScope != nil && !moduleScope[idx] {
-			continue
-		}
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") ||
-			strings.HasPrefix(trimmed, "const ") || strings.HasPrefix(trimmed, "final ") {
-			continue
-		}
-		if mutableGlobalLinePattern.MatchString(trimmed) && !strings.Contains(trimmed, " := ") {
-			return []core.Finding{precisionWarnFinding(env, qualityMutableGlobalStateRuleID, file, idx+1,
-				"mutable module-level state makes behavior harder to isolate and test", core.ConfidenceHigh)}
-		}
-	}
-	return nil
-}
-
-func redundantCommentVerb(comment string) string {
-	match := redundantCommentPattern.FindStringSubmatch(comment)
-	if len(match) < 3 {
-		return ""
-	}
-	return strings.ToLower(match[2])
-}
-
-func unsafeScriptNumericConversion(text string) bool {
-	lowered := strings.ToLower(text)
-	return strings.Contains(lowered, "static_cast<int8_t>") ||
-		strings.Contains(lowered, "static_cast<int16_t>") ||
-		strings.Contains(lowered, "static_cast<int32_t>") ||
-		strings.Contains(lowered, "static_cast<uint8_t>") ||
-		strings.Contains(lowered, "static_cast<uint16_t>") ||
-		strings.Contains(lowered, "static_cast<uint32_t>") ||
-		strings.Contains(lowered, "number(") && strings.Contains(lowered, "bigint")
 }
