@@ -19,7 +19,13 @@ func ListChangedFiles(ctx context.Context, sc Context, target core.TargetConfig)
 	if err := ValidateBaseRef(sc.Opts.BaseRef); err != nil {
 		return nil, err
 	}
-	prefix := DiffPrefixForTarget(ctx, target.Path)
+	return sc.git.changedFiles(target.Path, func() ([]core.ChangedFile, error) {
+		return listChangedFiles(ctx, sc, target)
+	})
+}
+
+func listChangedFiles(ctx context.Context, sc Context, target core.TargetConfig) ([]core.ChangedFile, error) {
+	prefix := sc.git.diffPrefix(ctx, target.Path)
 	var lastErr error
 	for _, ref := range []string{sc.Opts.BaseRef, sc.Opts.BaseRef + "...HEAD"} {
 		output, err := runGitCapture(ctx, "-C", target.Path, "diff", "--name-status", "--no-renames", "--no-color", "--end-of-options", ref, "--", ".")
@@ -52,10 +58,11 @@ func parseNameStatus(output string, prefix string) []core.ChangedFile {
 }
 
 // ReadBaseFile returns the contents of a target-relative file at the diff
-// base ref.
+// base ref with a single `git show`. Scans read through a per-scan
+// BaseFileReader instead, which memoizes and batches these reads.
 func ReadBaseFile(ctx context.Context, sc Context, target core.TargetConfig, rel string) ([]byte, error) {
 	if err := ValidateBaseRef(sc.Opts.BaseRef); err != nil {
 		return nil, err
 	}
-	return runGitCapture(ctx, "-C", target.Path, "show", "--end-of-options", sc.Opts.BaseRef+":./"+filepath.ToSlash(rel))
+	return showBaseFile(ctx, target.Path, sc.Opts.BaseRef, filepath.ToSlash(rel))
 }
