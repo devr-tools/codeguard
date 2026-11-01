@@ -211,7 +211,7 @@ func newFileCorpus() *fileCorpus {
 // per target. Callers apply their own include filter to the returned slice; the
 // walk itself is identical regardless of the filter, so sharing it is safe.
 func (c *fileCorpus) list(root string, excludes []string, opts FileWalkOptions) ([]string, error) {
-	key := fmt.Sprintf("%s\x00%s\x00%t", filepath.Clean(root), opts.LogicalPath, opts.ScanVendoredSource)
+	key := fmt.Sprintf("%s\x00%s\x00%t\x00%t", filepath.Clean(root), opts.LogicalPath, opts.ScanVendoredSource, opts.RespectGitignore)
 	c.mu.Lock()
 	entry, ok := c.targets[key]
 	if !ok {
