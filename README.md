@@ -57,7 +57,7 @@ codeguard version
 
 ```yaml
 - name: Devr Codeguard
-  uses: devr-tools/codeguard@v1.1.1
+  uses: devr-tools/codeguard@v1.11.0
 ```
 
 Or run in Docker:
@@ -99,21 +99,23 @@ codeguard waivers audit -config codeguard.yaml
 codeguard rules
 codeguard profiles
 codeguard explain security.hardcoded-credential
+codeguard context init    # generate AGENTS.md from detected commands, layout and entrypoints
+codeguard serve --mcp     # MCP server for agent hosts
 codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 codeguard baseline audit -config codeguard.yaml -format json
 codeguard baseline prune -config codeguard.yaml -check
 codeguard baseline policy -config codeguard.yaml -compare-baseline /tmp/base-baseline.json
 ```
 
-`codeguard init` detects the repository's languages (one target per language), entrypoints (Go `cmd/*/main.go` or `main.go`, `package.json` `bin`/`main`, Python `[project.scripts]` or `__main__.py`), whether `.github/workflows/` exists (enables CI/CD) and which package manifests exist (enables Supply Chain). It writes only those targets and section switches. Every other setting stays at its built-in default, documented in [docs/checks.md](docs/checks.md). `codeguard init -full` writes every key instead. The defaults enforce none of CodeGuard's own conventions: no required `.goreleaser.yaml`, `Makefile`, workflow files or content markers, and no test layout.
+`codeguard init` detects the repository's languages (one target per language), entrypoints (Go `cmd/*/main.go` or `main.go`, `package.json` `bin`/`main`, Python `[project.scripts]` or `__main__.py`), whether `.github/workflows/` exists (enables CI/CD) and which package manifests exist (enables Supply Chain). It writes only those targets and section switches. Every other setting stays at its built-in default, documented in [docs/checks.md](docs/checks.md#generated-config-codeguard-init) and [docs/config-reference.md](docs/config-reference.md). `codeguard init -full` writes every key instead. The defaults enforce none of CodeGuard's own conventions: no required `.goreleaser.yaml`, `Makefile`, workflow files or content markers, and no test layout.
 
-`codeguard rules` prints each rule's level, execution model, language coverage, section, and title. `codeguard explain <rule-id>` includes the same metadata for a single rule.
+`codeguard rules` prints each rule's level, execution model, language coverage, section, and title; narrow it with `-section`, `-search`, `-level`, or `-enabled`. `codeguard explain <rule-id>` adds examples, the config keys that tune the rule (with your config's values), suppression syntax, and the profiles that enable it. Every rule is also listed in [docs/rule-index.md](docs/rule-index.md).
 
 By default, `codeguard` looks for `codeguard.yaml`, `codeguard.yml`, or `codeguard.json` in the repository root. If those are missing, it also checks for the same file names inside a `.codeguard/` directory.
 
 If you point `-config` at a directory such as `.codeguard`, `codeguard` will look inside it for `codeguard.*` or `config.*` files.
 
-Long-running scans report completed sections and a 30-second heap/GOMEMLIMIT heartbeat on stderr, leaving JSON, SARIF, GitHub, and CycloneDX stdout machine-readable; `-quiet` turns those progress lines off. Pass `-memprofile <path>` to keep a rolling Go heap profile (written at startup, every heartbeat, and completion), then inspect it with `go tool pprof <path>`. Full scans skip dependency and generated trees named `node_modules`, `vendor`, and `cdk.out` at any depth; use `exclude` for repository-specific generated paths.
+Long-running scans report completed sections and a 30-second heap/GOMEMLIMIT heartbeat on stderr, leaving JSON, SARIF, GitHub, and CycloneDX stdout machine-readable; `-quiet` turns those progress lines off. Pass `-memprofile <path>` to keep a rolling Go heap profile (written at startup, every heartbeat, and completion), then inspect it with `go tool pprof <path>`. Full scans skip dependency and generated trees named `node_modules`, `vendor`, and `cdk.out` at any depth, and skip paths your `.gitignore` files ignore (`respect_gitignore: false` turns that off); use `exclude` for repository-specific generated paths.
 
 `codeguard scan` exits 1 when the result fails its exit policy: `-fail-on fail` (default; any failed section), `-fail-on warn` (any warned or failed section) or `-fail-on none` (never on findings), also settable as `output.fail_on`. Invalid config, a missing target, a crashed section (`scan.section.panic`) and a failed target walk (`scan.target-walk`) exit 1 under every policy. `-min-confidence low|medium|high` maps onto `checks.min_confidence.default`. The text banner is only printed to an interactive terminal outside CI and without `NO_COLOR`. See [docs/checks.md#output](docs/checks.md#output).
 
@@ -236,4 +238,8 @@ func main() {
 - [Release automation](docs/release-automation.md)
 - [Homebrew packaging](docs/homebrew.md)
 - [Checks reference](docs/checks.md)
+- [Rule index](docs/rule-index.md)
+- [Configuration key reference](docs/config-reference.md)
+- [Benchmarks](docs/benchmarks.md)
 - [Architecture](docs/architecture.md)
+- [Tree-sitter design notes](docs/treesitter-spike.md)

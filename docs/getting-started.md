@@ -14,16 +14,18 @@ Or from this repository:
 make build
 ```
 
-`codeguard version` reports the embedded module version for binaries installed
-with `go install module@version`. Local source builds report
-`0.1.0-dev+<revision>` (with a `.dirty` marker for modified worktrees) when Go
-embeds VCS metadata.
+`codeguard version` reports the release tag for release binaries and the
+embedded module version for binaries installed with `go install module@version`.
+Local source builds report the module version Go derives from VCS metadata (a
+pseudo-version such as `v1.11.1-0.<timestamp>-<revision>`), or
+`devel+<revision>` (with a `.dirty` marker for modified worktrees) when no
+module version is embedded.
 
 Or in GitHub Actions from GitHub Marketplace:
 
 ```yaml
 - name: Devr Codeguard
-  uses: devr-tools/codeguard@v1.1.1
+  uses: devr-tools/codeguard@v1.11.0
 ```
 
 For SDK consumers:
@@ -66,6 +68,9 @@ codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
   package manifests exist (`go.mod`, `package.json`, `pyproject.toml`,
   `requirements*.txt`, `Cargo.toml`, ...), so an unpinned `"lodash": "*"` is
   reported on the first scan.
+
+The full detection rules are in
+[Generated config](checks.md#generated-config-codeguard-init).
 
 It then writes a small `codeguard.yaml`: a header that summarizes what it
 detected, the detected targets, and the section switches. It writes nothing
@@ -117,7 +122,7 @@ codeguard scan -config codeguard.yaml -min-confidence medium    # hide low-confi
 
 After upgrading CodeGuard, run `codeguard waivers audit -config codeguard.yaml` to identify waiver cleanup candidates. CodeGuard stores audit snapshots with version, config fingerprint, scan scope, and matched finding fingerprints; it only marks a waiver as stale after upgrade when prior comparable evidence shows the waiver matched findings before and matches none now. JSON output is available with `-format json`.
 
-If you prefer a JSON example, start from [examples/codeguard.json](/Users/alex/Documents/GitHub/codeguard/examples/codeguard.json:1).
+If you prefer a JSON example, start from [examples/codeguard.json](../examples/codeguard.json).
 
 ## First production setup
 
@@ -194,17 +199,19 @@ func main() {
 
 ## Current scope
 
-- Go-first runtime support
+- Native analysis for Go, Python, TypeScript/JavaScript, Rust, Java, C++, C#, and Ruby, deepest for Go
 - Standalone reusable package layout
 - Config, runner, report, and CLI boundaries separated
 - Exclusions, waivers, and baselines for incremental rollout
 - Custom rule packs for repo-specific regex, content, and path policies
 - Policy profiles such as `startup`, `strict`, `enterprise`, and `ai-safe`
 - Cached file-hash scan results for faster repeat runs
+- A `.gitignore`-aware file walk (`respect_gitignore`, on by default)
 - `doctor` checks for config, Git, a runnable govulncheck (with its stderr on failure), targets, entrypoints, target language vs. files present, and cache setup
 - "Did you mean" suggestions for mistyped rule ids, profiles, output formats and `-set` keys
 - `text`, `json`, `sarif`, `github`, `github-comment`, and `cyclonedx` report formats
 - Diff-mode filtering down to changed lines when Git history is available
 - Production rollout tools such as baselines, waivers, diff scans, and rule metadata discovery
+- `codeguard context init|update` to generate and refresh `AGENTS.md`/`CLAUDE.md`, and `codeguard serve --mcp` for agent hosts (see [Agent-native features](agent-native.md))
 
 Language-specific engines can be added later without changing the repo shape.

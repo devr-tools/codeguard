@@ -10,7 +10,7 @@ agent context — and reports pass/warn/fail findings per rule.
 - `make codeguard-ci` — validate + self-scan with `.codeguard/codeguard.yaml`
 - `make check` — the full CI gate (fmt-check, lint, test, codeguard-ci)
 - Scope gofmt to `gofmt -l cmd internal pkg tests changelog.go` (repo root picks up worktrees/module caches)
-- Tests live under `tests/` as external `_test` packages only — never next to the code (enforced by the repo's own `ci.test-file-location` rule)
+- New tests go under `tests/` as external `_test` packages, not next to the code. This is a review convention: the self-scan's `allowed_test_paths` also permits `internal/**` and `cmd/**`, where some legacy in-package tests remain
 
 ## Layout
 
