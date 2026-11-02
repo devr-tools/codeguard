@@ -15,7 +15,7 @@ import (
 // every candidate, after mutate adjusts the config.
 func runTriageFixture(t *testing.T, mutate func(*codeguard.Config)) (codeguard.Report, *codeguard.Artifact) {
 	t.Helper()
-	useTestTriageProvider(t, "dismiss", "fixture dismissal")
+	useTestTriageProvider(t, "fixture dismissal")
 	cfg := triageFixtureConfig(t, t.TempDir())
 	mutate(&cfg)
 	report, err := codeguard.Run(context.Background(), cfg)
@@ -225,7 +225,7 @@ func TestWriteConfigFileOmitsDeprecatedDefaults(t *testing.T) {
 func TestHybridTriageLegacyInitCandidateSectionsTriagesEverySection(t *testing.T) {
 	reliability := func(sections []string) []codeguard.Finding {
 		t.Helper()
-		useTestTriageProvider(t, "dismiss", "fixture dismissal")
+		useTestTriageProvider(t, "fixture dismissal")
 		root := t.TempDir()
 		cfg := triageFixtureConfig(t, root)
 		writeArtifactFile(t, filepath.Join(root, "errors.go"), "package sample\n\nimport \"io\"\n\nfunc Copy(dst io.Writer, src io.Reader) {\n\t_, _ = io.Copy(dst, src)\n\tpanic(\"copy failed\")\n}\n")
