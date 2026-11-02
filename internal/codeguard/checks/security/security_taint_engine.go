@@ -30,25 +30,21 @@ func (r taintRules) forSink(sink string) string {
 // analyzers: function summaries from the previous pass and the deduplicated
 // findings emitted so far.
 type taintEngine struct {
-	env   support.Context
-	file  string
-	rules taintRules
-	// keepReturnModel carries a callee's framework source/sink models onto
-	// the value its summarised return produces at a call site.
-	keepReturnModel bool
-	summaries       map[string]*funcSummary
-	findings        []core.Finding
-	seen            map[string]struct{}
+	env       support.Context
+	file      string
+	rules     taintRules
+	summaries map[string]*funcSummary
+	findings  []core.Finding
+	seen      map[string]struct{}
 }
 
-func newTaintEngine(env support.Context, file string, rules taintRules, keepReturnModel bool) taintEngine {
+func newTaintEngine(env support.Context, file string, rules taintRules) taintEngine {
 	return taintEngine{
-		env:             env,
-		file:            file,
-		rules:           rules,
-		keepReturnModel: keepReturnModel,
-		summaries:       map[string]*funcSummary{},
-		seen:            map[string]struct{}{},
+		env:       env,
+		file:      file,
+		rules:     rules,
+		summaries: map[string]*funcSummary{},
+		seen:      map[string]struct{}{},
 	}
 }
 
@@ -160,21 +156,20 @@ func (s *taintScope) applyParamSinks(callee string, summary *funcSummary, argCou
 
 // summaryCallTaint is the taint a call to a summarised same-file function
 // produces: its concrete tainted return, or else the first tainted argument
-// whose parameter flows to the return.
+// whose parameter flows to the return. A concrete return keeps the framework
+// models that recognised it, so the finding's framework metadata survives a
+// helper call in every language engine.
 func (s *taintScope) summaryCallTaint(callee string, summary *funcSummary, argCount int, argTaint func(int) *taintTrace) *taintTrace {
 	step := callee + "()"
 	if inner := summary.returnTaint; inner != nil {
-		lifted := &taintTrace{
+		return &taintTrace{
 			source:     inner.source,
 			sourceLine: inner.sourceLine,
 			chain:      append(append([]string{}, inner.chain...), step),
 			paramIndex: -1,
+			model:      inner.model,
+			sinkModel:  inner.sinkModel,
 		}
-		if s.engine.keepReturnModel {
-			lifted.model = inner.model
-			lifted.sinkModel = inner.sinkModel
-		}
-		return lifted
 	}
 	for index := 0; index < argCount; index++ {
 		if !summary.paramsToReturn[index] {

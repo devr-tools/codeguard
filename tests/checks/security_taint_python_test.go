@@ -77,6 +77,40 @@ func TestPythonTaintDjangoRequestToORMRawSQLHasModelMetadata(t *testing.T) {
 	t.Fatalf("expected Django raw SQL finding with framework metadata, got %#v", report.Sections)
 }
 
+// A source read inside a same-file helper reaches the caller through the
+// helper's summarised return; the framework model must survive that hop, as
+// it does in the Go engine.
+func TestPythonTaintKeepsFrameworkModelThroughSummarisedReturn(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "views.py"), strings.Join([]string{
+		"from django.http import HttpRequest",
+		"from app.models import User",
+		"",
+		"def model_through(request: HttpRequest):",
+		"    return request.GET.get('q')",
+		"",
+		"def lookup(request: HttpRequest):",
+		"    query = model_through(request)",
+		"    return User.objects.raw(query)",
+		"",
+	}, "\n"))
+
+	report, err := codeguard.Run(context.Background(), securityOnlyConfig("taint-py-django-helper-model", dir, "python"))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	messages := taintMessages(t, report, "security.taint.python")
+	assertChainMessage(t, messages, "request.GET", "User.objects.raw", "model_through() -> query")
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if finding.RuleID == "security.taint.python" && finding.Metadata["framework_model"] == "django" && finding.Metadata["framework_sink_model"] == "django-orm-raw-sql" {
+				return
+			}
+		}
+	}
+	t.Fatalf("expected the helper flow to keep django framework metadata, got %#v", report.Sections)
+}
+
 func TestPythonTaintFastAPIRequestSourceRequiresImportAndHonorsSanitizer(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "api.py"), strings.Join([]string{

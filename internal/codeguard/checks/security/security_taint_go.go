@@ -26,7 +26,7 @@ func goTaintFindings(env support.Context, file string, source string) []core.Fin
 		return nil
 	}
 	analyzer := &goTaintAnalyzer{
-		taintEngine: newTaintEngine(env, file, taintRules{taintRuleID: "security.taint.go", ssrfRuleID: "security.ssrf.go", isSSRFSink: isGoHTTPSink}, true),
+		taintEngine: newTaintEngine(env, file, taintRules{taintRuleID: "security.taint.go", ssrfRuleID: "security.ssrf.go", isSSRFSink: isGoHTTPSink}),
 		fset:        fset,
 		functions:   map[string]*ast.FuncDecl{},
 		models:      newGoModelBindings(parsed),
