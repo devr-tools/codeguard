@@ -233,14 +233,16 @@ func TestFullScanFindingsAreDeterministicAcrossRunsAndGOMAXPROCS(t *testing.T) {
 		t.Fatalf("expected one helper flow from callerAlpha (line 13), got %q", helper)
 	}
 
-	// Files are scanned in path order (relay.go before types.go), types in
-	// name order within a file.
-	wantMethods := []string{"type Relay has 12 methods; max is 8"}
+	// Go method counts are package-wide and reported in (package directory,
+	// type name) order, so Relay sorts after the NATO-alphabet types. Rust
+	// counts stay per file.
+	wantMethods := make([]string, 0, len(determinismTypeNames)+1)
 	wantRust := make([]string, 0, len(determinismTypeNames))
 	for _, name := range determinismTypeNames {
 		wantMethods = append(wantMethods, fmt.Sprintf("type %s has 10 methods; max is 8", name))
 		wantRust = append(wantRust, fmt.Sprintf("type %s has 9 impl methods in this file; max is 8", name))
 	}
+	wantMethods = append(wantMethods, "type Relay has 12 methods; max is 8")
 	requireMessages(t, findings, "design.max-methods-per-type", wantMethods...)
 	requireMessages(t, findings, "design.rust.max-methods-per-type", wantRust...)
 
