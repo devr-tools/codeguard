@@ -22,7 +22,11 @@ func protoBreakingFindings(env support.Context, target core.TargetConfig, change
 			continue
 		}
 		base := parseProto(baseData)
-		head := parseProto(readHead(target, file.Path))
+		headData, ok := readHead(env, target, file.Path)
+		if !ok {
+			continue
+		}
+		head := parseProto(headData)
 		findings = append(findings, protoMessageFindings(env, file.Path, base, head)...)
 		findings = append(findings, protoServiceFindings(env, file.Path, base, head)...)
 	}

@@ -188,7 +188,7 @@ func TestFileCorpusBudgetDiagnosticNamesTheBudgetThatTripped(t *testing.T) {
 		}
 	}
 
-	diagnostics := corpus.takeDiagnostics()
+	diagnostics := corpus.takeDiagnostics("")
 	if len(diagnostics) != 1 {
 		t.Fatalf("diagnostics = %#v, want exactly one", diagnostics)
 	}
@@ -216,7 +216,7 @@ func TestFileCorpusBoundsFileListingsAndWarnsThatFilesWereNotScanned(t *testing.
 
 	corpus := newFileCorpus()
 	corpus.maxFiles = 2
-	files, err := corpus.list(root, nil, FileWalkOptions{})
+	files, err := corpus.list(root, nil, FileWalkOptions{}, "")
 	if err != nil {
 		t.Fatalf("list files: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestFileCorpusBoundsFileListingsAndWarnsThatFilesWereNotScanned(t *testing.
 	if got := section.Diagnostics[0].Metadata["findings_affected"]; got != "yes" {
 		t.Fatalf("file-limit findings_affected = %q, want yes", got)
 	}
-	if again := corpus.takeDiagnostics(); len(again) != 0 {
+	if again := corpus.takeDiagnostics(""); len(again) != 0 {
 		t.Fatalf("diagnostic was emitted more than once: %#v", again)
 	}
 }

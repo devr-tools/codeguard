@@ -47,7 +47,8 @@ not findings, so they cannot be baselined or waived:
 
 - `scan.target-walk` (fail): the walk of a target stopped on an error, such
   as an unreadable subdirectory, so files under it were not scanned. Every
-  section that finalizes after the failure reports it and fails.
+  section that used that target's file listing reports it and fails; sections
+  that never read the target's files do not.
 - `scan.file-read` (warn): a file the walk listed could not be read and was
   skipped. The first 20 such files are listed individually and the rest are
   summarised.
@@ -435,6 +436,12 @@ Config keys:
 Current behavior:
 - active waivers suppress matching findings before section status is computed
 - expired waivers are ignored
+- `rule` takes the same selectors as inline suppressions: an exact rule id
+  (retired aliases resolve to their replacement), a dotted prefix ending in
+  `.*` (`security.*`, `security.taint.*`), or a bare `*` for every rule. Any
+  other use of `*` (`security*`, `*.go`, `security.*.go`) matches nothing; the
+  scan reports it as a `suppression.invalid-rule-pattern` warning diagnostic on
+  the first section, and `codeguard doctor` flags it.
 
 ## Baseline
 
@@ -2749,7 +2756,7 @@ Current behavior:
 - caches quality, design, security, prompt, and custom-rule file findings by file hash
 - stores per-file diagnostics with the findings (for example the `security.credential-fixture` diagnostics for suppressed synthetic fixtures), so a warm run reports the same diagnostics as a cold run; caches written by older versions are discarded on upgrade
 - caches optional semantic-review verdicts by hashed request content in a sibling semantic cache file
-- invalidates cached entries when file content or config changes, or when a cross-file input the finding depends on changes (sibling Go files in the same package when `local_precision` is on, `go.mod`/`go.work`, or the resolved SDK facade)
+- invalidates cached entries when file content or config changes, or when a cross-file input the finding depends on changes (sibling Go files in the same package when `local_precision` is on, `go.mod`/`go.work` - including a `go.mod` excluded from scanning and the `go.mod` of a `go.work` `use` module outside the target - or the resolved SDK facade)
 
 ## Doctor
 
@@ -2827,6 +2834,21 @@ parser, so record the reason on the same line:
 ```go
 // codeguard:ignore security.taint.go -- operator-controlled env path for test instrumentation
 ```
+
+The rule ID can also be a selector:
+- `*` suppresses every rule on the covered lines.
+- A dotted prefix ending in `.*` suppresses every rule under it:
+  `codeguard:ignore security.* -- reason` covers `security.taint.go` and
+  `security.shell-execution`, and `security.taint.*` covers only the
+  `security.taint.` family. The prefix ends at a dot, so `security.*` does not
+  match a `securityx.` rule. `until` expiry applies to prefix directives the
+  same way.
+- Any other use of `*` (`security*`, `*.go`, `security.*.go`) suppresses
+  nothing. When such a directive sits where it would have covered a finding
+  (the same or previous line, or anywhere in the file for a file-level
+  finding), the finding's section reports a `suppression.invalid-rule-pattern`
+  warning diagnostic naming the file, line, and pattern, so the directive does
+  not fail silently. The finding itself is still reported.
 
 ### Justified gosec directives
 

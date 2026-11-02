@@ -25,7 +25,11 @@ func openAPIBreakingFindings(env support.Context, target core.TargetConfig, chan
 		}
 		head := map[string]any{}
 		if file.Status != core.ChangedFileDeleted {
-			if head = parseOpenAPIDoc(readHead(target, file.Path)); head == nil {
+			data, ok := readHead(env, target, file.Path)
+			if !ok {
+				continue
+			}
+			if head = parseOpenAPIDoc(data); head == nil {
 				continue
 			}
 		}
