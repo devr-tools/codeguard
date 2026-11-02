@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -113,8 +115,10 @@ func interfaceFindings(env support.Context, file string, fset *token.FileSet, gd
 
 func methodFindings(env support.Context, file string, methodCounts map[string]int) []core.Finding {
 	findings := make([]core.Finding, 0)
-	for recv, count := range methodCounts {
-		if count > env.Config.Checks.DesignRules.MaxMethodsPerType {
+	// Name order: every finding is on line 1, so map order reordered them
+	// between runs.
+	for _, recv := range slices.Sorted(maps.Keys(methodCounts)) {
+		if count := methodCounts[recv]; count > env.Config.Checks.DesignRules.MaxMethodsPerType {
 			findings = append(findings, env.NewFinding(support.FindingInput{
 				RuleID:  "design.max-methods-per-type",
 				Level:   "warn",
