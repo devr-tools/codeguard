@@ -57,7 +57,7 @@ func localAbstractionFindings(env support.Context, target core.TargetConfig) []c
 	// A distinct cache section id: the per-language design passes scan the same
 	// files, and a shared id would let one pass replay the other's cached
 	// findings in its place.
-	return env.ScanTargetFiles(target, "design-local-abstraction", func(rel string) bool {
+	return env.ScanTargetFiles(target, support.CacheSectionDesignLocalAbstraction, func(rel string) bool {
 		return localDesignSupportsFile(target.Language, rel)
 	}, func(file string, data []byte) []core.Finding {
 		return localDesignFileFindings(env, target, file, data)
@@ -141,46 +141,105 @@ func designContainsAny(value string, needles []string) bool {
 	return false
 }
 
+// leakPathKind is the per-file path classification the leak rules consult.
+// Every field depends on the file path alone, so it is computed once per file
+// rather than once per line.
+type leakPathKind struct {
+	domain  bool
+	api     bool
+	handler bool
+	// persistenceBoundary marks a path whose public lines must not expose
+	// persistence models: a domain, API, handler, or contract boundary.
+	persistenceBoundary bool
+	// persistenceExempt marks paths whose persistence references are expected:
+	// package API implementations, tests, and stubs.
+	persistenceExempt bool
+}
+
+func classifyLeakPath(file string) leakPathKind {
+	kind := leakPathKind{
+		domain:  isDomainPath(file),
+		api:     isAPIPath(file),
+		handler: isHandlerPath(file),
+	}
+	kind.persistenceBoundary = kind.domain || kind.api || kind.handler || isContractBoundaryPath(file)
+	kind.persistenceExempt = isPackageAPIImplementationPath(file) || isDesignTestOrStubPath(file)
+	return kind
+}
+
 func leakFindings(env support.Context, file string, source string) []core.Finding {
 	lines := strings.Split(source, "\n")
+	kind := classifyLeakPath(file)
 	findings := make([]core.Finding, 0, 3)
-	domainPath := isDomainPath(file)
-	apiPath := isAPIPath(file)
-	handlerPath := isHandlerPath(file)
-	testOrStubPath := isDesignTestOrStubPath(file)
-	persistenceBoundaryPath := domainPath || apiPath || handlerPath || isContractBoundaryPath(file)
 	for idx, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") ||
-			strings.HasPrefix(trimmed, "/*") || strings.HasPrefix(trimmed, "*") {
+		codeLine, ok := leakCodeLine(line)
+		if !ok {
 			continue
 		}
-		codeLine := stripInlineDesignComment(trimmed)
-		if codeLine == "" {
-			continue
-		}
-		lineNo := idx + 1
-		if domainPath && infraLeakPattern.MatchString(codeLine) {
-			findings = append(findings, designFinding(env, ruleInfrastructureLeak, file, lineNo,
-				"infrastructure/framework type leaks into a domain or public boundary", core.ConfidenceHigh))
-		}
-		if persistenceBoundaryPath && !isPackageAPIImplementationPath(file) && !testOrStubPath && (apiPath || handlerPath || isPublicDeclaration(codeLine)) &&
-			persistenceLeakPattern.MatchString(codeLine) &&
-			!allowedGeneratedPersistenceEnumLine(codeLine) && !allowedTypeScriptRecordUtilityLine(codeLine) &&
-			!allowedUIPropsDerivedTypeLine(file, codeLine) && !allowedFrameworkDTOBoundaryLine(file, codeLine) &&
-			!allowedNextAppPersistenceAdapterLine(file, codeLine) {
-			findings = append(findings, designFinding(env, rulePersistenceLeak, file, lineNo,
-				fmt.Sprintf("persistence model or ORM concept leaks through boundary at %s:%d: %s", file, lineNo, findingLineExcerpt(codeLine)), core.ConfidenceHigh))
-		}
-		if domainPath && configLeakPattern.MatchString(codeLine) {
-			findings = append(findings, designFinding(env, ruleConfigurationLeak, file, lineNo,
-				"configuration or environment concern leaks into domain code", core.ConfidenceMedium))
-		}
+		findings = appendLineLeakFindings(findings, env, file, idx+1, codeLine, kind)
 	}
-	if handlerPath {
+	if kind.handler {
 		findings = append(findings, domainLogicHandlerFinding(env, file, lines)...)
 	}
 	return firstFindingPerRule(findings)
+}
+
+// leakCodeLine returns the code portion of a source line, or false for a
+// blank or comment-only line that the leak rules skip.
+func leakCodeLine(line string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	if isDesignCommentOrBlankLine(trimmed) {
+		return "", false
+	}
+	codeLine := stripInlineDesignComment(trimmed)
+	return codeLine, codeLine != ""
+}
+
+func isDesignCommentOrBlankLine(trimmed string) bool {
+	return trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") ||
+		strings.HasPrefix(trimmed, "/*") || strings.HasPrefix(trimmed, "*")
+}
+
+// appendLineLeakFindings appends the infrastructure, persistence, and
+// configuration leaks on one code line, in that order. It appends to the
+// caller's slice rather than returning a new one so the per-line hot path
+// allocates nothing for the common clean line.
+func appendLineLeakFindings(findings []core.Finding, env support.Context, file string, lineNo int, codeLine string, kind leakPathKind) []core.Finding {
+	if kind.domain && infraLeakPattern.MatchString(codeLine) {
+		findings = append(findings, designFinding(env, ruleInfrastructureLeak, file, lineNo,
+			"infrastructure/framework type leaks into a domain or public boundary", core.ConfidenceHigh))
+	}
+	if isPersistenceLeakLine(file, codeLine, kind) {
+		findings = append(findings, designFinding(env, rulePersistenceLeak, file, lineNo,
+			fmt.Sprintf("persistence model or ORM concept leaks through boundary at %s:%d: %s", file, lineNo, findingLineExcerpt(codeLine)), core.ConfidenceHigh))
+	}
+	if kind.domain && configLeakPattern.MatchString(codeLine) {
+		findings = append(findings, designFinding(env, ruleConfigurationLeak, file, lineNo,
+			"configuration or environment concern leaks into domain code", core.ConfidenceMedium))
+	}
+	return findings
+}
+
+// isPersistenceLeakLine reports whether a code line exposes a persistence
+// model through a boundary: the path is a non-exempt boundary, the line is
+// public (or the whole file is an API/handler surface), it names a persistence
+// concept, and no known-benign pattern explains it.
+func isPersistenceLeakLine(file string, codeLine string, kind leakPathKind) bool {
+	if !kind.persistenceBoundary || kind.persistenceExempt {
+		return false
+	}
+	if !kind.api && !kind.handler && !isPublicDeclaration(codeLine) {
+		return false
+	}
+	return persistenceLeakPattern.MatchString(codeLine) && !allowedPersistenceReferenceLine(file, codeLine)
+}
+
+// allowedPersistenceReferenceLine reports whether a line that matches the
+// persistence pattern is a known-benign reference rather than a leak.
+func allowedPersistenceReferenceLine(file string, codeLine string) bool {
+	return allowedGeneratedPersistenceEnumLine(codeLine) || allowedTypeScriptRecordUtilityLine(codeLine) ||
+		allowedUIPropsDerivedTypeLine(file, codeLine) || allowedFrameworkDTOBoundaryLine(file, codeLine) ||
+		allowedNextAppPersistenceAdapterLine(file, codeLine)
 }
 
 func allowedTypeScriptRecordUtilityLine(line string) bool {

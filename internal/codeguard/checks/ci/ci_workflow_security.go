@@ -39,7 +39,7 @@ var (
 // workflow files and composite actions. The per-file results depend only on
 // the file's own bytes, so they go through the cached per-file scan.
 func workflowSecurityFindings(env support.Context, target core.TargetConfig) []core.Finding {
-	return env.ScanTargetFiles(target, "ci-workflow-security", isWorkflowSecurityFile, func(rel string, data []byte) []core.Finding {
+	return env.ScanTargetFiles(target, support.CacheSectionCIWorkflowSecurity, isWorkflowSecurityFile, func(rel string, data []byte) []core.Finding {
 		doc := parseWorkflowDoc(rel, data)
 		if doc == nil {
 			return nil

@@ -21,7 +21,7 @@ func testQualityFindings(env support.Context, target core.TargetConfig) []core.F
 		return nil
 	}
 	helpers := assertionHelperPattern(rules.AssertionHelpers)
-	return env.ScanTargetFiles(target, "ci", func(rel string) bool {
+	return env.ScanTargetFiles(target, support.CacheSectionCITestQuality, func(rel string) bool {
 		return isTargetTestFile(target.Language, rel)
 	}, func(file string, data []byte) []core.Finding {
 		findings := make([]core.Finding, 0)

@@ -9,7 +9,7 @@ import (
 )
 
 func pythonStructuralFindings(env support.Context, target core.TargetConfig) []core.Finding {
-	return env.ScanTargetFiles(target, "design-python-structural", func(rel string) bool {
+	return env.ScanTargetFiles(target, support.CacheSectionDesignPythonStructural, func(rel string) bool {
 		return strings.EqualFold(".py", filepathExt(rel))
 	}, func(file string, data []byte) []core.Finding {
 		return pythonStructuralFindingsForFile(env, file, data)

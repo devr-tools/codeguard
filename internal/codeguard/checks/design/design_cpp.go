@@ -17,7 +17,7 @@ var (
 )
 
 func cppTargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
-	return support.ScanCPPFiles(env, target, "design-cpp-structural", func(file string, data []byte) []core.Finding {
+	return support.ScanCPPFiles(env, target, support.CacheSectionDesignCPPStructural, func(file string, data []byte) []core.Finding {
 		return cppDesignFindingsForFile(env, file, data)
 	})
 }

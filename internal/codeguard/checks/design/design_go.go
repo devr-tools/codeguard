@@ -19,7 +19,7 @@ func goTargetFindings(env support.Context, target core.TargetConfig) []core.Find
 	// The facade comes from go.mod and the pkg/ layout, not the scanned file,
 	// so its fingerprint is part of every cached entry's key.
 	deps := support.FileScanDependencies{Key: facade.CacheKey()}
-	findings := support.ScanTargetFilesWithDependencies(env, target, "design-go-structural", func(rel string) bool {
+	findings := support.ScanTargetFilesWithDependencies(env, target, support.CacheSectionDesignGoStructural, func(rel string) bool {
 		return strings.HasSuffix(rel, ".go")
 	}, deps, func(file string, data []byte) []core.Finding {
 		return goFindingsForFile(env, facade, file, data)
