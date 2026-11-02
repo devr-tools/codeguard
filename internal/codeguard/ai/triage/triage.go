@@ -106,8 +106,19 @@ func Apply(ctx context.Context, cfg core.Config, opts core.ScanOptions, sections
 
 	sortVerdicts(verdicts)
 	artifact.AIAnalysis.Verdicts = verdicts
+	// suppress_dismissed: false is advisory mode: dismiss verdicts are recorded
+	// in the ai_analysis artifact but every finding stays in the report.
+	if !suppressDismissed(cfg.AI.HybridTriage) {
+		return sections, artifact
+	}
 	filtered := filterSections(sections, candidates, outcomes)
 	return filtered, artifact
+}
+
+// suppressDismissed reports ai.hybrid_triage.suppress_dismissed, which
+// defaults to true (dismissed findings are removed from the report).
+func suppressDismissed(cfg core.AIHybridTriageConfig) bool {
+	return cfg.SuppressDismissed == nil || *cfg.SuppressDismissed
 }
 
 func providerErrorSummary(err error, timeout time.Duration) string {

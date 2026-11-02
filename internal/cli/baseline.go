@@ -84,6 +84,12 @@ func runBaselineAudit(args []string, stdout io.Writer, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "write audit: %v\n", err)
 		return exitError
 	}
+	// baseline.governance.require_no_stale_entries turns the audit into a
+	// gate: a baseline entry that no longer matches any finding fails it.
+	if inputs.cfg.Baseline.Governance.RequireNoStaleEntries && result.Counts.Stale > 0 {
+		_, _ = fmt.Fprintf(stderr, "baseline audit: %d stale baseline entries (baseline.governance.require_no_stale_entries); run `codeguard baseline prune -write` to remove them\n", result.Counts.Stale)
+		return exitError
+	}
 	return exitOK
 }
 

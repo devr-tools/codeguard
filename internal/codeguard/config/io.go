@@ -226,6 +226,7 @@ func WriteFile(path string, cfg core.Config) error {
 	// it. That is what makes the field usable for spotting a config produced by
 	// a different release.
 	cfg.CodeguardVersion = version.Number
+	clearDeprecatedDefaults(&cfg)
 
 	data, err := marshalConfig(path, cfg)
 	if err != nil {

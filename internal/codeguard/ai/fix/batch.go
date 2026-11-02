@@ -11,6 +11,8 @@ import (
 )
 
 // VerifyBatch verifies compatible deterministic fixes as one aggregate patch.
+// At most ai.autofix.max_fixes items (when positive) are included; later
+// eligible items are skipped with BatchReasonMaxFixes.
 // It conservatively treats any two candidates that edit the same file as a
 // conflict. This avoids ordering-dependent patches and lets the caller send
 // those cases through reviewed single-fix verification instead.
@@ -50,6 +52,12 @@ func VerifyBatch(ctx context.Context, req BatchRequest) (BatchResult, error) {
 		if len(conflicts) > 0 {
 			issue.Reason = BatchReasonConflictingFiles
 			issue.Detail = strings.Join(conflicts, ",")
+			result.Skipped = append(result.Skipped, issue)
+			continue
+		}
+		if maxFixes := req.Config.AI.AutoFix.MaxFixes; maxFixes > 0 && len(result.Included) >= maxFixes {
+			issue.Reason = BatchReasonMaxFixes
+			issue.Detail = fmt.Sprintf("ai.autofix.max_fixes=%d", maxFixes)
 			result.Skipped = append(result.Skipped, issue)
 			continue
 		}

@@ -53,7 +53,6 @@
     },
     "design_rules": {
       "require_cmd_through_internal_cli": true,
-      "forbid_internal_import_cmd": true,
       "forbid_service_import_internal": true,
       "forbid_service_import_cmd": true,
       "max_decls_per_file": 12,
@@ -170,7 +169,6 @@
       "detect_swallowed_error": true,
       "detect_lost_error_context": true,
       "detect_recoverable_panic": true,
-      "max_retry_attempts": 3,
       "max_inline_goroutines_per_function": 8
     },
     "data_rules": {
@@ -185,7 +183,6 @@
       "detect_unbounded_read": true,
       "detect_exactly_once_assumption": true,
       "detect_cache_without_policy": true,
-      "max_unbounded_read_rows": 1000,
       "max_writes_without_transaction": 1
     },
     "change_rules": {

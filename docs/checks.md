@@ -1782,7 +1782,6 @@ Config keys:
     "design": true,
     "design_rules": {
       "require_cmd_through_internal_cli": true,
-      "forbid_internal_import_cmd": true,
       "forbid_service_import_internal": true,
       "forbid_service_import_cmd": true,
       "sdk_facade_paths": ["pkg/myapp"],
@@ -1803,10 +1802,12 @@ Config keys:
 }
 ```
 
-Defaults: the four Go package-layering toggles
-(`require_cmd_through_internal_cli`, `forbid_internal_import_cmd`,
-`forbid_service_import_internal`, `forbid_service_import_cmd`) are **off by
-default**. They describe one specific repository layout — `cmd/` delegating to
+Defaults: the three Go package-layering toggles
+(`require_cmd_through_internal_cli`, `forbid_service_import_internal`,
+`forbid_service_import_cmd`) are **off by default**. A fourth key,
+`forbid_internal_import_cmd`, is deprecated and has no effect (Go cannot import
+a `cmd/` main package); see
+[Deprecated keys](config-reference.md#deprecated-keys). They describe one specific repository layout — `cmd/` delegating to
 `internal/cli`, and a `pkg/` facade that must not reach into `cmd/` — and
 report at fail level, and a `pkg/` package importing its own module's
 `internal/` is ordinary Go. Set them to `true` to enforce that layout; this

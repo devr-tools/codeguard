@@ -22,4 +22,5 @@ const (
 	FixBatchReasonNoChangedFiles        = internalfix.BatchReasonNoChangedFiles
 	FixBatchReasonConflictingFiles      = internalfix.BatchReasonConflictingFiles
 	FixBatchReasonAggregateVerification = internalfix.BatchReasonAggregateVerification
+	FixBatchReasonMaxFixes              = internalfix.BatchReasonMaxFixes
 )

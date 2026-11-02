@@ -105,8 +105,21 @@ func runValidate(args []string, stdout io.Writer, stderr io.Writer) int {
 		return exitError
 	}
 
+	writeConfigDeprecationWarnings(stderr, *configPath)
 	_, _ = fmt.Fprintln(stdout, "config valid")
 	return exitOK
+}
+
+// writeConfigDeprecationWarnings prints one warning per deprecated key the
+// config file sets. Deprecated keys never fail validation in 1.x.
+func writeConfigDeprecationWarnings(stderr io.Writer, configPath string) {
+	deprecations, err := service.ConfigDeprecations(configPath)
+	if err != nil {
+		return
+	}
+	for _, deprecation := range deprecations {
+		_, _ = fmt.Fprintf(stderr, "warning: %s\n", deprecation.Message())
+	}
 }
 
 func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
