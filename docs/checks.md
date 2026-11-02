@@ -527,6 +527,18 @@ Built-in profiles:
 - `enterprise`
 - `ai-safe`
 
+`enterprise` CI policy is generic: it requires a `.github/workflows`
+directory (`ci.required-workflow-dir`) and workflows that run a test gate and
+a security gate (`ci.missing-required-gate`; `test` matches `go test`,
+`npm test`, `pytest`, `cargo test` and similar, `security` matches
+govulncheck, gosec, CodeQL, Trivy, Snyk or Semgrep). Through 1.11 it also
+required codeguard's own release files: `.goreleaser.yaml`, `Makefile` and
+`.github/workflows/ci.yml`. A config that relied on those checks can restore
+them explicitly with `ci_rules.required_release_files` and
+`ci_rules.required_automation_paths`; a config that already writes those keys
+(such as one written by `codeguard init -profile enterprise` in 1.10 or earlier)
+is unaffected.
+
 The comparison below is generated from the profile definitions and verified by
 the configuration tests. The `Baseline` column is the built-in default policy —
 what a repository gets for any key it omits — and each profile column is that
@@ -546,8 +558,9 @@ sets only targets and section switches on top of the same baseline (see
 | `design_rules.max_methods_per_type` | 8 | 10 | 6 | 6 | 8 |
 | `design_rules.max_interface_methods` | 5 | 8 | 4 | 4 | 5 |
 | `security_rules.govulncheck_mode` | auto | auto | required | required | required |
-| `ci_rules.required_release_files` | — | — | — | .goreleaser.yaml | — |
-| `ci_rules.required_automation_paths` | — | — | — | Makefile<br>.github/workflows/ci.yml | — |
+| `ci_rules.require_workflow_dir` | false | false | false | true | false |
+| `ci_rules.required_release_files` | — | — | — | — | — |
+| `ci_rules.required_automation_paths` | — | — | — | — | — |
 | `ci_rules.required_gates` | — | — | test | test<br>security | — |
 | `contracts` | scan-mode | scan-mode | true | true | scan-mode |
 | `reliability` | false | false | true | true | true |
