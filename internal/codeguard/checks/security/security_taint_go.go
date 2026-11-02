@@ -16,7 +16,12 @@ type goTaintAnalyzer struct {
 	taintEngine
 	fset      *token.FileSet
 	functions map[string]*ast.FuncDecl
-	models    goModelBindings
+	// functionOrder lists function names in first-declaration order so
+	// every pass analyses (and emits from) them deterministically; ranging
+	// over functions changed both finding order and, through the per-sink
+	// dedup key, which caller's chain a shared helper sink reported.
+	functionOrder []string
+	models        goModelBindings
 }
 
 func goTaintFindings(env support.Context, file string, source string) []core.Finding {
@@ -26,13 +31,16 @@ func goTaintFindings(env support.Context, file string, source string) []core.Fin
 		return nil
 	}
 	analyzer := &goTaintAnalyzer{
-		taintEngine: newTaintEngine(env, file, taintRules{taintRuleID: "security.taint.go", ssrfRuleID: "security.ssrf.go", isSSRFSink: isGoHTTPSink}, true),
+		taintEngine: newTaintEngine(env, file, taintRules{taintRuleID: "security.taint.go", ssrfRuleID: "security.ssrf.go", isSSRFSink: isGoHTTPSink}),
 		fset:        fset,
 		functions:   map[string]*ast.FuncDecl{},
 		models:      newGoModelBindings(parsed),
 	}
 	for _, decl := range parsed.Decls {
 		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name != nil {
+			if _, seen := analyzer.functions[fn.Name.Name]; !seen {
+				analyzer.functionOrder = append(analyzer.functionOrder, fn.Name.Name)
+			}
 			analyzer.functions[fn.Name.Name] = fn
 		}
 	}
@@ -41,8 +49,8 @@ func goTaintFindings(env support.Context, file string, source string) []core.Fin
 }
 
 func (a *goTaintAnalyzer) analyzeAll(emit bool, next map[string]*funcSummary) {
-	for name, fn := range a.functions {
-		next[name] = a.analyzeFunction(fn, emit)
+	for _, name := range a.functionOrder {
+		next[name] = a.analyzeFunction(a.functions[name], emit)
 	}
 }
 

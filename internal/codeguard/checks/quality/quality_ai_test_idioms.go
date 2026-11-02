@@ -44,16 +44,12 @@ func readFrameworkFile(env support.Context, target core.TargetConfig, rel string
 	return detect(string(data)), true
 }
 
+// dominantFrameworkFromCounts returns the name with the highest positive
+// count; a tie goes to the lexicographically smallest name so the result
+// does not depend on map iteration order.
 func dominantFrameworkFromCounts(counts map[string]int) string {
-	bestName := ""
-	bestCount := 0
-	for name, count := range counts {
-		if count > bestCount {
-			bestName = name
-			bestCount = count
-		}
-	}
-	return bestName
+	name, _ := dominantStringCount(counts)
+	return name
 }
 
 func idiomDriftFinding(env support.Context, file string, dominant string, actual string) []core.Finding {
