@@ -268,9 +268,7 @@ func TestCppLambdaThisCaptureDistinguishesPointerAndObjectCopy(t *testing.T) {
 };`, "current")
 			if test.finding {
 				assertCppMutationForTest(t, analysis, targetReceiver, originCaller)
-				return
-			}
-			if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
+			} else if len(analysis.Mutations) != 0 || len(analysis.Unresolved) != 0 {
 				t.Fatalf("analysis = %#v, want *this value-copy mutation to remain local", analysis)
 			}
 		})

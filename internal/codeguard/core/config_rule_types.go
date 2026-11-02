@@ -6,6 +6,7 @@ type QualityRulesConfig struct {
 	MaxParameters           int                             `json:"max_parameters" yaml:"max_parameters"`
 	MaxCyclomaticComplexity int                             `json:"max_cyclomatic_complexity" yaml:"max_cyclomatic_complexity"`
 	CloneTokenThreshold     int                             `json:"clone_token_threshold,omitempty" yaml:"clone_token_threshold,omitempty"`
+	CyclomaticCounting      string                          `json:"cyclomatic_counting,omitempty" yaml:"cyclomatic_counting,omitempty"`
 	LanguageCommands        map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
 	DeadCode                QualityDeadCodeConfig           `json:"dead_code,omitempty" yaml:"dead_code,omitempty"`
 	AIProvenance            AIProvenanceConfig              `json:"ai_provenance,omitempty" yaml:"ai_provenance,omitempty"`
@@ -200,7 +201,14 @@ type AIChangeRiskConfig struct {
 }
 
 // RiskScoringConfig controls the explainable, diff-only file-risk ranking.
-// Nil weights use stable defaults so reports remain comparable across scans.
+// Zero weights take stable defaults so reports remain comparable across scans.
+//
+// Explicit 0: a weight (or the divisor) of 0 normally means "use the default",
+// as it always has. To make a 0 mean "this signal contributes nothing", the
+// key must be marked explicit. A config file does that by writing the key
+// (`security_weight: 0`), a -set override does it for the key it sets, and Go
+// callers call SetExplicit("security_weight") before ApplyDefaults. The marks
+// travel with every copy of the struct.
 type RiskScoringConfig struct {
 	Enabled            *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 	MaxHotspots        int   `json:"max_hotspots,omitempty" yaml:"max_hotspots,omitempty"`
@@ -212,33 +220,50 @@ type RiskScoringConfig struct {
 	CoverageGapWeight  int   `json:"coverage_gap_weight,omitempty" yaml:"coverage_gap_weight,omitempty"`
 	AIProvenanceWeight int   `json:"ai_provenance_weight,omitempty" yaml:"ai_provenance_weight,omitempty"`
 	AISignalWeight     int   `json:"ai_signal_weight,omitempty" yaml:"ai_signal_weight,omitempty"`
-	SlopScoreDivisor   int   `json:"slop_score_divisor,omitempty" yaml:"slop_score_divisor,omitempty"`
+	// SlopScoreDivisor of 0, when explicit, turns the slop_score component off.
+	SlopScoreDivisor int `json:"slop_score_divisor,omitempty" yaml:"slop_score_divisor,omitempty"`
+
+	// explicit records which weights were stated explicitly; see SetExplicit.
+	explicit explicitKeys
 }
 
 type DesignRulesConfig struct {
-	RequireCmdThroughInternalCLI *bool                           `json:"require_cmd_through_internal_cli,omitempty" yaml:"require_cmd_through_internal_cli,omitempty"`
-	ForbidInternalImportCmd      *bool                           `json:"forbid_internal_import_cmd,omitempty" yaml:"forbid_internal_import_cmd,omitempty"`
-	ForbidServiceImportInternal  *bool                           `json:"forbid_service_import_internal,omitempty" yaml:"forbid_service_import_internal,omitempty"`
-	ForbidServiceImportCmd       *bool                           `json:"forbid_service_import_cmd,omitempty" yaml:"forbid_service_import_cmd,omitempty"`
-	MaxDeclsPerFile              int                             `json:"max_decls_per_file" yaml:"max_decls_per_file"`
-	MaxMethodsPerType            int                             `json:"max_methods_per_type" yaml:"max_methods_per_type"`
-	MaxInterfaceMethods          int                             `json:"max_interface_methods" yaml:"max_interface_methods"`
-	DetectImportCycles           *bool                           `json:"detect_import_cycles,omitempty" yaml:"detect_import_cycles,omitempty"`
-	DetectGodModules             *bool                           `json:"detect_god_modules,omitempty" yaml:"detect_god_modules,omitempty"`
-	GodModuleThreshold           int                             `json:"god_module_threshold" yaml:"god_module_threshold"`
-	DetectHighImpactChanges      *bool                           `json:"detect_high_impact_changes,omitempty" yaml:"detect_high_impact_changes,omitempty"`
-	HighImpactChangeThreshold    int                             `json:"high_impact_change_threshold" yaml:"high_impact_change_threshold"`
-	ForbiddenPackageNames        []string                        `json:"forbidden_package_names,omitempty" yaml:"forbidden_package_names,omitempty"`
-	LanguageCommands             map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
-	LanguageDiffCommands         map[string][]CommandCheckConfig `json:"language_diff_commands,omitempty" yaml:"language_diff_commands,omitempty"`
-	RequireBoundaryAssignment    *bool                           `json:"require_boundary_assignment,omitempty" yaml:"require_boundary_assignment,omitempty"`
-	Layers                       []DesignLayerConfig             `json:"layers,omitempty" yaml:"layers,omitempty"`
-	Domains                      []DesignDomainConfig            `json:"domains,omitempty" yaml:"domains,omitempty"`
-	Capabilities                 []DesignCapabilityConfig        `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
-	PublicSurfaces               []DesignPublicSurfaceConfig     `json:"public_surfaces,omitempty" yaml:"public_surfaces,omitempty"`
-	ProductionTest               *DesignProductionTestConfig     `json:"production_test,omitempty" yaml:"production_test,omitempty"`
-	Reachability                 *DesignReachabilityConfig       `json:"reachability,omitempty" yaml:"reachability,omitempty"`
-	Stability                    *DesignStabilityConfig          `json:"stability,omitempty" yaml:"stability,omitempty"`
+	RequireCmdThroughInternalCLI *bool `json:"require_cmd_through_internal_cli,omitempty" yaml:"require_cmd_through_internal_cli,omitempty"`
+	ForbidInternalImportCmd      *bool `json:"forbid_internal_import_cmd,omitempty" yaml:"forbid_internal_import_cmd,omitempty"`
+	ForbidServiceImportInternal  *bool `json:"forbid_service_import_internal,omitempty" yaml:"forbid_service_import_internal,omitempty"`
+	ForbidServiceImportCmd       *bool `json:"forbid_service_import_cmd,omitempty" yaml:"forbid_service_import_cmd,omitempty"`
+	// SDKFacadePaths names the package directories that make up this
+	// repository's published API surface ("pkg/<name>"), relative to the target
+	// root. The facade is the one public package that is *meant* to wrap the
+	// module's internals, so it is exempt from
+	// design.service-import-internal, and it is the import that
+	// design.cmd-through-internal-cli watches for in cmd/ packages.
+	//
+	// Unset means "discover it": every directory directly under pkg/ is treated
+	// as facade. That is deliberately permissive, because within a single Go
+	// module pkg/<anything> importing internal/ is legal, idiomatic Go, and
+	// guessing wrong costs a fail-level finding on correct code. A repository
+	// that wants the strict reading names its facade here.
+	SDKFacadePaths            []string                        `json:"sdk_facade_paths,omitempty" yaml:"sdk_facade_paths,omitempty"`
+	MaxDeclsPerFile           int                             `json:"max_decls_per_file" yaml:"max_decls_per_file"`
+	MaxMethodsPerType         int                             `json:"max_methods_per_type" yaml:"max_methods_per_type"`
+	MaxInterfaceMethods       int                             `json:"max_interface_methods" yaml:"max_interface_methods"`
+	DetectImportCycles        *bool                           `json:"detect_import_cycles,omitempty" yaml:"detect_import_cycles,omitempty"`
+	DetectGodModules          *bool                           `json:"detect_god_modules,omitempty" yaml:"detect_god_modules,omitempty"`
+	GodModuleThreshold        int                             `json:"god_module_threshold" yaml:"god_module_threshold"`
+	DetectHighImpactChanges   *bool                           `json:"detect_high_impact_changes,omitempty" yaml:"detect_high_impact_changes,omitempty"`
+	HighImpactChangeThreshold int                             `json:"high_impact_change_threshold" yaml:"high_impact_change_threshold"`
+	ForbiddenPackageNames     []string                        `json:"forbidden_package_names,omitempty" yaml:"forbidden_package_names,omitempty"`
+	LanguageCommands          map[string][]CommandCheckConfig `json:"language_commands,omitempty" yaml:"language_commands,omitempty"`
+	LanguageDiffCommands      map[string][]CommandCheckConfig `json:"language_diff_commands,omitempty" yaml:"language_diff_commands,omitempty"`
+	RequireBoundaryAssignment *bool                           `json:"require_boundary_assignment,omitempty" yaml:"require_boundary_assignment,omitempty"`
+	Layers                    []DesignLayerConfig             `json:"layers,omitempty" yaml:"layers,omitempty"`
+	Domains                   []DesignDomainConfig            `json:"domains,omitempty" yaml:"domains,omitempty"`
+	Capabilities              []DesignCapabilityConfig        `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
+	PublicSurfaces            []DesignPublicSurfaceConfig     `json:"public_surfaces,omitempty" yaml:"public_surfaces,omitempty"`
+	ProductionTest            *DesignProductionTestConfig     `json:"production_test,omitempty" yaml:"production_test,omitempty"`
+	Reachability              *DesignReachabilityConfig       `json:"reachability,omitempty" yaml:"reachability,omitempty"`
+	Stability                 *DesignStabilityConfig          `json:"stability,omitempty" yaml:"stability,omitempty"`
 }
 
 type PromptRulesConfig struct {
@@ -246,6 +271,10 @@ type PromptRulesConfig struct {
 	PathContains              []string `json:"path_contains,omitempty" yaml:"path_contains,omitempty"`
 	ForbidSecretInterpolation *bool    `json:"forbid_secret_interpolation,omitempty" yaml:"forbid_secret_interpolation,omitempty"`
 	ForbidUnsafeInstructions  *bool    `json:"forbid_unsafe_instructions,omitempty" yaml:"forbid_unsafe_instructions,omitempty"`
+	// RequireMCPRemoteAuth reports remote MCP servers declared without an
+	// auth header. Defaults to true; disable it when servers authenticate
+	// through OAuth discovery, which leaves no trace in the config file.
+	RequireMCPRemoteAuth *bool `json:"require_mcp_remote_auth,omitempty" yaml:"require_mcp_remote_auth,omitempty"`
 }
 
 type CIRulesConfig struct {
@@ -418,6 +447,11 @@ type ChangeRulesConfig struct {
 
 // ProductionRiskConfig controls the additive PR-summary production-risk
 // artifact. It never changes individual rule severities.
+//
+// Explicit 0: a weight of 0 normally means "use the default", as it always
+// has. A config file key (`fail_weight: 0`), a -set override, or a Go call to
+// SetExplicit("fail_weight") before ApplyDefaults makes the 0 stick. The
+// marks travel with every copy of the struct.
 type ProductionRiskConfig struct {
 	Enabled           *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 	WarnThreshold     int   `json:"warn_threshold,omitempty" yaml:"warn_threshold,omitempty"`
@@ -426,4 +460,7 @@ type ProductionRiskConfig struct {
 	DataWeight        int   `json:"data_weight,omitempty" yaml:"data_weight,omitempty"`
 	FailWeight        int   `json:"fail_weight,omitempty" yaml:"fail_weight,omitempty"`
 	WarnWeight        int   `json:"warn_weight,omitempty" yaml:"warn_weight,omitempty"`
+
+	// explicit records which weights were stated explicitly; see SetExplicit.
+	explicit explicitKeys
 }

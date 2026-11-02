@@ -6,24 +6,19 @@ import (
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
-func (s *mcpToolService) resolveExplainRule(configPath string, profile string, ruleID string) (service.RuleMetadata, bool, error) {
-	if strings.TrimSpace(configPath) != "" {
-		cfg, err := s.loadConfig(configPath, profile)
-		if err != nil {
-			return service.RuleMetadata{}, false, err
-		}
-		rule, ok := service.ExplainRuleForConfig(cfg, ruleID)
-		return rule, ok, nil
+// resolveExplainRule backs both the MCP explain tool and the
+// codeguard://rules/<id> resource, so they return the same payload as
+// `codeguard explain -format json`. A named config must load; otherwise the
+// server's default config is used when it loads, then built-in defaults.
+func (s *mcpToolService) resolveExplainRule(configPath string, profile string, ruleID string) (service.RuleMetadata, *explainConfig, bool, error) {
+	path := strings.TrimSpace(configPath)
+	if path == "" {
+		path = strings.TrimSpace(s.defaultConfigPath)
 	}
-
-	rule, ok := service.ExplainRule(ruleID)
-	if strings.TrimSpace(profile) == "" {
-		return rule, ok, nil
-	}
-	cfg, err := s.loadConfig("", profile)
+	ec, err := resolveExplainConfig(path, profile, s.loadConfig, nil)
 	if err != nil {
-		return service.RuleMetadata{}, false, err
+		return service.RuleMetadata{}, nil, false, err
 	}
-	rule, ok = service.ExplainRuleForConfig(cfg, ruleID)
-	return rule, ok, nil
+	rule, ok := service.ExplainRuleForConfig(ec.cfg, ruleID)
+	return rule, &ec, ok, nil
 }

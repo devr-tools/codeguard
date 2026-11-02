@@ -78,11 +78,7 @@ func (s *goScope) walkRange(stmt *ast.RangeStmt) {
 		if !ok || ident.Name == "_" {
 			continue
 		}
-		if taint != nil {
-			s.vars[ident.Name] = taint.extended(ident.Name)
-		} else {
-			delete(s.vars, ident.Name)
-		}
+		s.bind(ident.Name, taint, true)
 	}
 	s.walkStmts(stmt.Body.List)
 }

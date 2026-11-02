@@ -38,6 +38,11 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	if err := config.Validate(cfg); err != nil {
 		return core.Report{}, err
 	}
+	// A missing target would otherwise walk as empty, and an empty walk reports
+	// every file-driven section as a clean pass.
+	if err := config.ValidateTargetPaths(cfg); err != nil {
+		return core.Report{}, err
+	}
 
 	sc, err := runnersupport.NewContext(ctx, cfg, opts)
 	if err != nil {
@@ -46,6 +51,9 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	defer sc.Close()
 
 	sections := runnerchecks.Build(ctx, sc)
+	// Score histories are recorded here, after every section has finalized,
+	// so the checks that compute the scores stay free of side effects.
+	scoreHistoryDiagnostics := runnersupport.RecordScoreHistories(sc)
 	sections, triageArtifact := aitriage.Apply(ctx, sc.Cfg, sc.Opts, sections, sc.Cache)
 	// External reports can contain scanner-provided evidence. Keep them out of
 	// optional AI triage and import them only after CodeGuard's native checks.
@@ -66,14 +74,19 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	}
 	addRiskArtifacts(sc, sections)
 	addPRSummaryArtifact(sc, sections)
+	var historyDiagnostics []core.Diagnostic
 	if ruleStats := sc.RuleStats.Snapshot(); len(ruleStats) > 0 {
 		sc.Artifacts.Put(core.NewRuleStatsArtifact(ruleStats))
-		runnersupport.RecordRuleStatsHistory(sc, ruleStats)
+		historyDiagnostics = append(historyDiagnostics, runnersupport.RecordRuleStatsHistory(sc, ruleStats)...)
 	}
 	if waiverAudit := sc.WaiverAudit.Snapshot(sc.RuleCatalog, sc.Today); len(waiverAudit) > 0 {
-		waiverAudit = runnersupport.RecordWaiverAuditHistory(sc, waiverAudit)
+		var diagnostics []core.Diagnostic
+		waiverAudit, diagnostics = runnersupport.RecordWaiverAuditHistory(sc, waiverAudit)
+		historyDiagnostics = append(historyDiagnostics, diagnostics...)
 		sc.Artifacts.Put(core.NewWaiverAuditArtifact(waiverAudit))
 	}
+	attachScoreHistoryDiagnostics(report.Sections, scoreHistoryDiagnostics)
+	attachRunDiagnostics(report.Sections, historyDiagnostics)
 	report.Artifacts = sc.Artifacts.List()
 	report.Summary = runnersupport.SummarizeSections(report.Sections)
 	if opts.IncludeSuppressed {

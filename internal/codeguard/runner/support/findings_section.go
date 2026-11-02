@@ -102,70 +102,132 @@ func FinalizeSectionWithDiagnostics(sc Context, id string, name string, findings
 	if sc.corpus != nil {
 		diagnostics = append(diagnostics, sc.corpus.takeDiagnostics()...)
 	}
+	findings = dedupeFindings(findings)
+	diagnostics = dedupeDiagnostics(diagnostics)
 	section := core.SectionResult{ID: id, Name: name, Status: core.StatusPass}
 	active := make([]core.Finding, 0, len(findings))
 	for _, finding := range findings {
-		if sc.Opts.Mode == core.ScanModeDiff && finding.Path != "" && !matchesDiff(sc, finding) {
+		admitted, ok := admitSectionFinding(sc, id, &section, finding)
+		if !ok {
 			continue
 		}
-		// The confidence policy decides whether a finding is shown at all, so it
-		// runs before waiver auditing and suppression matching: a finding the
-		// scanner is not confident enough to report is not a finding a team
-		// waived or baselined.
-		if !core.MeetsConfidence(finding.Confidence, sc.Cfg.Checks.MinConfidence.Threshold(id)) {
-			section.ConfidenceFilteredCount++
-			sc.RuleStats.RecordConfidenceFiltered(finding.RuleID)
-			if sc.Opts.IncludeSuppressed {
-				finding.Suppressed = true
-				finding.SuppressionReason = SuppressionReasonConfidence
-				finding.Suppression = &core.Suppression{Kind: SuppressionReasonConfidence}
-				sc.Suppressed.Add(finding)
-			}
-			continue
-		}
-		sc.WaiverAudit.RecordMatches(MatchingWaivers(sc, finding), finding)
-		if suppression := MatchSuppression(sc, finding); suppression != nil {
-			section.SuppressedCount++
-			sc.RuleStats.RecordSuppressed(finding.RuleID, suppressionReason(suppression))
-			if sc.Opts.IncludeSuppressed {
-				finding.Suppressed = true
-				finding.SuppressionReason = suppressionReason(suppression)
-				finding.Suppression = suppression
-				sc.Suppressed.Add(finding)
-			}
-			continue
-		}
-		sc.RuleStats.RecordEmitted(finding.RuleID)
-		finding = demoteLowConfidence(sc, finding)
-		active = append(active, finding)
-		switch finding.Level {
-		case "fail":
-			section.Status = core.StatusFail
-		case "warn":
-			if section.Status != core.StatusFail {
-				section.Status = core.StatusWarn
-			}
-		}
+		active = append(active, admitted)
+		section.Status = escalateSectionStatus(section.Status, admitted.Level)
 	}
 	section.Findings = active
 	section.Diagnostics = diagnostics
 	for _, diagnostic := range diagnostics {
-		if !diagnostic.Operational {
-			continue
-		}
-		switch diagnostic.Level {
-		case "fail":
-			section.Status = core.StatusFail
-		case "warn":
-			if section.Status != core.StatusFail {
-				section.Status = core.StatusWarn
-			}
+		if diagnostic.Operational {
+			section.Status = escalateSectionStatus(section.Status, diagnostic.Level)
 		}
 	}
 	if sc.Opts.OnSectionComplete != nil {
 		sc.Opts.OnSectionComplete(section)
 	}
 	return section
+}
+
+// admitSectionFinding applies the diff, confidence, waiver, and suppression
+// policies to one finding, counting filtered and suppressed findings on
+// section. It returns the (possibly demoted) finding and whether it is
+// reported.
+func admitSectionFinding(sc Context, id string, section *core.SectionResult, finding core.Finding) (core.Finding, bool) {
+	if sc.Opts.Mode == core.ScanModeDiff && finding.Path != "" && !matchesDiff(sc, finding) {
+		return finding, false
+	}
+	// The confidence policy decides whether a finding is shown at all, so it
+	// runs before waiver auditing and suppression matching: a finding the
+	// scanner is not confident enough to report is not a finding a team
+	// waived or baselined.
+	if !core.MeetsConfidence(finding.Confidence, sc.Cfg.Checks.MinConfidence.Threshold(id)) {
+		section.ConfidenceFilteredCount++
+		sc.RuleStats.RecordConfidenceFiltered(finding.RuleID)
+		if sc.Opts.IncludeSuppressed {
+			finding.Suppressed = true
+			finding.SuppressionReason = SuppressionReasonConfidence
+			finding.Suppression = &core.Suppression{Kind: SuppressionReasonConfidence}
+			sc.Suppressed.Add(finding)
+		}
+		return finding, false
+	}
+	sc.WaiverAudit.RecordMatches(MatchingWaivers(sc, finding), finding)
+	if suppression := MatchSuppression(sc, finding); suppression != nil {
+		section.SuppressedCount++
+		sc.RuleStats.RecordSuppressed(finding.RuleID, suppressionReason(suppression))
+		if sc.Opts.IncludeSuppressed {
+			finding.Suppressed = true
+			finding.SuppressionReason = suppressionReason(suppression)
+			finding.Suppression = suppression
+			sc.Suppressed.Add(finding)
+		}
+		return finding, false
+	}
+	sc.RuleStats.RecordEmitted(finding.RuleID)
+	return demoteLowConfidence(sc, finding), true
+}
+
+// escalateSectionStatus raises status for a fail or warn level; a fail is
+// never downgraded to a warn.
+func escalateSectionStatus(status core.Status, level string) core.Status {
+	switch level {
+	case "fail":
+		return core.StatusFail
+	case "warn":
+		if status != core.StatusFail {
+			return core.StatusWarn
+		}
+	}
+	return status
+}
+
+// dedupeFindings drops findings that are identical in every reported
+// coordinate. Targets are single-language, so a multi-language repository has
+// several targets over the same root, and the language-agnostic passes
+// (secrets, supply chain, CI files, prompts) visit each file once per target.
+// Their findings are byte-for-byte the same and would otherwise be listed and
+// counted once per target. Distinct findings that merely share a line keep
+// their own message, column, level or confidence and are left alone.
+func dedupeFindings(findings []core.Finding) []core.Finding {
+	if len(findings) < 2 {
+		return findings
+	}
+	type findingKey struct {
+		fingerprint, rule, path, level, confidence, message string
+		line, column                                        int
+	}
+	seen := make(map[findingKey]struct{}, len(findings))
+	out := make([]core.Finding, 0, len(findings))
+	for _, finding := range findings {
+		key := findingKey{finding.Fingerprint, finding.RuleID, finding.Path, finding.Level, finding.Confidence, finding.Message, finding.Line, finding.Column}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, finding)
+	}
+	return out
+}
+
+// dedupeDiagnostics applies the same per-target collapse to diagnostics.
+func dedupeDiagnostics(diagnostics []core.Diagnostic) []core.Diagnostic {
+	if len(diagnostics) < 2 {
+		return diagnostics
+	}
+	type diagnosticKey struct {
+		id, level, kind, message, path string
+		operational                    bool
+	}
+	seen := make(map[diagnosticKey]struct{}, len(diagnostics))
+	out := make([]core.Diagnostic, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		key := diagnosticKey{diagnostic.ID, diagnostic.Level, diagnostic.Kind, diagnostic.Message, diagnostic.Path, diagnostic.Operational}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, diagnostic)
+	}
+	return out
 }
 
 // demoteLowConfidence reports a low-confidence failing finding as a warning

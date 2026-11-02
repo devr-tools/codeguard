@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/suggest"
 )
 
 func validateGraphThresholds(rules core.DesignRulesConfig) error {
@@ -26,6 +27,23 @@ func validateRuleSeverity(rule core.CustomRuleConfig) error {
 	default:
 		return fmt.Errorf("custom rule %q severity must be warn or fail", rule.ID)
 	}
+}
+
+// validateCyclomaticCounting accepts an unset value (the legacy 1.x default)
+// or one of core.CyclomaticCountingModes, case-insensitively.
+func validateCyclomaticCounting(mode string) error {
+	if strings.TrimSpace(mode) == "" {
+		return nil
+	}
+	normalized := core.NormalizeCyclomaticCounting(mode)
+	modes := core.CyclomaticCountingModes()
+	for _, known := range modes {
+		if normalized == known {
+			return nil
+		}
+	}
+	return fmt.Errorf("quality_rules.cyclomatic_counting must be one of %s, got %q%s",
+		strings.Join(modes, ", "), mode, suggest.Hint(normalized, modes))
 }
 
 func validateQualityDeadCode(cfg core.QualityDeadCodeConfig) error {

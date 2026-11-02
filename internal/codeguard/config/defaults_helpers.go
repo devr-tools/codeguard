@@ -21,9 +21,23 @@ func applyDefaultBoolPtrs(values ...**bool) {
 	}
 }
 
-// defaultInt fills an int setting with its profile default when unset.
+// defaultInt fills an int setting with its profile default when unset. A plain
+// int cannot tell an explicit 0 from an omitted key, so 0 counts as unset
+// here. Settings where 0 can be a real choice track explicit keys and use
+// defaultUnlessExplicit; the list is documented in docs/config-reference.md.
 func defaultInt(dst *int, def int) {
 	if *dst == 0 {
+		*dst = def
+	}
+}
+
+// defaultUnlessExplicit fills an int setting with its default when it is 0
+// and was not marked explicit (by a config file key, a -set override, or an
+// SDK SetExplicit call). Unlike defaultInt it keeps an explicit 0, so use it
+// for settings where 0 is a meaningful choice (a weight that should
+// contribute nothing).
+func defaultUnlessExplicit(dst *int, explicit bool, def int) {
+	if *dst == 0 && !explicit {
 		*dst = def
 	}
 }
@@ -41,6 +55,12 @@ func boolValueOrTrue(ptr *bool) bool {
 		return true
 	}
 	return *ptr
+}
+
+// boolValue reads an optional bool, treating an unset (nil) pointer as false.
+// Use it when reading a baseline value whose "not stated" answer is off.
+func boolValue(ptr *bool) bool {
+	return ptr != nil && *ptr
 }
 
 // defaultStringSlice fills a string-slice setting with a copy of its default

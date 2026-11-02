@@ -26,16 +26,15 @@ func pythonAITargetFindings(env support.Context, target core.TargetConfig) []cor
 	localModules := pythonLocalModuleNames(target.Path, files)
 	repoErrorStyle := pythonRepoErrorStyle(env, target, files)
 	repoNaming := dominantNamingConvention(env, target, files, pythonDeclaredNames)
-	findings := make([]core.Finding, 0)
-	for _, rel := range files {
-		findings = append(findings, pythonFileAIQualityFindings(env, target, rel, pythonFileScanInput{
-			catalog:      catalog,
-			localModules: localModules,
-			errorStyle:   repoErrorStyle,
-			naming:       repoNaming,
-		})...)
+	input := pythonFileScanInput{
+		catalog:      catalog,
+		localModules: localModules,
+		errorStyle:   repoErrorStyle,
+		naming:       repoNaming,
 	}
-	return findings
+	return fileFindingsInParallel(files, func(rel string) []core.Finding {
+		return pythonFileAIQualityFindings(env, target, rel, input)
+	})
 }
 
 type pythonFileScanInput struct {
@@ -97,8 +96,13 @@ func pythonImportFindings(env support.Context, root string, file string, source 
 			if pythonImportResolvable(root, file, module, input.catalog, input.localModules) {
 				continue
 			}
-			findings = append(findings, warnFinding(env, "quality.ai.hallucinated-import", file, idx+1, 1,
-				fmt.Sprintf("import %q does not resolve against the standard library, declared dependencies, or local modules", module)))
+			findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+				RuleID:  "quality.ai.hallucinated-import",
+				Path:    file,
+				Line:    idx + 1,
+				Column:  1,
+				Message: fmt.Sprintf("import %q does not resolve against the standard library, declared dependencies, or local modules", module),
+			}))
 		}
 	}
 	return findings

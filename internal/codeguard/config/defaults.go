@@ -15,7 +15,7 @@ func ApplyDefaults(cfg *core.Config) {
 }
 
 func defaultConfigForProfile(profile string) core.Config {
-	def := baseExampleConfig()
+	def := baseDefaultConfig()
 	normalized := normalizeProfile(profile)
 	if spec, ok := profileCatalog[normalized]; ok {
 		spec.apply(&def)
@@ -55,6 +55,7 @@ func applyRootDefaults(cfg *core.Config, def core.Config) {
 }
 
 func applyCheckDefaults(cfg *core.Config, def core.Config) {
+	applyProfileSectionActivation(&cfg.Checks, def.Checks)
 	if cfg.Checks.Contracts == nil {
 		cfg.Checks.Contracts = def.Checks.Contracts
 	}
@@ -97,6 +98,44 @@ func applyCheckDefaults(cfg *core.Config, def core.Config) {
 	applyProductionRiskDefaults(&cfg.Checks.ProductionRisk, def.Checks.ProductionRisk)
 	applyAIDefaults(&cfg.AI, def.AI)
 	applyCheckActivationDefaults(&cfg.Checks)
+}
+
+// applyProfileSectionActivation carries a profile's activation of the
+// plain-bool sections through to the resolved config.
+//
+// Those six sections are plain bools, not *bool, so they have no unset state:
+// applyCheckDefaults cannot copy def's value wholesale, because an omitted key
+// and an explicit `supply_chain: false` are the same value. That is why they
+// were never defaulted — with the consequence that a profile spec's
+// `cfg.Checks.SupplyChain = true` (enterprise) or `cfg.Checks.Prompts = true`
+// (ai-safe) was silently inert whenever the profile arrived through
+// `profile:` in a config file or through -profile, leaving those profiles
+// weaker than their documented description.
+//
+// Promoting only `true` is now safe and unambiguous: the conservative baseline
+// (baseDefaultChecks) enables no section, so a true in def can only have come
+// from the profile spec. A repository that wants a profile's section back off
+// uses checks.disabled, which applyCheckActivationDefaults applies after this
+// and which therefore still wins.
+func applyProfileSectionActivation(checks *core.CheckConfig, def core.CheckConfig) {
+	if def.Quality {
+		checks.Quality = true
+	}
+	if def.Design {
+		checks.Design = true
+	}
+	if def.Security {
+		checks.Security = true
+	}
+	if def.Prompts {
+		checks.Prompts = true
+	}
+	if def.CI {
+		checks.CI = true
+	}
+	if def.SupplyChain {
+		checks.SupplyChain = true
+	}
 }
 
 func applyRulePackDefaults(cfg *core.Config) {

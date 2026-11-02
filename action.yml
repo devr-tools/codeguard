@@ -78,36 +78,41 @@ runs:
     - name: Post Devr CodeGuard fix comment
       if: ${{ inputs.comment-fix-mode != 'off' && (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') }}
       shell: bash
-      working-directory: ${{ github.action_path }}
       env:
         GITHUB_TOKEN: ${{ github.token }}
+        CODEGUARD_CONFIG: ${{ inputs.config }}
+        CODEGUARD_PROFILE: ${{ inputs.profile }}
+        CODEGUARD_MODE: ${{ inputs.mode }}
+        CODEGUARD_BASE_REF: ${{ inputs.base-ref }}
+        CODEGUARD_COMMENT_TAG: ${{ inputs.comment-tag }}
+        CODEGUARD_COMMENT_MODE: ${{ inputs.comment-fix-mode }}
+        CODEGUARD_REPOSITORY: ${{ github.repository }}
+      # Runs in the default working directory ($GITHUB_WORKSPACE) so the scan
+      # covers the caller's repository; only the comment helper is built from
+      # the action's own source.
       run: |
         report_file="$(mktemp)"
-        set +e
-        if [ -n "${{ inputs.profile }}" ]; then
-          codeguard scan \
-            -config "${{ inputs.config }}" \
-            -mode "${{ inputs.mode }}" \
-            -base-ref "${{ inputs.base-ref }}" \
-            -format github-comment \
-            -profile "${{ inputs.profile }}" > "$report_file"
-        else
-          codeguard scan \
-            -config "${{ inputs.config }}" \
-            -mode "${{ inputs.mode }}" \
-            -base-ref "${{ inputs.base-ref }}" \
-            -format github-comment > "$report_file"
+        scan_args=(scan -config "$CODEGUARD_CONFIG" -mode "$CODEGUARD_MODE" -base-ref "$CODEGUARD_BASE_REF" -format github-comment)
+        if [ -n "$CODEGUARD_PROFILE" ]; then
+          scan_args+=(-profile "$CODEGUARD_PROFILE")
         fi
+        # A scan with failing sections also exits 1, so the exit status alone
+        # cannot tell findings from a broken run; an empty report can.
+        set +e
+        codeguard "${scan_args[@]}" > "$report_file"
+        scan_status=$?
         set -e
         if [ ! -s "$report_file" ]; then
-          echo "CodeGuard comment report was empty; skipping comment publish."
-          exit 0
+          msg="codeguard scan -format github-comment produced no report (exit $scan_status); the PR comment was not posted. See the scan error above."
+          echo "::error title=CodeGuard PR comment::$msg"
+          echo "$msg" >&2
+          exit 1
         fi
-        go run ./cmd/codeguard-action-comment \
+        go -C "$GITHUB_ACTION_PATH" run ./cmd/codeguard-action-comment \
           -body-file "$report_file" \
-          -repository "${{ github.repository }}" \
-          -marker "${{ inputs.comment-tag }}" \
-          -mode "${{ inputs.comment-fix-mode }}"
+          -repository "$CODEGUARD_REPOSITORY" \
+          -marker "$CODEGUARD_COMMENT_TAG" \
+          -mode "$CODEGUARD_COMMENT_MODE"
 
     - name: Fail workflow on Devr CodeGuard findings
       if: ${{ steps.scan.outputs.exit_code != '0' }}

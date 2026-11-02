@@ -2,11 +2,13 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/suggest"
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
@@ -61,6 +63,10 @@ func setConfigOverride(root reflect.Value, path string, raw string) error {
 	for idx, segment := range segments {
 		last := idx == len(segments)-1
 		next, err := resolveOverrideSegment(current, segment, path)
+		var unknown *unknownOverrideFieldError
+		if errors.As(err, &unknown) {
+			return fmt.Errorf("%w%s", err, suggest.Format(suggestOverridePaths(segments, idx, unknown.candidates)))
+		}
 		if err != nil {
 			return err
 		}
@@ -68,6 +74,7 @@ func setConfigOverride(root reflect.Value, path string, raw string) error {
 			if err := assignOverrideValue(next, raw, path); err != nil {
 				return err
 			}
+			markOverrideExplicit(current, segment.name)
 			return nil
 		}
 		current = dereferenceOverrideValue(next)
@@ -76,6 +83,35 @@ func setConfigOverride(root reflect.Value, path string, raw string) error {
 		}
 	}
 	return nil
+}
+
+// explicitKeySetter is implemented by config structs whose int keys can hold
+// an explicit 0 (the risk-scoring and production-risk weights).
+type explicitKeySetter interface {
+	ExplicitKeys() []string
+	SetExplicit(keys ...string) error
+}
+
+// markOverrideExplicit marks the key a -set override just assigned as
+// explicit when its parent struct tracks explicit keys, so
+// `-set checks.production_risk.fail_weight=0` keeps the 0 through
+// ApplyDefaults the same way `fail_weight: 0` in a config file does.
+func markOverrideExplicit(parent reflect.Value, name string) {
+	parent = dereferenceOverrideValue(parent)
+	if !parent.CanAddr() {
+		return
+	}
+	setter, ok := parent.Addr().Interface().(explicitKeySetter)
+	if !ok {
+		return
+	}
+	for _, key := range setter.ExplicitKeys() {
+		if strings.EqualFold(key, name) || strings.EqualFold(strings.ReplaceAll(key, "_", ""), name) {
+			// The key comes from ExplicitKeys, so SetExplicit cannot reject it.
+			_ = setter.SetExplicit(key)
+			return
+		}
+	}
 }
 
 func parseOverridePath(path string) ([]overrideSegment, error) {
@@ -113,7 +149,7 @@ func resolveOverrideSegment(value reflect.Value, segment overrideSegment, fullPa
 	}
 	field, ok := overrideFieldByConfigName(value, segment.name)
 	if !ok {
-		return reflect.Value{}, fmt.Errorf("override %q references unknown config field %q", fullPath, segment.name)
+		return reflect.Value{}, &unknownOverrideFieldError{path: fullPath, name: segment.name, candidates: overrideFieldNames(value.Type())}
 	}
 	if segment.index == nil {
 		return field, nil
@@ -227,4 +263,72 @@ func parseStringListOverride(raw string) []string {
 		}
 	}
 	return values
+}
+
+// unknownOverrideFieldError reports a -set path segment that names no field at
+// its level; candidates are the valid names there, for the suggestion.
+type unknownOverrideFieldError struct {
+	path       string
+	name       string
+	candidates []string
+}
+
+func (e *unknownOverrideFieldError) Error() string {
+	return fmt.Sprintf("override %q references unknown config field %q", e.path, e.name)
+}
+
+// suggestOverridePaths swaps the unknown segment at idx for its closest valid
+// names and keeps the rest of the path, so `checks.qualty=true` suggests
+// `checks.quality`.
+func suggestOverridePaths(segments []overrideSegment, idx int, candidates []string) []string {
+	matches := suggest.Closest(segments[idx].name, candidates)
+	paths := make([]string, 0, len(matches))
+	for _, match := range matches {
+		var path strings.Builder
+		for i, segment := range segments {
+			if i > 0 {
+				path.WriteByte('.')
+			}
+			if i == idx {
+				path.WriteString(match)
+			} else {
+				path.WriteString(segment.name)
+			}
+			if segment.index != nil {
+				path.WriteByte('[')
+				path.WriteString(strconv.Itoa(*segment.index))
+				path.WriteByte(']')
+			}
+		}
+		paths = append(paths, path.String())
+	}
+	return paths
+}
+
+// overrideFieldNames lists the config names a -set segment may use for the
+// exported fields of structType: the yaml tag name, else the json tag name,
+// else the lower-cased Go field name.
+func overrideFieldNames(structType reflect.Type) []string {
+	names := make([]string, 0, structType.NumField())
+	for idx := 0; idx < structType.NumField(); idx++ {
+		field := structType.Field(idx)
+		if field.PkgPath != "" {
+			continue
+		}
+		name := ""
+		for _, tag := range []string{field.Tag.Get("yaml"), field.Tag.Get("json")} {
+			if tagName := strings.Split(tag, ",")[0]; tagName != "" && tagName != "-" {
+				name = tagName
+				break
+			}
+		}
+		if name == "" {
+			if field.Tag.Get("yaml") == "-" || field.Tag.Get("json") == "-" {
+				continue
+			}
+			name = strings.ToLower(field.Name)
+		}
+		names = append(names, name)
+	}
+	return names
 }

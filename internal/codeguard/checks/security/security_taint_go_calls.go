@@ -8,8 +8,9 @@ import (
 // goTaintPropagators are stdlib packages whose functions pass taint through.
 var goTaintPropagators = []string{"fmt.", "strings.", "filepath.", "path.", "bytes.", "io.", "bufio."}
 
-func (s *goScope) evalCall(call *ast.CallExpr) *goTaint {
-	args := make([]*goTaint, len(call.Args))
+func (s *goScope) evalCall(call *ast.CallExpr) *taintTrace {
+	s.evalChainedReceiver(call.Fun)
+	args := make([]*taintTrace, len(call.Args))
 	for idx, arg := range call.Args {
 		args[idx] = s.evalExpr(arg)
 	}
@@ -21,17 +22,45 @@ func (s *goScope) evalCall(call *ast.CallExpr) *goTaint {
 	if strings.HasPrefix(callee, "strconv.") {
 		return nil // parsed values are sanitized
 	}
-	if taint := s.localCallTaint(call, callee, args); taint != nil {
+	if taint := s.localCallTaint(callee, args); taint != nil {
 		return taint
 	}
 	return s.propagatedCallTaint(call, callee, args)
 }
 
+// evalChainedReceiver exists so exec.Command(arg).Run() is held to the same
+// standard as cmd := exec.Command(arg); cmd.Run(). exprTypeText flattens the
+// receiver call into the outer callee text, so its arguments would otherwise
+// never reach checkSinks. The result is discarded on purpose: the outer
+// call's taint stays governed by the propagation rules, so this cannot widen
+// what a chained call returns.
+func (s *goScope) evalChainedReceiver(fun ast.Expr) {
+	selector, ok := fun.(*ast.SelectorExpr)
+	if !ok {
+		return
+	}
+	receiver := selector.X
+	for {
+		paren, isParen := receiver.(*ast.ParenExpr)
+		if !isParen {
+			break
+		}
+		receiver = paren.X
+	}
+	if inner, isCall := receiver.(*ast.CallExpr); isCall {
+		s.evalCall(inner)
+		return
+	}
+	if inner, isSelector := receiver.(*ast.SelectorExpr); isSelector {
+		s.evalChainedReceiver(inner)
+	}
+}
+
 // callSourceTaint recognizes calls that introduce fresh taint.
-func (s *goScope) callSourceTaint(call *ast.CallExpr, callee string) *goTaint {
+func (s *goScope) callSourceTaint(call *ast.CallExpr, callee string) *taintTrace {
 	if receiver, method, ok := selectorReceiverAndMethod(call.Fun); ok {
 		if model := s.analyzer.models.sourceModel(receiver, method); model != "" {
-			return s.sourceTaintWithModel(callee, call.Pos(), model)
+			return sourceTrace(callee, s.analyzer.line(call.Pos()), model)
 		}
 	}
 	root := callee
@@ -63,44 +92,17 @@ func selectorReceiverAndMethod(expr ast.Expr) (string, string, bool) {
 }
 
 // localCallTaint applies same-file function summaries at call sites.
-func (s *goScope) localCallTaint(_ *ast.CallExpr, callee string, args []*goTaint) *goTaint {
-	summary, known := s.analyzer.summaries[callee]
-	if !known || summary == nil {
+func (s *goScope) localCallTaint(callee string, args []*taintTrace) *taintTrace {
+	summary := s.engine.summaries[callee]
+	if summary == nil {
 		return nil
 	}
-	s.applyParamSinks(callee, summary, args)
-	if summary.returnTaint != nil {
-		inner := summary.returnTaint
-		return &goTaint{
-			source:     inner.source,
-			sourceLine: inner.sourceLine,
-			chain:      append(append([]string{}, inner.chain...), callee+"()"),
-			paramIndex: -1,
-			model:      inner.model,
-			sinkModel:  inner.sinkModel,
-		}
-	}
-	for idx, taint := range args {
-		if taint != nil && summary.paramsToReturn[idx] {
-			return taint.extended(callee + "()")
-		}
-	}
-	return nil
+	argTaint := func(index int) *taintTrace { return args[index] }
+	s.applyParamSinks(callee, summary, len(args), argTaint)
+	return s.summaryCallTaint(callee, summary, len(args), argTaint)
 }
 
-// applyParamSinks reports flows where a tainted argument reaches a sink
-// inside a same-file callee.
-func (s *goScope) applyParamSinks(callee string, summary *goFuncSummary, args []*goTaint) {
-	for _, paramSink := range summary.paramsToSink {
-		if paramSink.paramIndex >= len(args) || args[paramSink.paramIndex] == nil {
-			continue
-		}
-		taint := args[paramSink.paramIndex].extended(callee + "()")
-		s.reportSink(taint, paramSink.sink, paramSink.line)
-	}
-}
-
-func (s *goScope) propagatedCallTaint(call *ast.CallExpr, callee string, args []*goTaint) *goTaint {
+func (s *goScope) propagatedCallTaint(call *ast.CallExpr, callee string, args []*taintTrace) *taintTrace {
 	for _, prefix := range goTaintPropagators {
 		if !strings.HasPrefix(callee, prefix) {
 			continue

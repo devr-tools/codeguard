@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "timestamp": "2026-10-01T00:00:00Z",
+      "rules": [
+        {
+          "rule_id": "quality.file-too-long",
+          "emitted": 3,
+          "baseline_suppressed": 0,
+          "waiver_suppressed": 1,
+          "inline_suppressed": 0,
+          "suppression_ratio": 0
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-10-02T00:00:00Z",
+      "rules": [
+        {
+          "rule_id": "quality.file-too-long",
+          "emitted": 2,
+          "baseline_suppressed": 4,
+          "waiver_suppressed": 0,
+          "inline_suppressed": 0,
+          "suppression_ratio": 0
+        }
+      ]
+    }
+  ]
+}

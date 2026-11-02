@@ -81,7 +81,8 @@
       "file_extensions": [".prompt", ".md", ".txt", ".tmpl", ".yaml", ".yml", ".json"],
       "path_contains": ["prompt", "system", "instruction", "template"],
       "forbid_secret_interpolation": true,
-      "forbid_unsafe_instructions": true
+      "forbid_unsafe_instructions": true,
+      "require_mcp_remote_auth": true
     },
     "ci_rules": {
       "require_workflow_dir": true,

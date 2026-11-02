@@ -26,7 +26,9 @@ func ConfigFingerprint(cfg core.Config, extras ...string) string {
 	}
 	// version 9: findings gained ContentFingerprint, so entries cached by
 	// earlier scanners must be recomputed rather than replayed without it.
-	prefix := "scanner-version-9|" + strings.Join(extras, "|") + "|"
+	// version 10: an unset quality_rules.cyclomatic_counting now means legacy
+	// Go counting rather than gocyclo counting.
+	prefix := "scanner-version-10|" + strings.Join(extras, "|") + "|"
 	return hashBytes(append([]byte(prefix), data...))
 }
 
@@ -42,7 +44,10 @@ func ConfigFingerprint(cfg core.Config, extras ...string) string {
 func SectionConfigHashes(cfg core.Config, catalog map[string]core.RuleMetadata, extras ...string) map[string]string {
 	// v4: findings gained ContentFingerprint, so cached per-file findings need
 	// to be regenerated with the path-insensitive fingerprint.
-	prefix := "section-config-v4|" + strings.Join(extras, "|") + "|"
+	// v5: an unset quality_rules.cyclomatic_counting now means legacy Go
+	// counting, so entries a gocyclo-only scanner cached under the same config
+	// must not be replayed.
+	prefix := "section-config-v5|" + strings.Join(extras, "|") + "|"
 	checks := findingRelevantChecks(cfg.Checks)
 	return map[string]string{
 		// quality reads both QualityRules and DesignRules, and its AI-quality
@@ -114,5 +119,14 @@ func sectionFingerprint(prefix string, family string, components ...any) string 
 func cloneFindings(findings []core.Finding) []core.Finding {
 	out := make([]core.Finding, len(findings))
 	copy(out, findings)
+	return out
+}
+
+func cloneDiagnostics(diagnostics []core.Diagnostic) []core.Diagnostic {
+	if len(diagnostics) == 0 {
+		return nil
+	}
+	out := make([]core.Diagnostic, len(diagnostics))
+	copy(out, diagnostics)
 	return out
 }

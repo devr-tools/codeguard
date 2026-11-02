@@ -3,7 +3,6 @@ package security
 import (
 	"context"
 	"strings"
-	"sync"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -47,14 +46,11 @@ func securityTargetScan(ctx context.Context, env support.Context, target core.Ta
 		}))
 	}
 	if scanner.Enabled() {
-		var diagnosticMu sync.Mutex
-		findings = append(findings, env.ScanTargetFiles(target, "security-secrets", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
-			fileFindings, fileDiagnostics := secretResultsForFile(env, file, data, scanner)
-			diagnosticMu.Lock()
-			diagnostics = append(diagnostics, fileDiagnostics...)
-			diagnosticMu.Unlock()
-			return fileFindings
-		})...)
+		secretFindings, secretDiagnostics := support.ScanTargetFilesWithDiagnostics(env, target, "security-secrets", func(string) bool { return true }, func(file string, data []byte) ([]core.Finding, []core.Diagnostic) {
+			return secretResultsForFile(env, file, data, scanner)
+		})
+		findings = append(findings, secretFindings...)
+		diagnostics = append(diagnostics, secretDiagnostics...)
 	}
 
 	// The A09 heuristics (secrets in log calls, raw errors in HTTP responses)

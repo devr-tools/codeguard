@@ -8,10 +8,18 @@ import (
 )
 
 var (
-	typeScriptExecPattern        = regexp.MustCompile(`\b(?:child_process\.)?(?:exec|execSync)\s*\(`)
-	typeScriptEvalPattern        = regexp.MustCompile(`\beval\s*\(|\bnew\s+Function\s*\(`)
-	typeScriptInsecureTLSPattern = regexp.MustCompile(`\brejectUnauthorized\s*:\s*false\b`)
-	typeScriptNodeTLSPattern     = regexp.MustCompile(`NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*["']?0["']?`)
+	typeScriptExecPattern = regexp.MustCompile(`\b(?:child_process\.)?(?:exec|execSync)\s*\(`)
+	typeScriptEvalPattern = regexp.MustCompile(`\beval\s*\(|\bnew\s+Function\s*\(`)
+	// Gated: these two run per line (via appendLanguageLineFindings). The other
+	// TypeScript patterns in this file are applied once per file through
+	// support.FindScriptCalls / ScriptRegexFindings, so a per-line gate does
+	// not apply to them.
+	typeScriptInsecureTLSPattern = newGatedPattern("typescript.insecure-tls",
+		`\brejectUnauthorized\s*:\s*false\b`,
+		exactGate("rejectUnauthorized"))
+	typeScriptNodeTLSPattern = newGatedPattern("typescript.node-tls",
+		`NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*["']?0["']?`,
+		exactGate("NODE_TLS_REJECT_UNAUTHORIZED"))
 	typeScriptUnsafeHTMLPattern  = regexp.MustCompile(`(?:\.\s*(?:innerHTML|outerHTML)\s*=|\.\s*insertAdjacentHTML\s*\(|\bdocument\.(?:write|writeln)\s*\()`)
 	typeScriptStringTimerPattern = regexp.MustCompile(`\b(?:setTimeout|setInterval)\s*\(`)
 	typeScriptPostMessagePattern = regexp.MustCompile(`\b(?:window\s*\.\s*)?postMessage\s*\(`)
@@ -24,11 +32,12 @@ type typeScriptScanContext struct {
 	code   string
 }
 
-func appendTypeScriptLineFindings(env support.Context, file string, lineNo int, line string) []core.Finding {
+func appendTypeScriptLineFindings(env support.Context, file string, lineNo int, source sourceLine) []core.Finding {
+	line := source.raw
 	switch {
-	case typeScriptInsecureTLSPattern.MatchString(line):
+	case typeScriptInsecureTLSPattern.matchString(line, source.ascii):
 		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: securityRuleID(file, "insecure-tls"), Level: "fail", Path: file, Line: lineNo, Column: 1, Message: support.ScriptLabelForPath(file) + " TLS verification is disabled"})}
-	case typeScriptNodeTLSPattern.MatchString(line):
+	case typeScriptNodeTLSPattern.matchString(line, source.ascii):
 		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: securityRuleID(file, "insecure-tls"), Level: "fail", Path: file, Line: lineNo, Column: 1, Message: "NODE_TLS_REJECT_UNAUTHORIZED disables TLS verification"})}
 	default:
 		return nil

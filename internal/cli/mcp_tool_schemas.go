@@ -38,15 +38,3 @@ func readOnlyToolAnnotations(title string) map[string]any {
 func objectOutputSchema() map[string]any {
 	return map[string]any{"type": "object"}
 }
-
-func reportOutputSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"name":     map[string]any{"type": "string"},
-			"profile":  map[string]any{"type": "string"},
-			"sections": map[string]any{"type": "array"},
-			"summary":  map[string]any{"type": "object"},
-		},
-	}
-}

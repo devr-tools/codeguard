@@ -37,61 +37,92 @@ func functionReliabilityFindings(env support.Context, file string, fset *token.F
 	if fn.Body == nil {
 		return nil
 	}
-	findings := make([]core.Finding, 0)
-	hasContextParam := funcHasContextParam(fn)
-	deferCloseVars := deferredCloseVars(fn.Body)
 	boundedClients, boundedRequests := boundedHTTPValues(fn.Body, httpAliases)
-	goroutines := 0
-	loopDepth := 0
-	var loopStack []bool
-
-	ast.Inspect(fn.Body, func(node ast.Node) bool {
-		if node == nil {
-			if loopStack[len(loopStack)-1] {
-				loopDepth--
-			}
-			loopStack = loopStack[:len(loopStack)-1]
-			return true
-		}
-		switch n := node.(type) {
-		case *ast.GoStmt:
-			goroutines++
-			if enabled(rules.DetectUnboundedWork) && loopDepth > 0 {
-				pos := fset.Position(n.Go)
-				findings = append(findings, newFinding(env, "reliability.unbounded-work", "warn", file, pos.Line, pos.Column, "goroutine launched inside a loop without an obvious work bound", "high", "work", "goroutine-in-loop"))
-			}
-		case *ast.ForStmt:
-			findings = append(findings, retryFindings(env, file, fset, n, rules)...)
-		case *ast.RangeStmt:
-			if enabled(rules.DetectRetryWithoutBackoff) && loopLooksLikeRetry(n.Body) && !blockHasBackoff(n.Body) {
-				pos := fset.Position(n.For)
-				findings = append(findings, newFinding(env, "reliability.retry-without-backoff", "warn", file, pos.Line, pos.Column, "retry-like loop has no visible backoff or jitter", "medium", "retry", "range-loop"))
-			}
-		case *ast.CallExpr:
-			findings = append(findings, callReliabilityFindings(env, file, fset, n, rules, httpAliases, boundedClients, boundedRequests, hasContextParam, hasShutdown)...)
-		case *ast.AssignStmt:
-			findings = append(findings, assignmentReliabilityFindings(env, file, fset, n, rules, httpAliases, deferCloseVars)...)
-		case *ast.ReturnStmt:
-			if enabled(rules.DetectLostErrorContext) {
-				findings = append(findings, lostErrorContextFindings(env, file, fset, n)...)
-			}
-		}
-		_, isFor := node.(*ast.ForStmt)
-		_, isRange := node.(*ast.RangeStmt)
-		isLoop := isFor || isRange
-		loopStack = append(loopStack, isLoop)
-		if isLoop {
-			loopDepth++
-		}
-		return true
-	})
-
-	if enabled(rules.DetectMissingConcurrencyLimit) && rules.MaxInlineGoroutinesPerFunction > 0 && goroutines > rules.MaxInlineGoroutinesPerFunction {
-		pos := fset.Position(fn.Pos())
-		findings = append(findings, newFinding(env, "reliability.missing-concurrency-limit", "warn", file, pos.Line, pos.Column, fmt.Sprintf("function launches %d goroutines without an obvious concurrency limit", goroutines), "medium", "goroutines", fmt.Sprintf("%d", goroutines)))
+	scan := &goFunctionReliabilityScan{
+		env:             env,
+		file:            file,
+		fset:            fset,
+		rules:           rules,
+		httpAliases:     httpAliases,
+		hasShutdown:     hasShutdown,
+		hasContextParam: funcHasContextParam(fn),
+		deferCloseVars:  deferredCloseVars(fn.Body),
+		boundedClients:  boundedClients,
+		boundedRequests: boundedRequests,
+		findings:        make([]core.Finding, 0),
 	}
+	ast.Inspect(fn.Body, scan.visit)
+	if enabled(rules.DetectMissingConcurrencyLimit) && rules.MaxInlineGoroutinesPerFunction > 0 && scan.goroutines > rules.MaxInlineGoroutinesPerFunction {
+		pos := fset.Position(fn.Pos())
+		scan.findings = append(scan.findings, newFinding(env, "reliability.missing-concurrency-limit", "warn", file, pos.Line, pos.Column, fmt.Sprintf("function launches %d goroutines without an obvious concurrency limit", scan.goroutines), "medium", "goroutines", fmt.Sprintf("%d", scan.goroutines)))
+	}
+	return scan.findings
+}
 
-	return findings
+// goFunctionReliabilityScan walks one Go function body, tracking loop depth
+// (loopStack mirrors the ast.Inspect stack, marking which nodes are loops)
+// and goroutine launches.
+type goFunctionReliabilityScan struct {
+	env             support.Context
+	file            string
+	fset            *token.FileSet
+	rules           core.ReliabilityRulesConfig
+	httpAliases     map[string]struct{}
+	hasShutdown     bool
+	hasContextParam bool
+	deferCloseVars  map[string]struct{}
+	boundedClients  map[string]struct{}
+	boundedRequests map[string]struct{}
+	goroutines      int
+	loopDepth       int
+	loopStack       []bool
+	findings        []core.Finding
+}
+
+func (s *goFunctionReliabilityScan) visit(node ast.Node) bool {
+	if node == nil {
+		if s.loopStack[len(s.loopStack)-1] {
+			s.loopDepth--
+		}
+		s.loopStack = s.loopStack[:len(s.loopStack)-1]
+		return true
+	}
+	s.inspectNode(node)
+	_, isFor := node.(*ast.ForStmt)
+	_, isRange := node.(*ast.RangeStmt)
+	isLoop := isFor || isRange
+	s.loopStack = append(s.loopStack, isLoop)
+	if isLoop {
+		s.loopDepth++
+	}
+	return true
+}
+
+func (s *goFunctionReliabilityScan) inspectNode(node ast.Node) {
+	rules := s.rules
+	switch n := node.(type) {
+	case *ast.GoStmt:
+		s.goroutines++
+		if enabled(rules.DetectUnboundedWork) && s.loopDepth > 0 {
+			pos := s.fset.Position(n.Go)
+			s.findings = append(s.findings, newFinding(s.env, "reliability.unbounded-work", "warn", s.file, pos.Line, pos.Column, "goroutine launched inside a loop without an obvious work bound", "high", "work", "goroutine-in-loop"))
+		}
+	case *ast.ForStmt:
+		s.findings = append(s.findings, retryFindings(s.env, s.file, s.fset, n, rules)...)
+	case *ast.RangeStmt:
+		if enabled(rules.DetectRetryWithoutBackoff) && loopLooksLikeRetry(n.Body) && !blockHasBackoff(n.Body) {
+			pos := s.fset.Position(n.For)
+			s.findings = append(s.findings, newFinding(s.env, "reliability.retry-without-backoff", "warn", s.file, pos.Line, pos.Column, "retry-like loop has no visible backoff or jitter", "medium", "retry", "range-loop"))
+		}
+	case *ast.CallExpr:
+		s.findings = append(s.findings, callReliabilityFindings(s.env, s.file, s.fset, n, rules, s.httpAliases, s.boundedClients, s.boundedRequests, s.hasContextParam, s.hasShutdown)...)
+	case *ast.AssignStmt:
+		s.findings = append(s.findings, assignmentReliabilityFindings(s.env, s.file, s.fset, n, rules, s.httpAliases, s.deferCloseVars)...)
+	case *ast.ReturnStmt:
+		if enabled(rules.DetectLostErrorContext) {
+			s.findings = append(s.findings, lostErrorContextFindings(s.env, s.file, s.fset, n)...)
+		}
+	}
 }
 
 func callReliabilityFindings(env support.Context, file string, fset *token.FileSet, call *ast.CallExpr, rules core.ReliabilityRulesConfig, httpAliases map[string]struct{}, boundedClients map[string]struct{}, boundedRequests map[string]struct{}, hasContextParam bool, hasShutdown bool) []core.Finding {

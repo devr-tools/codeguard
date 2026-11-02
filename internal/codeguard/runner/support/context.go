@@ -39,6 +39,7 @@ type Context struct {
 	SectionConfigHash map[string]string
 	DiffCommand       map[string]diffCommandEnv
 	corpus            *fileCorpus
+	git               *scanGitMemo
 	cleanup           func()
 }
 
@@ -76,6 +77,7 @@ func NewContext(ctx context.Context, cfg core.Config, opts core.ScanOptions) (Co
 		SectionConfigHash: SectionConfigHashes(cfg, ruleCatalog, runtime.Fingerprint()),
 		DiffCommand:       map[string]diffCommandEnv{},
 		corpus:            newFileCorpus(),
+		git:               newScanGitMemo(),
 		cleanup:           func() {},
 	}
 	if opts.EnableWaiverAudit {
@@ -111,7 +113,7 @@ func NewContext(ctx context.Context, cfg core.Config, opts core.ScanOptions) (Co
 		if strings.TrimSpace(opts.DiffText) != "" {
 			diff = LoadDiffScopeFromUnifiedDiff(ctx, cfg.Targets, opts.DiffText)
 		} else {
-			diff, err = LoadDiffScope(ctx, cfg.Targets, opts.BaseRef)
+			diff, err = loadDiffScope(ctx, sc.git, cfg.Targets, opts.BaseRef)
 		}
 		if err != nil {
 			sc.cleanup()
@@ -137,14 +139,28 @@ func (collector *SuppressedFindingCollector) Snapshot() []core.Finding {
 	collector.mu.Lock()
 	defer collector.mu.Unlock()
 	out := append([]core.Finding(nil), collector.findings...)
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Path != out[j].Path {
-			return out[i].Path < out[j].Path
+	// Sections finalize concurrently, so Add order varies between runs; the
+	// sort key must therefore break every tie a report could show, or two
+	// findings on the same line (say, two boolean parameters of one function)
+	// swap places from run to run.
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if a.Path != b.Path {
+			return a.Path < b.Path
 		}
-		if out[i].Line != out[j].Line {
-			return out[i].Line < out[j].Line
+		if a.Line != b.Line {
+			return a.Line < b.Line
 		}
-		return out[i].RuleID < out[j].RuleID
+		if a.RuleID != b.RuleID {
+			return a.RuleID < b.RuleID
+		}
+		if a.Column != b.Column {
+			return a.Column < b.Column
+		}
+		if a.Message != b.Message {
+			return a.Message < b.Message
+		}
+		return a.Fingerprint < b.Fingerprint
 	})
 	return out
 }

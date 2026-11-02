@@ -3,6 +3,8 @@ package checks_test
 import (
 	"context"
 	"path/filepath"
+	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -81,6 +83,39 @@ func TestSecurityIgnoresSafeYAMLLoad(t *testing.T) {
 				t.Fatalf("safe YAML loading should not be flagged: %s", finding.Message)
 			}
 		}
+	}
+}
+
+// Every insecure-deserialization alternative is a call or type name, so a
+// loader that only appears in a string literal or comment (a detector's own
+// pattern table, a fix-template example) is not a call and must not fire,
+// while a real call in the same language still does.
+func TestSecurityInsecureDeserializationIgnoresStringsAndComments(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "patterns.go"), strings.Join([]string{
+		"package patterns",
+		"",
+		"// Matches pickle.loads( and yaml.load( calls.",
+		"var gates = []string{\"pickle.load\", \"yaml.load\", \".readobject\", \"unserialize\"}",
+		"",
+		"const example = \"config = pickle.loads(request.data)\"",
+		"",
+	}, "\n"))
+	writeFile(t, filepath.Join(dir, "loader.py"), strings.Join([]string{
+		"import pickle",
+		"# pickle.loads(blob) in a comment is not a call",
+		"note = \"pickle.loads(blob)\"",
+		"obj = pickle.loads(blob)",
+		"",
+	}, "\n"))
+
+	report := runSecurity(t, "a08-strings", dir, "go")
+	got := make([]string, 0)
+	for _, finding := range findingsForRule(report, "security.insecure-deserialization") {
+		got = append(got, finding.Path+":"+strconv.Itoa(finding.Line))
+	}
+	if want := []string{"loader.py:4"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("insecure-deserialization findings = %v, want %v", got, want)
 	}
 }
 

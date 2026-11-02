@@ -1,1 +1,1 @@
-export const uploaderKey = "AKIAIOSFODNN7EXAMPLE";
+export const uploaderKey = "AKIA" + "Q7RMZLK4TP2XWDVB";

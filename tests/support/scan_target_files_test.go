@@ -60,9 +60,9 @@ func TestScanTargetFilesDeterministicOrder(t *testing.T) {
 	}
 }
 
-// TestScanTargetFilesPropagatesEvaluatorPanic locks in the safeRun contract:
+// TestScanTargetFilesPropagatesEvaluatorPanic locks in the SafeRun contract:
 // an evaluator panic on a worker goroutine must resurface on the calling
-// goroutine (where runner/checks downgrades it to a section warning) instead
+// goroutine (where runner/checks turns it into a failing section) instead
 // of crashing the process from an unrecovered goroutine.
 func TestScanTargetFilesPropagatesEvaluatorPanic(t *testing.T) {
 	dir := t.TempDir()

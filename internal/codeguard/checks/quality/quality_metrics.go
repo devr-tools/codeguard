@@ -68,19 +68,34 @@ func maintainabilityFindings(env support.Context, file string, fn functionMetric
 	skipLength := isSeedOrScriptSourcePath(file) || isLikelyUIFile(file) || isIntegrationAdapterPath(file) ||
 		strings.Contains(strings.ToLower(fn.Name), "digest")
 	if fn.Length > env.Config.Checks.QualityRules.MaxFunctionLines && !skipLength {
-		findings = append(findings, warnFinding(env, "quality.max-function-lines", file, fn.StartLine, 1,
-			fmt.Sprintf("function %s has %d lines; max is %d", fn.Name, fn.Length, env.Config.Checks.QualityRules.MaxFunctionLines)))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.max-function-lines",
+			Path:    file,
+			Line:    fn.StartLine,
+			Column:  1,
+			Message: fmt.Sprintf("function %s has %d lines; max is %d", fn.Name, fn.Length, env.Config.Checks.QualityRules.MaxFunctionLines),
+		}))
 	}
 	if fn.Params > env.Config.Checks.QualityRules.MaxParameters {
-		findings = append(findings, warnFinding(env, "quality.max-parameters", file, fn.StartLine, 1,
-			fmt.Sprintf("function %s has %d parameters; max is %d", fn.Name, fn.Params, env.Config.Checks.QualityRules.MaxParameters)))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.max-parameters",
+			Path:    file,
+			Line:    fn.StartLine,
+			Column:  1,
+			Message: fmt.Sprintf("function %s has %d parameters; max is %d", fn.Name, fn.Params, env.Config.Checks.QualityRules.MaxParameters),
+		}))
 		if localPrecisionEnabled(env) {
 			findings = append(findings, excessiveParameterFinding(env, file, fn)...)
 		}
 	}
 	if fn.Complexity > env.Config.Checks.QualityRules.MaxCyclomaticComplexity {
-		findings = append(findings, warnFinding(env, "quality.cyclomatic-complexity", file, fn.StartLine, 1,
-			fmt.Sprintf("function %s has cyclomatic complexity %d; max is %d", fn.Name, fn.Complexity, env.Config.Checks.QualityRules.MaxCyclomaticComplexity)))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.cyclomatic-complexity",
+			Path:    file,
+			Line:    fn.StartLine,
+			Column:  1,
+			Message: fmt.Sprintf("function %s has cyclomatic complexity %d; max is %d", fn.Name, fn.Complexity, env.Config.Checks.QualityRules.MaxCyclomaticComplexity),
+		}))
 	}
 	return findings
 }

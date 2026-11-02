@@ -89,8 +89,13 @@ func pythonUnusedPrivateFunctionFindings(env support.Context, file string, sourc
 			continue
 		}
 		line := 1 + strings.Count(source[:match[2]], "\n")
-		findings = append(findings, warnFinding(env, "quality.ai.dead-code", file, line, 1,
-			fmt.Sprintf("private function %q is declared but never referenced in this file", name)))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.ai.dead-code",
+			Path:    file,
+			Line:    line,
+			Column:  1,
+			Message: fmt.Sprintf("private function %q is declared but never referenced in this file", name),
+		}))
 	}
 	return findings
 }

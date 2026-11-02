@@ -39,11 +39,9 @@ func typeScriptAITargetFindings(env support.Context, target core.TargetConfig) [
 		errorStyle: dominantScriptErrorStyle(env, target, files),
 		naming:     dominantNamingConvention(env, target, files, scriptDeclaredNames),
 	}
-	findings := make([]core.Finding, 0)
-	for _, rel := range files {
-		findings = append(findings, scriptFileAIQualityFindings(env, target, rel, input)...)
-	}
-	return findings
+	return fileFindingsInParallel(files, func(rel string) []core.Finding {
+		return scriptFileAIQualityFindings(env, target, rel, input)
+	})
 }
 
 type scriptFileScanInput struct {
@@ -91,8 +89,13 @@ func scriptImportFindings(env support.Context, root string, file string, source 
 			continue
 		}
 		line := 1 + strings.Count(source[:match[0]], "\n")
-		findings = append(findings, warnFinding(env, "quality.ai.hallucinated-import", file, line, 1,
-			fmt.Sprintf("import %q does not resolve against package manifests, workspace packages, or local files", specifier)))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.ai.hallucinated-import",
+			Path:    file,
+			Line:    line,
+			Column:  1,
+			Message: fmt.Sprintf("import %q does not resolve against package manifests, workspace packages, or local files", specifier),
+		}))
 	}
 	return findings
 }
@@ -160,8 +163,13 @@ func scriptDeadCodeFindings(env support.Context, file string, source string) []c
 	lines := regexLineMatches(scriptDeadBranchPattern, source)
 	findings := make([]core.Finding, 0, len(lines))
 	for _, line := range lines {
-		findings = append(findings, warnFinding(env, "quality.ai.dead-code", file, line, 1,
-			"constant-condition branch leaves unreachable placeholder logic in the code path"))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.ai.dead-code",
+			Path:    file,
+			Line:    line,
+			Column:  1,
+			Message: "constant-condition branch leaves unreachable placeholder logic in the code path",
+		}))
 	}
 	return findings
 }
@@ -174,6 +182,11 @@ func scriptOverMockedTestFinding(env support.Context, file string, source string
 	if mockCount < 2 || assertCount > 1 {
 		return nil
 	}
-	return []core.Finding{warnFinding(env, "quality.ai.over-mocked-test", file, firstLineContaining(source, mockMarkers), 1,
-		"test relies mostly on mocked collaborators with very little direct behavior assertion")}
+	return []core.Finding{newQualityWarnFinding(env, support.WarnFindingInput{
+		RuleID:  "quality.ai.over-mocked-test",
+		Path:    file,
+		Line:    firstLineContaining(source, mockMarkers),
+		Column:  1,
+		Message: "test relies mostly on mocked collaborators with very little direct behavior assertion",
+	})}
 }

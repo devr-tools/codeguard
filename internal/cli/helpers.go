@@ -48,23 +48,40 @@ func loadConfigWithProfile(path string, profile string) (service.Config, error) 
 	return applyProfileOverride(cfg, profile)
 }
 
-func loadScanConfigWithFallback(path string, profile string, targetPath string, defaultConfigRequested bool) (service.Config, error) {
-	cfg, err := service.LoadConfigFile(path)
+// configlessScanHint is printed (on stderr, so JSON/SARIF output stays clean)
+// when a scan runs without a config file.
+const configlessScanHint = "note: no codeguard config found; scanning with built-in defaults. Run `codeguard init` to write a config for this repository."
+
+// loadScanConfigWithFallback loads the scan config. When the operator did not
+// name a config and none is discoverable, it falls back to the same built-in
+// defaults the SDK exposes as DefaultScanConfig, for `scan` and `scan -folder`
+// alike, and reports usedDefaults so the caller can print the init hint.
+func loadScanConfigWithFallback(path string, profile string, targetPath string, defaultConfigRequested bool) (cfg service.Config, usedDefaults bool, err error) {
+	cfg, err = service.LoadConfigFile(path)
 	if err == nil {
-		return applyProfileOverride(cfg, profile)
+		cfg, err = applyProfileOverride(cfg, profile)
+		return cfg, false, err
 	}
-	if !defaultConfigRequested || strings.TrimSpace(targetPath) == "" || !errors.Is(err, service.ErrConfigNotFound) {
-		return service.Config{}, err
+	if !defaultConfigRequested || !errors.Is(err, service.ErrConfigNotFound) {
+		return service.Config{}, false, err
 	}
 
-	cfg, err = exampleConfigForProfile(profile)
+	// No config file: resolve the repository-aware built-in defaults (what
+	// `codeguard init` would write, in memory), NOT codeguard's own starter
+	// config, whose CI, release and layering conventions fail any other
+	// repository on its first scan.
+	root := strings.TrimSpace(targetPath)
+	if root == "" {
+		root = "."
+	}
+	cfg, err = service.DefaultScanConfig(root, profile)
 	if err != nil {
-		return service.Config{}, err
+		return service.Config{}, false, err
 	}
 	disable := false
 	cfg.Cache.Enabled = &disable
 	cfg.Cache.Path = ""
-	return cfg, nil
+	return cfg, true, nil
 }
 
 func applyProfileOverride(cfg service.Config, profile string) (service.Config, error) {
@@ -76,11 +93,4 @@ func applyProfileOverride(cfg service.Config, profile string) (service.Config, e
 		}
 	}
 	return cfg, nil
-}
-
-func exampleConfigForProfile(profile string) (service.Config, error) {
-	if strings.TrimSpace(profile) == "" {
-		return service.ExampleConfig(), nil
-	}
-	return service.ExampleConfigForProfile(profile)
 }

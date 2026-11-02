@@ -152,5 +152,7 @@ func appendRuleStatsHistory(t *testing.T, cachePath string, entry core.RuleStats
 	if historyPath == "" {
 		t.Fatal("expected non-empty rule-stats history path")
 	}
-	runnersupport.AppendRuleStatsHistory(historyPath, entry, 0)
+	if err := runnersupport.AppendRuleStatsHistory(historyPath, entry, 0); err != nil {
+		t.Fatal(err)
+	}
 }

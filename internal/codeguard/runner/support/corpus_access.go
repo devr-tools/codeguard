@@ -16,6 +16,7 @@ func (sc Context) corpusFiles(target core.TargetConfig) ([]string, error) {
 	opts := FileWalkOptions{
 		LogicalPath:        target.LogicalPath,
 		ScanVendoredSource: sc.Cfg.ScanVendoredSource,
+		RespectGitignore:   sc.Cfg.RespectGitignoreEnabled(),
 	}
 	if sc.corpus != nil {
 		return sc.corpus.list(target.Path, sc.Cfg.Exclude, opts)
@@ -37,6 +38,16 @@ func ParseGoFile(sc Context, path string, data []byte) (*token.FileSet, *ast.Fil
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, data, parser.ParseComments)
 	return fset, file, err
+}
+
+// ParseCLikeFile returns the C-like parse of data through the per-scan corpus
+// when one is attached, and an uncached parse otherwise. The result is shared
+// and must be treated as read-only.
+func ParseCLikeFile(sc Context, path string, data []byte, lang checkSupport.CLikeLanguage) *checkSupport.ParsedFile {
+	if sc.corpus != nil {
+		return sc.corpus.parseCLike(path, data, lang)
+	}
+	return checkSupport.ParseCLike(string(data), lang)
 }
 
 func ParseScriptFile(sc Context, path string, data []byte, lang checkSupport.ScriptLanguage) (*checkSupport.SyntaxTree, error) {

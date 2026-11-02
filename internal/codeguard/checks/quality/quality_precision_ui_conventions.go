@@ -199,42 +199,49 @@ func isResourceIdentifierName(name string) bool {
 	return false
 }
 
+// conventionalCardinalityNames are names whose plural or singular wording is
+// conventional regardless of the value's shape.
+var conventionalCardinalityNames = map[string]struct{}{
+	"accept": {}, "activity": {}, "adjacency": {}, "aliases": {}, "all": {}, "aliveatend": {}, "allowed": {},
+	"answers": {}, "apply": {}, "args": {}, "arr": {}, "atrisk": {}, "awaitingsig": {}, "body": {},
+	"changes": {}, "claims": {}, "claimed": {}, "columns": {}, "comments": {}, "content": {}, "contract": {},
+	"contracts": {}, "contractsbytype": {}, "counts": {}, "cur": {}, "currentpatch": {}, "data": {}, "docs": {},
+	"entries": {}, "expectedkeys": {}, "files": {}, "filtered": {}, "fixes": {}, "grid": {}, "grouped": {},
+	"groups": {}, "header": {}, "history": {}, "ids": {}, "input": {}, "inputs": {}, "items": {}, "jobs": {},
+	"k": {}, "keys": {}, "kindcounts": {}, "known": {}, "krs": {}, "latestquarter": {}, "matter": {},
+	"matters": {}, "messages": {}, "model": {}, "newrisks": {}, "next": {}, "nodes": {}, "objectives": {},
+	"obj": {}, "obligations": {}, "openrequests": {}, "out": {}, "overdue": {}, "params": {}, "parsed": {},
+	"patch": {}, "policy": {}, "prev": {}, "prisma": {}, "projects": {}, "props": {}, "quarter": {},
+	"quarters": {}, "raw": {}, "records": {}, "requests": {}, "requestsbypillar": {}, "resources": {},
+	"restrict": {}, "rest": {}, "result": {}, "results": {}, "risks": {}, "roledefaults": {}, "roles": {},
+	"row": {}, "rows": {}, "schemas": {}, "searchparams": {}, "sections": {}, "seenactivepillar": {},
+	"size": {}, "skipreasons": {}, "snap": {}, "source": {}, "src": {}, "state": {}, "status": {}, "stream": {},
+	"tags": {}, "team": {}, "thresholds": {}, "threads": {}, "tools": {}, "users": {}, "values": {}, "vec": {},
+	"versions": {}, "where": {}, "window": {}, "v": {}, "i": {}, "j": {}, "x": {}, "y": {},
+}
+
+// conventionalCardinalitySuffixes mark grouped or keyed values (for example
+// "...ByKey", "...Counts") whose wording need not match their shape.
+var conventionalCardinalitySuffixes = []string{
+	"dates", "fields", "filters", "ids", "links", "options", "points", "rows", "items", "entries", "params",
+	"props", "args", "columns", "sections", "snapshots", "tasks", "types", "bykey", "byrisk", "bytext",
+	"counts", "patch", "reasons", "risks", "soon", "weeks",
+}
+
 func conventionalCardinalityName(name string) bool {
 	base := strings.ToLower(strings.Trim(name, "_$"))
-	switch base {
-	case "accept", "activity", "adjacency", "aliases", "all", "aliveatend", "allowed", "answers", "apply", "args", "arr", "atrisk", "awaitingsig", "body", "changes", "claims", "claimed", "columns", "comments", "content", "contract", "contracts", "contractsbytype", "counts", "cur", "currentpatch", "data", "docs", "entries", "expectedkeys", "files", "filtered", "fixes", "grid", "grouped", "groups", "header", "history", "ids", "input", "inputs", "items", "jobs", "k", "keys", "kindcounts", "known", "krs", "latestquarter", "matter", "matters", "messages", "model", "newrisks", "next", "nodes", "objectives", "obj", "obligations", "openrequests", "out", "overdue", "params", "parsed", "patch", "policy", "prev", "prisma", "projects", "props", "quarter", "quarters", "raw", "records", "requests", "requestsbypillar", "resources", "restrict", "rest", "result", "results", "risks", "roledefaults", "roles", "row", "rows", "schemas", "searchparams", "sections", "seenactivepillar", "size", "skipreasons", "snap", "source", "src", "state", "status", "stream", "tags", "team", "thresholds", "threads", "tools", "users", "values", "vec", "versions", "where", "window", "v", "i", "j", "x", "y":
+	if _, ok := conventionalCardinalityNames[base]; ok {
 		return true
-	default:
-		return len(name) <= 2 ||
-			strings.HasPrefix(base, "by") ||
-			strings.HasSuffix(base, "dates") ||
-			strings.HasSuffix(base, "fields") ||
-			strings.HasSuffix(base, "filters") ||
-			strings.HasSuffix(base, "ids") ||
-			strings.HasSuffix(base, "links") ||
-			strings.HasSuffix(base, "options") ||
-			strings.HasSuffix(base, "points") ||
-			strings.HasSuffix(base, "rows") ||
-			strings.HasSuffix(base, "items") ||
-			strings.HasSuffix(base, "entries") ||
-			strings.HasSuffix(base, "params") ||
-			strings.HasSuffix(base, "props") ||
-			strings.HasSuffix(base, "args") ||
-			strings.HasSuffix(base, "columns") ||
-			strings.HasSuffix(base, "sections") ||
-			strings.HasSuffix(base, "snapshots") ||
-			strings.HasSuffix(base, "tasks") ||
-			strings.HasSuffix(base, "types") ||
-			strings.HasSuffix(base, "bykey") ||
-			strings.HasSuffix(base, "byrisk") ||
-			strings.HasSuffix(base, "bytext") ||
-			strings.HasSuffix(base, "counts") ||
-			strings.HasSuffix(base, "patch") ||
-			strings.HasSuffix(base, "reasons") ||
-			strings.HasSuffix(base, "risks") ||
-			strings.HasSuffix(base, "soon") ||
-			strings.HasSuffix(base, "weeks")
 	}
+	if len(name) <= 2 || strings.HasPrefix(base, "by") {
+		return true
+	}
+	for _, suffix := range conventionalCardinalitySuffixes {
+		if strings.HasSuffix(base, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func isUIHelperOrMappingContext(file string, fn precisionFunction) bool {
@@ -281,19 +288,53 @@ func moduleStatementLooksTopLevel(statement support.ParsedStatement) bool {
 	return statement.Indent == 0
 }
 
-func scriptSourceLineAtModuleScope(source string, targetIdx int) bool {
+// scriptSourceModuleScopeLines reports, for every line of source (split
+// exactly as strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
+// would), whether that line sits at module scope: no leading indentation and
+// a running brace depth of zero over all preceding lines. The depth counts
+// every '{' and '}' before a line's first "//" (strings, template literals
+// and block comments are deliberately not special-cased) and is clamped at
+// zero after each line.
+//
+// PERF: this used to be a per-line query that rescanned the file from the
+// top, which made sourceMutableGlobalFindings O(lines^2) and dominated scans
+// of large bundled JS files. One pass yields the same answer for every line.
+func scriptSourceModuleScopeLines(source string) []bool {
+	flags := make([]bool, 0, strings.Count(source, "\n")+1)
 	depth := 0
-	lines := strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
-	for idx, line := range lines {
-		if idx == targetIdx {
-			return depth == 0 && len(line) == len(strings.TrimLeft(line, " \t"))
-		}
+	eachSourceLine(source, func(_ int, line string) bool {
+		flags = append(flags, depth == 0 && len(line) == len(strings.TrimLeft(line, " \t")))
 		depth += braceDelta(maskCommentSuffix(line))
 		if depth < 0 {
 			depth = 0
 		}
+		return true
+	})
+	return flags
+}
+
+// eachSourceLine walks source line by line with exactly the normalization of
+// strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n") — a trailing
+// carriage return is dropped only where it preceded a newline, so a lone "\r"
+// at end of file survives, as it does there — without building the slice.
+// visit returns false to stop the walk.
+func eachSourceLine(source string, visit func(idx int, line string) bool) {
+	for start, idx := 0, 0; ; idx++ {
+		offset := strings.IndexByte(source[start:], '\n')
+		if offset < 0 {
+			visit(idx, source[start:])
+			return
+		}
+		end := start + offset
+		line := source[start:end]
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			line = line[:len(line)-1]
+		}
+		if !visit(idx, line) {
+			return
+		}
+		start = end + 1
 	}
-	return true
 }
 
 func maskCommentSuffix(line string) string {

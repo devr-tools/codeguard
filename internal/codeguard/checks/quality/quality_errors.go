@@ -182,10 +182,13 @@ func inconsistentWrappingLine(fn precisionFunction) (int, bool) {
 	return 0, false
 }
 
+// PERF: compiled once; bareErrorReturn runs per return statement.
+var bareErrorReturnPattern = regexp.MustCompile(`^return\s+(.+,\s*)?(err|error|e)$`)
+
 func bareErrorReturn(line string) bool {
 	trimmed := strings.TrimSpace(strings.TrimSuffix(line, ";"))
 	lowered := strings.ToLower(trimmed)
-	return regexp.MustCompile(`^return\s+(.+,\s*)?(err|error|e)$`).MatchString(lowered) ||
+	return bareErrorReturnPattern.MatchString(lowered) ||
 		lowered == "raise" || lowered == "raise e" || lowered == "throw e"
 }
 

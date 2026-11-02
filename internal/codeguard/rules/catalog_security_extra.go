@@ -57,7 +57,7 @@ var securityExtraCatalog = map[string]core.RuleMetadata{
 		ExecutionModel:   core.RuleExecutionModelLanguageAgnostic,
 		LanguageCoverage: core.RepositoryWideRuleLanguageCoverage(),
 		Title:            "Service binds to all interfaces",
-		Description:      "Warns when a service binds to 0.0.0.0, exposing it on every network interface.",
+		Description:      "Warns when a service binds to 0.0.0.0, exposing it on every network interface.", // codeguard:ignore security.bind-all-interfaces -- rule description text
 		HowToFix:         "Bind to a specific interface (e.g. 127.0.0.1) or restrict exposure with a firewall or network policy.",
 	},
 	"security.dockerfile-root": {

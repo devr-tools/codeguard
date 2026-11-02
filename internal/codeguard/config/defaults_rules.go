@@ -35,15 +35,15 @@ func applyQualityNamingDefaults(dst *core.QualityNamingConfig, def core.QualityN
 func applyRiskScoringDefaults(dst *core.RiskScoringConfig) {
 	defaultBoolPtr(&dst.Enabled, true)
 	defaultInt(&dst.MaxHotspots, 5)
-	defaultInt(&dst.ChangedFileWeight, 5)
-	defaultInt(&dst.FailFindingWeight, 30)
-	defaultInt(&dst.WarnFindingWeight, 15)
-	defaultInt(&dst.SecurityWeight, 10)
-	defaultInt(&dst.SupplyChainWeight, 10)
-	defaultInt(&dst.CoverageGapWeight, 15)
-	defaultInt(&dst.AIProvenanceWeight, 15)
-	defaultInt(&dst.AISignalWeight, 10)
-	defaultInt(&dst.SlopScoreDivisor, 10)
+	defaultUnlessExplicit(&dst.ChangedFileWeight, dst.IsExplicit("changed_file_weight"), 5)
+	defaultUnlessExplicit(&dst.FailFindingWeight, dst.IsExplicit("fail_finding_weight"), 30)
+	defaultUnlessExplicit(&dst.WarnFindingWeight, dst.IsExplicit("warn_finding_weight"), 15)
+	defaultUnlessExplicit(&dst.SecurityWeight, dst.IsExplicit("security_weight"), 10)
+	defaultUnlessExplicit(&dst.SupplyChainWeight, dst.IsExplicit("supply_chain_weight"), 10)
+	defaultUnlessExplicit(&dst.CoverageGapWeight, dst.IsExplicit("coverage_gap_weight"), 15)
+	defaultUnlessExplicit(&dst.AIProvenanceWeight, dst.IsExplicit("ai_provenance_weight"), 15)
+	defaultUnlessExplicit(&dst.AISignalWeight, dst.IsExplicit("ai_signal_weight"), 10)
+	defaultUnlessExplicit(&dst.SlopScoreDivisor, dst.IsExplicit("slop_score_divisor"), 10)
 }
 
 func applyCPPToolingDefaults(dst *core.CPPToolingConfig) {
@@ -92,15 +92,21 @@ func applyDesignDefaults(dst *core.DesignRulesConfig, def core.DesignRulesConfig
 	defaultInt(&dst.GodModuleThreshold, def.GodModuleThreshold)
 	defaultInt(&dst.HighImpactChangeThreshold, def.HighImpactChangeThreshold)
 	defaultStringSlice(&dst.ForbiddenPackageNames, def.ForbiddenPackageNames)
+	// sdk_facade_paths has no baseline value on purpose: the facade is a
+	// property of the repository being scanned, so an unset list means
+	// "discover it from the layout" rather than "use codeguard's own".
+	defaultStringSlice(&dst.SDKFacadePaths, def.SDKFacadePaths)
 	applyDefaultBoolPtrs(
 		&dst.DetectImportCycles,
 		&dst.DetectGodModules,
 		&dst.DetectHighImpactChanges,
-		&dst.RequireCmdThroughInternalCLI,
-		&dst.ForbidInternalImportCmd,
-		&dst.ForbidServiceImportInternal,
-		&dst.ForbidServiceImportCmd,
 	)
+	// Package-layering policy is read from the baseline rather than forced on,
+	// so baseDefaultDesignRules stays the single place that decides it.
+	defaultBoolPtr(&dst.RequireCmdThroughInternalCLI, boolValue(def.RequireCmdThroughInternalCLI))
+	defaultBoolPtr(&dst.ForbidInternalImportCmd, boolValue(def.ForbidInternalImportCmd))
+	defaultBoolPtr(&dst.ForbidServiceImportInternal, boolValue(def.ForbidServiceImportInternal))
+	defaultBoolPtr(&dst.ForbidServiceImportCmd, boolValue(def.ForbidServiceImportCmd))
 	defaultCommandMap(&dst.LanguageCommands, def.LanguageCommands)
 	defaultCommandMap(&dst.LanguageDiffCommands, def.LanguageDiffCommands)
 }
@@ -118,12 +124,11 @@ func applyPromptDefaults(dst *core.PromptRulesConfig, def core.PromptRulesConfig
 	if dst.ForbidUnsafeInstructions == nil {
 		dst.ForbidUnsafeInstructions = boolPtr(true)
 	}
+	defaultBoolPtr(&dst.RequireMCPRemoteAuth, boolValue(def.RequireMCPRemoteAuth))
 }
 
 func applyCIDefaults(dst *core.CIRulesConfig, def core.CIRulesConfig) {
-	if dst.RequireWorkflowDir == nil {
-		dst.RequireWorkflowDir = boolPtr(true)
-	}
+	defaultBoolPtr(&dst.RequireWorkflowDir, boolValue(def.RequireWorkflowDir))
 	if dst.RequiredWorkflowFiles == nil {
 		dst.RequiredWorkflowFiles = append([]string(nil), def.RequiredWorkflowFiles...)
 	}
@@ -332,8 +337,8 @@ func applyProductionRiskDefaults(dst *core.ProductionRiskConfig, def core.Produc
 	defaultBoolPtr(&dst.Enabled, boolValueOrTrue(def.Enabled))
 	defaultInt(&dst.WarnThreshold, def.WarnThreshold)
 	defaultInt(&dst.FailThreshold, def.FailThreshold)
-	defaultInt(&dst.ReliabilityWeight, def.ReliabilityWeight)
-	defaultInt(&dst.DataWeight, def.DataWeight)
-	defaultInt(&dst.FailWeight, def.FailWeight)
-	defaultInt(&dst.WarnWeight, def.WarnWeight)
+	defaultUnlessExplicit(&dst.ReliabilityWeight, dst.IsExplicit("reliability_weight"), def.ReliabilityWeight)
+	defaultUnlessExplicit(&dst.DataWeight, dst.IsExplicit("data_weight"), def.DataWeight)
+	defaultUnlessExplicit(&dst.FailWeight, dst.IsExplicit("fail_weight"), def.FailWeight)
+	defaultUnlessExplicit(&dst.WarnWeight, dst.IsExplicit("warn_weight"), def.WarnWeight)
 }

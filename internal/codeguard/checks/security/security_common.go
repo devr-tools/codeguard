@@ -2,7 +2,6 @@ package security
 
 import (
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -12,18 +11,35 @@ import (
 // Hardcoded secret/credential and private-key detection lives in
 // security_secrets.go, which runs as a dedicated repository-wide pass so it also
 // covers TypeScript/JavaScript targets.
+//
+// Every pattern below is a gatedPattern: a cheap literal pre-check runs before
+// the regex, because these run on every line of every scanned file. See
+// security_line_gates.go for the superset invariant the gates must hold to.
 var (
-	pythonShellPattern       = regexp.MustCompile(`\bsubprocess\.(?:run|Popen|call|check_call|check_output|getoutput|getstatusoutput)\s*\(.*shell\s*=\s*True`)
-	pythonSystemPattern      = regexp.MustCompile(`\bos\.system\s*\(`)
-	pythonEvalPattern        = regexp.MustCompile(`\b(?:eval|exec)\s*\(`)
-	pythonInsecureTLSPattern = regexp.MustCompile(`\bverify\s*=\s*False\b|\bssl\._create_unverified_context\s*\(`)
+	pythonShellPattern = newGatedPattern("python.shell-execution",
+		`\bsubprocess\.(?:run|Popen|call|check_call|check_output|getoutput|getstatusoutput)\s*\(.*shell\s*=\s*True`,
+		exactGate("subprocess."))
+	pythonSystemPattern = newGatedPattern("python.os-system",
+		`\bos\.system\s*\(`,
+		exactGate("os.system"))
+	pythonEvalPattern = newGatedPattern("python.dynamic-code",
+		`\b(?:eval|exec)\s*\(`,
+		exactGate("eval", "exec"))
+	pythonInsecureTLSPattern = newGatedPattern("python.insecure-tls",
+		`\bverify\s*=\s*False\b|\bssl\._create_unverified_context\s*\(`,
+		exactGate("verify", "ssl._create_unverified_context"))
 
 	// Line-scan forms of the Go-oriented base checks, matched against masked
 	// source. They tolerate missing whitespace (InsecureSkipVerify:true) and
 	// require a call shape for shell execution so import paths alone cannot
-	// fire.
-	goInsecureTLSLinePattern = regexp.MustCompile(`\bInsecureSkipVerify\s*[:=]\s*true\b`)
-	goShellCallLinePattern   = regexp.MustCompile(`\b(?:exec\.Command(?:Context)?|syscall\.Exec)\s*\(`)
+	// fire. NOTE: these run on every line of every NON-Go file too (goParsed is
+	// false for them), which is why their gate matters as much as the Go one.
+	goInsecureTLSLinePattern = newGatedPattern("go.insecure-tls",
+		`\bInsecureSkipVerify\s*[:=]\s*true\b`,
+		exactGate("InsecureSkipVerify"))
+	goShellCallLinePattern = newGatedPattern("go.shell-execution",
+		`\b(?:exec\.Command(?:Context)?|syscall\.Exec)\s*\(`,
+		exactGate("exec.Command", "syscall.Exec"))
 )
 
 func findingsForFile(env support.Context, file string, data []byte) []core.Finding {
@@ -41,13 +57,17 @@ func findingsForFile(env support.Context, file string, data []byte) []core.Findi
 		findings = append(findings, goFindings...)
 	}
 
-	for idx, line := range lines {
+	for idx, raw := range lines {
 		lineNo := idx + 1
+		// One sourceLine per line: it carries the raw and masked forms together
+		// with the ASCII flag the literal gates read, so the scan for non-ASCII
+		// bytes is paid once per line rather than once per pattern.
+		line := newSourceLine(raw, maskedLines[idx])
 		if !goParsed {
-			findings = append(findings, appendCommonLineFindings(env, file, lineNo, maskedLines[idx])...)
+			findings = append(findings, appendCommonLineFindings(env, file, lineNo, line)...)
 		}
-		findings = append(findings, appendLanguageLineFindings(env, file, lineNo, line, maskedLines[idx])...)
-		findings = append(findings, appendOWASPExtraLineFindings(env, file, lineNo, line, maskedLines[idx])...)
+		findings = append(findings, appendLanguageLineFindings(env, file, lineNo, line)...)
+		findings = append(findings, appendOWASPExtraLineFindings(env, file, lineNo, line)...)
 	}
 	if isCPPFile(file) {
 		findings = append(findings, appendCPPFileFindings(env, file, strings.Join(maskedLines, "\n"))...)
@@ -84,11 +104,12 @@ func maskedSourceForFile(file string, source string) string {
 // files go through the AST pass in security_go_ast.go); it always receives the
 // masked line, so comments and string literals cannot fire where a masker
 // exists for the language.
-func appendCommonLineFindings(env support.Context, file string, lineNo int, line string) []core.Finding {
+func appendCommonLineFindings(env support.Context, file string, lineNo int, source sourceLine) []core.Finding {
+	line := source.masked
 	switch {
-	case goInsecureTLSLinePattern.MatchString(line):
+	case goInsecureTLSLinePattern.matchString(line, source.ascii):
 		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.insecure-tls", Level: "fail", Path: file, Line: lineNo, Column: 1, Message: "InsecureSkipVerify is enabled"})}
-	case goShellCallLinePattern.MatchString(line):
+	case goShellCallLinePattern.matchString(line, source.ascii):
 		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.shell-execution", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "shell execution primitive should be reviewed"})}
 	default:
 		return nil
@@ -98,25 +119,30 @@ func appendCommonLineFindings(env support.Context, file string, lineNo int, line
 // appendLanguageLineFindings matches structural patterns against the masked
 // line so comments and string contents cannot trigger findings, while
 // patterns that must read literal values receive the raw line.
-func appendLanguageLineFindings(env support.Context, file string, lineNo int, raw string, masked string) []core.Finding {
-	findings := make([]core.Finding, 0, 3)
+//
+// PERF: it returns a nil slice when nothing fires. The previous
+// make([]core.Finding, 0, 3) allocated a three-element backing array for every
+// line of every scanned file — ~769 MB of allocations across a seven-repository
+// scan, almost all of it immediately discarded.
+func appendLanguageLineFindings(env support.Context, file string, lineNo int, line sourceLine) []core.Finding {
+	var findings []core.Finding
 	if isTypeScriptFile(file) {
-		findings = append(findings, appendTypeScriptLineFindings(env, file, lineNo, raw)...)
+		findings = append(findings, appendTypeScriptLineFindings(env, file, lineNo, line)...)
 	}
 	if isPythonFile(file) {
-		findings = append(findings, appendPythonLineFindings(env, file, lineNo, masked)...)
+		findings = append(findings, appendPythonLineFindings(env, file, lineNo, line)...)
 	}
-	findings = append(findings, appendAdditionalLanguageLineFindings(env, file, lineNo, raw, masked)...)
-	return findings
+	return append(findings, appendAdditionalLanguageLineFindings(env, file, lineNo, line)...)
 }
 
-func appendPythonLineFindings(env support.Context, file string, lineNo int, line string) []core.Finding {
+func appendPythonLineFindings(env support.Context, file string, lineNo int, source sourceLine) []core.Finding {
+	line := source.masked
 	switch {
-	case pythonInsecureTLSPattern.MatchString(line):
+	case pythonInsecureTLSPattern.matchString(line, source.ascii):
 		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.python.insecure-tls", Level: "fail", Path: file, Line: lineNo, Column: 1, Message: "Python TLS verification is disabled"})}
-	case pythonShellPattern.MatchString(line) || pythonSystemPattern.MatchString(line):
+	case pythonShellPattern.matchString(line, source.ascii) || pythonSystemPattern.matchString(line, source.ascii):
 		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.python.shell-execution", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "Python shell execution primitive should be reviewed"})}
-	case pythonEvalPattern.MatchString(line):
+	case pythonEvalPattern.matchString(line, source.ascii):
 		return []core.Finding{env.NewFinding(support.FindingInput{RuleID: "security.python.dynamic-code", Level: "warn", Path: file, Line: lineNo, Column: 1, Message: "dynamic code execution should be reviewed"})}
 	default:
 		return nil

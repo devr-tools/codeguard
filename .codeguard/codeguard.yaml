@@ -32,8 +32,8 @@ checks:
   quality: true
   performance: true
   design: true
-  security: false
-  prompts: false
+  security: true
+  prompts: true
   ci: true
   supply_chain: true
   quality_rules:
@@ -46,6 +46,9 @@ checks:
     max_function_lines: 200
     max_parameters: 10
     max_cyclomatic_complexity: 18
+    # Dogfood the recommended gocyclo counting (&& and || count, default:
+    # does not) rather than the legacy 1.x default.
+    cyclomatic_counting: gocyclo
     clone_token_threshold: 140
     # Local precision rules are PR-review heuristics. Keep the repository
     # full self-scan on the established baseline until CodeGuard itself is
@@ -54,6 +57,20 @@ checks:
   design_rules:
     max_decls_per_file: 60
     god_module_threshold: 32
+    # Package-layering policy is off by default (it describes one specific
+    # repository layout). codeguard's own layering invariants are cmd/ ->
+    # internal/cli and a pkg/codeguard facade that owns the only internal/
+    # imports, so the self-scan states them explicitly.
+    require_cmd_through_internal_cli: true
+    forbid_internal_import_cmd: true
+    forbid_service_import_internal: true
+    forbid_service_import_cmd: true
+    # Which package is the facade is a property of the repository being
+    # scanned, not a literal in codeguard's source. Unset, it is discovered
+    # (every directory under pkg/); stating it keeps the layering rule strict
+    # for any future pkg/ package that is not the SDK facade.
+    sdk_facade_paths:
+      - pkg/codeguard
   performance_rules:
     hot_package_importer_threshold: 32
     rebuild_amplifier_threshold: 40
@@ -75,10 +92,18 @@ checks:
     # below 85 (the repo currently scores 100; see docs/checks.md).
     legibility_warn_threshold: 85
   ci_rules:
+    # Every ci_rules list is empty by default: codeguard cannot know another
+    # repository's workflow filenames, release artifacts or test layout. This
+    # repository's conventions are therefore stated here in full.
+    #
+    # The tests/-only convention is enforced by review; internal/** and cmd/**
+    # are allowed here because a handful of in-package tests predate the rule.
     allowed_test_paths:
       - tests/**
       - internal/**
       - cmd/**
+    required_gates:
+      - test
     require_workflow_dir: true
     required_workflow_files:
       - .github/workflows/ci.yml
@@ -110,5 +135,84 @@ checks:
     required_automation_paths:
       - Makefile
       - scripts/commit.sh
+waivers:
+  # Security self-scan exceptions. Each waiver names one rule and one path
+  # class. Secret, private-key, and taint rules are deliberately NOT waived by
+  # path: a real credential committed to a test is still a leak, so those stay
+  # line-bound (inline codeguard:ignore with a reason) or visible as review
+  # warnings. Production exec call sites are covered by their existing
+  # justified //nolint:gosec directives (see docs/checks.md "Inline
+  # suppressions").
+  #
+  # Tests drive fixed binaries (git, go, python3, the test binary itself) to
+  # build fixture repositories. This mirrors .golangci.yml, which already
+  # excludes gosec from tests/.
+  - rule: security.shell-execution
+    path: tests/**
+    reason: test harnesses invoke fixed binaries to build fixtures; mirrors the golangci gosec exclusion for tests/
+  # The OWASP-gap pattern rules match string contents by design, and the
+  # tests for those detectors hold their vulnerable inputs as Go strings.
+  - rule: security.weak-hash
+    path: tests/**
+    reason: detector fixtures written as Go string literals
+  - rule: security.weak-cipher
+    path: tests/**
+    reason: detector fixtures written as Go string literals
+  - rule: security.cors-wildcard
+    path: tests/**
+    reason: detector fixtures written as Go string literals
+  - rule: security.bind-all-interfaces
+    path: tests/**
+    reason: detector fixtures written as Go string literals
+  - rule: security.weak-hash
+    path: internal/**/*_test.go
+    reason: in-package detector fixtures written as Go string literals
+  - rule: security.weak-cipher
+    path: internal/**/*_test.go
+    reason: in-package detector fixtures written as Go string literals
+  - rule: security.cors-wildcard
+    path: internal/**/*_test.go
+    reason: in-package detector fixtures written as Go string literals
+  - rule: security.bind-all-interfaces
+    path: internal/**/*_test.go
+    reason: in-package detector fixtures written as Go string literals
+  # The scanner test asserts exact line numbers inside a multi-line fixture
+  # string, so a line-bound inline directive cannot be added without changing
+  # what it tests. The file holds only header-only and FAKE-bodied PEM blocks.
+  - rule: security.private-key
+    path: internal/codeguard/checks/security/security_secret_patterns_test.go
+    reason: synthetic PEM markers inside a line-number-sensitive scanner fixture
+  # Rule reference and design docs quote the patterns each rule detects.
+  - rule: security.shell-execution
+    path: docs/**
+    reason: documentation code samples illustrating the rule
+  - rule: security.bind-all-interfaces
+    path: docs/**
+    reason: documentation quotes the pattern and the deliberate public MCP HTTP example
+  - rule: security.cors-wildcard
+    path: docs/**
+    reason: documentation quotes the pattern the rule detects
+  - rule: security.debug-enabled
+    path: docs/**
+    reason: documentation quotes the pattern the rule detects
+  # The Devin pack hosts the MCP server for a cloud client; it requires an
+  # auth token (and warns without one) and its README says to front it with
+  # TLS/ingress.
+  # FOLLOW-UP: the published composite action interpolates its own inputs.*
+  # straight into run: scripts and pins actions/setup-go by tag. Both are real
+  # findings (a workflow passing attacker-influenced text as an input gets
+  # shell injection in the caller's job), but action.yml has in-flight changes
+  # on another branch, so the fix (route inputs through env:, pin setup-go to
+  # a SHA) lands there. Scoped to the one file; remove these waivers with
+  # that fix.
+  - rule: ci.workflow-script-injection
+    path: action.yml
+    reason: composite action inputs interpolated into run; pending env-indirection fix tracked as follow-up
+  - rule: ci.mutable-deployment-reference
+    path: action.yml
+    reason: actions/setup-go pinned by tag in the composite action; pending SHA pin tracked as follow-up
+  - rule: security.bind-all-interfaces
+    path: examples/hooks/devin/**
+    reason: cloud-reachable MCP HTTP server is the documented purpose of this example; auth token plus TLS ingress required
 output:
   format: text

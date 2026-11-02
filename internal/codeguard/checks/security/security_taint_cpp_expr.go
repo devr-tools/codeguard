@@ -20,25 +20,24 @@ func stripCPPSanitizers(text string) string {
 	return stripTaintSanitizerCalls(text, cppSanitizerCallPattern)
 }
 
-func (s *cppScope) evalExpr(expr string, line int) *cppTaint {
+func (s *cppScope) evalExpr(expr string, line int) *taintTrace {
 	stripped := stripCPPSanitizers(expr)
 	if taint := s.directSourceTaint(stripped, line); taint != nil {
 		return taint
 	}
 	taint := s.localCallTaint(stripped, line)
-	return preferCPPTaint(taint, s.taintedIdentifier(stripped))
+	return preferTaint(taint, s.taintedIdentifier(stripped))
 }
 
-func (s *cppScope) directSourceTaint(expr string, line int) *cppTaint {
+func (s *cppScope) directSourceTaint(expr string, line int) *taintTrace {
 	if match := cppEnvSourcePattern.FindStringSubmatch(expr); match != nil {
-		return &cppTaint{source: match[1] + "()", sourceLine: line, chain: []string{match[1] + "()"}, paramIndex: -1}
+		return sourceTrace(match[1]+"()", line, "")
 	}
 	for _, param := range s.fn.Params {
 		if !cppRequestTypePattern.MatchString(param.Type) || !cppRequestAccessor(expr, param.Name) {
 			continue
 		}
-		source := param.Name + " request data"
-		return &cppTaint{source: source, sourceLine: line, chain: []string{source}, paramIndex: -1}
+		return sourceTrace(param.Name+" request data", line, "")
 	}
 	return nil
 }
@@ -78,38 +77,20 @@ func isCPPIdentByte(ch byte) bool {
 	return ch == '_' || (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')
 }
 
-func (s *cppScope) localCallTaint(expr string, line int) *cppTaint {
-	for _, call := range support.ExtractCLikeCalls(expr, line) {
-		summary := s.lookupSummary(call.Callee)
-		if summary == nil {
-			continue
-		}
-		if summary.returnTaint != nil {
-			inner := summary.returnTaint
-			return &cppTaint{
-				source:     inner.source,
-				sourceLine: inner.sourceLine,
-				chain:      append(append([]string{}, inner.chain...), call.Callee+"()"),
-				paramIndex: -1,
-			}
-		}
-		for index, arg := range call.Args {
-			if !summary.paramsToReturn[index] {
-				continue
-			}
-			if taint := s.evalExpr(arg, line); taint != nil {
-				return taint.extended(call.Callee + "()")
-			}
-		}
-	}
-	return nil
+// callArgTaint evaluates a summarised call's argument as a full expression.
+func (s *cppScope) callArgTaint(arg string, line int) *taintTrace {
+	return s.evalExpr(arg, line)
 }
 
-func (s *cppScope) taintedIdentifier(expr string) *cppTaint {
-	var found *cppTaint
+func (s *cppScope) extractCalls(text string, line int) []support.ParsedCall {
+	return support.ExtractCLikeCalls(text, line)
+}
+
+func (s *cppScope) taintedIdentifier(expr string) *taintTrace {
+	var found *taintTrace
 	for _, name := range cppIdentScanPattern.FindAllString(expr, -1) {
 		if taint, tracked := s.vars[name]; tracked {
-			found = preferCPPTaint(found, taint)
+			found = preferTaint(found, taint)
 		}
 	}
 	return found
@@ -133,12 +114,12 @@ func (s *cppScope) bindInputWrites(statement support.ParsedStatement) {
 }
 
 func (s *cppScope) bindConcreteSource(name string, source string, line int) {
-	s.vars[name] = &cppTaint{source: source, sourceLine: line, chain: []string{source, name}, paramIndex: -1}
+	s.vars[name] = &taintTrace{source: source, sourceLine: line, chain: []string{source, name}, paramIndex: -1}
 }
 
-func (s *cppScope) lookupSummary(callee string) *cppSummary {
-	if summary := s.analyzer.summaries[callee]; summary != nil {
+func (s *cppScope) lookupSummary(callee string) *funcSummary {
+	if summary := s.engine.summaries[callee]; summary != nil {
 		return summary
 	}
-	return s.analyzer.summaries[cppCalleeBase(callee)]
+	return s.engine.summaries[cppCalleeBase(callee)]
 }

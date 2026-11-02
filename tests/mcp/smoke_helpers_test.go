@@ -126,9 +126,22 @@ func loadTranscript(t *testing.T, rel string, replacements map[string]string) st
 	return text
 }
 
+// testBinary returns the running test binary for the re-exec helper-process
+// pattern. os.Executable resolves the binary the kernel actually started,
+// whereas os.Args[0] is whatever the parent process chose to pass as argv[0]
+// and is looked up on PATH when it carries no separator.
+func testBinary(t *testing.T) string {
+	t.Helper()
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatalf("resolve test binary: %v", err)
+	}
+	return binary
+}
+
 func runTranscriptThroughSubprocess(t *testing.T, configPath string, transcript string) ([]string, string) {
 	t.Helper()
-	cmd := exec.Command(os.Args[0], "-test.run=TestMCPServeHelperProcess", "--", configPath)
+	cmd := exec.Command(testBinary(t), "-test.run=TestMCPServeHelperProcess", "--", configPath)
 	cmd.Env = append(os.Environ(), "GO_WANT_MCP_HELPER_PROCESS=1")
 
 	stdin, err := cmd.StdinPipe()

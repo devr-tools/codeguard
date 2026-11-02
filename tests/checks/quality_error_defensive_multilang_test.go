@@ -365,9 +365,12 @@ func TestQualityDefensiveBoundariesDetectMultiLanguageSignals(t *testing.T) {
 				"",
 			}, "\n"),
 			rules: []string{
+				// defensive.null-assumption is deliberately absent: Go has no
+				// syntax that declares a value nullable, and a bare "*T"
+				// parameter is the pass-by-reference idiom rather than a
+				// nullability claim.
 				"defensive.unvalidated-boundary-input",
 				"defensive.invalid-state-representable",
-				"defensive.null-assumption",
 				"defensive.unchecked-type-assertion",
 				"defensive.unsafe-numeric-conversion",
 				"defensive.integer-overflow",
@@ -524,6 +527,7 @@ func TestQualityDefensiveBoundariesDetectMultiLanguageSignals(t *testing.T) {
 			language: "cpp",
 			file:     "defensive.cpp",
 			source: strings.Join([]string{
+				"#include <optional>",
 				"#include <string>",
 				"#include <vector>",
 				"",
@@ -531,7 +535,7 @@ func TestQualityDefensiveBoundariesDetectMultiLanguageSignals(t *testing.T) {
 				"struct User { std::string name; };",
 				"struct Order { std::string state; };",
 				"",
-				"std::string renderUser(User* user) {",
+				"std::string renderUser(std::optional<User> user) {",
 				"  return user->name;",
 				"}",
 				"",

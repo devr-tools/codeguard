@@ -242,39 +242,58 @@ func stripScriptJSONC(data []byte) []byte {
 		ch := source[i]
 		if inString {
 			b.WriteByte(ch)
-			switch {
-			case escaped:
-				escaped = false
-			case ch == '\\':
-				escaped = true
-			case ch == '"':
-				inString = false
-			}
+			inString, escaped = jsonStringState(ch, escaped)
+			continue
+		}
+		if last, skipped := skipJSONCComment(source, i, &b); skipped {
+			i = last
 			continue
 		}
 		if ch == '"' {
 			inString = true
-			b.WriteByte(ch)
-			continue
-		}
-		if ch == '/' && i+1 < len(source) && source[i+1] == '/' {
-			for i+1 < len(source) && source[i+1] != '\n' {
-				i++
-			}
-			continue
-		}
-		if ch == '/' && i+1 < len(source) && source[i+1] == '*' {
-			i += 2
-			for i < len(source) && (i+1 >= len(source) || source[i] != '*' || source[i+1] != '/') {
-				if source[i] == '\n' {
-					b.WriteByte('\n')
-				}
-				i++
-			}
-			i++
-			continue
 		}
 		b.WriteByte(ch)
 	}
 	return []byte(strings.ReplaceAll(strings.ReplaceAll(b.String(), ",\n}", "\n}"), ",\n]", "\n]"))
+}
+
+// jsonStringState advances string-literal state past ch inside a string. It
+// returns whether the string is still open and whether the next byte is
+// escaped.
+func jsonStringState(ch byte, escaped bool) (bool, bool) {
+	switch {
+	case escaped:
+		return true, false
+	case ch == '\\':
+		return true, true
+	case ch == '"':
+		return false, false
+	}
+	return true, false
+}
+
+// skipJSONCComment skips a // line comment or /* block comment */ starting
+// at i, keeping block-comment newlines so line numbers survive. It returns
+// the index of the comment's last consumed byte.
+func skipJSONCComment(source string, i int, b *strings.Builder) (int, bool) {
+	if source[i] != '/' || i+1 >= len(source) {
+		return i, false
+	}
+	switch source[i+1] {
+	case '/':
+		for i+1 < len(source) && source[i+1] != '\n' {
+			i++
+		}
+		return i, true
+	case '*':
+		i += 2
+		for i < len(source) && (i+1 >= len(source) || source[i] != '*' || source[i+1] != '/') {
+			if source[i] == '\n' {
+				b.WriteByte('\n')
+			}
+			i++
+		}
+		return i + 1, true
+	}
+	return i, false
 }

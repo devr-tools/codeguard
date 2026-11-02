@@ -7,14 +7,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/devr-tools/codeguard/internal/codeguard/benchregression"
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	"github.com/devr-tools/codeguard/internal/codeguard/runner/benchregression"
 )
 
 // benchmarkFindings runs the opt-in benchmark-regression gate for Go targets.
 // The heavy lifting (subprocess, parsing, baseline persistence, comparison)
-// lives in runner/benchregression — a govulncheck-style dedicated runner —
+// lives in the benchregression leaf package (a govulncheck-style runner) —
 // so this function only wires config to the runner and turns regressions into
 // findings. Findings are pathless (details live in the message) so they are
 // reported in diff mode too, where a path outside the diff scope would drop

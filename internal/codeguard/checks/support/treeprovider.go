@@ -90,7 +90,7 @@ func ScriptSyntaxTree(env Context, file string, source string) *SyntaxTree {
 // embedded, and its accessor PANICS rather than returning nil — hence the
 // registry probe below, which turns a missing grammar into an error so every
 // rule using it takes its regex fallback instead of losing the section to
-// the safeRun panic recovery.
+// the SafeRun panic recovery.
 func scriptGrammar(lang ScriptLanguage) (*gotreesitter.Language, error) {
 	if grammars.DetectLanguageByName(string(lang)) == nil {
 		return nil, fmt.Errorf("tree-sitter grammar %q is not embedded in this build", lang)

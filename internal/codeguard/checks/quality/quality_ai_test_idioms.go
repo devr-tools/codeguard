@@ -60,6 +60,11 @@ func idiomDriftFinding(env support.Context, file string, dominant string, actual
 	if dominant == "" || actual == "" || actual == dominant {
 		return nil
 	}
-	return []core.Finding{warnFinding(env, "quality.ai.local-idiom-drift", file, 1, 1,
-		fmt.Sprintf("test uses %s while the repository primarily uses %s", actual, dominant))}
+	return []core.Finding{newQualityWarnFinding(env, support.WarnFindingInput{
+		RuleID:  "quality.ai.local-idiom-drift",
+		Path:    file,
+		Line:    1,
+		Column:  1,
+		Message: fmt.Sprintf("test uses %s while the repository primarily uses %s", actual, dominant),
+	})}
 }

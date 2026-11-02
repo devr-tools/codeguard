@@ -86,9 +86,10 @@ type tsReliabilityScan struct {
 
 func (s *tsReliabilityScan) consumeLine(lineNo int, line string) {
 	startsLoop := tsLoopStart.MatchString(line)
-	inLoop := len(s.loops) > 0 || startsLoop
-	inUnboundedLoop := len(s.unboundedLoops) > 0 || tsUnboundedLoop.MatchString(line)
-	s.checkLine(lineNo, line, inLoop, inUnboundedLoop)
+	s.checkLine(lineNo, line, lineScope{
+		inLoop:          len(s.loops) > 0 || startsLoop,
+		inUnboundedLoop: len(s.unboundedLoops) > 0 || tsUnboundedLoop.MatchString(line),
+	})
 	next := s.depth + strings.Count(line, "{") - strings.Count(line, "}")
 	if startsLoop && next > s.depth {
 		s.loops = append(s.loops, s.depth)
@@ -96,20 +97,40 @@ func (s *tsReliabilityScan) consumeLine(lineNo int, line string) {
 			s.unboundedLoops = append(s.unboundedLoops, s.depth)
 		}
 	}
-	for len(s.loops) > 0 && next <= s.loops[len(s.loops)-1] {
-		s.loops = s.loops[:len(s.loops)-1]
-	}
-	for len(s.unboundedLoops) > 0 && next <= s.unboundedLoops[len(s.unboundedLoops)-1] {
-		s.unboundedLoops = s.unboundedLoops[:len(s.unboundedLoops)-1]
-	}
+	s.loops = popBlockRegions(s.loops, next)
+	s.unboundedLoops = popBlockRegions(s.unboundedLoops, next)
 	s.depth = next
 }
 
-func (s *tsReliabilityScan) checkLine(lineNo int, line string, inLoop bool, inUnboundedLoop bool) {
+var typeScriptRetryPatterns = retryPatterns{
+	language:      "JavaScript",
+	retry:         tsRetryHint.MatchString,
+	backoff:       tsBackoffHint.MatchString,
+	nonIdempotent: tsNonIdempotentCall.MatchString,
+	idempotent:    tsIdempotencyHint.MatchString,
+}
+
+func (s *tsReliabilityScan) checkLine(lineNo int, line string, scope lineScope) {
 	if enabled(s.rules.DetectMissingTimeout) && (tsFetchCall.MatchString(line) || tsAxiosCall.MatchString(line)) && !strings.Contains(line, "timeout") && !strings.Contains(line, "signal") {
 		s.add("reliability.missing-timeout", "fail", lineNo, "outbound TypeScript/JavaScript HTTP call lacks timeout or abort signal evidence", "medium", "call", "http-without-timeout")
 	}
-	if enabled(s.rules.DetectUnboundedWork) && inLoop && !s.limited && tsPromiseInLoop.MatchString(line) {
+	s.checkAsyncWork(lineNo, line, scope)
+	if enabled(s.rules.DetectMissingGracefulShutdown) && tsServerListen.MatchString(line) && !s.hasShutdown {
+		s.add("reliability.missing-graceful-shutdown", "warn", lineNo, "JavaScript server starts without visible signal handling or server.close shutdown path", "medium", "server", "listen")
+	}
+	if enabled(s.rules.DetectResourceLeak) {
+		s.trackResourceLeak(lineNo, line)
+	}
+	typeScriptRetryPatterns.check(s.rules, lineNo, line, scope, s.add)
+	if enabled(s.rules.DetectRecoverablePanic) && tsGenericThrow.MatchString(line) && !s.hasErrorHandler && !tsThrowLooksDefensive(line) {
+		s.add("reliability.recoverable-panic", "fail", lineNo, "production code throws a generic exception for a recoverable failure path", "medium", "exception", "generic-throw")
+	}
+}
+
+// checkAsyncWork reports promise work started in a loop without a
+// concurrency limit, and detached async work without cancellation.
+func (s *tsReliabilityScan) checkAsyncWork(lineNo int, line string, scope lineScope) {
+	if enabled(s.rules.DetectUnboundedWork) && scope.inLoop && !s.limited && tsPromiseInLoop.MatchString(line) {
 		s.add("reliability.unbounded-work", "warn", lineNo, "promise or HTTP work starts inside a loop without a visible concurrency limit", "medium", "work", "promise-in-loop")
 	}
 	if tsDetachedPromise.MatchString(line) {
@@ -117,24 +138,6 @@ func (s *tsReliabilityScan) checkLine(lineNo int, line string, inLoop bool, inUn
 		if enabled(s.rules.DetectMissingCancellation) && !s.cancellable {
 			s.add("reliability.missing-cancellation", "warn", lineNo, "detached async work starts without visible AbortSignal, timeout, or cancellation propagation", "medium", "context", "detached-promise")
 		}
-	}
-	if enabled(s.rules.DetectMissingGracefulShutdown) && tsServerListen.MatchString(line) && !s.hasShutdown {
-		s.add("reliability.missing-graceful-shutdown", "warn", lineNo, "JavaScript server starts without visible signal handling or server.close shutdown path", "medium", "server", "listen")
-	}
-	if enabled(s.rules.DetectResourceLeak) {
-		s.trackResourceLeak(lineNo, line)
-	}
-	if enabled(s.rules.DetectRetryWithoutBackoff) && inLoop && tsRetryHint.MatchString(line) && !tsBackoffHint.MatchString(line) {
-		s.add("reliability.retry-without-backoff", "warn", lineNo, "retry-like JavaScript loop has no visible backoff or jitter", "medium", "retry", "no-backoff")
-	}
-	if enabled(s.rules.DetectUnboundedRetry) && inUnboundedLoop && tsRetryHint.MatchString(line) {
-		s.add("reliability.unbounded-retry", "fail", lineNo, "retry-like JavaScript loop can run forever without an attempt limit", "medium", "retry", "while-true")
-	}
-	if enabled(s.rules.DetectNonIdempotentRetry) && inLoop && tsNonIdempotentCall.MatchString(line) && !tsIdempotencyHint.MatchString(line) {
-		s.add("reliability.non-idempotent-retry", "fail", lineNo, "retry-like JavaScript loop wraps a non-idempotent side effect without idempotency evidence", "medium", "retry", "side-effect")
-	}
-	if enabled(s.rules.DetectRecoverablePanic) && tsGenericThrow.MatchString(line) && !s.hasErrorHandler && !tsThrowLooksDefensive(line) {
-		s.add("reliability.recoverable-panic", "fail", lineNo, "production code throws a generic exception for a recoverable failure path", "medium", "exception", "generic-throw")
 	}
 }
 

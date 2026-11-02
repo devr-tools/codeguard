@@ -7,34 +7,26 @@ import (
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
-// listAITargetFiles returns the target files matching include, sharing the
-// per-scan corpus walk when the runner wired the hook and falling back to a
-// direct walk for unit-test contexts. Both paths apply the same configured
-// excludes and return nil when the walk fails, matching the historical
-// WalkFiles-based behavior.
+// listAITargetFiles returns the target files matching include from the shared
+// per-scan corpus walk, which applies the configured excludes, the default
+// dependency/build-output excludes, and gitignore handling. The runner always
+// wires ListTargetFiles; a context without it, or a failed walk, yields nil,
+// matching the historical WalkFiles-based behavior on walk errors.
 func listAITargetFiles(env support.Context, target core.TargetConfig, include func(string) bool) []string {
-	if env.ListTargetFiles != nil {
-		all, err := env.ListTargetFiles(target)
-		if err != nil {
-			return nil
-		}
-		files := make([]string, 0, len(all))
-		for _, rel := range all {
-			if include(rel) {
-				files = append(files, rel)
-			}
-		}
-		return files
+	if env.ListTargetFiles == nil {
+		return nil
 	}
-	files, err := runnersupport.WalkFilesWithOptions(target.Path, env.Config.Exclude, runnersupport.FileWalkOptions{
-		LogicalPath:        target.LogicalPath,
-		ScanVendoredSource: env.Config.ScanVendoredSource,
-	}, include)
+	all, err := env.ListTargetFiles(target)
 	if err != nil {
 		return nil
+	}
+	files := make([]string, 0, len(all))
+	for _, rel := range all {
+		if include(rel) {
+			files = append(files, rel)
+		}
 	}
 	return files
 }

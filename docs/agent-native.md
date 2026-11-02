@@ -22,6 +22,9 @@ This document is a short status brief for `codeguard` features aimed at AI agent
   - declares a `logging` capability (accepts `logging/setLevel`)
   - consumes the client's `sampling` and `roots` capabilities when advertised (server→client requests; see below)
   - `scan` streams a progress notification per check section as it completes
+  - `scan` and `validate_patch` return the full report by default (top-level `sections[]` with every finding and its evidence), exactly as in 1.10, so existing MCP clients see no change; the default may change in the next major version
+  - recommended for agents: pass `format: "summary"` to get a compact summary first (per-section status and counts, filtered-out counts by reason, top rules) and then at most `max_findings` findings (default 50), ordered by level, confidence, then path; `truncated` and `next_cursor` page through the rest of the same cached report without re-scanning
+  - both accept `sections`, `rules` (ids or `security.`-style prefixes), `min_level`, `min_confidence`, `paths` (globs), `max_findings`, `cursor`, and `verbose`; `scan` also accepts `changed_only` (diff mode against `base_ref`). Passing any of them also selects the summary shape. See [integrations.md](integrations.md#filtering-and-paginating-findings)
   - supports `initialize`, `tools/list`, `tools/call`, `ping`, progress notifications, and cancellation
   - covered by CLI compatibility tests and host-shaped smoke tests in `tests/cli/` and `tests/mcp/`
 
@@ -81,7 +84,19 @@ This document is a short status brief for `codeguard` features aimed at AI agent
     - standing wildcard permissions or effectively unrestricted tool access
     - risky MCP shell-wrapped command patterns
 
+- Agent doc generation (`codeguard context`)
+  - codeguard lints agent docs (the Agent Context section) and also writes them: `codeguard context init` generates `AGENTS.md` (or `-file CLAUDE.md`) from what it can detect deterministically, namely languages, build/test/lint commands, top-level layout, entrypoints, test locations and configured formatters/linters
+  - no fabrication: every generated line is a detected fact or an explicit `TODO:` for a human; directory purposes are stated only when name and contents agree
+  - detected content lives in managed blocks (`<!-- codeguard:begin commands -->` … `<!-- codeguard:end commands -->`; blocks are `overview`, `commands`, `layout`, `entrypoints`, `tests`, `conventions`); `codeguard context update` refreshes only those block bodies and leaves human-written text byte-for-byte intact
+  - a file with no markers is never rewritten: `update` prints a diff of what it would manage and asks for markers
+  - `init` refuses to overwrite without `-force`; `-dry-run` prints instead of writing (a document for `init`, a diff for `update`)
+  - after writing, the Agent Context checks run on the result and print the legibility score and remaining findings; a generated file triggers no `context.undocumented-commands`, drift or link-rot finding because commands come from the same parser those rules use
+  - SDK: `DetectContextFacts`, `RenderContextDoc`, `UpdateContextDoc`, `ProposeContextSections`, `ContextDocDiff`, `CheckContextDocs`
+  - full reference: the "Generating agent docs" subsection of `docs/checks.md`
+
 ## File map
+
+- Agent doc generation: `internal/codeguard/contextgen/` (detection, rendering, managed-block update), CLI `internal/cli/context.go`, SDK `pkg/codeguard/sdk_context.go`
 
 - MCP server core: [internal/cli/mcp_run.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_run.go:1), [internal/cli/mcp_dispatch.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_dispatch.go:1), [internal/cli/mcp_tools.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_tools.go:1), [internal/cli/mcp_protocol.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_protocol.go:1)
 - MCP HTTP transport: [internal/cli/mcp_http.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_http.go:1), session/SSE registry [internal/cli/mcp_http_session.go](/Users/alex/Documents/GitHub/codeguard/internal/cli/mcp_http_session.go:1)

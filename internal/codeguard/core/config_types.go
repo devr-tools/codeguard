@@ -19,11 +19,23 @@ type Config struct {
 	Exclude         []string               `json:"exclude,omitempty" yaml:"exclude,omitempty"`
 	// ScanVendoredSource includes source beneath directories named vendor.
 	// Installed node_modules and generated cdk.out trees remain excluded.
-	ScanVendoredSource bool           `json:"scan_vendored_source,omitempty" yaml:"scan_vendored_source,omitempty"`
-	Baseline           BaselineConfig `json:"baseline,omitempty" yaml:"baseline,omitempty"`
-	Waivers            []WaiverConfig `json:"waivers,omitempty" yaml:"waivers,omitempty"`
-	Cache              CacheConfig    `json:"cache,omitempty" yaml:"cache,omitempty"`
-	Parsers            ParsersConfig  `json:"parsers,omitempty" yaml:"parsers,omitempty"`
+	ScanVendoredSource bool `json:"scan_vendored_source,omitempty" yaml:"scan_vendored_source,omitempty"`
+	// RespectGitignore skips files the repository's .gitignore files and
+	// .git/info/exclude ignore. Nil (the default) and true honour them; false
+	// walks ignored paths too. Tracked files are scanned even when an ignore
+	// rule matches them, and an explicitly targeted ignored directory is
+	// scanned in full.
+	RespectGitignore *bool          `json:"respect_gitignore,omitempty" yaml:"respect_gitignore,omitempty"`
+	Baseline         BaselineConfig `json:"baseline,omitempty" yaml:"baseline,omitempty"`
+	Waivers          []WaiverConfig `json:"waivers,omitempty" yaml:"waivers,omitempty"`
+	Cache            CacheConfig    `json:"cache,omitempty" yaml:"cache,omitempty"`
+	Parsers          ParsersConfig  `json:"parsers,omitempty" yaml:"parsers,omitempty"`
+}
+
+// RespectGitignoreEnabled reports whether the file walk honours .gitignore;
+// it is on unless respect_gitignore is explicitly false.
+func (c Config) RespectGitignoreEnabled() bool {
+	return c.RespectGitignore == nil || *c.RespectGitignore
 }
 
 // ExternalReportConfig describes a report file produced by another scanner.
@@ -178,6 +190,12 @@ func (c ConfidencePolicyConfig) Threshold(sectionID string) string {
 
 type OutputConfig struct {
 	Format string `json:"format" yaml:"format"`
+	// FailOn is the exit policy: "fail" (default) exits non-zero when any
+	// section fails, "warn" when any section warns or fails, and "none" never
+	// exits non-zero because of findings. Operational failures such as a
+	// crashed section or a failed target walk exit non-zero under every
+	// policy. See ReportGateError.
+	FailOn string `json:"fail_on,omitempty" yaml:"fail_on,omitempty"`
 }
 
 type CacheConfig struct {

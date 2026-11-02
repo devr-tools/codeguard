@@ -12,10 +12,17 @@ import (
 func TestDesignCheckFailsWhenServiceImportsInternal(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "pkg", "publicapi", "service.go"), "package publicapi\n\nimport _ \"github.com/devr-tools/codeguard/internal/cli\"\n")
+	// pkg/publicapi is only a rule violation when it is NOT the repository's
+	// facade, so the facade has to be stated. With sdk_facade_paths unset,
+	// every directory under pkg/ is treated as facade and this import is the
+	// ordinary same-module facade pattern; see
+	// TestDesignServiceImportInternalExemptsDiscoveredFacade.
+	writeFile(t, filepath.Join(dir, "pkg", "sdk", "sdk.go"), "package sdk\n")
 
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "design-service-internal"
 	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.DesignRules.SDKFacadePaths = []string{"pkg/sdk"}
 	cfg.Checks.Design = true
 	cfg.Checks.Quality = false
 	cfg.Checks.Security = false
@@ -32,7 +39,12 @@ func TestDesignCheckFailsWhenServiceImportsInternal(t *testing.T) {
 
 func TestDesignCheckFailsWhenCmdImportsServiceDirectly(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "cmd", "tool", "main.go"), "package main\n\nimport _ \"github.com/devr-tools/codeguard/pkg/codeguard\"\n")
+	// The facade is resolved from the scanned repository, so the fixture has
+	// to be a self-consistent module rather than borrowing codeguard's own
+	// import path.
+	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/tool\n\ngo 1.23\n")
+	writeFile(t, filepath.Join(dir, "pkg", "toolsdk", "sdk.go"), "package toolsdk\n")
+	writeFile(t, filepath.Join(dir, "cmd", "tool", "main.go"), "package main\n\nimport _ \"example.com/tool/pkg/toolsdk\"\n")
 
 	cfg := codeguard.ExampleConfig()
 	cfg.Name = "design-cmd-service"

@@ -32,7 +32,34 @@ func validateDesignArchitectureRules(rules core.DesignRulesConfig) error {
 	if err != nil {
 		return err
 	}
+	err = validateSDKFacadePaths(rules.SDKFacadePaths)
+	if err != nil {
+		return err
+	}
 	return validateDesignBoundaryToggles(rules)
+}
+
+// validateSDKFacadePaths checks that each configured facade entry is a
+// repository-relative directory. The entries are prefix-matched against
+// target-root-relative paths, so an absolute or escaping path could never
+// match anything and is almost certainly a mistake.
+func validateSDKFacadePaths(paths []string) error {
+	for idx, value := range paths {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return fmt.Errorf("design_rules.sdk_facade_paths[%d] must not be empty", idx)
+		}
+		normalized := strings.ReplaceAll(trimmed, "\\", "/")
+		if strings.HasPrefix(normalized, "/") || strings.Contains(normalized, ":") {
+			return fmt.Errorf("design_rules.sdk_facade_paths[%d] %q must be relative to the target root", idx, value)
+		}
+		for _, segment := range strings.Split(normalized, "/") {
+			if segment == ".." {
+				return fmt.Errorf("design_rules.sdk_facade_paths[%d] %q must not escape the target root", idx, value)
+			}
+		}
+	}
+	return nil
 }
 
 func validateDesignLayers(ruleLayers []core.DesignLayerConfig) (map[string]struct{}, error) {

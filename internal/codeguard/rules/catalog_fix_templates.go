@@ -34,6 +34,7 @@ var fixTemplates = mergeFixTemplates(
 	designFixTemplates,
 	designPolicyFixTemplates,
 	miscFixTemplates,
+	ciWorkflowFixTemplates,
 	contextFixTemplates,
 	contextReadinessFixTemplates,
 )

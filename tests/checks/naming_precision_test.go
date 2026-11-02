@@ -153,12 +153,16 @@ func TestNamingBehaviorMismatchWarnsAcrossLanguages(t *testing.T) {
 func TestNamingPredicateAndCardinalityPositiveNegative(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "names.ts"), strings.Join([]string{
-		"export function evaluate(users: number, user: Array<string>, enabled: boolean, flag: boolean): boolean {",
+		// users is plural on a non-numeric scalar; user is singular on a
+		// collection of the type it is named after. Both are the shapes
+		// naming.cardinality-mismatch still reports.
+		"export function evaluate(users: string, user: Array<User>, enabled: boolean, flag: boolean): boolean {",
 		"  const active: boolean = enabled === true;",
 		"  const success: boolean = active;",
-		"  const isReady = users > 0;",
+		"  const isReady = users.length > 0 && user.length > 0;",
 		"  return success && isReady && flag;",
 		"}",
+		"interface User { id: string }",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
@@ -244,9 +248,10 @@ func TestNamingCardinalityCreditsCollectionTypesBeforeScalarWords(t *testing.T) 
 		"export function confidentialityFilter(responsibleFields: string[]) {",
 		"  return responsibleFields.map((field) => ({ [field]: true }));",
 		"}",
-		"export function badName(user: string[]) {",
+		"export function badName(user: User[]) {",
 		"  return user.length;",
 		"}",
+		"interface User { id: string }",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))
@@ -269,9 +274,10 @@ func TestNamingCardinalityAllowsUICollectiveAndMapNames(t *testing.T) {
 		"interface Risk { id: string }",
 	}, "\n"))
 	writeFile(t, filepath.Join(dir, "packages/api/src/lib/bad.ts"), strings.Join([]string{
-		"export function badName(user: string[]) {",
+		"export function badName(user: User[]) {",
 		"  return user.length;",
 		"}",
+		"interface User { id: string }",
 	}, "\n"))
 
 	report := runQualityPrecisionScan(t, qualityPrecisionConfigForLanguage(dir, "typescript"))

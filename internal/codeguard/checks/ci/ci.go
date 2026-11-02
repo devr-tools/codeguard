@@ -26,6 +26,7 @@ func findingsForTarget(_ context.Context, env support.Context, target core.Targe
 	findings = append(findings, workflowContentFindings(env, target)...)
 	findings = append(findings, missingRequiredGateFindings(env, target)...)
 	findings = append(findings, mutableDeploymentReferenceFindings(env, target)...)
+	findings = append(findings, workflowSecurityFindings(env, target)...)
 	findings = append(findings, testFileLocationFindings(env, target)...)
 	findings = append(findings, testQualityFindings(env, target)...)
 	return findings

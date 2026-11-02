@@ -130,5 +130,11 @@ func (s *cppPerformanceScan) isRangeForCopy(line string) bool {
 }
 
 func (s *cppPerformanceScan) addFinding(ruleID string, lineNo int, message string) {
-	s.findings = append(s.findings, warnFinding(s.env, ruleID, s.file, lineNo, 1, message))
+	s.findings = append(s.findings, support.NewWarnFinding(s.env, support.WarnFindingInput{
+		RuleID:  ruleID,
+		Path:    s.file,
+		Line:    lineNo,
+		Column:  1,
+		Message: message,
+	}))
 }

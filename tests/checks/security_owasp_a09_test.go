@@ -119,3 +119,28 @@ func TestPythonTaintRulesAreLanguageAgnostic(t *testing.T) {
 		}
 	}
 }
+
+// A log call whose argument span is a lone opening quote (a multi-line
+// template or string continued on the next line) used to slice raw[1:0] and
+// panic, taking the whole Security section down with it.
+func TestSecurityLogSecretExposureLoneQuoteArgumentDoesNotPanic(t *testing.T) {
+	sources := map[string]string{
+		"backtick": "function f(password) {\n  console.log(`\n${password}\n`);\n}\n",
+		"double":   "function f() {\n  console.log(\"\n}\n",
+		"single":   "function f() {\n  console.log('\n}\n",
+	}
+	for name, source := range sources {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, "app.js"), source)
+			report := runSecurity(t, "a09-lone-quote-"+name, dir, "javascript")
+			for _, section := range report.Sections {
+				for _, diag := range section.Diagnostics {
+					if diag.ID == "scan.section.panic" {
+						t.Fatalf("section %s panicked: %s", section.Name, diag.Message)
+					}
+				}
+			}
+		})
+	}
+}

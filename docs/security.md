@@ -91,7 +91,7 @@ taint engine and default to `fail`.
 
 | Rule | OWASP | Detects |
 | --- | --- | --- |
-| `security.hardcoded-credential` | A07 | values matching known credential formats (AWS, GitHub, GitLab, Slack, Stripe, Google, npm, PyPI, Docker, SendGrid, Twilio, Azure, DB connection strings, Bearer tokens) or a configured custom pattern; **fail** |
+| `security.hardcoded-credential` | A07 | values matching known credential formats (AWS, GitHub, GitLab, Slack, Stripe, OpenAI, Anthropic, Hugging Face, Google, npm, PyPI, Docker, SendGrid, Twilio, Azure, DB connection strings, Bearer tokens) or a configured custom pattern; **fail**, high confidence (fixture/documentation paths are demoted to the review tier as described in `docs/checks.md`) |
 | `security.high-entropy-string` | A07 | opt-in Shannon-entropy heuristic for unknown/random secrets; **warn** |
 | `security.cors-wildcard` | A05 | `Access-Control-Allow-Origin: *` |
 | `security.debug-enabled` | A05 | framework debug flag enabled (`debug=True`) |
@@ -99,12 +99,50 @@ taint engine and default to `fail`.
 | `security.dockerfile-root` | A05 | Dockerfile `USER root` |
 | `security.weak-hash` | A02 | MD5 / SHA-1 used for security |
 | `security.weak-cipher` | A02 | DES / RC4 / ECB mode |
-| `security.insecure-deserialization` | A08 | `pickle`, unsafe `yaml.load`, Java `readObject`, `Marshal.load`, `unserialize` |
+| `security.insecure-deserialization` | A08 | `pickle`, unsafe `yaml.load`, Java `readObject`, `Marshal.load`, `unserialize`; call sites only (string literals and comments are masked in Go, Python, Rust, C/C++, Java, and C#) |
 | `security.log-secret-exposure` | A09 | secret-named identifiers (password, token, api_key, …) inside the argument list of a Go/Python/TS/JS logging call, secret-named structured-log keys, and secret-labeled string literals concatenated or format-directed into log output |
 | `security.unsanitized-error-response` | A09 | raw error values written directly into HTTP responses: Go `http.Error(w, err.Error(), …)` / `fmt.Fprintf(w, …, err)`, TS/JS `res.send(err)` / `res.json(err)` / `res.status(…).send(err.stack \|\| err.message)`, Python `return str(e)` / `HttpResponse(str(e))` inside `except` blocks |
 | `security.ssrf.go` / `security.ssrf.python` | A10 | untrusted input flowing into an outbound HTTP request URL |
 | `security.taint.cpp` | A03 | environment, argv/stdin, or recognized request input flowing into process execution through bounded same-file summaries |
 | `security.ssrf.cpp` | A10 | untrusted input flowing into libcurl, cpr, Boost resolver, cpprestsdk, or Poco outbound destinations |
+
+### Go taint sources and sinks
+
+`security.taint.go` / `security.ssrf.go` follow `os.Args`, `os.Getenv`, stdin
+readers, `*http.Request` fields and methods, and gin `Context` query/form
+methods through local assignments and same-file function summaries into
+`exec.Command` / `exec.CommandContext`, file-open APIs, `database/sql` and
+gorm query methods, `template.Parse`, and `net/http` request constructors.
+A sink is detected whether its result is bound (`cmd := exec.Command(arg)`)
+or consumed in the same expression (`exec.Command(arg).Run()`,
+`if err := exec.Command(arg).Start(); ...`). `strconv` parsing clears taint,
+and constant arguments never fire.
+
+### Python taint sources and sinks
+
+`security.taint.python` / `security.ssrf.python` sources are `input()`,
+`os.environ`, `sys.argv`, and — in modules that import Flask, Django, or
+FastAPI — request data: Flask `request.args` / `form` / `values` / `json` /
+`data` / `cookies` / `headers` / `get_json()` (bare `request` or qualified
+`flask.request`), Django `request.GET` / `POST` / `FILES` / `COOKIES` /
+`META` / `body`, and FastAPI `Request` query/path params, headers, cookies,
+and body. Sinks:
+
+- command execution: `os.system`, `os.popen`, `eval`, `exec`, and
+  `subprocess.run` / `call` / `check_call` / `check_output` / `getoutput` /
+  `getstatusoutput` / `Popen` when given `shell=True` or a string command
+  (an argv list without `shell=True` is not a sink);
+- SQL: the query argument of `.execute` / `.executemany` and Django
+  `.objects.raw` (parameter tuples are not sinks);
+- SSRF: the URL argument of `requests.get/post/put/delete/patch/head/options`,
+  `requests.request` (second argument), `urllib.request.urlopen` /
+  `urllib.request.Request`, and `httpx.get/post/put/patch/delete/head` and
+  `httpx.request` / `httpx.stream` (second argument).
+
+Sinks are resolved through imports, so `from urllib.request import urlopen`,
+`from os import system`, `from requests import get as fetch`, and
+`import subprocess as sp` reach the same sinks as their qualified forms.
+`shlex.quote()`, `int()`, and `float()` clear taint.
 
 ## Release integrity (supply chain)
 

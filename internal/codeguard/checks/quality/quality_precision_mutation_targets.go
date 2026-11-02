@@ -12,6 +12,24 @@ var conventionalMutationBoundaryPattern = regexp.MustCompile(`^(accept|apply|app
 
 var localAccumulatorExprPattern = regexp.MustCompile(`(?i)^(?:new\s+)?(?:array|date|filereader|formdata|image|map|object|set|url|urlsearchparams|weakmap|weakset)\b|^\[|^\{|^make\s*\(|^array\.from\b|\.map\s*\(|\.filter\s*\(|\.reduce\s*\(|\.split\s*\(|cheerio\.load\s*\(|document\.createelement\s*\(|^(?:bytes|strings)\.buffer\b|^strings\.builder\b`)
 
+var (
+	dateHelperCallPattern     = regexp.MustCompile(`=\s*(?:startof|endof|datefrom|today|yesterday)[A-Za-z0-9_$]*\s*\(`)
+	dayHelperCallPattern      = regexp.MustCompile(`=\s*[A-Za-z0-9_$]*day\s*\(`)
+	numericLiteralOnlyPattern = regexp.MustCompile(`^-?\d+(?:\.\d+)?$`)
+	numericAssignmentPattern  = regexp.MustCompile(`=\s*-?\d+(?:\.\d+)?\b`)
+	bareIdentifierArgPattern  = regexp.MustCompile(`^[A-Za-z_$][\w$]*$`)
+)
+
+// Literal pre-gates for the name-interpolated patterns in
+// assignmentLooksLocalAccumulator. Each list must stay a superset of what its
+// pattern requires: a statement holding none of these literals cannot match, so
+// the regex never has to be built.
+var (
+	declarationKeywordLiterals = []string{"const", "let", "var"}
+	varKeywordLiteral          = []string{"var"}
+	cppNamespaceLiteral        = []string{"std::"}
+)
+
 func localMutationTargets(fn precisionFunction) map[string]struct{} {
 	params := paramNames(fn)
 	targets := make(map[string]struct{})
@@ -112,11 +130,16 @@ func assignmentLooksLocalAccumulator(fn precisionFunction, assignment support.Pa
 		return false
 	}
 	name := regexp.QuoteMeta(assignment.Name)
-	return regexp.MustCompile(`(?i)\b(?:const|let|var)\s+`+name+`\b.*=\s*(?:new\s+)?(?:array|date|filereader|formdata|image|map|object|set|url|urlsearchparams|weakmap|weakset)\b`).MatchString(statement) ||
-		regexp.MustCompile(`(?i)\bvar\s+`+name+`\s+(?:bytes\.buffer|strings\.builder)\b`).MatchString(statement) ||
-		regexp.MustCompile(`(?i)\bstd::(?:vector|map|set|unordered_map|unordered_set|stringstream)\b[^;\n]*\b`+name+`\b`).MatchString(statement) ||
-		regexp.MustCompile(`\b`+name+`\s*:=\s*(?:\[\]|\{\}|make\s*\(|(?:bytes|strings)\.Buffer\b|strings\.Builder\b)`).MatchString(statement) ||
-		regexp.MustCompile(`(?i)\b(?:const|let|var)\s+`+name+`\b.*=\s*(?:\[|\{|array\.from\b|[^;\n]+\.map\s*\(|[^;\n]+\.filter\s*\(|new\s+urlsearchparams\b)`).MatchString(statement) ||
+	// PERF: each branch interpolates the assignment name, so the expression is
+	// distinct per identifier and cannot be a package-level var. Gate each one
+	// on a literal it requires before building (and caching) the regex — this
+	// was the single largest remaining source of runtime regexp.Compile.
+	declaresBinding := containsAnyFold(statement, declarationKeywordLiterals)
+	return declaresBinding && cachedPattern(`(?i)\b(?:const|let|var)\s+`+name+`\b.*=\s*(?:new\s+)?(?:array|date|filereader|formdata|image|map|object|set|url|urlsearchparams|weakmap|weakset)\b`).MatchString(statement) ||
+		containsAnyFold(statement, varKeywordLiteral) && cachedPattern(`(?i)\bvar\s+`+name+`\s+(?:bytes\.buffer|strings\.builder)\b`).MatchString(statement) ||
+		containsAnyFold(statement, cppNamespaceLiteral) && cachedPattern(`(?i)\bstd::(?:vector|map|set|unordered_map|unordered_set|stringstream)\b[^;\n]*\b`+name+`\b`).MatchString(statement) ||
+		strings.Contains(statement, ":=") && cachedPattern(`\b`+name+`\s*:=\s*(?:\[\]|\{\}|make\s*\(|(?:bytes|strings)\.Buffer\b|strings\.Builder\b)`).MatchString(statement) ||
+		declaresBinding && cachedPattern(`(?i)\b(?:const|let|var)\s+`+name+`\b.*=\s*(?:\[|\{|array\.from\b|[^;\n]+\.map\s*\(|[^;\n]+\.filter\s*\(|new\s+urlsearchparams\b)`).MatchString(statement) ||
 		assignmentContinuationLooksLocalCollection(fn, assignment) ||
 		assignmentLooksDateCloneOrHelper(assignment, statement)
 }
@@ -143,7 +166,7 @@ func assignmentContinuationLooksLocalCollection(fn precisionFunction, assignment
 		return false
 	}
 	name := strings.ToLower(regexp.QuoteMeta(assignment.Name))
-	return regexp.MustCompile(`\b(?:const|let|var)\s+`+name+`\b`).MatchString(window) &&
+	return cachedPattern(`\b(?:const|let|var)\s+`+name+`\b`).MatchString(window) &&
 		containsAny(window, []string{".map(", ".filter(", ".reduce(", "array.from(", "[...", ".slice("})
 }
 
@@ -157,8 +180,8 @@ func assignmentLooksDateCloneOrHelper(assignment support.ParsedAssignment, state
 		return false
 	}
 	return strings.Contains(lowered, "new date(") ||
-		regexp.MustCompile(`=\s*(?:startof|endof|datefrom|today|yesterday)[A-Za-z0-9_$]*\s*\(`).MatchString(lowered) ||
-		name == "x" && regexp.MustCompile(`=\s*[A-Za-z0-9_$]*day\s*\(`).MatchString(lowered)
+		dateHelperCallPattern.MatchString(lowered) ||
+		name == "x" && dayHelperCallPattern.MatchString(lowered)
 }
 
 func assignmentLooksLocalScalarAccumulator(assignment support.ParsedAssignment, statement string) bool {
@@ -168,11 +191,11 @@ func assignmentLooksLocalScalarAccumulator(assignment support.ParsedAssignment, 
 	}
 	expr := strings.TrimSpace(assignment.Expr)
 	lowered := strings.ToLower(statement + " " + expr)
-	if !regexp.MustCompile(`(?i)\b(?:const|let|var)\s+` + regexp.QuoteMeta(assignment.Name) + `\b`).MatchString(statement) {
+	if !cachedPattern(`(?i)\b(?:const|let|var)\s+` + regexp.QuoteMeta(assignment.Name) + `\b`).MatchString(statement) {
 		return false
 	}
-	if !regexp.MustCompile(`^-?\d+(?:\.\d+)?$`).MatchString(expr) &&
-		!regexp.MustCompile(`=\s*-?\d+(?:\.\d+)?\b`).MatchString(statement) &&
+	if !numericLiteralOnlyPattern.MatchString(expr) &&
+		!numericAssignmentPattern.MatchString(statement) &&
 		!strings.Contains(lowered, "score") &&
 		!strings.Contains(lowered, "total") &&
 		!strings.Contains(lowered, "count") &&
@@ -369,7 +392,7 @@ func firstCallArgName(call support.ParsedCall) string {
 	if idx := strings.IndexAny(arg, ".[("); idx > 0 {
 		arg = strings.TrimSpace(arg[:idx])
 	}
-	if regexp.MustCompile(`^[A-Za-z_$][\w$]*$`).MatchString(arg) {
+	if bareIdentifierArgPattern.MatchString(arg) {
 		return arg
 	}
 	return ""
@@ -448,7 +471,7 @@ func isLocalScalarAccumulatorAssignment(fn precisionFunction, name string) bool 
 		return false
 	}
 	quoted := regexp.QuoteMeta(name)
-	declaration := regexp.MustCompile(`(?i)\b(?:const|let|var)\s+` + quoted + `\b[^;\n]*=\s*-?\d+(?:\.\d+)?\b`)
+	declaration := cachedPattern(`(?i)\b(?:const|let|var)\s+` + quoted + `\b[^;\n]*=\s*-?\d+(?:\.\d+)?\b`)
 	for _, statement := range directStatements(fn) {
 		if declaration.MatchString(firstNonEmptyString(statement.Raw, statement.Text)) {
 			return true

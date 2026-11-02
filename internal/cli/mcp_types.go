@@ -33,6 +33,9 @@ type mcpResponder struct {
 type mcpToolService struct {
 	defaultConfigPath string
 	defaultProfile    string
+	// reports holds recent scan/validate_patch reports so a pagination cursor
+	// resumes the exact snapshot it was issued for.
+	reports mcpReportCache
 }
 
 type mcpRequest struct {

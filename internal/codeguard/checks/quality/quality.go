@@ -35,27 +35,61 @@ type qualityTargetScan struct {
 }
 
 func qualityTargetAnalysis(ctx context.Context, env support.Context, target core.TargetConfig) qualityTargetScan {
-	language := languageQualityAnalysis(ctx, env, target)
+	// The whole-target passes below are independent: each reads the shared
+	// per-scan corpus and config and builds only its own result. Running them
+	// concurrently takes the slowest pass, rather than their sum, off the
+	// section's critical path. Every pass writes only its own variable, and the
+	// results are concatenated in the fixed order the passes used to run in
+	// sequence, so the findings order is unchanged.
+	var (
+		language  languageQualityScan
+		toolchain []core.Finding
+		clone     cloneAnalysisResult
+		ai        []core.Finding
+		trailing  []core.Finding
+	)
+	support.RunConcurrently(
+		func() { language = languageQualityAnalysis(ctx, env, target) },
+		func() { toolchain = qualityToolchainFindings(ctx, env, target) },
+		func() { clone = cloneFindingsForTarget(env, target) },
+		func() { ai = aiTargetFindings(env, target) },
+		func() { trailing = qualityTrailingFindings(ctx, env, target) },
+	)
 	findings := language.findings
-	findings = append(findings, environmentBranchingFindings(env, target)...)
+	findings = append(findings, toolchain...)
+	findings = append(findings, clone.findings...)
+	findings = append(findings, ai...)
+	findings = append(findings, trailing...)
+	// The slop-score artifact and change-risk pass summarize every finding
+	// above, so they run after all passes have finished.
+	maybePutAISlopArtifact(env, target, findings)
+	findings = append(findings, changeRiskFindings(env, target, findings)...) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
+	return qualityTargetScan{findings: findings, unresolved: language.unresolved, diagnostics: clone.diagnostics}
+}
+
+// qualityToolchainFindings runs the environment-branching and toolchain
+// dead-code passes in their historical order.
+func qualityToolchainFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+	findings := environmentBranchingFindings(env, target)
 	findings = append(findings, cppToolingFindings(ctx, env, target)...)
 	findings = append(findings, goToolchainDeadCodeFindings(ctx, env, target)...)
 	findings = append(findings, rustToolchainDeadCodeFindings(ctx, env, target)...)
 	findings = append(findings, cppToolchainDeadCodeFindings(env, target)...)
 	findings = append(findings, pythonToolchainDeadCodeFindings(env, target)...)
-	cloneAnalysis := cloneFindingsForTarget(env, target)
-	findings = append(findings, cloneAnalysis.findings...)
-	findings = append(findings, aiTargetFindings(env, target)...)
-	findings = append(findings, semanticFindings(ctx, env, target)...)
+	return findings
+}
+
+// qualityTrailingFindings runs the semantic, command, coverage and local
+// maintainability passes in their historical order.
+func qualityTrailingFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
+	findings := semanticFindings(ctx, env, target)
 	findings = append(findings, commandFindings(ctx, env, target)...)
 	findings = append(findings, coverageDeltaFindings(ctx, env, target)...)
 	if localPrecisionEnabled(env) {
 		findings = append(findings, maintainabilityDeltaFindings(env, target)...)
 		findings = append(findings, maintainabilityHistoryFindings(ctx, env, target)...)
 	}
-	maybePutAISlopArtifact(env, target, findings)
-	findings = append(findings, changeRiskFindings(env, target, findings)...) //nolint:contextcheck // git helpers use a contained timeout; deeper ctx threading is a tracked follow-up
-	return qualityTargetScan{findings: findings, unresolved: language.unresolved, diagnostics: cloneAnalysis.diagnostics}
+	return findings
 }
 
 func unresolvedMutationDiagnostics(unresolved []unresolvedMutationEvidence) []core.Diagnostic {

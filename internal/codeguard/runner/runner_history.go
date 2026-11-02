@@ -6,6 +6,61 @@ import (
 	runnersupport "github.com/devr-tools/codeguard/internal/codeguard/runner/support"
 )
 
+// attachRunDiagnostics reports operational diagnostics raised after every
+// section has finalized (history writes for rule stats and the waiver audit).
+// They are attached to the first section, mirroring how corpus diagnostics go
+// to the first section that finalizes, and raise its status the same way
+// FinalizeSectionWithDiagnostics does.
+func attachRunDiagnostics(sections []core.SectionResult, diagnostics []core.Diagnostic) {
+	if len(sections) == 0 {
+		return
+	}
+	attachSectionDiagnostics(&sections[0], diagnostics)
+}
+
+// attachScoreHistoryDiagnostics reports score-history write failures on the
+// section that published the score artifact, falling back to the first
+// section when that section is absent from the report.
+func attachScoreHistoryDiagnostics(sections []core.SectionResult, diagnostics []runnersupport.SectionDiagnostic) {
+	for _, item := range diagnostics {
+		index := sectionIndex(sections, item.SectionID)
+		if index < 0 {
+			attachRunDiagnostics(sections, []core.Diagnostic{item.Diagnostic})
+			continue
+		}
+		attachSectionDiagnostics(&sections[index], []core.Diagnostic{item.Diagnostic})
+	}
+}
+
+func sectionIndex(sections []core.SectionResult, id string) int {
+	for index := range sections {
+		if sections[index].ID == id {
+			return index
+		}
+	}
+	return -1
+}
+
+func attachSectionDiagnostics(section *core.SectionResult, diagnostics []core.Diagnostic) {
+	if len(diagnostics) == 0 {
+		return
+	}
+	section.Diagnostics = append(section.Diagnostics, diagnostics...)
+	for _, diagnostic := range diagnostics {
+		if !diagnostic.Operational {
+			continue
+		}
+		switch diagnostic.Level {
+		case "fail":
+			section.Status = core.StatusFail
+		case "warn":
+			if section.Status != core.StatusFail {
+				section.Status = core.StatusWarn
+			}
+		}
+	}
+}
+
 func WriteBaselineFile(path string, entries []core.BaselineEntry) error {
 	return runnersupport.WriteBaselineFile(path, entries)
 }

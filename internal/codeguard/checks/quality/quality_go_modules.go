@@ -5,10 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 type goModuleMetadata struct {
 	modulePath string
+	// moduleDir is the go.mod directory, relative to the scan root in slash
+	// form ("" for the root module). It is what lets a file path be mapped
+	// back to its Go import path.
+	moduleDir  string
 	resolvable []string
 }
 
@@ -16,11 +21,16 @@ type goModuleResolver struct {
 	root             string
 	workspaceModules []string
 	workspaceReplace []string
-	cache            map[string]goModuleMetadata
+	// mu guards cache. It is a pointer so that the by-value resolver stays
+	// copyable (go vet copylocks) while every copy shares one lock: the
+	// resolver is consulted from ScanTargetFiles, which evaluates files on a
+	// worker pool.
+	mu    *sync.Mutex
+	cache map[string]goModuleMetadata
 }
 
 func newGoModuleResolver(root string) goModuleResolver {
-	resolver := goModuleResolver{root: filepath.Clean(root), cache: map[string]goModuleMetadata{}}
+	resolver := goModuleResolver{root: filepath.Clean(root), mu: &sync.Mutex{}, cache: map[string]goModuleMetadata{}}
 	workPath := filepath.Join(resolver.root, "go.work")
 	uses, replaces := parseGoManifest(workPath, true)
 	resolver.workspaceReplace = replaces
@@ -36,6 +46,10 @@ func newGoModuleResolver(root string) goModuleResolver {
 }
 
 func (r *goModuleResolver) metadataForFile(rel string) goModuleMetadata {
+	if r.mu != nil {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+	}
 	dir := filepath.Dir(filepath.Join(r.root, filepath.FromSlash(rel)))
 	for {
 		if metadata, ok := r.cache[dir]; ok {
@@ -50,6 +64,7 @@ func (r *goModuleResolver) metadataForFile(rel string) goModuleMetadata {
 			if len(modules) > 0 {
 				metadata.modulePath = modules[0]
 			}
+			metadata.moduleDir = relativeModuleDir(r.root, dir)
 			r.cache[dir] = metadata
 			return metadata
 		}
@@ -59,6 +74,16 @@ func (r *goModuleResolver) metadataForFile(rel string) goModuleMetadata {
 		}
 		dir = parent
 	}
+}
+
+// relativeModuleDir renders dir relative to root in slash form, or "" when
+// dir is the root itself or escapes it.
+func relativeModuleDir(root string, dir string) string {
+	rel, err := filepath.Rel(root, dir)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return ""
+	}
+	return filepath.ToSlash(rel)
 }
 
 func pathWithin(path, root string) bool {

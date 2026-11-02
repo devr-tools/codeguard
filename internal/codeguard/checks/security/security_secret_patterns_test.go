@@ -84,3 +84,27 @@ func requireOneMatch(t *testing.T, matches []Match, rule string, line int) {
 		t.Fatalf("match = %#v, want rule %s at line %d", matches[0], rule, line)
 	}
 }
+
+// TestBuiltinGateCoversPatterns is the secret scanner's half of the gate
+// superset invariant (see security_line_gates.go): builtinGatePasses must admit
+// every line any built-in pattern can match, or scanLine skips the pattern and
+// the credential goes unreported.
+//
+// It reuses the regexp/syntax sample generator from the gated-pattern test, so
+// adding a provider format — or a branch to an existing one — is checked
+// automatically instead of relying on someone remembering to extend
+// gateLiterals. Config-supplied custom_patterns have arbitrary markers and
+// deliberately bypass the gate, so they are out of scope here.
+func TestBuiltinGateCoversPatterns(t *testing.T) {
+	t.Run("private-key", func(t *testing.T) {
+		assertGateAdmitsPattern(t, privateKeyPattern, "privateKeyPattern", builtinGatePasses)
+	})
+	t.Run("name-based", func(t *testing.T) {
+		assertGateAdmitsPattern(t, secretPattern, "secretPattern", builtinGatePasses)
+	})
+	for _, pattern := range credentialPatterns {
+		t.Run(pattern.msg, func(t *testing.T) {
+			assertGateAdmitsPattern(t, pattern.re, pattern.msg, builtinGatePasses)
+		})
+	}
+}

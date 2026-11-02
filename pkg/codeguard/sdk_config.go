@@ -1,13 +1,20 @@
 package codeguard
 
-import "github.com/devr-tools/codeguard/internal/codeguard/config"
+import (
+	"github.com/devr-tools/codeguard/internal/codeguard/config"
+	"github.com/devr-tools/codeguard/internal/codeguard/initconfig"
+)
 
 // ErrConfigNotFound identifies a missing top-level configuration file.
 var ErrConfigNotFound = config.ErrConfigNotFound
 
 // ExampleConfig returns CodeGuard's complete, ready-to-edit starter
 // configuration. It is intended for callers creating a new configuration,
-// rather than as a way to normalize a partial Config.
+// rather than as a way to normalize a partial Config. It describes
+// CodeGuard's own repository layout and conventions (a Go target with a
+// cmd/codeguard entrypoint, its CI and release files, tests under tests/);
+// `codeguard init` no longer writes it, and DefaultScanConfig is the
+// repository-aware alternative.
 func ExampleConfig() Config {
 	return config.ExampleConfig()
 }
@@ -19,10 +26,27 @@ func ExampleConfigForProfile(profile string) (Config, error) {
 	return config.ExampleConfigForProfile(profile)
 }
 
+// DefaultScanConfig returns the configuration CodeGuard scans with when a
+// repository has no config file: the config `codeguard init` would generate
+// for the repository at root (one target per detected language, the
+// recommended sections, ci only when .github/workflows exists, supply_chain
+// only when package manifests exist), resolved against the built-in defaults.
+// It is exactly what `codeguard scan` falls back to when LoadConfigFile
+// reports ErrConfigNotFound. profile may be empty.
+func DefaultScanConfig(root string, profile string) (Config, error) {
+	return initconfig.DefaultScanConfig(root, profile)
+}
+
 // DefaultConfigPath returns the conventional filename used when locating a
 // CodeGuard configuration.
 func DefaultConfigPath() string {
 	return config.DefaultConfigPath()
+}
+
+// ResolveConfigPath returns the file LoadConfigFile would read for path,
+// applying the same default-location search for an empty path.
+func ResolveConfigPath(path string) (string, error) {
+	return config.ResolveConfigPath(path)
 }
 
 // LoadConfigFile reads, defaults, and validates a configuration file.
@@ -40,6 +64,30 @@ func WriteConfigFile(path string, cfg Config) error {
 // constructed in memory.
 func ValidateConfig(cfg Config) error {
 	return config.Validate(cfg)
+}
+
+// ValidateOutputFormat reports whether format names a supported report format
+// (empty means "use the config's format"). The error suggests the closest
+// valid format, so a CLI can reject a typo before any scan output.
+func ValidateOutputFormat(format string) error {
+	return config.ValidateOutputFormat(format)
+}
+
+// ValidateProfileName reports whether profile names a built-in policy profile
+// (empty means "no profile"), suggesting the closest one on error.
+func ValidateProfileName(profile string) error {
+	return config.ValidateProfileName(profile)
+}
+
+// ValidateTargetPaths checks that every target path in cfg names an existing,
+// readable directory. Unlike ValidateConfig it touches the filesystem, so call
+// it only where the targets are expected to exist. Relative paths resolve
+// against the working directory, as they do for a scan; LoadConfig has already
+// joined a loaded config's relative target paths onto the config's directory.
+// Scans run this check themselves and fail rather than report a missing target
+// as a clean pass.
+func ValidateTargetPaths(cfg Config) error {
+	return config.ValidateTargetPaths(cfg)
 }
 
 // ApplyDefaults fills omitted values on cfg in place. Use it for a partial

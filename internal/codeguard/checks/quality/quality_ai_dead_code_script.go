@@ -22,8 +22,13 @@ var (
 // unreachableStatementFinding builds the shared dead-code finding emitted when
 // a statement follows an unconditional block terminator.
 func unreachableStatementFinding(env support.Context, file string, line int) core.Finding {
-	return warnFinding(env, "quality.ai.dead-code", file, line, 1,
-		"statement is unreachable because the previous statement unconditionally exits the block")
+	return newQualityWarnFinding(env, support.WarnFindingInput{
+		RuleID:  "quality.ai.dead-code",
+		Path:    file,
+		Line:    line,
+		Column:  1,
+		Message: "statement is unreachable because the previous statement unconditionally exits the block",
+	})
 }
 
 func scriptUnreachableFindings(env support.Context, file string, source string) []core.Finding {
@@ -77,8 +82,13 @@ func scriptUnusedFunctionFindings(env support.Context, file string, source strin
 			continue
 		}
 		line := 1 + strings.Count(sanitized[:match[2]], "\n")
-		findings = append(findings, warnFinding(env, "quality.ai.dead-code", file, line, 1,
-			fmt.Sprintf("file-local function %q is declared but never referenced in this file", name)))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.ai.dead-code",
+			Path:    file,
+			Line:    line,
+			Column:  1,
+			Message: fmt.Sprintf("file-local function %q is declared but never referenced in this file", name),
+		}))
 	}
 	return findings
 }
@@ -86,7 +96,7 @@ func scriptUnusedFunctionFindings(env support.Context, file string, source strin
 func scriptLocalDeclarationIsReferenced(source string, name string) bool {
 	// JSX identifiers are references, not opaque markup. Check them directly
 	// before falling back to ordinary expression references.
-	jsxReference := regexp.MustCompile(`<\s*` + regexp.QuoteMeta(name) + `(?:\s|/|>)`)
+	jsxReference := cachedPattern(`<\s*` + regexp.QuoteMeta(name) + `(?:\s|/|>)`)
 	return jsxReference.MatchString(source) || countWordOccurrences(source, name) > 1
 }
 
@@ -103,6 +113,6 @@ func lineEnd(source string, from int) int {
 }
 
 func countWordOccurrences(source string, word string) int {
-	pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(word) + `\b`)
+	pattern := cachedPattern(`\b` + regexp.QuoteMeta(word) + `\b`)
 	return len(pattern.FindAllStringIndex(source, -1))
 }

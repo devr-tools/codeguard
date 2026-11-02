@@ -26,8 +26,13 @@ func goCorePerformanceFindings(env support.Context, file string, fset *token.Fil
 			if detectGoroutines {
 				if loop := nearestLoopAncestor(stack); loop != nil && !loopLaunchesBoundedWorkers(loop) {
 					pos := fset.Position(node.Go)
-					findings = append(findings, warnFinding(env, "performance.unbounded-goroutines-in-loop", file, pos.Line, pos.Column,
-						"goroutine launched inside a loop should be bounded or queued explicitly"))
+					findings = append(findings, support.NewWarnFinding(env, support.WarnFindingInput{
+						RuleID:  "performance.unbounded-goroutines-in-loop",
+						Path:    file,
+						Line:    pos.Line,
+						Column:  pos.Column,
+						Message: "goroutine launched inside a loop should be bounded or queued explicitly",
+					}))
 				}
 			}
 		case *ast.CallExpr:
@@ -39,8 +44,13 @@ func goCorePerformanceFindings(env support.Context, file string, fset *token.Fil
 				return true
 			}
 			pos := fset.Position(node.Pos())
-			findings = append(findings, warnFinding(env, "performance.sync-io-in-request-path", file, pos.Line, pos.Column,
-				"synchronous file I/O in an HTTP request path can add tail latency"))
+			findings = append(findings, support.NewWarnFinding(env, support.WarnFindingInput{
+				RuleID:  "performance.sync-io-in-request-path",
+				Path:    file,
+				Line:    pos.Line,
+				Column:  pos.Column,
+				Message: "synchronous file I/O in an HTTP request path can add tail latency",
+			}))
 		}
 		return true
 	})

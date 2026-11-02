@@ -17,7 +17,13 @@ func goLoopCallFindings(env support.Context, file string, fset *token.FileSet, p
 
 	findings := make([]core.Finding, 0)
 	warn := func(ruleID string, pos token.Position, message string) {
-		findings = append(findings, warnFinding(env, ruleID, file, pos.Line, pos.Column, message))
+		findings = append(findings, support.NewWarnFinding(env, support.WarnFindingInput{
+			RuleID:  ruleID,
+			Path:    file,
+			Line:    pos.Line,
+			Column:  pos.Column,
+			Message: message,
+		}))
 	}
 
 	walkASTWithStack(parsed, func(node ast.Node, stack []ast.Node) bool {
@@ -85,20 +91,30 @@ func (c goLoopCallConfig) callFinding(stack []ast.Node, call *ast.CallExpr, fset
 	if !ok {
 		return nil
 	}
-	inLoop := hasLoopAncestor(stack)
 	pos := fset.Position(call.Pos())
-	switch {
-	case inLoop && c.detectRegex && aliasHas(c.regexAliases, alias) && nameIn(regexCompileNames, name) && literalPatternArg(call):
-		return &goLoopCallFinding{ruleID: "performance.regex-compile-in-loop", pos: pos, message: "regular expression compiled inside a loop; compile it once before the loop or as a package-level variable"}
-	case inLoop && c.detectSleep && !strings.HasSuffix(c.file, "_test.go") && aliasHas(c.timeAliases, alias) && name == "Sleep":
-		return &goLoopCallFinding{ruleID: "performance.go.sleep-in-loop", pos: pos, message: "time.Sleep inside a loop usually marks polling; prefer a time.Ticker, a channel signal, or a backoff helper"}
-	case inLoop && c.detectTimer && aliasHas(c.timeAliases, alias) && name == "After":
-		return &goLoopCallFinding{ruleID: "performance.go.timer-leak-in-loop", pos: pos, message: "time.After inside a loop allocates a timer every iteration that is not collected until it fires; reuse a time.NewTimer or time.NewTicker"}
-	case c.detectReads && aliasHas(c.readAliases, alias) && name == "ReadAll" && !readerIsLimited(call) && c.shouldWarnReadAll(stack):
-		return &goLoopCallFinding{ruleID: "performance.unbounded-read", pos: pos, message: "ReadAll loads the entire input into memory; bound it with io.LimitReader or process the stream incrementally"}
-	default:
-		return nil
+	if hasLoopAncestor(stack) {
+		if finding := c.loopOnlyCallFinding(alias, name, call, pos); finding != nil {
+			return finding
+		}
 	}
+	if c.detectReads && aliasHas(c.readAliases, alias) && name == "ReadAll" && !readerIsLimited(call) && c.shouldWarnReadAll(stack) {
+		return &goLoopCallFinding{ruleID: "performance.unbounded-read", pos: pos, message: "ReadAll loads the entire input into memory; bound it with io.LimitReader or process the stream incrementally"}
+	}
+	return nil
+}
+
+// loopOnlyCallFinding reports calls that are only a problem inside a loop:
+// regexp compilation, time.Sleep polling, and time.After timers.
+func (c goLoopCallConfig) loopOnlyCallFinding(alias string, name string, call *ast.CallExpr, pos token.Position) *goLoopCallFinding {
+	switch {
+	case c.detectRegex && aliasHas(c.regexAliases, alias) && nameIn(regexCompileNames, name) && literalPatternArg(call):
+		return &goLoopCallFinding{ruleID: "performance.regex-compile-in-loop", pos: pos, message: "regular expression compiled inside a loop; compile it once before the loop or as a package-level variable"}
+	case c.detectSleep && !strings.HasSuffix(c.file, "_test.go") && aliasHas(c.timeAliases, alias) && name == "Sleep":
+		return &goLoopCallFinding{ruleID: "performance.go.sleep-in-loop", pos: pos, message: "time.Sleep inside a loop usually marks polling; prefer a time.Ticker, a channel signal, or a backoff helper"}
+	case c.detectTimer && aliasHas(c.timeAliases, alias) && name == "After":
+		return &goLoopCallFinding{ruleID: "performance.go.timer-leak-in-loop", pos: pos, message: "time.After inside a loop allocates a timer every iteration that is not collected until it fires; reuse a time.NewTimer or time.NewTicker"}
+	}
+	return nil
 }
 
 func (c goLoopCallConfig) shouldWarnReadAll(stack []ast.Node) bool {

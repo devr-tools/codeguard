@@ -137,53 +137,60 @@ func changedFilesFromCore(files []core.ChangedFile) []changedFile {
 	return out
 }
 
+// refactorPairScope describes the file a refactor detector would inspect.
+type refactorPairScope struct {
+	production   bool
+	test         bool
+	refactorLike bool
+}
+
+// refactorDetector is one refactor-safety rule: its config toggle, the files
+// it applies to, and its evidence detector.
+type refactorDetector struct {
+	toggle  func(core.ChangeRulesConfig) *bool
+	applies func(refactorPairScope) bool
+	detect  func(pair refactorFilePair, baseText string, afterText string) (refactorFindingEvidence, bool)
+}
+
+func productionPair(scope refactorPairScope) bool { return scope.production }
+
+func testPair(scope refactorPairScope) bool { return scope.test }
+
+func refactoredProductionPair(scope refactorPairScope) bool {
+	return scope.production && scope.refactorLike
+}
+
+// refactorDetectors run in this order; behaviour, error-path, and
+// side-effect-order checks only apply to production files that look
+// refactored.
+var refactorDetectors = []refactorDetector{
+	{func(r core.ChangeRulesConfig) *bool { return r.DetectRefactorPublicContract }, productionPair, publicContractEvidence},
+	{func(r core.ChangeRulesConfig) *bool { return r.DetectRefactorVisibilityExpand }, productionPair, visibilityExpandedEvidence},
+	{func(r core.ChangeRulesConfig) *bool { return r.DetectRefactorTestCoverageDrop }, testPair, testCoverageReducedEvidence},
+	{func(r core.ChangeRulesConfig) *bool { return r.DetectRefactorDependencyWorsened }, productionPair, dependencyDirectionEvidence},
+	{func(r core.ChangeRulesConfig) *bool { return r.DetectRefactorDeadPathLeftBehind }, productionPair,
+		func(pair refactorFilePair, _ string, _ string) (refactorFindingEvidence, bool) {
+			return deadPathEvidence(pair)
+		}},
+	{func(r core.ChangeRulesConfig) *bool { return r.DetectRefactorBehaviorChange }, refactoredProductionPair, behaviorChangedEvidence},
+	{func(r core.ChangeRulesConfig) *bool { return r.DetectRefactorErrorPathChange }, refactoredProductionPair, errorPathChangedEvidence},
+	{func(r core.ChangeRulesConfig) *bool { return r.DetectRefactorSideEffectReorder }, refactoredProductionPair, sideEffectOrderEvidence},
+}
+
 func refactorPairEvidence(rules core.ChangeRulesConfig, pair refactorFilePair) []refactorFindingEvidence {
 	baseText := string(pair.base)
 	afterText := string(pair.after)
-	production := isProductionFile(pair.afterPath)
-	refactorLike := pair.moved || fileLooksRefactored(pair.beforePath, baseText, afterText)
+	scope := refactorPairScope{
+		production:   isProductionFile(pair.afterPath),
+		test:         isTestFile(pair.afterPath),
+		refactorLike: pair.moved || fileLooksRefactored(pair.beforePath, baseText, afterText),
+	}
 	out := make([]refactorFindingEvidence, 0, 8)
-
-	if production && enabled(rules.DetectRefactorPublicContract) {
-		if evidence, ok := publicContractEvidence(pair, baseText, afterText); ok {
-			out = append(out, evidence)
+	for _, detector := range refactorDetectors {
+		if !enabled(detector.toggle(rules)) || !detector.applies(scope) {
+			continue
 		}
-	}
-	if production && enabled(rules.DetectRefactorVisibilityExpand) {
-		if evidence, ok := visibilityExpandedEvidence(pair, baseText, afterText); ok {
-			out = append(out, evidence)
-		}
-	}
-	if enabled(rules.DetectRefactorTestCoverageDrop) && isTestFile(pair.afterPath) {
-		if evidence, ok := testCoverageReducedEvidence(pair, baseText, afterText); ok {
-			out = append(out, evidence)
-		}
-	}
-	if production && enabled(rules.DetectRefactorDependencyWorsened) {
-		if evidence, ok := dependencyDirectionEvidence(pair, baseText, afterText); ok {
-			out = append(out, evidence)
-		}
-	}
-	if production && enabled(rules.DetectRefactorDeadPathLeftBehind) {
-		if evidence, ok := deadPathEvidence(pair); ok {
-			out = append(out, evidence)
-		}
-	}
-	if !production || !refactorLike {
-		return out
-	}
-	if enabled(rules.DetectRefactorBehaviorChange) {
-		if evidence, ok := behaviorChangedEvidence(pair, baseText, afterText); ok {
-			out = append(out, evidence)
-		}
-	}
-	if enabled(rules.DetectRefactorErrorPathChange) {
-		if evidence, ok := errorPathChangedEvidence(pair, baseText, afterText); ok {
-			out = append(out, evidence)
-		}
-	}
-	if enabled(rules.DetectRefactorSideEffectReorder) {
-		if evidence, ok := sideEffectOrderEvidence(pair, baseText, afterText); ok {
+		if evidence, ok := detector.detect(pair, baseText, afterText); ok {
 			out = append(out, evidence)
 		}
 	}
@@ -387,45 +394,15 @@ func duplicateImplementationFindings(env support.Context, target core.TargetConf
 	if err != nil {
 		return nil
 	}
-	changed := map[string]struct{}{}
-	for _, file := range changedFiles {
-		rel := normalizePath(file.Path)
-		if rel != "" && file.Status != core.ChangedFileDeleted {
-			changed[rel] = struct{}{}
-		}
-	}
+	changed := survivingChangedPaths(changedFiles)
 	allFiles, err := env.ListTargetFiles(target)
 	if err != nil {
 		return nil
 	}
-	bodies := map[string][]codeBlock{}
-	for _, rel := range allFiles {
-		rel = normalizePath(rel)
-		if !isProductionFile(rel) || !isSourceFile(rel) {
-			continue
-		}
-		data, err := env.ReadTargetFile(target, rel)
-		if err != nil {
-			continue
-		}
-		for _, block := range extractCodeBlocks(rel, string(data)) {
-			if block.key != "" {
-				bodies[block.key] = append(bodies[block.key], block)
-			}
-		}
-	}
+	bodies := productionCodeBlocksByKey(env, target, allFiles)
 	out := make([]core.Finding, 0)
 	for _, matches := range bodies {
-		if len(matches) < 2 {
-			continue
-		}
-		hasChanged := false
-		for _, match := range matches {
-			if _, ok := changed[match.path]; ok {
-				hasChanged = true
-			}
-		}
-		if !hasChanged {
+		if len(matches) < 2 || !anyBlockChanged(matches, changed) {
 			continue
 		}
 		sort.Slice(matches, func(i, j int) bool {
@@ -453,6 +430,50 @@ func duplicateImplementationFindings(env support.Context, target core.TargetConf
 		break
 	}
 	return out
+}
+
+// survivingChangedPaths returns the normalized paths of changed files that
+// were not deleted.
+func survivingChangedPaths(changedFiles []core.ChangedFile) map[string]struct{} {
+	changed := map[string]struct{}{}
+	for _, file := range changedFiles {
+		rel := normalizePath(file.Path)
+		if rel != "" && file.Status != core.ChangedFileDeleted {
+			changed[rel] = struct{}{}
+		}
+	}
+	return changed
+}
+
+// productionCodeBlocksByKey indexes the function bodies of every production
+// source file by their normalized body key.
+func productionCodeBlocksByKey(env support.Context, target core.TargetConfig, allFiles []string) map[string][]codeBlock {
+	bodies := map[string][]codeBlock{}
+	for _, rel := range allFiles {
+		rel = normalizePath(rel)
+		if !isProductionFile(rel) || !isSourceFile(rel) {
+			continue
+		}
+		data, err := env.ReadTargetFile(target, rel)
+		if err != nil {
+			continue
+		}
+		for _, block := range extractCodeBlocks(rel, string(data)) {
+			if block.key != "" {
+				bodies[block.key] = append(bodies[block.key], block)
+			}
+		}
+	}
+	return bodies
+}
+
+func anyBlockChanged(blocks []codeBlock, changed map[string]struct{}) bool {
+	for _, block := range blocks {
+		if _, ok := changed[block.path]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 type codeBlock struct {
@@ -693,23 +714,27 @@ func fingerprint(text string, classify func(string) string) []string {
 	return out
 }
 
+// sideEffectKinds classify a line by the first kind whose markers it
+// contains; order matters.
+var sideEffectKinds = []struct {
+	kind    string
+	markers []string
+}{
+	{"auth", []string{"authorize", "permission", "auth."}},
+	{"write", []string{".save", ".insert", ".update", ".delete", ".exec", ".query", "sql."}},
+	{"event", []string{"publish", "emit", ".send", "enqueue"}},
+	{"network", []string{"http.", "fetch(", "requests.", "axios."}},
+	{"filesystem", []string{"os.", "fs.", "std::filesystem", "open("}},
+	{"cleanup", []string{"defer ", "finally", "close()"}},
+}
+
 func sideEffectKind(line string) string {
-	switch {
-	case strings.Contains(line, "authorize") || strings.Contains(line, "permission") || strings.Contains(line, "auth."):
-		return "auth"
-	case strings.Contains(line, ".save") || strings.Contains(line, ".insert") || strings.Contains(line, ".update") || strings.Contains(line, ".delete") || strings.Contains(line, ".exec") || strings.Contains(line, ".query") || strings.Contains(line, "sql."):
-		return "write"
-	case strings.Contains(line, "publish") || strings.Contains(line, "emit") || strings.Contains(line, ".send") || strings.Contains(line, "enqueue"):
-		return "event"
-	case strings.Contains(line, "http.") || strings.Contains(line, "fetch(") || strings.Contains(line, "requests.") || strings.Contains(line, "axios."):
-		return "network"
-	case strings.Contains(line, "os.") || strings.Contains(line, "fs.") || strings.Contains(line, "std::filesystem") || strings.Contains(line, "open("):
-		return "filesystem"
-	case strings.Contains(line, "defer ") || strings.Contains(line, "finally") || strings.Contains(line, "close()"):
-		return "cleanup"
-	default:
-		return ""
+	for _, candidate := range sideEffectKinds {
+		if anyContains(line, candidate.markers) {
+			return candidate.kind
+		}
 	}
+	return ""
 }
 
 func importsFor(text string) []string {

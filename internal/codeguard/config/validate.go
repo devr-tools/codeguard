@@ -8,10 +8,16 @@ import (
 	"time"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/suggest"
 )
 
+// Validate runs every section validator and reports all failures at once, so
+// fixing a config is one edit-and-rerun loop instead of one per mistake. The
+// result is an errors.Join: its first line is the first failing validator's
+// message (what callers matched on before), later lines are the rest, and
+// errors.Is/As still reach each underlying error.
 func Validate(cfg core.Config) error {
-	return firstError(
+	return errors.Join(
 		validateNameAndProfile(cfg),
 		validateDisabledChecks(cfg.Checks.Disabled),
 		validateTargets(cfg.Targets),
@@ -24,6 +30,7 @@ func Validate(cfg core.Config) error {
 		validateAIChangeRisk(cfg.Checks.QualityRules.AIChangeRisk),
 		validateRiskScoring(cfg.Checks.QualityRules.RiskScoring),
 		validateAIChecks(cfg.Checks.QualityRules.AIChecks),
+		validateCyclomaticCounting(cfg.Checks.QualityRules.CyclomaticCounting),
 		validateQualityDeadCode(cfg.Checks.QualityRules.DeadCode),
 		validateQualityNaming(cfg.Checks.QualityRules.Naming),
 		validateSupplyChainRules(cfg.Checks.SupplyChainRules),
@@ -152,8 +159,8 @@ func validateConfidencePolicy(policy core.ConfidencePolicyConfig) error {
 	}
 	for section, level := range policy.Sections {
 		if !core.KnownSectionKey(section) {
-			return fmt.Errorf("checks.min_confidence.sections has unknown section %q; known sections are %s",
-				section, strings.Join(core.SectionKeys(), ", "))
+			return fmt.Errorf("checks.min_confidence.sections has unknown section %q%s; known sections are %s",
+				section, suggest.Hint(section, core.SectionKeys()), strings.Join(core.SectionKeys(), ", "))
 		}
 		if strings.TrimSpace(level) != "" && core.NormalizedConfidence(level) == "" {
 			return fmt.Errorf("checks.min_confidence.sections[%q] must be %q, %q, or %q",
@@ -173,7 +180,7 @@ func validateNameAndProfile(cfg core.Config) error {
 		return nil
 	}
 	if _, ok := profileCatalog[profile]; !ok {
-		return fmt.Errorf("unknown profile %q", cfg.Profile)
+		return unknownProfileError(cfg.Profile)
 	}
 	return nil
 }
@@ -191,12 +198,13 @@ func validateTargets(targets []core.TargetConfig) error {
 }
 
 func validateOutput(output core.OutputConfig) error {
-	switch strings.TrimSpace(strings.ToLower(output.Format)) {
-	case "", "text", "json", "sarif", "github", "cyclonedx", "cyclonedx-json":
-		return nil
-	default:
-		return errors.New("output format must be one of text, json, sarif, github, cyclonedx")
+	if err := ValidateOutputFormat(output.Format); err != nil {
+		return fmt.Errorf("output.format: %w", err)
 	}
+	if _, ok := core.NormalizedFailOn(output.FailOn); !ok {
+		return fmt.Errorf("output.fail_on must be one of %s", strings.Join(core.FailOnValues(), ", "))
+	}
+	return nil
 }
 
 func validateWaivers(waivers []core.WaiverConfig) error {

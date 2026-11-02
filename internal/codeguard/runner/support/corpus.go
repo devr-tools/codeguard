@@ -1,23 +1,19 @@
 package support
 
 import (
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sync"
 
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
-)
-
-var (
-	errCorpusReadBudget  = errors.New("scan corpus read budget exhausted")
-	errCorpusGoASTBudget = errors.New("scan corpus Go AST budget exhausted")
 )
 
 // readCappedFile reads path but refuses to buffer more than maxScanFileBytes,
@@ -50,40 +46,115 @@ func readCappedFile(path string) ([]byte, error) {
 // Each cached slot carries its own sync.Once, so concurrent callers racing on a
 // cold slot compute it exactly once and every caller observes the same result.
 type fileCorpus struct {
-	mu              sync.Mutex
-	targets         map[string]*targetListing
-	maxFiles        int
-	reads           map[string]*fileRead
-	readBytes       int
-	maxReadBytes    int
-	maxReadEntries  int
-	readExhausted   bool
-	readWork        chan struct{}
-	readFile        func(string) ([]byte, error)
-	asts            map[string]*goParse
-	goASTBytes      int
-	maxGoASTBytes   int
-	maxGoASTEntries int
-	goASTExhausted  bool
-	goParseWork     chan struct{}
-	scripts         map[string]*scriptParse
-	scriptBytes     int
-	scriptCount     int
-	scriptParse     chan struct{}
-	diagnostics     []core.Diagnostic
-	diagnosticSeen  map[string]struct{}
+	mu                  sync.Mutex
+	targets             map[string]*targetListing
+	maxFiles            int
+	reads               map[string]*fileRead
+	readBytes           int
+	maxReadBytes        int
+	maxReadEntries      int
+	readBudgetExceeded  bool
+	readWork            chan struct{}
+	readFile            func(string) ([]byte, error)
+	asts                map[string]*goParse
+	goASTBytes          int
+	maxGoASTBytes       int
+	maxGoASTEntries     int
+	goASTBudgetExceeded bool
+	goParseWork         chan struct{}
+	clike               map[string]*clikeParse
+	clikeBytes          int
+	maxCLikeBytes       int
+	maxCLikeEntries     int
+	scripts             map[string]*scriptParse
+	suppressions        inlineSuppressionCache
+	scriptBytes         int
+	scriptCount         int
+	scriptParse         chan struct{}
+	diagnostics         []core.Diagnostic
+	diagnosticSeen      map[string]struct{}
+	readErrorCount      int
+	// walkFailures are reported on every section that finalizes after them,
+	// unlike diagnostics, which are handed to the first section only.
+	walkFailures []core.Diagnostic
 }
 
-// The corpus is an optimization, not the owner of repository contents. Bound
-// its retained source and Go AST working sets so a full scan can keep making
-// progress under GOMEMLIMIT instead of pinning every file until report output.
-// Once a budget is reached, later uncached work is skipped and surfaced as an
-// informational scan diagnostic rather than repeatedly allocating overflow
-// data in concurrent check sections.
-const maxCorpusReadBytes = 128 << 20
-const maxCorpusGoASTSourceBytes = 64 << 20
+// The corpus is an optimization, not the owner of repository contents, so its
+// budgets bound what a scan *retains*, never what a scan analyses. Past a
+// budget the corpus stops caching and serves the same work uncached: the bytes
+// (or AST) are still produced and handed to the caller, they are just dropped
+// once the caller is done with them. Retained memory therefore stays bounded
+// exactly as it was when exhaustion meant "skip", while coverage is unaffected
+// — the price of exceeding a budget is CPU and I/O, not missing findings.
+//
+// Getting this wrong is a security bug, not just a performance one: codeguard
+// is a scanner, and a repository that floods the walk with generated files
+// (a build cache, a bundled .next tree) would otherwise starve analysis of the
+// real source and report fewer findings, with the only signal an informational
+// diagnostic that the default text report does not even render.
+//
+// Budgets are expressed in RETAINED BYTES. A go/parser tree built with
+// ParseComments costs far more than its input — measured at 9.0x source over
+// this repository (711 files) and 8.4x over a 13.8k-file module cache — so the
+// Go AST budget converts source length through goASTBytesPerSourceByte instead
+// of counting source bytes directly. The previous constant counted source, so
+// a nominal "64 MiB" Go AST budget admitted roughly 576 MiB of live AST.
+//
+// The read budget is 256 MiB. At 128 MiB a 16k-file TypeScript repository
+// exhausted it after 11,295 files, and from then on every section re-read
+// every remaining file (each read also queued on readWork). Source bytes are
+// the cheapest thing the corpus retains (1:1, against 5x for a C-like parse
+// and 9x for a Go AST, whose budgets are already 256 MiB), retention can never
+// exceed the bytes the walk actually lists, and an explicit GOMEMLIMIT still
+// scales the budget down to an eighth of the limit.
+const maxCorpusReadBytes = 256 << 20
+const maxCorpusGoASTBytes = 256 << 20
 const maxCorpusReadEntries = 50_000
 const maxCorpusGoASTEntries = 25_000
+const maxCorpusCLikeBytes = 256 << 20
+const maxCorpusCLikeEntries = 25_000
+
+// clikeBytesPerSourceByte is the measured heap cost of a retained
+// support.ParsedFile per byte of source: the normalized source and its masked
+// copy, plus per-statement, call, assignment, and declaration records.
+// Measured at 4.4-4.6x over two TypeScript trees (1.8k files / 18.9 MB and
+// 5.4k files / 38.3 MB of a Next.js app); rounded up. With the default budget
+// that retains parses of roughly 50 MB of C-like source per scan; past it,
+// files are parsed per call as they were before this cache existed.
+const clikeBytesPerSourceByte = 5
+
+// goASTBytesPerSourceByte is the measured heap cost of a retained
+// ParseComments AST (plus its FileSet) per byte of source.
+const goASTBytesPerSourceByte = 9
+
+// Floors keep a usable cache even under a very small GOMEMLIMIT; exceeding a
+// budget only costs speed, so a small cache is always safe.
+const minCorpusReadBytes = 8 << 20
+const minCorpusGoASTBytes = 16 << 20
+const minCorpusCLikeBytes = 16 << 20
+
+// corpusRetentionBudget scales a default retention budget down to its share of
+// an explicit GOMEMLIMIT. It never scales up: the defaults are chosen for a CI
+// runner, and Go does not see a container memory limit unless GOMEMLIMIT is
+// set, so inferring headroom from host memory would be wrong exactly where it
+// matters. With no limit set, debug.SetMemoryLimit(-1) reports math.MaxInt64
+// and the default applies unchanged.
+//
+//nolint:unparam // the read, Go AST and C-like defaults are tuned independently; they coincide at 256 MiB today
+func corpusRetentionBudget(def int, minimum int, share int64) int {
+	limit := debug.SetMemoryLimit(-1)
+	if limit <= 0 || limit == math.MaxInt64 {
+		return def
+	}
+	scaled := limit / share
+	if scaled >= int64(def) {
+		return def
+	}
+	if scaled < int64(minimum) {
+		return minimum
+	}
+	return int(scaled)
+}
 
 // maxTreeSitterScanBytes bounds the source represented by retained script
 // trees during one scan. Parsing is also serialized because the pure-Go
@@ -101,6 +172,9 @@ type fileRead struct {
 	once sync.Once
 	data []byte
 	err  error
+	// retained is set, under fileCorpus.mu, once data has been read and
+	// admitted to the cache; cachedRead serves only retained slots.
+	retained bool
 }
 
 type goParse struct {
@@ -108,6 +182,11 @@ type goParse struct {
 	fset *token.FileSet
 	file *ast.File
 	err  error
+}
+
+type clikeParse struct {
+	once sync.Once
+	file *checkSupport.ParsedFile
 }
 
 type scriptParse struct {
@@ -121,14 +200,17 @@ func newFileCorpus() *fileCorpus {
 		targets:         map[string]*targetListing{},
 		maxFiles:        maxScanFileCount,
 		reads:           map[string]*fileRead{},
-		maxReadBytes:    maxCorpusReadBytes,
+		maxReadBytes:    corpusRetentionBudget(maxCorpusReadBytes, minCorpusReadBytes, 8),
 		maxReadEntries:  maxCorpusReadEntries,
-		readWork:        make(chan struct{}, 2),
+		readWork:        make(chan struct{}, corpusReadWorkers()),
 		readFile:        readCappedFile,
 		asts:            map[string]*goParse{},
-		maxGoASTBytes:   maxCorpusGoASTSourceBytes,
+		maxGoASTBytes:   corpusRetentionBudget(maxCorpusGoASTBytes, minCorpusGoASTBytes, 4),
 		maxGoASTEntries: maxCorpusGoASTEntries,
-		goParseWork:     make(chan struct{}, 2),
+		goParseWork:     make(chan struct{}, goParseWorkers()),
+		clike:           map[string]*clikeParse{},
+		maxCLikeBytes:   corpusRetentionBudget(maxCorpusCLikeBytes, minCorpusCLikeBytes, 4),
+		maxCLikeEntries: maxCorpusCLikeEntries,
 		scripts:         map[string]*scriptParse{},
 		scriptParse:     make(chan struct{}, 1),
 		diagnosticSeen:  make(map[string]struct{}),
@@ -139,7 +221,7 @@ func newFileCorpus() *fileCorpus {
 // per target. Callers apply their own include filter to the returned slice; the
 // walk itself is identical regardless of the filter, so sharing it is safe.
 func (c *fileCorpus) list(root string, excludes []string, opts FileWalkOptions) ([]string, error) {
-	key := fmt.Sprintf("%s\x00%s\x00%t", filepath.Clean(root), opts.LogicalPath, opts.ScanVendoredSource)
+	key := fmt.Sprintf("%s\x00%s\x00%t\x00%t", filepath.Clean(root), opts.LogicalPath, opts.ScanVendoredSource, opts.RespectGitignore)
 	c.mu.Lock()
 	entry, ok := c.targets[key]
 	if !ok {
@@ -152,23 +234,29 @@ func (c *fileCorpus) list(root string, excludes []string, opts FileWalkOptions) 
 		var truncated bool
 		entry.files, truncated, entry.err = walkFilesBounded(root, excludes, opts, includeAll, c.maxFiles)
 		if truncated {
-			c.recordBudget("files", c.maxFiles)
+			c.recordWalkTruncation(root, c.maxFiles)
+		}
+		if entry.err != nil {
+			c.recordWalkError(root, entry.err)
 		}
 	})
 	return entry.files, entry.err
 }
 
-// read returns the bytes of root/rel, reading each file at most once per scan.
+// read returns the bytes of root/rel, reading each file at most once per scan
+// while the retention budget allows it to be cached. Once the budget is full
+// the file is still read and returned, just not retained, so no caller ever
+// loses content because the cache ran out of room.
 func (c *fileCorpus) read(root string, rel string) ([]byte, error) {
 	key := filepath.Clean(root) + "\x00" + rel
+	path := filepath.Join(root, rel)
 	c.mu.Lock()
 	entry, ok := c.reads[key]
 	if !ok {
-		if c.readExhausted || len(c.reads) >= c.maxReadEntries {
-			c.readExhausted = true
-			c.recordBudgetLocked("read_entries", c.maxReadEntries)
+		if len(c.reads) >= c.maxReadEntries {
+			c.noteReadBudgetLocked("read_entries", c.maxReadEntries)
 			c.mu.Unlock()
-			return nil, errCorpusReadBudget
+			return c.readUncached(path)
 		}
 		entry = &fileRead{}
 		c.reads[key] = entry
@@ -176,26 +264,61 @@ func (c *fileCorpus) read(root string, rel string) ([]byte, error) {
 	c.mu.Unlock()
 
 	entry.once.Do(func() {
-		c.readWork <- struct{}{}
-		entry.data, entry.err = c.readFile(filepath.Join(root, rel))
-		<-c.readWork
+		entry.data, entry.err = c.readUncached(path)
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		if entry.err == nil && c.readBytes+len(entry.data) <= c.maxReadBytes {
 			c.readBytes += len(entry.data)
+			entry.retained = true
 			return
 		}
+		// The slot is dropped either because the read failed or because keeping
+		// these bytes would exceed the retention budget. Note the asymmetry
+		// with the pre-budget cache: entry.data is deliberately left intact, so
+		// this caller and anyone racing on the same slot still receive the file
+		// contents. Only the retention is declined. Dropping the slot rather
+		// than latching a scan-wide "exhausted" flag also keeps admission
+		// best-fit: a later, smaller file can still use the headroom that an
+		// oversized one could not.
 		if entry.err == nil {
-			entry.data = nil
-			entry.err = errCorpusReadBudget
-			c.readExhausted = true
-			c.recordBudgetLocked("read_bytes", c.maxReadBytes)
+			c.noteReadBudgetLocked("read_bytes", c.maxReadBytes)
 		}
 		if c.reads[key] == entry {
 			delete(c.reads, key)
 		}
 	})
 	return entry.data, entry.err
+}
+
+// cachedRead returns the bytes of root/rel only if the corpus already retains
+// a successful read of them; it never reads from disk and never admits a new
+// entry, so it cannot change the corpus budget. A nil corpus holds nothing.
+func (c *fileCorpus) cachedRead(root string, rel string) ([]byte, bool) {
+	if c == nil {
+		return nil, false
+	}
+	key := filepath.Clean(root) + "\x00" + rel
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// Only a completed, retained read is served. A slot that is still being
+	// read is skipped rather than waited on (touching its sync.Once from here
+	// could consume it before the reader runs), and the caller falls back to
+	// its own read.
+	entry, ok := c.reads[key]
+	if !ok || !entry.retained {
+		return nil, false
+	}
+	return entry.data, true
+}
+
+// readUncached performs the file read itself. Reads stay gated through
+// readWork (sized by corpusReadWorkers) whether or not the result will be
+// retained, so an overflowing scan cannot multiply the number of large buffers
+// in flight at once.
+func (c *fileCorpus) readUncached(path string) ([]byte, error) {
+	c.readWork <- struct{}{}
+	defer func() { <-c.readWork }()
+	return c.readFile(path)
 }
 
 // parseGo returns a shared, read-only Go AST for the given source. The cache key
@@ -205,41 +328,112 @@ func (c *fileCorpus) read(root string, rel string) ([]byte, error) {
 // already does.
 func (c *fileCorpus) parseGo(path string, data []byte) (*token.FileSet, *ast.File, error) {
 	key := path + "\x00" + hashBytes(data)
+	retained := len(data) * goASTBytesPerSourceByte
 	c.mu.Lock()
 	entry, ok := c.asts[key]
 	if !ok {
-		if c.goASTExhausted || len(c.asts) >= c.maxGoASTEntries || c.goASTBytes+len(data) > c.maxGoASTBytes {
-			c.goASTExhausted = true
-			if len(c.asts) >= c.maxGoASTEntries {
-				c.recordBudgetLocked("go_ast_entries", c.maxGoASTEntries)
-			} else {
-				c.recordBudgetLocked("go_ast_bytes", c.maxGoASTBytes)
-			}
-			c.mu.Unlock()
-			return nil, nil, errCorpusGoASTBudget
+		switch {
+		case len(c.asts) >= c.maxGoASTEntries:
+			c.noteGoASTBudgetLocked("go_ast_entries", c.maxGoASTEntries)
+		case c.goASTBytes+retained > c.maxGoASTBytes:
+			c.noteGoASTBudgetLocked("go_ast_bytes", c.maxGoASTBytes)
+		default:
+			entry = &goParse{}
+			c.asts[key] = entry
+			c.goASTBytes += retained
 		}
-		entry = &goParse{}
-		c.asts[key] = entry
-		c.goASTBytes += len(data)
+		if entry == nil {
+			// Over budget: parse without retaining. The caller gets a real
+			// tree that is collected as soon as it stops using it, instead of
+			// an error that would have silently removed this file from every
+			// AST-driven rule.
+			c.mu.Unlock()
+			return c.parseGoUncached(path, data)
+		}
 	}
 	c.mu.Unlock()
 
 	entry.once.Do(func() {
-		c.goParseWork <- struct{}{}
-		defer func() { <-c.goParseWork }()
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, path, data, parser.ParseComments)
-		entry.fset, entry.file, entry.err = fset, file, err
+		entry.fset, entry.file, entry.err = c.parseGoUncached(path, data)
 	})
 	return entry.fset, entry.file, entry.err
 }
 
-func (c *fileCorpus) recordBudget(kind string, limit int) {
+// parseCLike returns a shared, read-only support.ParsedFile for the given
+// source, mirroring parseGo: the key is path, language, and content hash, so
+// patched (diff-mode) content and a file parsed under two dialects each get
+// their own slot. ParseCLike takes no other options, so those three fully
+// determine the result. Several sections parse every TypeScript file (quality
+// per-file metrics and precision, quality unresolved-mutation evidence, design
+// local abstraction), and this cache turns those into one parse per file per
+// scan.
+//
+// Callers must treat the returned tree as immutable: it is shared by sections
+// running on different goroutines. The check packages only read it (they copy
+// fields into their own structs), and the cache-equivalence tests compare a
+// cached tree against a fresh parse after the checks have run over it.
+//
+// Past the retention budget the parse is still performed and returned, just
+// not kept, so exceeding the budget costs CPU, never findings.
+func (c *fileCorpus) parseCLike(path string, data []byte, lang checkSupport.CLikeLanguage) *checkSupport.ParsedFile {
+	key := path + "\x00" + string(lang) + "\x00" + hashBytes(data)
+	retained := len(data) * clikeBytesPerSourceByte
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	entry, ok := c.clike[key]
+	if !ok {
+		// Overflow is deliberately silent, unlike the read and Go AST budgets:
+		// before this cache existed every C-like parse was uncached, so an
+		// over-budget parse is exactly the historical behavior and there is
+		// no degradation to report.
+		if len(c.clike) < c.maxCLikeEntries && c.clikeBytes+retained <= c.maxCLikeBytes {
+			entry = &clikeParse{}
+			c.clike[key] = entry
+			c.clikeBytes += retained
+		}
+		if entry == nil {
+			c.mu.Unlock()
+			return checkSupport.ParseCLike(string(data), lang)
+		}
+	}
+	c.mu.Unlock()
+
+	entry.once.Do(func() {
+		entry.file = checkSupport.ParseCLike(string(data), lang)
+	})
+	return entry.file
+}
+
+// parseGoUncached runs the parse itself. It keeps the goParseWork gate (sized
+// by goParseWorkers) so the transient parser working set stays bounded whether
+// or not the tree is kept.
+func (c *fileCorpus) parseGoUncached(path string, data []byte) (*token.FileSet, *ast.File, error) {
+	c.goParseWork <- struct{}{}
+	defer func() { <-c.goParseWork }()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, data, parser.ParseComments)
+	return fset, file, err
+}
+
+// noteReadBudgetLocked and noteGoASTBudgetLocked record one overflow of a
+// retention budget. They take the kind that actually tripped: the previous code
+// latched a scan-wide "exhausted" flag and then reported every later miss as an
+// entry-budget overflow, so a scan that filled the byte budget was told its
+// 50,000-entry limit had been reached after caching only a few thousand files.
+func (c *fileCorpus) noteReadBudgetLocked(kind string, limit int) {
+	c.readBudgetExceeded = true
 	c.recordBudgetLocked(kind, limit)
 }
 
+func (c *fileCorpus) noteGoASTBudgetLocked(kind string, limit int) {
+	c.goASTBudgetExceeded = true
+	c.recordBudgetLocked(kind, limit)
+}
+
+// recordBudgetLocked emits at most one diagnostic per budget kind. The level is
+// informational because for the retention budgets it genuinely is: analysis
+// continues over every file, only the caching stops. The walk's own file-count
+// truncation is the exception -- it really does drop files from the scan -- and
+// recordWalkTruncation reports that at warn level instead.
 func (c *fileCorpus) recordBudgetLocked(kind string, limit int) {
 	if _, exists := c.diagnosticSeen[kind]; exists {
 		return
@@ -249,12 +443,156 @@ func (c *fileCorpus) recordBudgetLocked(kind string, limit int) {
 		ID:      "scan.corpus-budget",
 		Level:   "info",
 		Kind:    "analysis",
-		Message: "repository analysis reached a bounded corpus budget; remaining uncached work was skipped",
+		Message: "repository analysis exceeded a bounded corpus cache budget; the remaining files were analysed without caching, which is slower but reports the same findings",
 		Metadata: map[string]string{
-			"budget": kind,
-			"limit":  fmt.Sprintf("%d", limit),
+			"budget":            kind,
+			"limit":             fmt.Sprintf("%d", limit),
+			"retained_bytes":    fmt.Sprintf("%d", c.retainedBytesForLocked(kind)),
+			"retained_entries":  fmt.Sprintf("%d", c.retainedEntriesForLocked(kind)),
+			"degradation":       "uncached",
+			"findings_affected": "no",
 		},
 	})
+}
+
+// recordWalkTruncation reports the one corpus bound that still costs coverage:
+// walkFilesBounded stops enumerating at maxScanFileCount, so files past the cap
+// are never offered to any check. That is a real reduction in what was scanned,
+// so it is reported as a warning with its own id rather than folded into the
+// informational cache-budget diagnostic.
+func (c *fileCorpus) recordWalkTruncation(root string, limit int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, exists := c.diagnosticSeen["files"]; exists {
+		return
+	}
+	c.diagnosticSeen["files"] = struct{}{}
+	c.diagnostics = append(c.diagnostics, core.Diagnostic{
+		ID:      "scan.file-limit",
+		Level:   "warn",
+		Kind:    "analysis",
+		Message: fmt.Sprintf("repository walk stopped at the %d file limit; files beyond it were not scanned, so findings may be missing - narrow the target or add generated directories to exclude", limit),
+		Path:    root,
+		// Operational, so the section reports warn rather than a clean pass it
+		// has not earned: the walk did not finish, and a reader who sees only
+		// the status must not read it as "nothing to report here".
+		Operational: true,
+		Metadata: map[string]string{
+			"budget":            "files",
+			"limit":             fmt.Sprintf("%d", limit),
+			"degradation":       "truncated",
+			"findings_affected": "yes",
+		},
+	})
+}
+
+// recordWalkError reports a target walk that failed. filepath.WalkDir stops at
+// the first error, so the listing is at best partial and at worst empty; an
+// empty listing yields no findings, which would otherwise read as a clean pass
+// for every file-driven section. It is a failing operational diagnostic for
+// that reason. The listing is memoized per target, so this is recorded once
+// per target per scan, and takeDiagnostics then hands it to every section that
+// finalizes afterwards (see walkFailures).
+func (c *fileCorpus) recordWalkError(root string, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := "walk\x00" + filepath.Clean(root)
+	if _, exists := c.diagnosticSeen[key]; exists {
+		return
+	}
+	c.diagnosticSeen[key] = struct{}{}
+	c.walkFailures = append(c.walkFailures, core.Diagnostic{
+		ID:          "scan.target-walk",
+		Level:       "fail",
+		Kind:        "infrastructure",
+		Message:     fmt.Sprintf("could not walk target %s: %v; files under it were not scanned", root, err),
+		Path:        root,
+		Operational: true,
+		Metadata: map[string]string{
+			"degradation":       "unscanned",
+			"findings_affected": "yes",
+		},
+	})
+}
+
+// maxReadErrorDiagnostics bounds how many per-file read failures are reported
+// individually, so a target full of unreadable files cannot flood the report.
+const maxReadErrorDiagnostics = 20
+
+// recordReadError reports a file that the walk listed but that could not then
+// be read, so it was dropped from every check that asked for it. It warns
+// rather than fails: the rest of the target was scanned. Each file is reported
+// once per scan; past maxReadErrorDiagnostics a single summary diagnostic notes
+// that further failures were not itemised.
+func (c *fileCorpus) recordReadError(root string, rel string, err error) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := "read\x00" + filepath.Clean(root) + "\x00" + rel
+	if _, exists := c.diagnosticSeen[key]; exists {
+		return
+	}
+	c.diagnosticSeen[key] = struct{}{}
+	c.readErrorCount++
+	if c.readErrorCount > maxReadErrorDiagnostics {
+		if _, exists := c.diagnosticSeen["read-limit"]; exists {
+			return
+		}
+		c.diagnosticSeen["read-limit"] = struct{}{}
+		c.diagnostics = append(c.diagnostics, core.Diagnostic{
+			ID:          "scan.file-read",
+			Level:       "warn",
+			Kind:        "infrastructure",
+			Message:     fmt.Sprintf("more than %d files could not be read; further read failures are not listed individually", maxReadErrorDiagnostics),
+			Operational: true,
+			Metadata: map[string]string{
+				"degradation":       "unscanned",
+				"findings_affected": "yes",
+			},
+		})
+		return
+	}
+	c.diagnostics = append(c.diagnostics, core.Diagnostic{
+		ID:          "scan.file-read",
+		Level:       "warn",
+		Kind:        "infrastructure",
+		Message:     fmt.Sprintf("could not read %s: %v; the file was not scanned", rel, err),
+		Path:        filepath.ToSlash(filepath.Join(root, rel)),
+		Operational: true,
+		Metadata: map[string]string{
+			"degradation":       "unscanned",
+			"findings_affected": "yes",
+		},
+	})
+}
+
+func (c *fileCorpus) retainedBytesForLocked(kind string) int {
+	if kind == "go_ast_bytes" || kind == "go_ast_entries" {
+		return c.goASTBytes
+	}
+	return c.readBytes
+}
+
+func (c *fileCorpus) retainedEntriesForLocked(kind string) int {
+	if kind == "go_ast_bytes" || kind == "go_ast_entries" {
+		return len(c.asts)
+	}
+	return len(c.reads)
+}
+
+// ReportDiagnostic queues an operational diagnostic raised during a check
+// (for example a failed history write) on the corpus, so the next section to
+// finalize reports it, mirroring read-error diagnostics. Checks reach it
+// through the check context's ReportDiagnostic hook.
+func (sc Context) ReportDiagnostic(diagnostic core.Diagnostic) {
+	if sc.corpus == nil {
+		return
+	}
+	sc.corpus.mu.Lock()
+	defer sc.corpus.mu.Unlock()
+	sc.corpus.diagnostics = append(sc.corpus.diagnostics, diagnostic)
 }
 
 func (c *fileCorpus) takeDiagnostics() []core.Diagnostic {
@@ -265,6 +603,10 @@ func (c *fileCorpus) takeDiagnostics() []core.Diagnostic {
 	defer c.mu.Unlock()
 	diagnostics := append([]core.Diagnostic(nil), c.diagnostics...)
 	c.diagnostics = nil
+	// Walk failures are not drained: every section that finalizes after one is
+	// recorded may have consumed the failed listing, so each must report it
+	// rather than leave all but the first looking like a clean pass.
+	diagnostics = append(diagnostics, c.walkFailures...)
 	return diagnostics
 }
 

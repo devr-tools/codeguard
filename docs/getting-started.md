@@ -35,6 +35,7 @@ go get github.com/devr-tools/codeguard/pkg/codeguard
 ## Quick Start
 
 ```bash
+codeguard scan                      # works before any config exists
 codeguard init
 codeguard validate -config codeguard.yaml
 codeguard doctor -config codeguard.yaml
@@ -48,9 +49,71 @@ codeguard explain prompts.secret-interpolation
 codeguard baseline -config codeguard.yaml -output codeguard-baseline.json
 ```
 
-`codeguard init` writes `codeguard.yaml` by default.
+`codeguard init` looks at the repository before it writes anything:
 
-Use `codeguard scan -folder <path>` when you want to scan only one folder. `-path <path>` is accepted as an alias. If no config file exists and you did not pass `-config`, folder scans use CodeGuard's built-in default config; add `-profile startup`, `-profile strict`, `-profile enterprise`, or `-profile ai-safe` to choose a default profile.
+- **Languages.** It counts source files per extension (Go, Python,
+  TypeScript/JavaScript, Rust, Java, C++, C#, Ruby), skipping the trees the
+  scanner skips (`node_modules`, `vendor`, `.venv`, `dist`, build output) plus
+  hidden directories, `testdata` and `fixtures`. Each language with at least
+  10% of the files (or 25 files) gets its own target, because a target is
+  analyzed as one language. All targets point at the repository root.
+- **Entrypoints.** Go `cmd/<name>/main.go` and a module-root `main.go`;
+  `package.json` `bin` and `main` (when the file exists outside `dist/`);
+  Python `[project.scripts]` / `[tool.poetry.scripts]` modules and every
+  `__main__.py`.
+- **Sections.** Code Quality, Design Patterns, Security and AI Prompts are on.
+  CI/CD is on only when `.github/workflows/` exists. Supply Chain is on when
+  package manifests exist (`go.mod`, `package.json`, `pyproject.toml`,
+  `requirements*.txt`, `Cargo.toml`, ...), so an unpinned `"lodash": "*"` is
+  reported on the first scan.
+
+It then writes a small `codeguard.yaml`: a header that summarizes what it
+detected, the detected targets, and the section switches. It writes nothing
+else. Every other setting uses its built-in default, and
+[docs/checks.md](checks.md) documents each one. Add only the keys you want to
+change. `codeguard init -full` writes the same effective config expanded to
+every key and its resolved value. `-path <dir>` detects a different directory,
+and `-profile <name>` records a policy profile. Writing the config into
+`.codeguard/` (`-output .codeguard/codeguard.yaml`) points the targets at `..`.
+
+The defaults do not assume anything about your repository's conventions. No
+required workflow files, workflow content markers, release files, Makefile,
+test layout or package layering are enforced until you configure them. A
+first scan should report problems in your code, not differences from
+CodeGuard's own repository.
+
+If no config file exists and you did not pass `-config`, `codeguard scan` and
+`codeguard scan -folder <path>` both use these same repository-aware defaults
+(what `init` would write, resolved in memory, with the scan cache off). They
+print a one-line hint on stderr suggesting `codeguard init`. An explicit
+`-config` that does not exist is still an error. SDK callers get the same
+config from `codeguard.DefaultScanConfig(root, profile)`. Use `-folder <path>`
+(alias `-path`) to scan only one folder. Add `-profile startup`, `-profile
+strict`, `-profile enterprise`, or `-profile ai-safe` to overlay a policy
+profile, which may also enable further sections (for example `enterprise`
+adds Supply Chain and Delivery).
+
+### CI flags and exit codes
+
+`codeguard scan` exits 0 when the scan passes its exit policy and 1 otherwise.
+Useful flags for CI:
+
+- `-fail-on fail|warn|none` (config: `output.fail_on`): `fail` (default) exits
+  1 when any section fails; `warn` also exits 1 when a section warns (strict
+  mode); `none` reports without failing on findings (rollout mode). Errors —
+  invalid config, a missing target, a crashed section (`scan.section.panic`)
+  or a failed target walk (`scan.target-walk`) — exit 1 under every policy.
+- `-min-confidence low|medium|high`: drop findings below that confidence; it
+  maps onto `checks.min_confidence.default`.
+- `-quiet`: no banner and no progress lines; findings and the summary are
+  still printed. The banner is also skipped automatically when stdout is not a
+  terminal, when `CI` is set, or when `NO_COLOR` is set.
+
+```bash
+codeguard scan -config codeguard.yaml -fail-on none -quiet      # rollout: report only
+codeguard scan -config codeguard.yaml -fail-on warn             # strict: warnings block
+codeguard scan -config codeguard.yaml -min-confidence medium    # hide low-confidence noise
+```
 
 After upgrading CodeGuard, run `codeguard waivers audit -config codeguard.yaml` to identify waiver cleanup candidates. CodeGuard stores audit snapshots with version, config fingerprint, scan scope, and matched finding fingerprints; it only marks a waiver as stale after upgrade when prior comparable evidence shows the waiver matched findings before and matches none now. JSON output is available with `-format json`.
 
@@ -62,7 +125,9 @@ Use this sequence for a real repository:
 
 1. `codeguard init`
 2. `codeguard validate -config codeguard.yaml`
-3. `codeguard doctor -config codeguard.yaml`
+3. `codeguard doctor -config codeguard.yaml` — runs `govulncheck -version`,
+   checks every configured entrypoint exists, and warns when a target's
+   language has no matching files; fix any `[FAIL]` before the first scan
 4. `codeguard scan -mode diff -config codeguard.yaml`
 5. `codeguard waivers audit -config codeguard.yaml` after CodeGuard upgrades
 6. `codeguard baseline -config codeguard.yaml -output codeguard-baseline.json` if the repo has pre-existing debt
@@ -70,12 +135,27 @@ Use this sequence for a real repository:
 After that, add a full scan in scheduled CI and tighten check families
 incrementally. The detailed rollout guidance lives in [Production rollout](production.md).
 
+A typo in a flag or name fails before the scan starts, with a suggestion:
+`codeguard scan -format sarf` prints
+`invalid -format: unknown output format "sarf"; did you mean "sarif"? ...`, and
+`codeguard explain taint` lists the matching `security.taint.*` rule ids. See
+[Error messages and suggestions](checks.md#error-messages-and-suggestions).
+
 ## Understanding results
 
 - `fail` findings are intended to block until fixed, waived, or baselined.
 - `warn` findings are advisory by default and are best used for gradual cleanup.
 - `codeguard rules` lists every rule with section, level, execution model, and language coverage.
-- `codeguard explain <rule-id>` explains what a specific failed check means and how to fix it.
+  Narrow it with `-section security`, `-search taint`, `-level fail`, or
+  `-enabled` (only rules your config and profile actually run); add
+  `-format json` for scripts.
+- `codeguard explain <rule-id>` explains what a specific failed check means and how to fix it:
+  a bad and a good example (for the most common rules), the config keys that
+  turn it on, off, or tune it with their values in your config, the
+  `codeguard:ignore` comment and waiver YAML to suppress it, the profiles
+  that enable it, any retired alias ids, and a link to its docs. Use
+  `-format json` for the same data in machine-readable form. See
+  [Exploring rules](checks.md#exploring-rules).
 
 ## SDK import path
 
@@ -98,7 +178,12 @@ import (
 )
 
 func main() {
-	cfg := codeguard.ExampleConfig()
+	// The same repository-aware defaults `codeguard scan` uses without a
+	// config file; use codeguard.LoadConfigFile to load a codeguard.yaml.
+	cfg, err := codeguard.DefaultScanConfig(".", "")
+	if err != nil {
+		log.Fatal(err)
+	}
 	report, err := codeguard.Run(context.Background(), cfg)
 	if err != nil {
 		log.Fatal(err)
@@ -116,8 +201,9 @@ func main() {
 - Custom rule packs for repo-specific regex, content, and path policies
 - Policy profiles such as `startup`, `strict`, `enterprise`, and `ai-safe`
 - Cached file-hash scan results for faster repeat runs
-- `doctor` checks for config, Git, govulncheck, targets, and cache setup
-- `text`, `json`, `sarif`, and `github` report formats
+- `doctor` checks for config, Git, a runnable govulncheck (with its stderr on failure), targets, entrypoints, target language vs. files present, and cache setup
+- "Did you mean" suggestions for mistyped rule ids, profiles, output formats and `-set` keys
+- `text`, `json`, `sarif`, `github`, `github-comment`, and `cyclonedx` report formats
 - Diff-mode filtering down to changed lines when Git history is available
 - Production rollout tools such as baselines, waivers, diff scans, and rule metadata discovery
 

@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -18,24 +19,44 @@ func goAITargetFindings(env support.Context, target core.TargetConfig) []core.Fi
 	}
 	resolver := newGoModuleResolver(target.Path)
 	profile := goRepoStyleProfile(env, target, files)
-	packageFiles := map[string][]goParsedFile{}
-	findings := make([]core.Finding, 0)
-	for _, rel := range files {
+	// Each file's analysis reads only its own source, the shared read-only
+	// profile and the mutex-guarded resolver, so the files are analysed on a
+	// bounded pool. Results land in a slot per file and are merged in file
+	// order, which keeps the findings order identical to a sequential loop.
+	type fileResult struct {
+		findings []core.Finding
+		parsed   *goParsedFile
+	}
+	results := make([]fileResult, len(files))
+	support.ParallelFor(len(files), func(i int) {
+		rel := files[i]
 		fileFindings, parsedFile := goFileAIQualityFindings(env, target, rel, goFileScanInput{
 			metadata:   resolver.metadataForFile(rel),
 			dominant:   profile.testFramework,
 			errorStyle: profile.errorStyle,
 			naming:     profile.naming,
 		})
-		findings = append(findings, fileFindings...)
-		if parsedFile != nil {
-			dir := filepath.Dir(rel)
-			packageFiles[dir] = append(packageFiles[dir], *parsedFile)
+		results[i] = fileResult{findings: fileFindings, parsed: parsedFile}
+	})
+	packageFiles := map[string][]goParsedFile{}
+	findings := make([]core.Finding, 0)
+	for i, result := range results {
+		findings = append(findings, result.findings...)
+		if result.parsed != nil {
+			dir := filepath.Dir(files[i])
+			packageFiles[dir] = append(packageFiles[dir], *result.parsed)
 		}
 	}
 	if aiCheckEnabled(env.Config.Checks.QualityRules.AIChecks.DeadCode) {
-		for _, parsedFiles := range packageFiles {
-			findings = append(findings, goUnusedPrivateFunctionFindings(env, parsedFiles)...)
+		// Visit packages in sorted order: ranging over the map directly made
+		// the order of unused-function findings vary between runs.
+		dirs := make([]string, 0, len(packageFiles))
+		for dir := range packageFiles {
+			dirs = append(dirs, dir)
+		}
+		sort.Strings(dirs)
+		for _, dir := range dirs {
+			findings = append(findings, goUnusedPrivateFunctionFindings(env, packageFiles[dir])...)
 		}
 	}
 	return findings
@@ -60,29 +81,71 @@ type goRepoStyle struct {
 // independent per-file sum, so folding them into one loop is
 // behavior-identical to the previous three passes.
 func goRepoStyleProfile(env support.Context, target core.TargetConfig, files []string) goRepoStyle {
-	frameworkCounts := map[string]int{}
-	styleTotals := map[string]int{}
-	namingTotals := map[string]int{}
-	for _, rel := range files {
-		data, err := readAITargetFile(env, target, rel)
+	// Every signal is a per-file count summed across the corpus, so files are
+	// counted on a bounded pool into per-file totals and folded together
+	// afterwards; addition is order-independent, so the profile is identical
+	// to a sequential pass.
+	perFile := make([]goRepoStyleTotals, len(files))
+	support.ParallelFor(len(files), func(i int) {
+		data, err := readAITargetFile(env, target, files[i])
 		if err != nil {
-			continue
+			return
 		}
-		source := string(data)
-		if framework := goTestFramework(source); framework != "" {
-			frameworkCounts[framework]++
-		}
-		for style, count := range goErrorStyleCounts(source) {
-			styleTotals[style] += count
-		}
-		for convention, count := range namingCounts(source, goDeclaredNames) {
-			namingTotals[convention] += count
-		}
+		totals := newGoRepoStyleTotals()
+		totals.add(string(data))
+		perFile[i] = totals
+	})
+	totals := newGoRepoStyleTotals()
+	for _, fileTotals := range perFile {
+		totals.merge(fileTotals)
 	}
+	return totals.profile()
+}
+
+// goRepoStyleTotals accumulates the per-file style signals goRepoStyleProfile
+// sums across the corpus. It is split out so the summation can be exercised
+// (and benchmarked) over in-memory sources without a scan context.
+type goRepoStyleTotals struct {
+	frameworks map[string]int
+	styles     map[string]int
+	naming     map[string]int
+}
+
+func newGoRepoStyleTotals() goRepoStyleTotals {
+	return goRepoStyleTotals{frameworks: map[string]int{}, styles: map[string]int{}, naming: map[string]int{}}
+}
+
+func (t goRepoStyleTotals) add(source string) {
+	if framework := goTestFramework(source); framework != "" {
+		t.frameworks[framework]++
+	}
+	for style, count := range goErrorStyleCounts(source) {
+		t.styles[style] += count
+	}
+	for convention, count := range namingCounts(source, goDeclaredNames) {
+		t.naming[convention] += count
+	}
+}
+
+// merge folds other's counts into t. A zero-value other (an unreadable file)
+// contributes nothing.
+func (t goRepoStyleTotals) merge(other goRepoStyleTotals) {
+	for framework, count := range other.frameworks {
+		t.frameworks[framework] += count
+	}
+	for style, count := range other.styles {
+		t.styles[style] += count
+	}
+	for convention, count := range other.naming {
+		t.naming[convention] += count
+	}
+}
+
+func (t goRepoStyleTotals) profile() goRepoStyle {
 	return goRepoStyle{
-		testFramework: dominantFrameworkFromCounts(frameworkCounts),
-		errorStyle:    dominantStyleFromTotals(styleTotals),
-		naming:        dominantStyleFromTotals(namingTotals),
+		testFramework: dominantFrameworkFromCounts(t.frameworks),
+		errorStyle:    dominantStyleFromTotals(t.styles),
+		naming:        dominantStyleFromTotals(t.naming),
 	}
 }
 
@@ -126,8 +189,13 @@ func goHallucinatedImportFindings(env support.Context, file string, fset *token.
 			continue
 		}
 		pos := fset.Position(imp.Pos())
-		findings = append(findings, warnFinding(env, "quality.ai.hallucinated-import", file, pos.Line, pos.Column,
-			fmt.Sprintf("import %q does not resolve against go.mod or the local module path", importPath)))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.ai.hallucinated-import",
+			Path:    file,
+			Line:    pos.Line,
+			Column:  pos.Column,
+			Message: fmt.Sprintf("import %q does not resolve against go.mod or the local module path", importPath),
+		}))
 	}
 	return findings
 }
@@ -148,8 +216,13 @@ func goDeadCodeFindings(env support.Context, file string, fset *token.FileSet, p
 			return true
 		}
 		pos := fset.Position(ifStmt.Pos())
-		findings = append(findings, warnFinding(env, "quality.ai.dead-code", file, pos.Line, pos.Column,
-			"constant false branch leaves unreachable placeholder logic in the code path"))
+		findings = append(findings, newQualityWarnFinding(env, support.WarnFindingInput{
+			RuleID:  "quality.ai.dead-code",
+			Path:    file,
+			Line:    pos.Line,
+			Column:  pos.Column,
+			Message: "constant false branch leaves unreachable placeholder logic in the code path",
+		}))
 		return true
 	})
 	return findings
@@ -163,6 +236,11 @@ func goOverMockedTestFinding(env support.Context, file string, source string) []
 	if mockCount < 4 || assertCount > 1 {
 		return nil
 	}
-	return []core.Finding{warnFinding(env, "quality.ai.over-mocked-test", file, firstLineContaining(source, mockMarkers), 1,
-		"test is dominated by mock setup and expectations with very little direct behavior assertion")}
+	return []core.Finding{newQualityWarnFinding(env, support.WarnFindingInput{
+		RuleID:  "quality.ai.over-mocked-test",
+		Path:    file,
+		Line:    firstLineContaining(source, mockMarkers),
+		Column:  1,
+		Message: "test is dominated by mock setup and expectations with very little direct behavior assertion",
+	})}
 }

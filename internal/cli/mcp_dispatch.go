@@ -11,7 +11,7 @@ import (
 // capability set, and a synchronous method router for everything except
 // tools/call (which each transport drives with its own concurrency model).
 
-const mcpServerInstructions = "Use validate_patch before writing files to disk when you want policy feedback on a proposed diff. Read codeguard://rules for the rule catalog and prompts/get for review workflows."
+const mcpServerInstructions = "Use validate_patch before writing files to disk when you want policy feedback on a proposed diff. Call scan and validate_patch with format \"summary\" to get a summary plus one page of findings (default 50); narrow them with sections, rules, min_level, min_confidence, paths or changed_only (any of these also selects the summary), and pass next_cursor back as cursor for the next page. Without format or any filter they return the full report, as in 1.10. Read codeguard://rules for the rule catalog and prompts/get for review workflows."
 
 // buildResultMessage constructs a JSON-RPC result envelope. Callers that handle
 // notifications (empty id) must skip writing the message themselves.

@@ -4,6 +4,7 @@ import (
 	"sort"
 	"sync"
 
+	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -63,6 +64,8 @@ func (store *ArtifactStore) List() []core.Artifact {
 // graphs) always observe every file. It reuses the shared per-scan corpus, so
 // files are still walked and read only once across the whole scan.
 func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte)) {
+	// Walk errors are recorded by the shared corpus as a failing
+	// scan.target-walk diagnostic; the partial listing is still visited.
 	files, _ := sc.corpusFiles(target)
 	for _, file := range files {
 		if !include(file) {
@@ -70,9 +73,45 @@ func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string)
 		}
 		data, err := sc.corpusRead(target.Path, file)
 		if err != nil {
+			sc.corpus.recordReadError(target.Path, file, err)
 			continue
 		}
 		visit(file, data)
+	}
+}
+
+// VisitTargetFilesOrdered is VisitTargetFiles for a per-file computation that
+// can run concurrently. visit is called for each included file on up to
+// fileScanWorkers goroutines and must not touch shared state; the commit
+// function it returns (which may be nil) is then run on the caller's goroutine
+// for each file in listing order, exactly as a sequential VisitTargetFiles
+// would have delivered them. That keeps any state the commits build, and so
+// the findings, identical to a sequential pass whatever the scheduling.
+//
+// Only the commits are retained until the pass completes, never file contents,
+// so memory stays bounded by the per-file results plus the in-flight files.
+func VisitTargetFilesOrdered(sc Context, target core.TargetConfig, include func(string) bool, visit func(rel string, data []byte) func()) {
+	files, _ := sc.corpusFiles(target)
+	selected := make([]string, 0, len(files))
+	for _, file := range files {
+		if include(file) {
+			selected = append(selected, file)
+		}
+	}
+	visitOne := func(i int) func() {
+		file := selected[i]
+		data, err := sc.corpusRead(target.Path, file)
+		if err != nil {
+			sc.corpus.recordReadError(target.Path, file, err)
+			return nil
+		}
+		return visit(file, data)
+	}
+	commits := checkSupport.ParallelIndexed(len(selected), fileScanWorkers(len(selected)), visitOne)
+	for _, commit := range commits {
+		if commit != nil {
+			commit()
+		}
 	}
 }
 
@@ -80,8 +119,17 @@ func VisitTargetFiles(sc Context, target core.TargetConfig, include func(string)
 // sharing the per-scan corpus walk with every other section (the same listing
 // VisitTargetFiles iterates). Callers apply their own include filter to the
 // result.
+//
+// The returned slice is the caller's own copy. The corpus listing is shared by
+// every section and pass running concurrently, and callers routinely sort or
+// normalize the result in place, which raced with every other reader of the
+// shared slice.
 func ListTargetFiles(sc Context, target core.TargetConfig) ([]string, error) {
-	return sc.corpusFiles(target)
+	files, err := sc.corpusFiles(target)
+	if files == nil {
+		return nil, err
+	}
+	return append([]string(nil), files...), err
 }
 
 // ReadTargetFile returns the bytes of target-root-relative rel via the shared

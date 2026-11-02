@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/suggest"
 )
 
 var recognizedDisabledChecks = map[string]struct{}{
@@ -19,7 +20,9 @@ func validateDisabledChecks(disabled []string) error {
 			return fmt.Errorf("checks.disabled[%d] must not be blank", idx)
 		}
 		if _, exists := recognizedDisabledChecks[section]; !exists {
-			return fmt.Errorf("checks.disabled contains unknown section %q", section)
+			known := sortedKeys(recognizedDisabledChecks)
+			return fmt.Errorf("checks.disabled contains unknown section %q%s (valid sections: %s)",
+				section, suggest.Hint(section, known), strings.Join(known, ", "))
 		}
 		if _, exists := seen[section]; exists {
 			return fmt.Errorf("checks.disabled contains duplicate section %q", section)
