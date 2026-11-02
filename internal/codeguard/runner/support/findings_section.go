@@ -103,17 +103,17 @@ func FinalizeSectionWithDiagnostics(sc Context, id string, name string, findings
 		diagnostics = append(diagnostics, sc.corpus.takeDiagnostics()...)
 	}
 	findings = dedupeFindings(findings)
-	diagnostics = dedupeDiagnostics(diagnostics)
 	section := core.SectionResult{ID: id, Name: name, Status: core.StatusPass}
 	active := make([]core.Finding, 0, len(findings))
 	for _, finding := range findings {
-		admitted, ok := admitSectionFinding(sc, id, &section, finding)
+		admitted, ok := admitSectionFinding(sc, id, &section, finding, &diagnostics)
 		if !ok {
 			continue
 		}
 		active = append(active, admitted)
 		section.Status = escalateSectionStatus(section.Status, admitted.Level)
 	}
+	diagnostics = dedupeDiagnostics(diagnostics)
 	section.Findings = active
 	section.Diagnostics = diagnostics
 	for _, diagnostic := range diagnostics {
@@ -130,8 +130,9 @@ func FinalizeSectionWithDiagnostics(sc Context, id string, name string, findings
 // admitSectionFinding applies the diff, confidence, waiver, and suppression
 // policies to one finding, counting filtered and suppressed findings on
 // section. It returns the (possibly demoted) finding and whether it is
-// reported.
-func admitSectionFinding(sc Context, id string, section *core.SectionResult, finding core.Finding) (core.Finding, bool) {
+// reported. A finding that reached inline matching also appends, to notes,
+// any invalid codeguard:ignore directive positioned to cover it.
+func admitSectionFinding(sc Context, id string, section *core.SectionResult, finding core.Finding, notes *[]core.Diagnostic) (core.Finding, bool) {
 	if sc.Opts.Mode == core.ScanModeDiff && finding.Path != "" && !matchesDiff(sc, finding) {
 		return finding, false
 	}
@@ -151,7 +152,11 @@ func admitSectionFinding(sc Context, id string, section *core.SectionResult, fin
 		return finding, false
 	}
 	sc.WaiverAudit.RecordMatches(MatchingWaivers(sc, finding), finding)
-	if suppression := MatchSuppression(sc, finding); suppression != nil {
+	suppression := MatchSuppression(sc, finding)
+	if suppression == nil || suppression.Kind == "inline" {
+		*notes = append(*notes, invalidInlineDirectiveDiagnostics(sc, finding)...)
+	}
+	if suppression != nil {
 		section.SuppressedCount++
 		sc.RuleStats.RecordSuppressed(finding.RuleID, suppressionReason(suppression))
 		if sc.Opts.IncludeSuppressed {

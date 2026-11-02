@@ -74,7 +74,9 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	}
 	addRiskArtifacts(sc, sections)
 	addPRSummaryArtifact(sc, sections)
-	var historyDiagnostics []core.Diagnostic
+	// A waiver whose rule selector matches nothing is reported once per run,
+	// on the first section like the other run-level diagnostics.
+	historyDiagnostics := runnersupport.InvalidWaiverPatternDiagnostics(sc.Cfg.Waivers)
 	if ruleStats := sc.RuleStats.Snapshot(); len(ruleStats) > 0 {
 		sc.Artifacts.Put(core.NewRuleStatsArtifact(ruleStats))
 		historyDiagnostics = append(historyDiagnostics, runnersupport.RecordRuleStatsHistory(sc, ruleStats)...)

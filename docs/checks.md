@@ -435,6 +435,12 @@ Config keys:
 Current behavior:
 - active waivers suppress matching findings before section status is computed
 - expired waivers are ignored
+- `rule` takes the same selectors as inline suppressions: an exact rule id
+  (retired aliases resolve to their replacement), a dotted prefix ending in
+  `.*` (`security.*`, `security.taint.*`), or a bare `*` for every rule. Any
+  other use of `*` (`security*`, `*.go`, `security.*.go`) matches nothing; the
+  scan reports it as a `suppression.invalid-rule-pattern` warning diagnostic on
+  the first section, and `codeguard doctor` flags it.
 
 ## Baseline
 
@@ -2827,6 +2833,21 @@ parser, so record the reason on the same line:
 ```go
 // codeguard:ignore security.taint.go -- operator-controlled env path for test instrumentation
 ```
+
+The rule ID can also be a selector:
+- `*` suppresses every rule on the covered lines.
+- A dotted prefix ending in `.*` suppresses every rule under it:
+  `codeguard:ignore security.* -- reason` covers `security.taint.go` and
+  `security.shell-execution`, and `security.taint.*` covers only the
+  `security.taint.` family. The prefix ends at a dot, so `security.*` does not
+  match a `securityx.` rule. `until` expiry applies to prefix directives the
+  same way.
+- Any other use of `*` (`security*`, `*.go`, `security.*.go`) suppresses
+  nothing. When such a directive sits where it would have covered a finding
+  (the same or previous line, or anywhere in the file for a file-level
+  finding), the finding's section reports a `suppression.invalid-rule-pattern`
+  warning diagnostic naming the file, line, and pattern, so the directive does
+  not fail silently. The finding itself is still reported.
 
 ### Justified gosec directives
 

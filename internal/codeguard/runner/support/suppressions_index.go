@@ -24,6 +24,10 @@ import (
 type inlineSuppressionIndex struct {
 	directives []inlineSuppression
 	byLine     map[int][]int
+	// invalid holds codeguard:ignore directives whose rule selector uses "*"
+	// other than as a bare wildcard or a trailing ".*" prefix. They never
+	// suppress; invalidCovering surfaces them so the author learns that.
+	invalid []inlineSuppression
 }
 
 // emptyInlineSuppressions is shared by every file that has no directive at all,
@@ -140,11 +144,20 @@ func indexInlineSuppressions(path string, data []byte) *inlineSuppressionIndex {
 	if !hasIgnore && !hasGosec {
 		return emptyInlineSuppressions
 	}
-	directives := parseInlineSuppressionLines(strings.Split(string(data), "\n"), hasIgnore, hasGosec)
-	if len(directives) == 0 {
+	parsed := parseInlineSuppressionLines(strings.Split(string(data), "\n"), hasIgnore, hasGosec)
+	directives := make([]inlineSuppression, 0, len(parsed))
+	var invalid []inlineSuppression
+	for _, directive := range parsed {
+		if kind, _ := rules.ClassifyRulePattern(directive.ruleID); kind == rules.RulePatternInvalid {
+			invalid = append(invalid, directive)
+			continue
+		}
+		directives = append(directives, directive)
+	}
+	if len(directives) == 0 && len(invalid) == 0 {
 		return emptyInlineSuppressions
 	}
-	index := &inlineSuppressionIndex{directives: directives, byLine: make(map[int][]int, len(directives))}
+	index := &inlineSuppressionIndex{directives: directives, byLine: make(map[int][]int, len(directives)), invalid: invalid}
 	for position, directive := range directives {
 		index.byLine[directive.line] = append(index.byLine[directive.line], position)
 	}
@@ -206,8 +219,21 @@ func (index *inlineSuppressionIndex) match(sc Context, finding core.Finding) (in
 }
 
 func (directive inlineSuppression) appliesTo(sc Context, finding core.Finding) bool {
-	if directive.ruleID != "*" && rules.ResolveRuleAlias(directive.ruleID) != finding.RuleID {
+	if !rules.MatchRulePattern(directive.ruleID, finding.RuleID) {
 		return false
 	}
 	return !suppressionExpired(directive.expires, sc.Today)
+}
+
+// invalidCovering returns the invalid directives positioned where a valid
+// codeguard:ignore would have covered finding: its own line, the line above,
+// or anywhere in the file for a file-level finding.
+func (index *inlineSuppressionIndex) invalidCovering(finding core.Finding) []inlineSuppression {
+	var out []inlineSuppression
+	for _, directive := range index.invalid {
+		if finding.Line == 0 || directive.line == finding.Line || directive.line == finding.Line-1 {
+			out = append(out, directive)
+		}
+	}
+	return out
 }
