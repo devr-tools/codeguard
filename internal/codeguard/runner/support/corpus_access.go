@@ -19,7 +19,7 @@ func (sc Context) corpusFiles(target core.TargetConfig) ([]string, error) {
 		RespectGitignore:   sc.Cfg.RespectGitignoreEnabled(),
 	}
 	if sc.corpus != nil {
-		return sc.corpus.list(target.Path, sc.Cfg.Exclude, opts)
+		return sc.corpus.list(target.Path, sc.Cfg.Exclude, opts, sc.section)
 	}
 	return WalkFilesWithOptions(target.Path, sc.Cfg.Exclude, opts, includeAll)
 }

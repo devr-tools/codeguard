@@ -47,7 +47,8 @@ not findings, so they cannot be baselined or waived:
 
 - `scan.target-walk` (fail): the walk of a target stopped on an error, such
   as an unreadable subdirectory, so files under it were not scanned. Every
-  section that finalizes after the failure reports it and fails.
+  section that used that target's file listing reports it and fails; sections
+  that never read the target's files do not.
 - `scan.file-read` (warn): a file the walk listed could not be read and was
   skipped. The first 20 such files are listed individually and the rest are
   summarised.
