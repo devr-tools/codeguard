@@ -57,7 +57,7 @@ func localAbstractionFindings(env support.Context, target core.TargetConfig) []c
 	// A distinct cache section id: the per-language design passes scan the same
 	// files, and a shared id would let one pass replay the other's cached
 	// findings in its place.
-	return env.ScanTargetFiles(target, "design-local-abstraction", func(rel string) bool {
+	return env.ScanTargetFiles(target, support.CacheSectionDesignLocalAbstraction, func(rel string) bool {
 		return localDesignSupportsFile(target.Language, rel)
 	}, func(file string, data []byte) []core.Finding {
 		return localDesignFileFindings(env, target, file, data)

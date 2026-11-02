@@ -38,7 +38,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 					index = buildGoPackageIndex(env, target)
 				}
 				modules := newGoModuleResolver(target.Path)
-				findings := support.ScanTargetFilesWithDependencies(env, target, "quality", isGoSourcePath, goQualityDependencies(index), func(file string, data []byte) []core.Finding {
+				findings := support.ScanTargetFilesWithDependencies(env, target, support.CacheSectionQualityGo, isGoSourcePath, goQualityDependencies(index), func(file string, data []byte) []core.Finding {
 					return goFindingsForFileWithIndex(env, file, data, index, &modules)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
@@ -53,7 +53,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"python", "py"},
 			Run: func() []core.Finding {
-				return support.ScanPythonFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
+				return support.ScanPythonFiles(env, target, support.CacheSectionQualityPython, func(file string, data []byte) []core.Finding {
 					return pythonFindingsForFile(env, file, data)
 				})
 			},
@@ -85,7 +85,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"rust", "rs"},
 			Run: func() []core.Finding {
-				return support.ScanRustFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
+				return support.ScanRustFiles(env, target, support.CacheSectionQualityRust, func(file string, data []byte) []core.Finding {
 					return rustFindingsForFile(env, file, data)
 				})
 			},
@@ -93,7 +93,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"c++", "cpp", "cxx", "cc"},
 			Run: func() []core.Finding {
-				findings := support.ScanCPPFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
+				findings := support.ScanCPPFiles(env, target, support.CacheSectionQualityCPP, func(file string, data []byte) []core.Finding {
 					return cppFindingsForFile(env, file, data)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
@@ -108,7 +108,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"java"},
 			Run: func() []core.Finding {
-				return env.ScanTargetFiles(target, "quality", isJavaFile, func(file string, data []byte) []core.Finding {
+				return env.ScanTargetFiles(target, support.CacheSectionQualityJava, isJavaFile, func(file string, data []byte) []core.Finding {
 					return javaFindingsForFile(env, file, data)
 				})
 			},
@@ -116,7 +116,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"csharp", "c#", "cs", "dotnet"},
 			Run: func() []core.Finding {
-				return env.ScanTargetFiles(target, "quality", isCSharpFile, func(file string, data []byte) []core.Finding {
+				return env.ScanTargetFiles(target, support.CacheSectionQualityCSharp, isCSharpFile, func(file string, data []byte) []core.Finding {
 					return csharpFindingsForFile(env, file, data)
 				})
 			},
@@ -124,7 +124,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"ruby", "rb"},
 			Run: func() []core.Finding {
-				return env.ScanTargetFiles(target, "quality", isRubyFile, func(file string, data []byte) []core.Finding {
+				return env.ScanTargetFiles(target, support.CacheSectionQualityRuby, isRubyFile, func(file string, data []byte) []core.Finding {
 					return rubyFindingsForFile(env, file, data)
 				})
 			},

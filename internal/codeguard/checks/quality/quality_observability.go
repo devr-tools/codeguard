@@ -31,7 +31,7 @@ func RunObservability(ctx context.Context, env support.Context) core.SectionResu
 }
 
 func observabilityTargetFindings(_ context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	return env.ScanTargetFiles(target, "observability", isObservableSourceFile, func(file string, data []byte) []core.Finding {
+	return env.ScanTargetFiles(target, support.CacheSectionObservability, isObservableSourceFile, func(file string, data []byte) []core.Finding {
 		return findingsForFile(env, file, data)
 	})
 }

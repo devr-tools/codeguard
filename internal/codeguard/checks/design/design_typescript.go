@@ -11,7 +11,7 @@ import (
 
 func typeScriptTargetFindingsImpl(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	return support.TypeScriptTargetFindings(ctx, env, target, support.TypeScriptTargetScan{
-		SectionID: "design-typescript-structural",
+		SectionID: support.CacheSectionDesignTypeScriptStructural,
 		Extract: func(results support.TypeScriptSemanticResults) []support.FindingInput {
 			return results.Design
 		},

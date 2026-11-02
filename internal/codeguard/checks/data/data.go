@@ -15,17 +15,17 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 func dataTargetFindings(_ context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	switch support.NormalizedLanguage(target.Language) {
 	case "go", "golang":
-		return support.ScanGoFiles(env, target, "data", func(file string, data []byte) []core.Finding {
+		return support.ScanGoFiles(env, target, support.CacheSectionDataGo, func(file string, data []byte) []core.Finding {
 			return goFindingsForFile(env, file, data)
 		})
 	case "python", "py":
-		return support.ScanPythonFiles(env, target, "data", func(file string, data []byte) []core.Finding {
+		return support.ScanPythonFiles(env, target, support.CacheSectionDataPython, func(file string, data []byte) []core.Finding {
 			return pythonFindingsForFile(env, file, data)
 		})
 	case "typescript", "javascript", "ts", "tsx", "js", "jsx":
 		return typeScriptTargetFindings(env, target)
 	case "c++", "cpp", "cxx", "cc":
-		return support.ScanCPPFiles(env, target, "data", func(file string, data []byte) []core.Finding {
+		return support.ScanCPPFiles(env, target, support.CacheSectionDataCPP, func(file string, data []byte) []core.Finding {
 			return cppFindingsForFile(env, file, data)
 		})
 	default:

@@ -13,7 +13,7 @@ var securityTypeScriptTargetExtract = func(results support.TypeScriptSemanticRes
 
 func typeScriptTargetFindings(ctx context.Context, env support.Context, target core.TargetConfig) []core.Finding {
 	return support.TypeScriptTargetFindings(ctx, env, target, support.TypeScriptTargetScan{
-		SectionID: "security",
+		SectionID: support.CacheSectionSecurityTypeScript,
 		Extract:   securityTypeScriptTargetExtract,
 		Include:   func(string) bool { return true },
 		Evaluator: func(file string, data []byte) []core.Finding {

@@ -47,7 +47,7 @@ func migrationFindings(env support.Context, target core.TargetConfig, changed []
 			return added[filepath.ToSlash(rel)] && isMigrationFile(env, rel)
 		}
 	}
-	return env.ScanTargetFiles(target, "contracts", include, func(file string, data []byte) []core.Finding {
+	return env.ScanTargetFiles(target, support.CacheSectionContractsMigrations, include, func(file string, data []byte) []core.Finding {
 		return destructiveStatementFindings(env, file, string(data))
 	})
 }
