@@ -5,9 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io"
 	"math"
-	"os"
 	"path/filepath"
 	"runtime/debug"
 	"sync"
@@ -18,22 +16,10 @@ import (
 
 // readCappedFile reads path but refuses to buffer more than maxScanFileBytes,
 // bounding memory even if a file grew past the walk-time size filter (TOCTOU) or
-// is read outside the walk. It reads one byte past the cap to distinguish an
-// exactly-cap-sized file from an oversized one.
+// is read outside the walk. It is checkSupport.ReadCappedFile, the cap every
+// direct repository read shares.
 func readCappedFile(path string) ([]byte, error) {
-	f, err := os.Open(path) //nolint:gosec // path enumerated by WalkFiles under the scan root
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = f.Close() }()
-	data, err := io.ReadAll(io.LimitReader(f, maxScanFileBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > maxScanFileBytes {
-		return nil, fmt.Errorf("file %q exceeds the %d byte scan limit", path, maxScanFileBytes)
-	}
-	return data, nil
+	return checkSupport.ReadCappedFile(path)
 }
 
 // fileCorpus memoizes, for the lifetime of a single scan, the expensive work

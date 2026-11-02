@@ -2,7 +2,6 @@ package quality
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -65,11 +64,7 @@ func changedFilesForTarget(env support.Context, target core.TargetConfig) []stri
 }
 
 func readCurrentTargetFile(env support.Context, target core.TargetConfig, rel string) ([]byte, bool) {
-	if env.ReadTargetFile != nil {
-		data, err := env.ReadTargetFile(target, rel)
-		return data, err == nil
-	}
-	data, err := os.ReadFile(filepath.Join(target.Path, filepath.FromSlash(rel))) //nolint:gosec // rel comes from the scan's own changed-file list
+	data, err := support.ReadTargetFileCapped(env, target, rel)
 	return data, err == nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 
+	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 )
 
@@ -15,8 +16,9 @@ import (
 // single multi-gigabyte file (or many large ones) read fully into the in-memory
 // file corpus could exhaust the CI runner (denial of service). Real source files
 // are far smaller than this; oversized inputs are almost always generated blobs
-// or vendored bundles that are not useful to scan.
-const maxScanFileBytes = 32 << 20 // 32 MiB
+// or vendored bundles that are not useful to scan. It is the same cap check
+// packages apply to their direct reads (checkSupport.ReadCappedFile).
+const maxScanFileBytes = checkSupport.MaxTargetFileBytes // 32 MiB
 const maxScanFileCount = 100_000
 
 type FileWalkOptions struct {
