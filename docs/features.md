@@ -5,7 +5,7 @@ This page lists the current `codeguard` feature surface and the main config entr
 ## Core scan families
 
 - `quality`
-  - maintainability thresholds
+  - maintainability thresholds, including Go cyclomatic complexity (`quality_rules.cyclomatic_counting`: `legacy` by default in 1.x, `gocyclo` to match gocyclo)
   - clone detection
   - language-native quality heuristics for Go, Python, TypeScript, JavaScript, Rust, Java, C++, C#, and Ruby
   - local-quality precision heuristics for naming, function shape, error handling, defensive programming, and maintainability deltas where the active build includes them
@@ -33,10 +33,13 @@ This page lists the current `codeguard` feature surface and the main config entr
   - optional `govulncheck`
 - `prompts`
   - prompt-asset governance
-  - agent config and MCP config checks
+  - agent instruction files, Claude Code settings (`.claude/settings*.json`), and MCP config checks, parsed structurally
   - dangerous instruction and standing-permission detection
+  - MCP server risk: shell-wrapped commands, unpinned registry launches, plaintext remote transport, unauthenticated remote servers, and literal credentials in `env`/`headers`
+  - hidden Unicode characters in governed files
 - `ci`
-  - workflow/release policy
+  - workflow/release policy (opt-in: nothing is required until configured)
+  - GitHub Actions workflow security, with no configuration: script injection from untrusted `${{ }}` contexts, dangerous `pull_request_target`/`workflow_run` checkouts, `write-all` or missing `permissions`, `curl | sh` in `run:`, and secrets in fork-triggered jobs
   - test-quality heuristics, including GoogleTest, Catch2/doctest, and Boost.Test
 - `supply_chain`
   - manifest normalization, including `vcpkg.json`, `conanfile.txt`, statically analyzed `conanfile.py`, and CMake dependency declarations
@@ -78,11 +81,22 @@ This page lists the current `codeguard` feature surface and the main config entr
 
 ## Agent-native features
 
-- `codeguard serve --mcp`
+- `codeguard serve --mcp` (stdio or `--http`); `scan` and `validate_patch` return the full 1.10 report by default, and `format: "summary"` or any filter input returns a filtered, paginated summary instead
 - `codeguard validate-patch`
 - `codeguard explain -format agent`
-- verified auto-fix through SDK and CLI
-- hook-pack examples for Claude Code and Cursor
+- `codeguard context init|update` generates and refreshes `AGENTS.md`/`CLAUDE.md` from detected facts
+- verified auto-fix through SDK and CLI, and `codeguard fix-batch` for verifying several deterministic fixes as one patch
+- hook-pack examples for Claude Code, Cursor, and Devin
+
+See [Agent-native features](agent-native.md) for details.
+
+## CLI and CI gating
+
+- `codeguard init` detects languages, entrypoints, workflows, and manifests and writes a small config; `codeguard scan` with no config uses the same repository-aware defaults. See [Getting started](getting-started.md#quick-start).
+- `-fail-on fail|warn|none` (`output.fail_on`), `-min-confidence low|medium|high`, and `-quiet` control the exit policy, the confidence floor, and progress output. Operational failures exit 1 under every policy.
+- `codeguard rules -section|-search|-level|-enabled` filters the catalog; `codeguard explain` shows examples, config keys with their resolved values, suppression syntax, and profiles.
+- Mistyped flags, rule ids, profiles, formats, and `-set` keys fail before the scan with a "did you mean" suggestion.
+- SARIF output carries `security-severity`, CWE tags, rule help, taint code flows, and `partialFingerprints` for GitHub code scanning. See [Checks → SARIF output](checks.md#sarif-output-github-code-scanning).
 
 ## Baseline governance
 
@@ -108,6 +122,10 @@ See [Production rollout](production.md) for configuration, safe CI usage,
 review workflow, and exit-code behavior.
 
 ## Repository traversal
+
+The file walk honours `.gitignore` files and `.git/info/exclude` by default
+(`respect_gitignore: false` turns this off; tracked files are always scanned).
+See [Checks → `.gitignore`](checks.md#gitignore).
 
 Full scans always prune directories named `node_modules` and `cdk.out` at any
 depth. Dependency manifests and lockfiles remain in scope for supply-chain,
@@ -227,7 +245,7 @@ older or newer release always loads, and it is excluded from the per-file cache
 fingerprints, so a release upgrade does not discard cached findings.
 
 ```yaml
-codeguard_version: v1.9.0
+codeguard_version: v1.11.0
 name: my-repo
 ```
 
@@ -236,7 +254,7 @@ name: my-repo
 Drop findings the scanner is not confident enough about, globally or per
 section, and optionally report low-confidence failures as warnings. Omitting
 the block admits every finding, which is the default behavior. Section keys are
-the ids reported in scan output (the same names `checks.disabled` accepts).
+the ids reported in scan output, such as `security`, `supply_chain`, or `custom`.
 
 Both settings are applied when a section is finalized, after the per-file
 findings cache, so changing a threshold re-renders a scan rather than
@@ -410,10 +428,3 @@ JSON:
   }
 }
 ```
-
-## Next queued AI features
-
-These are the tracks currently being planned for follow-up implementation:
-
-- batch verified fix planning
-- `agent.permission-risk`

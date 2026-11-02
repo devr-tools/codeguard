@@ -1,7 +1,7 @@
 # Design spike: tree-sitter as the non-Go parsing substrate
 
 - Status: spike complete; phase 2 (TypeScript behind `parsers.treesitter`)
-  shipped — see §9
+  shipped, and the Python and C++ grammars are now embedded as well — see §9
 - Date: 2026-07-02
 - Prototype: `internal/codeguard/checks/support/treesitter/` (isolated Go module)
 - Decision: **conditional GO** — adopt tree-sitter via the pure-Go runtime
@@ -289,7 +289,7 @@ security tool that today has effectively none. The parse tables are
 generated from upstream tree-sitter grammars, but the runtime is a from-
 scratch reimplementation. Mitigations, in order:
 
-1. **Pin exactly** (`v0.20.8`), never `@latest`; go.sum hashes enforce
+1. **Pin exactly** (`v0.20.8` at the spike, `v0.52.0` today), never `@latest`; go.sum hashes enforce
    integrity; Dependabot already watches the repo and version bumps get the
    same review as any PR.
 2. **Vendor** (`go mod vendor` at the root once it ships) so every byte is
@@ -304,7 +304,7 @@ scratch reimplementation. Mitigations, in order:
    rules migrate. This checks the reimplementation against the reference C
    runtime continuously.
 4. **Grammar subset tags** keep unreviewed grammar blobs out of the binary
-   (only TS/TSX/JS/Python/Rust/Java/C# get embedded).
+   (release builds embed only TS/TSX/JS, Python, and C++ today).
 5. License: MIT core; the six target grammars are MIT upstream. Vendoring
    includes the license texts, closing the attribution gap smacker suffers
    from.
@@ -331,12 +331,13 @@ vendor/fork + differential CI).
   harness stays as the runtime-parity reference. The large-real-world-
   corpus sweep and vendor-vs-fork decision remain open.)*
 - **Phase 2 — ship TS behind a flag (done — this change)**: root module
-  takes `github.com/odvcencio/gotreesitter` pinned at v0.20.8 (not yet
-  vendored/forked — that is the remaining phase-2 supply-chain follow-up,
-  §8 item 2); grammar-subset build tags
-  (`grammar_subset,grammar_subset_{typescript,tsx,javascript}`) in the
+  takes `github.com/odvcencio/gotreesitter` pinned at v0.20.8 (since bumped
+  to v0.52.0; still not vendored/forked — that is the remaining phase-2
+  supply-chain follow-up, §8 item 2); grammar-subset build tags
+  (`grammar_subset,grammar_subset_{typescript,tsx,javascript}` at the time,
+  now also `grammar_subset_python` and `grammar_subset_cpp`) in the
   Makefile and goreleaser keep the release binary delta at ~+5 MB
-  (13.6 → 18.9 MB; an untagged `go build`/`go install` embeds all 206
+  (13.6 → 18.9 MB measured for the TS-only subset; an untagged `go build`/`go install` embeds all 206
   grammars at ~+27 MB but stays fully functional);
   `Context.ParseScriptFile` + `checks/support.SyntaxTree` seam with a
   corpus-level `sync.Once` tree cache shaped like `parseGo`; migrated
@@ -353,6 +354,8 @@ vendor/fork + differential CI).
 - **Phase 3 — default-on TS, migrate Python**: flip the default once
   phase-2 telemetry shows strictly fewer suppressions and scan-time growth
   < 2x on the reference repos; port Python rules; delete nothing yet.
+  *(Started: the Python grammar is wired and Python N+1 detection uses it
+  when `parsers.treesitter: auto`; the default is still `off`.)*
 - **Phase 4 — Rust/Java, retire hand-rolled parsers per language** after
   two releases of default-on stability each.
 - **Standing exit criteria** (any phase): upstream unresponsive to a

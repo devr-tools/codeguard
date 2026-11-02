@@ -2,7 +2,7 @@
 
 This page documents codeguard's own trust model and its OWASP Top 10 (2021)
 coverage. For the catalogue of checks codeguard runs against *your* repository,
-see [Checks reference](/Users/alex/Documents/GitHub/codeguard/docs/checks.md:1).
+see [Checks reference](checks.md).
 
 ## Trust model: repository config is untrusted by default
 

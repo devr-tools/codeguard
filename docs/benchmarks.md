@@ -45,15 +45,15 @@ Recommended first pass:
    and Sonar server upload/analysis should be reported as separate phases, not
    hidden inside or outside the timing window.
 
-Current CodeGuard detector baseline from:
+Current CodeGuard detector baseline (v1.11.0) from:
 
 ```sh
-env -u GOROOT GOCACHE=/private/tmp/codeguard-go-cache go test ./tests/corpus -run TestCorpusExpectations -v
+go test ./tests/corpus -run TestCorpusExpectations -v
 ```
 
 | Metric | Value |
 | --- | ---: |
-| True positives | 68 |
+| True positives | 71 |
 | False negatives | 0 |
 | False positives | 1 |
 | Precision | 0.986 |

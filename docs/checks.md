@@ -149,8 +149,10 @@ opt-in.
 after both the recommended baseline and explicit section enables are resolved.
 It is therefore the final precedence layer. Accepted names are `quality`,
 `performance`, `design`, `security`, `prompts`, `ci`, `supply_chain`,
-`reliability`, `data`, `observability`, `operations`, `delivery`, `change`, `context`, and `contracts`; blank, duplicate, unknown, and alias names are
-invalid.
+`reliability`, `data`, `delivery`, `change`, `context`, and `contracts`; blank,
+duplicate, unknown, and alias names are invalid. `observability` and
+`operations` are not accepted here: turn them off with
+`checks.observability: false` and `checks.operations: false`.
 
 When `use_recommended_defaults` is absent or `false`, section behavior is
 unchanged from earlier configurations. Profiles do not select the recommended
@@ -611,7 +613,7 @@ uses. `-format json` (alias `agent`) returns the same data as the MCP
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Quality | `gofmt`, parseability, maintainability thresholds, opt-in toolchain dead-code evidence | maintainability thresholds across sources, headers, templates, and modules; optional `clang-format` and sanitized `clang++` validation | maintainability thresholds | maintainability thresholds, `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`, `explicit any`, double assertions, non-null assertions, `debugger` statements | maintainability thresholds | maintainability thresholds | maintainability thresholds | maintainability thresholds |
 | Design | package boundary rules, generic package names, declarations per file, methods per type, interface size, graph reachability/stability/impact | include and named-module cycles, reachability, stability, graph impact, generic filenames, declarations per file, method counts, contract surface checks, boundary-policy enforcement | public/private and entrypoint coupling, import cycles, generic module names, methods per type, protocol size | generic module names, max methods per class, max members per interface/object type, graph resolution through `tsconfig` paths, package `imports`, and workspace package exports | module cycles, graph impact, generic module names, methods per type, trait size | import cycles and graph impact | - | - |
-| Security | insecure TLS, shell execution review, optional `govulncheck` | insecure TLS, shell execution review, unsafe C string APIs, taint flow, SSRF | insecure TLS, shell execution review, dynamic code | insecure TLS, shell execution review, dynamic code, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
+| Security | insecure TLS, shell execution review, taint flow, SSRF, optional `govulncheck` | insecure TLS, shell execution review, unsafe C string APIs, taint flow, SSRF | insecure TLS, shell execution review, dynamic code, taint flow, SSRF | insecure TLS, shell execution review, dynamic code, taint flow, string timer execution, wildcard `postMessage`, Node `vm` execution, unsafe HTML sinks | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review | insecure TLS, shell execution review, dynamic code |
 | Reliability | missing timeouts, cancellation gaps, retry policy gaps, non-idempotent retry evidence, unbounded goroutines/work, resource cleanup, swallowed/lost errors, recoverable panic, graceful shutdown | retry policy gaps, non-idempotent retry evidence, unbounded thread/task launch, raw allocation cleanup gaps, generic runtime throws | missing HTTP timeouts, retry policy gaps, non-idempotent retry evidence, unbounded asyncio work, swallowed exceptions, generic raises, resource cleanup | missing timeout/abort evidence, promise/HTTP work in loops, retry policy gaps, non-idempotent retry evidence, swallowed catches, generic throws | - | - | - | - |
 | Data Correctness | read-modify-write races, transaction gaps, side effects in transactions, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded SQL reads, exactly-once assumptions, cache policy | transaction gaps, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded reads, exactly-once assumptions, cache policy | transaction gaps, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded reads, exactly-once assumptions, cache policy | transaction gaps, consumer idempotency/dedupe, dual writes/outbox, pagination, unbounded reads, exactly-once assumptions, cache policy | - | - | - | - |
 | Change Safety | cataloged diff/testability/refactor checks for Go changes | repository-wide change concentration plus cataloged C++ testability/refactor checks | cataloged diff/testability/refactor checks for Python changes | cataloged diff/testability/refactor checks for TypeScript/JavaScript changes | - | - | - | - |
@@ -644,8 +646,9 @@ Confidence policy (opt-in):
   scans generally leave it unspecified
 - `checks.min_confidence.default` drops findings below the given level, and
   `checks.min_confidence.sections.<section>` overrides it for one section.
-  Section keys are the ids reported in scan output and accepted by
-  `checks.disabled` (supply chain is `supply_chain`). Omitting the block, or
+  Section keys are the ids reported in scan output (supply chain is
+  `supply_chain`; `observability`, `operations`, and `custom` are accepted
+  here too, although `checks.disabled` does not take them). Omitting the block, or
   setting `low`, admits every finding — the default behavior
 - removed findings are never silent: each is counted per rule as
   `confidence_filtered` in the `rule_stats` artifact, reported per section as
@@ -1580,6 +1583,7 @@ Status and precision:
 - `testing.legacy-hotspot-uncovered` depends on history/hotspot inputs. When those inputs are unavailable or shallow, CodeGuard skips rather than emitting misleading evidence.
 - Implemented `refactor.*` detectors are conservative, diff-mode, and evidence-based; they do not claim semantic equivalence.
 
+<a id="local-quality-precision-glossary"></a>
 Local quality precision glossary:
 
 These rules live outside the repository-wide `Change Safety` section in report output, but they support the same review goal: make local changes easier to understand, test, and maintain. Use `codeguard rules` on your installed build to confirm which rollout subset is present before writing waivers or hard policy.

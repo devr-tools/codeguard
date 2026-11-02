@@ -7,13 +7,13 @@
 ```yaml
 repos:
   - repo: https://github.com/devr-tools/codeguard
-    rev: v0.2.0
+    rev: v1.11.0
     hooks:
       - id: codeguard
         args: ["-config", "codeguard.yaml", "-profile", "startup"]
 ```
 
-The packaged hook runs `codeguard scan -mode diff -base-ref HEAD` by default.
+The packaged hook runs `codeguard scan -config codeguard.yaml -mode diff -base-ref HEAD` by default.
 
 ## GitHub Action
 
@@ -21,7 +21,7 @@ This repository also ships the GitHub Marketplace action `Devr Codeguard` from `
 
 ```yaml
 - name: Devr Codeguard
-  uses: devr-tools/codeguard@v1.1.1
+  uses: devr-tools/codeguard@v1.11.0
   with:
     config: codeguard.yaml
     profile: strict
@@ -36,7 +36,7 @@ For pull request workflows, the action can also publish a sticky fix-oriented co
 
 ```yaml
 - name: Devr Codeguard
-  uses: devr-tools/codeguard@v1.1.1
+  uses: devr-tools/codeguard@v1.11.0
   with:
     config: codeguard.yaml
     mode: diff
@@ -96,22 +96,22 @@ has a SARIF upload input.
 
 ## Agent Hook Packs
 
-`codeguard` now ships example hook packs under [examples/hooks](/Users/alex/Documents/GitHub/codeguard/examples/hooks/README.md:1).
+`codeguard` now ships example hook packs under [examples/hooks](../examples/hooks/README.md).
 
 Included packs:
 
 - Claude Code
-  - [examples/hooks/claude-code/pre-tool-use.sh](/Users/alex/Documents/GitHub/codeguard/examples/hooks/claude-code/pre-tool-use.sh:1)
-  - [examples/hooks/claude-code/post-edit.sh](/Users/alex/Documents/GitHub/codeguard/examples/hooks/claude-code/post-edit.sh:1)
+  - [examples/hooks/claude-code/pre-tool-use.sh](../examples/hooks/claude-code/pre-tool-use.sh)
+  - [examples/hooks/claude-code/post-edit.sh](../examples/hooks/claude-code/post-edit.sh)
 - Cursor
-  - [examples/hooks/cursor/before-apply.sh](/Users/alex/Documents/GitHub/codeguard/examples/hooks/cursor/before-apply.sh:1)
-  - [examples/hooks/cursor/after-edit.sh](/Users/alex/Documents/GitHub/codeguard/examples/hooks/cursor/after-edit.sh:1)
-  - [examples/hooks/cursor/mcp.json.example](/Users/alex/Documents/GitHub/codeguard/examples/hooks/cursor/mcp.json.example:1)
+  - [examples/hooks/cursor/before-apply.sh](../examples/hooks/cursor/before-apply.sh)
+  - [examples/hooks/cursor/after-edit.sh](../examples/hooks/cursor/after-edit.sh)
+  - [examples/hooks/cursor/mcp.json.example](../examples/hooks/cursor/mcp.json.example)
 - Devin
-  - [examples/hooks/devin/mcp-http.json.example](/Users/alex/Documents/GitHub/codeguard/examples/hooks/devin/mcp-http.json.example:1)
-  - [examples/hooks/devin/mcp-stdio.json.example](/Users/alex/Documents/GitHub/codeguard/examples/hooks/devin/mcp-stdio.json.example:1)
-  - [examples/hooks/devin/run-http.sh](/Users/alex/Documents/GitHub/codeguard/examples/hooks/devin/run-http.sh:1)
-  - [examples/hooks/devin/setup-snapshot.sh](/Users/alex/Documents/GitHub/codeguard/examples/hooks/devin/setup-snapshot.sh:1)
+  - [examples/hooks/devin/mcp-http.json.example](../examples/hooks/devin/mcp-http.json.example)
+  - [examples/hooks/devin/mcp-stdio.json.example](../examples/hooks/devin/mcp-stdio.json.example)
+  - [examples/hooks/devin/run-http.sh](../examples/hooks/devin/run-http.sh)
+  - [examples/hooks/devin/setup-snapshot.sh](../examples/hooks/devin/setup-snapshot.sh)
 
 The packs are script-first on purpose:
 
@@ -305,13 +305,14 @@ The HTTP endpoint:
   token also falls back to `$CODEGUARD_MCP_AUTH_TOKEN`.
 - exposes `GET /healthz` for health checks, caps request body size, limits
   concurrent tool executions, and drains in-flight requests on SIGINT/SIGTERM.
-- mints an `Mcp-Session-Id` on `initialize`; `GET {mcp-path}` returns `405`
-  (no server-initiated stream), `DELETE` acknowledges session termination.
+- mints an `Mcp-Session-Id` on `initialize`; `GET {mcp-path}` with that
+  session id opens the server-initiated SSE stream used for sampling, roots,
+  and elicitation requests, and `DELETE` ends the session.
 
 ### Devin
 
 Devin connects to a custom MCP server over HTTP (recommended), SSE, or stdio.
-See the [Devin pack README](/Users/alex/Documents/GitHub/codeguard/examples/hooks/devin/README.md:1)
+See the [Devin pack README](../examples/hooks/devin/README.md)
 for the full walkthrough. In short:
 
 1. Host the server with `examples/hooks/devin/run-http.sh` behind a reachable
@@ -320,7 +321,7 @@ for the full walkthrough. In short:
    Server URL `https://…/mcp`, Authentication `Auth Header` →
    `Authorization: Bearer <token>`.
 3. Click **Test listing tools** — Devin runs `initialize` + `tools/list` and
-   should discover the five tools.
+   should discover the eight tools listed above.
 
 For a binary-in-snapshot setup instead, use `setup-snapshot.sh` and the stdio
 config in `mcp-stdio.json.example`.
@@ -348,14 +349,14 @@ as an MCP client and answer the server's `sampling/createMessage` and
 Run it with:
 
 ```bash
-GOROOT=/opt/homebrew/opt/go/libexec GOCACHE=/private/tmp/codeguard-go-cache go test ./tests/mcp -run TestMCPHostSmokeProfiles
+go test ./tests/mcp -run TestMCPHostSmokeProfiles
 ```
 
 Current scope:
 
 - validates host-like `initialize`, `tools/list`, `tools/call`, `ping`, config/patch/explain, and `resources`/`prompts` flows
 - validates the server's newline-delimited stdio JSON-RPC transport
-- the Streamable-HTTP transport is covered by `internal/cli/mcp_http_test.go` (initialize, auth, SSE tool calls, resources/prompts, health)
+- the Streamable-HTTP transport is covered by `tests/mcp/http_test.go` (initialize, auth, SSE tool calls, resources/prompts, health)
 
 Out of scope:
 

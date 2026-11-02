@@ -14,6 +14,7 @@ It currently:
 - computes prerelease tags automatically for `develop`
 - reuses `.github/workflows/release.yml` for prerelease packaging
 - runs Release Please on `main` and `master`
+- after a stable release, publishes the npm package (`@devr-tools/codeguard`) and the PyPI package (`devr-codeguard`) through OIDC trusted publishing, so no npm or PyPI token is stored
 
 ### `.github/workflows/release.yml`
 
@@ -24,7 +25,8 @@ It currently:
 - supports `workflow_dispatch` and `workflow_call`
 - normalizes and validates tags before release
 - runs GoReleaser using `.goreleaser.yaml`
-- uploads release archives and checksums
+- uploads release archives and checksums, a CycloneDX SBOM per archive, and keyless cosign signatures
+- attaches signed SLSA build provenance
 - publishes a GHCR image for Linux `amd64` and `arm64`
 - publishes a multi-arch GHCR manifest for the release tag
 - syncs `Formula/codeguard.rb` in `devr-tools/homebrew-tap` for stable releases
@@ -63,8 +65,11 @@ Each tagged release currently publishes:
 - `darwin/arm64` archive
 - `linux/amd64` archive
 - `linux/arm64` archive
-- `SHA256SUMS`
-- `ghcr.io/devr-tools/codeguard:<tag>`
+- `SHA256SUMS`, with its cosign signature (`SHA256SUMS.sig`) and certificate (`SHA256SUMS.pem`)
+- a CycloneDX SBOM per archive
+- `ghcr.io/devr-tools/codeguard:<tag>` (cosign-signed)
+
+Stable releases also publish `@devr-tools/codeguard` to npm and `devr-codeguard` to PyPI. See [Security & OWASP](security.md#release-integrity-supply-chain) for how to verify a download.
 
 ## Local Developer Commands
 

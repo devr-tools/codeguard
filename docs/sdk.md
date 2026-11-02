@@ -22,7 +22,6 @@ package main
 import (
 	"context"
 	"log"
-	"os"
 
 	"github.com/devr-tools/codeguard/pkg/codeguard"
 )
@@ -41,11 +40,14 @@ func main() {
 
 - `codeguard.ExampleConfig()` returns a ready-to-edit starter config.
 - `codeguard.ExampleConfigForProfile(name)` returns a starter config for a built-in profile.
+- `codeguard.DefaultScanConfig(root, profile)` returns the repository-aware defaults that `codeguard scan` uses when no config file exists (what `codeguard init` would write).
 - `codeguard.ApplyDefaults(&cfg)` fills omitted fields on an in-memory config before validation or inspection.
-- `codeguard.LoadConfigFile(path)` loads and validates a config file.
+- `codeguard.LoadConfigFile(path)` loads and validates a config file; `codeguard.WriteConfigFile(path, cfg)` writes one.
 - `codeguard.ValidateConfig(cfg)` validates config without running a scan.
 - `codeguard.Run(ctx, cfg)` runs a full scan.
 - `codeguard.RunWithOptions(ctx, cfg, opts)` runs a full or diff scan.
+- `codeguard.RunPatch(ctx, cfg, diffText)` scans a unified diff against synthesized patched content without touching the working tree (the SDK form of `codeguard validate-patch`).
+- `codeguard.ReportGateError(report, failOn)` applies the CLI exit policy (`fail`, `warn`, or `none`) to a report.
 - `codeguard.VerifyFix(ctx, cfg, finding, candidate, opts)` validates a proposed patch in a temp workspace, reruns `codeguard` against the diff, and executes verification tests before returning it.
 - `codeguard.GenerateVerifiedFix(ctx, req)` asks a generator for a patch candidate and only returns it after the same verification flow passes.
 - `codeguard.WriteReport(w, report, format)` writes `text`, `json`, `sarif`, `github`, `github-comment`, or `cyclonedx` output.
@@ -56,6 +58,7 @@ func main() {
 - `codeguard.ExplainRule(ruleID)` returns the metadata for one rule.
 - `codeguard.ExplainRuleForConfig(cfg, ruleID)` resolves built-in and custom rules from config.
 - `codeguard.Profiles()` lists built-in profile metadata.
+- `codeguard.DetectContextFacts(root)`, `RenderContextDoc`, `UpdateContextDoc`, and `CheckContextDocs` generate, refresh, and check agent docs, as `codeguard context init|update` does.
 
 ## Typical flow
 
@@ -102,8 +105,8 @@ recommended baseline: `quality`, `design`, `security`, `prompts`, and `ci`.
 enables are retained, and `checks.disabled` is applied last, so it always wins
 over both an explicit enable and the recommended baseline. Use the canonical
 section names in `disabled`: `quality`, `performance`, `design`, `security`,
-`prompts`, `ci`, `supply_chain`, `context`, or `contracts`; aliases are not
-accepted.
+`prompts`, `ci`, `supply_chain`, `delivery`, `reliability`, `data`, `change`,
+`context`, or `contracts`; aliases are not accepted.
 
 When `use_recommended_defaults` is absent or `false`, CodeGuard preserves the
 existing section behavior. Built-in profiles remain independent of this flag:
