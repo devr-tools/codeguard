@@ -63,7 +63,6 @@ checks:
     # internal/cli and a pkg/codeguard facade that owns the only internal/
     # imports, so the self-scan states them explicitly.
     require_cmd_through_internal_cli: true
-    forbid_internal_import_cmd: true
     forbid_service_import_internal: true
     forbid_service_import_cmd: true
     # Which package is the facade is a property of the repository being

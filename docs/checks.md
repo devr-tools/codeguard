@@ -155,6 +155,43 @@ duplicate, unknown, and alias names are invalid. `observability` and
 `operations` are not accepted here: turn them off with
 `checks.observability: false` and `checks.operations: false`.
 
+### Disabling individual rules
+
+`checks.disabled_rules` turns off single rules, or a rule family, for good:
+
+```yaml
+checks:
+  disabled_rules:
+    - observability.unstructured-log   # one rule
+    - security.taint.*                 # every rule whose id starts with security.taint.
+```
+
+- An entry is an exact rule id, including a custom rule-pack id, or a dotted
+  prefix ending in `.*`. A retired alias (for example
+  `quality.mixed-abstraction-levels`) is accepted and disables the rule it
+  resolves to.
+- Entries are validated against the rule catalog. A typo fails with a "did
+  you mean" hint, a prefix must match at least one rule, a retired
+  performance id names its `performance.*` replacement, and blank or
+  duplicate entries are rejected.
+- A disabled rule's findings are dropped before the diff filter, the
+  confidence policy, the baseline, waivers and inline `codeguard:ignore`
+  directives. They are not counted as suppressed, so they never inflate a
+  rule's `suppression_ratio` in the `rule_stats` artifact or in
+  `codeguard doctor` rule health. Imported external-report findings are
+  filtered the same way.
+- `codeguard rules -enabled` leaves disabled rules out of the list and prints
+  one `disabled: <id> (checks.disabled_rules: <entry>)` line per rule on
+  stderr. `codeguard rules -format json -config ...` reports `"enabled":
+  false` and `"disabled_by"` for them, and `codeguard explain <id>` prints
+  `disabled by checks.disabled_rules: <entry>` (JSON: `disabled_by`).
+
+Prefer `disabled_rules` to a `waivers: [{rule: X, path: "**"}]` entry for a
+rule a team has decided not to use. A waiver is a temporary, reviewable
+exception (it has a reason and an optional expiry, and `waivers audit`
+tracks it) and every finding it hides counts as suppressed.
+`checks.disabled` still turns off whole sections.
+
 When `use_recommended_defaults` is absent or `false`, section behavior is
 unchanged from earlier configurations. Profiles do not select the recommended
 baseline — but a profile may enable sections of its own on top of it (for
@@ -497,6 +534,18 @@ Built-in profiles:
 - `enterprise`
 - `ai-safe`
 
+`enterprise` CI policy is generic: it requires a `.github/workflows`
+directory (`ci.required-workflow-dir`) and workflows that run a test gate and
+a security gate (`ci.missing-required-gate`; `test` matches `go test`,
+`npm test`, `pytest`, `cargo test` and similar, `security` matches
+govulncheck, gosec, CodeQL, Trivy, Snyk or Semgrep). Through 1.11 it also
+required codeguard's own release files: `.goreleaser.yaml`, `Makefile` and
+`.github/workflows/ci.yml`. A config that relied on those checks can restore
+them explicitly with `ci_rules.required_release_files` and
+`ci_rules.required_automation_paths`; a config that already writes those keys
+(such as one written by `codeguard init -profile enterprise` in 1.10 or earlier)
+is unaffected.
+
 The comparison below is generated from the profile definitions and verified by
 the configuration tests. The `Baseline` column is the built-in default policy —
 what a repository gets for any key it omits — and each profile column is that
@@ -516,8 +565,9 @@ sets only targets and section switches on top of the same baseline (see
 | `design_rules.max_methods_per_type` | 8 | 10 | 6 | 6 | 8 |
 | `design_rules.max_interface_methods` | 5 | 8 | 4 | 4 | 5 |
 | `security_rules.govulncheck_mode` | auto | auto | required | required | required |
-| `ci_rules.required_release_files` | — | — | — | .goreleaser.yaml | — |
-| `ci_rules.required_automation_paths` | — | — | — | Makefile<br>.github/workflows/ci.yml | — |
+| `ci_rules.require_workflow_dir` | false | false | false | true | false |
+| `ci_rules.required_release_files` | — | — | — | — | — |
+| `ci_rules.required_automation_paths` | — | — | — | — | — |
 | `ci_rules.required_gates` | — | — | test | test<br>security | — |
 | `contracts` | scan-mode | scan-mode | true | true | scan-mode |
 | `reliability` | false | false | true | true | true |
@@ -1789,7 +1839,6 @@ Config keys:
     "design": true,
     "design_rules": {
       "require_cmd_through_internal_cli": true,
-      "forbid_internal_import_cmd": true,
       "forbid_service_import_internal": true,
       "forbid_service_import_cmd": true,
       "sdk_facade_paths": ["pkg/myapp"],
@@ -1810,10 +1859,12 @@ Config keys:
 }
 ```
 
-Defaults: the four Go package-layering toggles
-(`require_cmd_through_internal_cli`, `forbid_internal_import_cmd`,
-`forbid_service_import_internal`, `forbid_service_import_cmd`) are **off by
-default**. They describe one specific repository layout — `cmd/` delegating to
+Defaults: the three Go package-layering toggles
+(`require_cmd_through_internal_cli`, `forbid_service_import_internal`,
+`forbid_service_import_cmd`) are **off by default**. A fourth key,
+`forbid_internal_import_cmd`, is deprecated and has no effect (Go cannot import
+a `cmd/` main package); see
+[Deprecated keys](config-reference.md#deprecated-keys). They describe one specific repository layout — `cmd/` delegating to
 `internal/cli`, and a `pkg/` facade that must not reach into `cmd/` — and
 report at fail level, and a `pkg/` package importing its own module's
 `internal/` is ordinary Go. Set them to `true` to enforce that layout; this
@@ -2573,8 +2624,10 @@ Config keys:
 }
 ```
 
-`output.fail_on` is the exit policy (`codeguard scan -fail-on` overrides it
-for one run; `validate-patch` honours the config key):
+`output.fail_on` is the exit policy. `codeguard scan -fail-on` and
+`codeguard validate-patch -fail-on` override it for one run, with the same
+values and validation; the flag also wins over a `-set output.fail_on=...`
+override:
 
 | `fail_on` | Exit 0 when | Exit 1 when |
 | --- | --- | --- |
@@ -2796,6 +2849,7 @@ segment, and none at all when nothing is close.
 | `-set checks.qualty=true` | `invalid config override: override "checks.qualty" references unknown config field "qualty"; did you mean "checks.quality"?` |
 | `-format sarf` | `invalid -format: unknown output format "sarf"; did you mean "sarif"? (valid formats: ...)` |
 | `checks.disabled: [securty]` | `checks.disabled contains unknown section "securty"; did you mean "security"? (valid sections: ...)` |
+| `checks.disabled_rules: [observability.unstructured-logs]` | `checks.disabled_rules contains unknown rule "observability.unstructured-logs"; did you mean "observability.unstructured-log"? ...` |
 
 The same hints cover `checks.min_confidence.sections` keys, `output.format` in
 a config file, waiver rule ids in `codeguard doctor` and `codeguard waivers

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	rulespkg "github.com/devr-tools/codeguard/internal/codeguard/rules"
 	"github.com/devr-tools/codeguard/internal/codeguard/suggest"
 )
 
@@ -30,6 +31,58 @@ func validateDisabledChecks(disabled []string) error {
 		seen[section] = struct{}{}
 	}
 	return nil
+}
+
+// validateDisabledRules checks checks.disabled_rules against the rule catalog
+// and the config's rule packs. An entry is an exact rule id (a retired alias
+// is accepted) or a "family.*" prefix that matches at least one rule.
+func validateDisabledRules(cfg core.Config) error {
+	catalog := RuleCatalogForConfig(cfg)
+	ids := make([]string, 0, len(catalog))
+	for id := range catalog {
+		ids = append(ids, id)
+	}
+	retired := rulespkg.RetiredPerformanceRuleIDs()
+	seen := make(map[string]struct{}, len(cfg.Checks.DisabledRules))
+	for idx, raw := range cfg.Checks.DisabledRules {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			return fmt.Errorf("checks.disabled_rules[%d] must not be blank", idx)
+		}
+		if _, dup := seen[entry]; dup {
+			return fmt.Errorf("checks.disabled_rules contains duplicate entry %q", entry)
+		}
+		seen[entry] = struct{}{}
+		if prefix, ok := strings.CutSuffix(entry, rulespkg.DisabledRuleWildcardSuffix); ok {
+			if !anyRuleHasPrefix(ids, prefix+".") {
+				return fmt.Errorf("checks.disabled_rules entry %q matches no rule%s", entry, suggest.Hint(prefix, ids))
+			}
+			continue
+		}
+		if _, ok := catalog[entry]; ok {
+			continue
+		}
+		if _, ok := catalog[rulespkg.ResolveRuleAlias(entry)]; ok {
+			continue
+		}
+		if renamed, ok := retired[entry]; ok {
+			return fmt.Errorf("checks.disabled_rules contains retired rule %q; it is now %q", entry, renamed)
+		}
+		return fmt.Errorf("checks.disabled_rules contains unknown rule %q%s (run codeguard rules to list rule ids)", entry, suggest.Hint(entry, ids))
+	}
+	return nil
+}
+
+func anyRuleHasPrefix(ids []string, prefix string) bool {
+	if prefix == "." {
+		return false
+	}
+	for _, id := range ids {
+		if strings.HasPrefix(id, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateBasicThresholds(checks core.CheckConfig) error {

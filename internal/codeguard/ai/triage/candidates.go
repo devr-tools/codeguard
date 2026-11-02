@@ -14,9 +14,16 @@ import (
 
 func collectCandidates(cfg core.Config, sections []core.SectionResult) []candidate {
 	resolver := newSourceResolver(cfg.Targets)
+	filter := newCandidateFilter(cfg.AI.HybridTriage)
 	candidates := make([]candidate, 0)
 	for sectionIndex, section := range sections {
+		if !filter.section(section) {
+			continue
+		}
 		for findingIndex, finding := range section.Findings {
+			if !filter.severity(finding) {
+				continue
+			}
 			item := candidate{
 				sectionIndex: sectionIndex,
 				findingIndex: findingIndex,
@@ -29,6 +36,47 @@ func collectCandidates(cfg core.Config, sections []core.SectionResult) []candida
 		}
 	}
 	return candidates
+}
+
+// candidateFilter narrows triage to ai.hybrid_triage.candidate_sections and
+// candidate_severities. An empty list places no restriction, so SDK callers
+// that build a Config without defaults keep triaging every finding.
+type candidateFilter struct {
+	sections   map[string]struct{}
+	severities map[string]struct{}
+}
+
+func newCandidateFilter(cfg core.AIHybridTriageConfig) candidateFilter {
+	return candidateFilter{sections: lowerSet(cfg.CandidateSections), severities: lowerSet(cfg.CandidateSeverities)}
+}
+
+// section matches a section by display name ("Code Quality") or id
+// ("quality"), case-insensitively.
+func (filter candidateFilter) section(section core.SectionResult) bool {
+	if len(filter.sections) == 0 {
+		return true
+	}
+	_, byName := filter.sections[strings.ToLower(strings.TrimSpace(section.Name))]
+	_, byID := filter.sections[strings.ToLower(strings.TrimSpace(section.ID))]
+	return byName || byID
+}
+
+func (filter candidateFilter) severity(finding core.Finding) bool {
+	if len(filter.severities) == 0 {
+		return true
+	}
+	_, ok := filter.severities[strings.ToLower(strings.TrimSpace(finding.Level))]
+	return ok
+}
+
+func lowerSet(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if trimmed := strings.ToLower(strings.TrimSpace(value)); trimmed != "" {
+			out[trimmed] = struct{}{}
+		}
+	}
+	return out
 }
 
 func contentHash(item candidate) string {

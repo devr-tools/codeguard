@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -25,8 +26,13 @@ func TestBaselineAuditAndPruneDoNotAcceptNewFindings(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := cli.Run([]string{"baseline", "audit", "-config", configPath, "-baseline", baselinePath, "-format", "json"}, strings.NewReader(""), &stdout, &stderr); code != 0 {
-		t.Fatalf("audit exit=%d stderr=%s", code, stderr.String())
+	// The fixture sets baseline.governance.require_no_stale_entries, so the
+	// audit still reports its counts but exits non-zero on the stale entry.
+	if code := cli.Run([]string{"baseline", "audit", "-config", configPath, "-baseline", baselinePath, "-format", "json"}, strings.NewReader(""), &stdout, &stderr); code == 0 {
+		t.Fatalf("audit should fail on a stale entry under require_no_stale_entries; stdout=%s", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "require_no_stale_entries") {
+		t.Fatalf("audit stderr should name require_no_stale_entries, got %q", stderr.String())
 	}
 	var audit struct {
 		Counts struct {
@@ -84,7 +90,28 @@ func TestBaselinePolicyRejectsGrowthAndProhibitedAddition(t *testing.T) {
 	}
 }
 
+func TestBaselineAuditPassesStaleEntriesWithoutRequireNoStaleEntries(t *testing.T) {
+	_, configPath, baselinePath := governanceFixtureWith(t, false)
+	var stdout, stderr bytes.Buffer
+	if code := cli.Run([]string{"baseline", "-config", configPath, "-output", baselinePath}, strings.NewReader(""), &stdout, &stderr); code != 0 {
+		t.Fatalf("create exit=%d stderr=%s", code, stderr.String())
+	}
+	file := readBaselineFixture(t, baselinePath)
+	file.Entries = append(file.Entries, core.BaselineEntry{Fingerprint: "stale", RuleID: "quality.stale", Path: "old.go"})
+	writeBaselineFixture(t, baselinePath, file)
+	stdout.Reset()
+	stderr.Reset()
+	if code := cli.Run([]string{"baseline", "audit", "-config", configPath, "-baseline", baselinePath}, strings.NewReader(""), &stdout, &stderr); code != 0 {
+		t.Fatalf("audit without require_no_stale_entries should pass, exit=%d stderr=%s", code, stderr.String())
+	}
+}
+
 func governanceFixture(t *testing.T) (string, string, string) {
+	t.Helper()
+	return governanceFixtureWith(t, true)
+}
+
+func governanceFixtureWith(t *testing.T, requireNoStale bool) (string, string, string) {
 	t.Helper()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "codeguard.json")
@@ -96,7 +123,7 @@ func governanceFixture(t *testing.T) (string, string, string) {
 	if err := os.WriteFile(promptPath, []byte("Use ${OPENAI_API_KEY}.\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	config := `{"name":"governance","targets":[{"name":"repo","path":"` + dir + `","language":"go"}],"checks":{"quality":false,"design":false,"security":false,"prompts":true,"ci":false},"baseline":{"path":"baseline.json","governance":{"require_no_stale_entries":true}},"output":{"format":"json"}}`
+	config := `{"name":"governance","targets":[{"name":"repo","path":"` + dir + `","language":"go"}],"checks":{"quality":false,"design":false,"security":false,"prompts":true,"ci":false},"baseline":{"path":"baseline.json","governance":{"require_no_stale_entries":` + strconv.FormatBool(requireNoStale) + `}},"output":{"format":"json"}}`
 	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
 		t.Fatal(err)
 	}

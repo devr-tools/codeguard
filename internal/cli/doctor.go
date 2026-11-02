@@ -20,6 +20,9 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 
 	cfg, checks, ok := loadDoctorConfig(*configPath, *profile)
+	if ok {
+		checks = append(checks, configDeprecationDoctorChecks(*configPath)...)
+	}
 	writeDoctorChecks(&checks, cfg)
 	writeDoctorReport(stdout, checks)
 	if !ok || hasDoctorFailures(checks) {
@@ -56,4 +59,18 @@ func writeDoctorChecks(checks *[]doctorCheck, cfg service.Config) {
 		*checks = append(*checks, cache)
 	}
 	*checks = append(*checks, ruleHealthDoctorChecks(cfg, time.Now())...)
+}
+
+// configDeprecationDoctorChecks warns once per deprecated key the config file
+// sets.
+func configDeprecationDoctorChecks(configPath string) []doctorCheck {
+	deprecations, err := service.ConfigDeprecations(configPath)
+	if err != nil {
+		return nil
+	}
+	checks := make([]doctorCheck, 0, len(deprecations))
+	for _, deprecation := range deprecations {
+		checks = append(checks, warnDoctorCheck("config-deprecation", deprecation.Message()))
+	}
+	return checks
 }

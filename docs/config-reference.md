@@ -11,11 +11,19 @@ base profile, before any `profile` adjustments), and what it controls.
 - YAML and JSON use the same key names.
 - Validation reports every invalid setting at once, one per line. The first
   line is the first failure in validation order.
-- *Reserved* keys are parsed and validated but no check reads them yet.
-  Setting them is harmless and has no effect today.
+- *Deprecated* keys still parse, so 1.x config files keep loading, but no
+  check reads them. `codeguard validate` and `codeguard doctor` print a
+  warning naming each one a config sets. They will be removed in 2.0; see
+  [Deprecated keys](#deprecated-keys).
 - `tests/rules/docs_coverage_test.go` walks the config structs' `yaml` tags and
   fails when a key appears nowhere under `docs/`. Document new keys here, or in
   the owning section of `checks.md`.
+
+## Rule selection
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `checks.disabled_rules` | none | Rule ids (retired aliases accepted) or `family.*` prefixes to turn off. Findings of these rules are dropped before the baseline, waivers and inline suppressions, and are not counted as suppressed. See [Disabling individual rules](checks.md#disabling-individual-rules). |
 
 ## Numeric keys and explicit `0`
 
@@ -153,9 +161,9 @@ All under `checks.supply_chain_rules`.
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `checks.reliability_rules.max_inline_goroutines_per_function` | `4` | `reliability.missing-concurrency-limit` fires when one Go function starts more than this many inline goroutines, or one TypeScript or JavaScript file starts more than this many detached async operations, with no concurrency limiter in sight. |
-| `checks.reliability_rules.max_retry_attempts` | `3` | Reserved. It is validated as non-negative, but the retry rules use their own evidence today. |
+| `checks.reliability_rules.max_retry_attempts` | `3` | Deprecated, removed in 2.0. The retry rules judge the attempt limit and backoff in the code. |
 | `checks.data_rules.max_writes_without_transaction` | `1` | `data.missing-transaction-boundary` fires when the scanned code performs more than this many persistence writes without transaction evidence. |
-| `checks.data_rules.max_unbounded_read_rows` | `1000` | Reserved. It is validated as non-negative, but `data.unbounded-read` does not compare against it yet. |
+| `checks.data_rules.max_unbounded_read_rows` | `1000` | Deprecated, removed in 2.0. `data.unbounded-read` looks for a visible bound, not a row count. |
 
 ## Observability
 
@@ -169,7 +177,7 @@ substrings of the source line or path.
 | `critical_path_patterns` | `handler`, `controller`, `consumer`, `job`, `worker`, `payment`, `checkout`, `auth`, `migration` | Paths treated as critical for `observability.critical-path-uninstrumented`. |
 | `healthcheck_path_patterns` | `health`, `healthz`, `ready`, `readyz`, `live`, `livez` | Endpoint names that `observability.shallow-health-check` inspects. |
 | `instrumentation_evidence_patterns` | `span`, `trace`, `metric`, `counter`, `histogram`, `observe`, `instrument`, `prometheus` | Tokens that count as instrumentation evidence on a critical path. |
-| `structured_logger_patterns` | `logger.`, `logrus.`, `zap.`, `slog.`, `zerolog.`, `structlog.`, `logging.` | Reserved. `observability.unstructured-log` uses its own built-in logger list today. |
+| `structured_logger_patterns` | `logger.`, `logrus.`, `zap.`, `slog.`, `zerolog.`, `structlog.`, `logging.` | Deprecated, removed in 2.0. `observability.unstructured-log` uses built-in raw-log patterns. |
 
 ## Operations
 
@@ -219,11 +227,11 @@ They add to the `enabled`,
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `ai.hybrid_triage` | see below | Groups the settings for LLM triage of deterministic findings. `ai.hybrid_triage.enabled` (default `true`, and it needs `ai.enabled`) turns triage on. |
-| `ai.hybrid_triage.suppress_dismissed` | `true` | Reserved. Validated, but the triage runtime does not read it yet. |
-| `ai.hybrid_triage.candidate_sections` | `Code Quality`, `Design Patterns`, `Security`, `Custom Rules` | Reserved. These are the sections intended for triage candidates. |
-| `ai.hybrid_triage.candidate_severities` | `warn`, `fail` | Reserved. These are the levels intended for triage candidates. |
-| `ai.autofix.verify_tests` | `true` | Reserved. `codeguard fix` verification runs `ai.autofix.test_commands` whenever they are configured. |
-| `ai.autofix.max_fixes` | `5` | Reserved. Validated as non-negative. |
+| `ai.hybrid_triage.suppress_dismissed` | `true` | When `true`, findings the triage provider dismisses are removed from the report. When `false`, triage is advisory: every verdict is still recorded in the `ai_analysis` artifact, but every finding stays in the report. |
+| `ai.hybrid_triage.candidate_sections` | `Code Quality`, `Design Patterns`, `Security`, `Custom Rules` | Only findings in these sections are sent to the triage provider. Entries match a section's display name or its id (`quality`, `security`, ...), case-insensitively. An empty list sends every section. Findings in other sections are always kept. |
+| `ai.hybrid_triage.candidate_severities` | `warn`, `fail` | Only findings at these levels are sent to the triage provider. An empty list sends every level. |
+| `ai.autofix.verify_tests` | `true` | Deprecated, removed in 2.0. Fix verification always runs the inferred nearest tests plus `ai.autofix.test_commands`. |
+| `ai.autofix.max_fixes` | `5` | The most fixes `codeguard fix-batch` (and the SDK's `VerifyFixBatch`) puts in one verified aggregate patch. Later eligible items are skipped with reason `max_fixes_exceeded`. `0` means the default of 5 when loaded from a config file; an SDK `Config` built without defaults has no cap. |
 
 ## Custom rule packs
 
@@ -234,7 +242,7 @@ Keys on an entry in `rule_packs[].rules[]`, alongside `paths`,
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `path_regex` | none | Go regular expression matched against the target-relative path. The rule applies only to files that match. An invalid expression fails validation. |
-| `ai_prompt` | none | Reserved. Accepted for forward compatibility, but no runtime reads it. Use `natural_language` for LLM-evaluated rules. |
+| `ai_prompt` | none | Deprecated, removed in 2.0. No runtime reads it. Use `natural_language` for LLM-evaluated rules. |
 
 ## Baseline governance
 
@@ -247,6 +255,27 @@ All under `baseline.governance`. They are used by
 | `max_entries` | `0` (no limit) | `baseline policy` reports a `max_entries` violation when the baseline has more entries than this. |
 | `forbid_growth` | `false` | `baseline policy` reports a `growth` violation when the baseline has more entries than the `-compare-baseline` file. |
 | `prohibited_new_rule_prefixes` | none | Rule-id prefixes, such as `security.`, that may not appear in newly added baseline entries. |
-| `require_no_stale_entries` | `false` | Reserved. Use `codeguard baseline prune -check` to gate on stale entries. |
+| `require_no_stale_entries` | `false` | When `true`, `codeguard baseline audit` exits non-zero if any baseline entry is stale (matches no current finding). `codeguard baseline prune -write` removes stale entries. |
 | `ownership[].owner` | none | Owner label for baseline entries whose path matches the sibling `pattern`. `baseline audit` groups active debt by it. |
 | `sample_limit` | `0` (3 samples) | Evidence samples per group in `baseline audit` output. `0` or unset means 3. |
+
+## Deprecated keys
+
+These keys are still accepted, so a 1.x config that sets them keeps loading
+and scans exactly as before, but codeguard ignores their values.
+`codeguard validate` prints `warning: config key <key> is deprecated ...` on
+stderr for each one a config file sets (validation still passes), and
+`codeguard doctor` reports a `config-deprecation` warning per key. The SDK
+exposes the same list through `ConfigDeprecations(path)`. `codeguard init
+-full` and `WriteConfigFile` no longer write them. They will be removed in
+codeguard 2.0, when a config that sets them will fail to load.
+
+| Key | Why it has no effect | What to do |
+| --- | --- | --- |
+| `checks.reliability_rules.max_retry_attempts` | `reliability.unbounded-retry` and `reliability.retry-without-backoff` judge the attempt limit and backoff they find in the code. Comparing a literal limit against a configured count would add findings to every config that `init` wrote. | Remove the key. |
+| `checks.data_rules.max_unbounded_read_rows` | `data.unbounded-read` reports reads with no visible `WHERE`, `LIMIT`, cursor or streaming bound. It never knows a row count to compare. | Remove the key. |
+| `checks.observability_rules.structured_logger_patterns` | `observability.unstructured-log` flags raw `print`/`console` calls with built-in patterns; structured logger calls never match them. | Remove the key. To turn the rule off, list it in `checks.disabled_rules`. |
+| `checks.design_rules.forbid_internal_import_cmd` | Go cannot import a `cmd/` main package, so no design rule implements it. Also ignored in an external `design_rules.yml`. | Remove the key. Use `forbid_service_import_cmd` and `require_cmd_through_internal_cli` for `cmd/` layering. |
+| `ai.autofix.verify_tests` | Fix verification is not optional: `codeguard fix` and `fix-batch` always run the inferred nearest tests plus `ai.autofix.test_commands`. | Remove the key. |
+| `rule_packs[].rules[].ai_prompt` | No runtime reads it. | Move the text to `natural_language`. |
+

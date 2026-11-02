@@ -52,6 +52,9 @@ func runRules(args []string, stdout io.Writer, stderr io.Writer) int {
 		ec = &resolved
 		rules = service.RulesForConfig(resolved.cfg)
 	}
+	if filter.enabled && ec != nil {
+		writeDisabledRulesNote(stderr, rules, filter, ec)
+	}
 	rules = filterRules(rules, filter, ec)
 
 	if strings.TrimSpace(*format) == "json" {
@@ -189,6 +192,7 @@ type rulesJSONEntry struct {
 	Description      string                        `json:"description"`
 	HasExamples      bool                          `json:"has_examples"`
 	Enabled          *bool                         `json:"enabled,omitempty"`
+	DisabledBy       string                        `json:"disabled_by,omitempty"`
 }
 
 func writeRulesJSON(stdout io.Writer, stderr io.Writer, rules []service.RuleMetadata, ec *explainConfig) int {
@@ -213,6 +217,9 @@ func writeRulesJSON(stdout io.Writer, stderr io.Writer, rules []service.RuleMeta
 		if ec != nil {
 			enabled := service.RuleEnabled(ec.cfg, rule)
 			entry.Enabled = &enabled
+			if disabledBy, disabled := service.RuleDisabledBy(ec.cfg, rule.ID); disabled {
+				entry.DisabledBy = "checks.disabled_rules: " + disabledBy
+			}
 		}
 		entries = append(entries, entry)
 	}
@@ -223,4 +230,17 @@ func writeRulesJSON(stdout io.Writer, stderr io.Writer, rules []service.RuleMeta
 		return exitError
 	}
 	return exitOK
+}
+
+// writeDisabledRulesNote lists, on stderr, the rules `rules -enabled` leaves
+// out because checks.disabled_rules turns them off, so a rule switched off by
+// policy is visible rather than silently missing from the list.
+func writeDisabledRulesNote(stderr io.Writer, rules []service.RuleMetadata, filter rulesFilter, ec *explainConfig) {
+	unfiltered := filter
+	unfiltered.enabled = false
+	for _, rule := range filterRules(rules, unfiltered, ec) {
+		if entry, disabled := service.RuleDisabledBy(ec.cfg, rule.ID); disabled {
+			_, _ = fmt.Fprintf(stderr, "disabled: %s (checks.disabled_rules: %s)\n", rule.ID, entry)
+		}
+	}
 }
