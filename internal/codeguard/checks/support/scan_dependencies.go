@@ -25,11 +25,18 @@ type FileScanDependencies struct {
 	// SharedFiles selects files anywhere in the target whose content feeds the
 	// analysis of every scanned file, such as go.mod and go.work.
 	SharedFiles func(rel string) bool
+	// ExternalFiles returns, given the target's sorted listing, files the
+	// evaluator reads straight from disk whether or not the listing has them:
+	// a manifest excluded from scanning, or one outside the target (a go.work
+	// "use ../other" module). Paths are target-root-relative in slash form or
+	// absolute. Each is hashed with a capped read; a missing file hashes as
+	// absent, so creating it also invalidates.
+	ExternalFiles func(listing []string) []string
 }
 
 // IsZero reports whether no dependency beyond the file itself is declared.
 func (deps FileScanDependencies) IsZero() bool {
-	return deps.Key == "" && deps.PackageFiles == nil && deps.SharedFiles == nil
+	return deps.Key == "" && deps.PackageFiles == nil && deps.SharedFiles == nil && deps.ExternalFiles == nil
 }
 
 // VisitTargetFilesOrdered visits the included target files with a per-file

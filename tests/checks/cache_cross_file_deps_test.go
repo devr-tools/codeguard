@@ -132,3 +132,47 @@ func TestCacheKeepsDesignPassesSeparate(t *testing.T) {
 	}
 	assertCachedMatchesUncached(t, runDesignLocalScan(t, cfg), uncachedCfg, "Design Patterns", "design.domain-logic-in-handler", "pkg/api/order_handler.go", true)
 }
+
+// The module resolver stats go.mod straight from disk, so a go.mod the config
+// excludes from scanning (and therefore from the walk listing) still decides
+// a file's import path. Editing only that go.mod must invalidate the cache.
+func TestCacheInvalidatesQualityWhenExcludedGoModChanges(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/m\n\ngo 1.22\n")
+	writeFile(t, filepath.Join(dir, "a", "a.go"), "package a\n\nimport _ \"example.com/m/internal/x\"\n")
+
+	uncachedCfg := qualityPrecisionConfig(dir)
+	uncachedCfg.Exclude = append(uncachedCfg.Exclude, "go.mod")
+	cfg := cachedScanConfig(t, uncachedCfg)
+
+	first := runQualityPrecisionScan(t, cfg)
+	if findingInFile(first, "Code Quality", "quality.dependency-direction", "a/a.go") {
+		t.Fatal("first scan: a same-module internal import must not be reported")
+	}
+
+	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/other\n\ngo 1.22\n")
+
+	second := runQualityPrecisionScan(t, cfg)
+	assertCachedMatchesUncached(t, second, uncachedCfg, "Code Quality", "quality.dependency-direction", "a/a.go", true)
+}
+
+// Creating a go.mod nearer to the scanned file (here in an excluded
+// directory-level manifest) re-roots its module and must also invalidate.
+func TestCacheInvalidatesQualityWhenExcludedNestedGoModAppears(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/m\n\ngo 1.22\n")
+	writeFile(t, filepath.Join(dir, "a", "a.go"), "package a\n\nimport _ \"example.com/m/internal/x\"\n")
+
+	uncachedCfg := qualityPrecisionConfig(dir)
+	uncachedCfg.Exclude = append(uncachedCfg.Exclude, "**/go.mod")
+	cfg := cachedScanConfig(t, uncachedCfg)
+
+	if findingInFile(runQualityPrecisionScan(t, cfg), "Code Quality", "quality.dependency-direction", "a/a.go") {
+		t.Fatal("first scan: a same-module internal import must not be reported")
+	}
+
+	writeFile(t, filepath.Join(dir, "a", "go.mod"), "module example.com/elsewhere\n\ngo 1.22\n")
+
+	second := runQualityPrecisionScan(t, cfg)
+	assertCachedMatchesUncached(t, second, uncachedCfg, "Code Quality", "quality.dependency-direction", "a/a.go", true)
+}
