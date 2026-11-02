@@ -14,8 +14,9 @@ exclude:
   - .github/workflows/release.yml
   - tests/**/.codeguard/cache.json
   # Detection-precision fixtures: intentionally vulnerable-looking sample
-  # files asserted by tests/corpus/corpus_test.go; keep them out of the
-  # repository self-scan.
+  # files asserted by scanner tests; keep them out of the repository
+  # self-scan.
+  - tests/checks/testdata/**
   - tests/corpus/testdata/**
   # The tree-sitter design spike is an isolated nested Go module deliberately
   # excluded from the production build (docs/treesitter-spike.md); scanning it

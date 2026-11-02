@@ -35,21 +35,29 @@ inputs:
     required: false
     default: codeguard-action-comment
   version:
-    description: Devr CodeGuard version to install
+    description: Optional Devr CodeGuard version override. By default, builds the version bundled with this action.
     required: false
-    default: latest
+    default: ""
 
 runs:
   using: composite
   steps:
     - name: Set up Go
-      uses: actions/setup-go@v7
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: "1.23"
 
     - name: Install Devr CodeGuard
       shell: bash
-      run: go install github.com/devr-tools/codeguard/cmd/codeguard@${{ inputs.version }}
+      env:
+        CODEGUARD_VERSION: ${{ inputs.version }}
+      run: |
+        if [ -n "$CODEGUARD_VERSION" ]; then
+          go install "github.com/devr-tools/codeguard/cmd/codeguard@$CODEGUARD_VERSION"
+        else
+          cd "$GITHUB_ACTION_PATH"
+          go install ./cmd/codeguard
+        fi
 
     - name: Run Devr CodeGuard
       id: scan

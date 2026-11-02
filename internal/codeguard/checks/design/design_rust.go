@@ -19,7 +19,7 @@ type rustFileScan struct {
 }
 
 func rustTargetFindings(env support.Context, target core.TargetConfig) []core.Finding {
-	return env.ScanTargetFiles(target, "design", func(rel string) bool {
+	return env.ScanTargetFiles(target, "design-rust-structural", func(rel string) bool {
 		return strings.HasSuffix(rel, ".rs")
 	}, func(file string, data []byte) []core.Finding {
 		return rustFindingsForFile(env, file, data)

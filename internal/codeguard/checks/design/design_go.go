@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -18,11 +19,12 @@ func goTargetFindings(env support.Context, target core.TargetConfig) []core.Find
 	// The facade comes from go.mod and the pkg/ layout, not the scanned file,
 	// so its fingerprint is part of every cached entry's key.
 	deps := support.FileScanDependencies{Key: facade.CacheKey()}
-	return support.ScanTargetFilesWithDependencies(env, target, "design", func(rel string) bool {
+	findings := support.ScanTargetFilesWithDependencies(env, target, "design-go-structural", func(rel string) bool {
 		return strings.HasSuffix(rel, ".go")
 	}, deps, func(file string, data []byte) []core.Finding {
 		return goFindingsForFile(env, facade, file, data)
 	})
+	return append(findings, goMethodFindingsForTarget(env, target)...)
 }
 
 func goFindingsForFile(env support.Context, facade support.SDKFacade, file string, data []byte) []core.Finding {
@@ -34,9 +36,7 @@ func goFindingsForFile(env support.Context, facade support.SDKFacade, file strin
 	findings := make([]core.Finding, 0) //nolint:prealloc // count not known up front; each rule appends a variable number
 	findings = append(findings, forbiddenPackageFindings(env, file, parsed.Name.Name)...)
 	findings = append(findings, declFindings(env, file, parsed)...)
-	methodCounts, interfaceFindings := typeFindings(env, file, fset, parsed)
-	findings = append(findings, interfaceFindings...)
-	findings = append(findings, methodFindings(env, file, methodCounts)...)
+	findings = append(findings, typeFindings(env, file, fset, parsed)...)
 	findings = append(findings, importFindings(env, facade, file, fset, parsed)...)
 	return findings
 }
@@ -71,20 +71,16 @@ func forbiddenPackageFindings(env support.Context, file string, pkgName string) 
 	return nil
 }
 
-func typeFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) (map[string]int, []core.Finding) {
-	methodCounts := map[string]int{}
+func typeFindings(env support.Context, file string, fset *token.FileSet, parsed *ast.File) []core.Finding {
 	findings := make([]core.Finding, 0)
 	for _, decl := range parsed.Decls {
-		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv != nil && len(fn.Recv.List) > 0 {
-			methodCounts[env.TypeName(fn.Recv.List[0].Type)]++
-		}
 		gd, ok := decl.(*ast.GenDecl)
 		if !ok || gd.Tok != token.TYPE {
 			continue
 		}
 		findings = append(findings, interfaceFindings(env, file, fset, gd)...)
 	}
-	return methodCounts, findings
+	return findings
 }
 
 func interfaceFindings(env support.Context, file string, fset *token.FileSet, gd *ast.GenDecl) []core.Finding {
@@ -111,19 +107,59 @@ func interfaceFindings(env support.Context, file string, fset *token.FileSet, gd
 	return findings
 }
 
-func methodFindings(env support.Context, file string, methodCounts map[string]int) []core.Finding {
-	findings := make([]core.Finding, 0)
-	for recv, count := range methodCounts {
-		if count > env.Config.Checks.DesignRules.MaxMethodsPerType {
-			findings = append(findings, env.NewFinding(support.FindingInput{
-				RuleID:  "design.max-methods-per-type",
-				Level:   "warn",
-				Path:    file,
-				Line:    1,
-				Column:  1,
-				Message: fmt.Sprintf("type %s has %d methods; max is %d", recv, count, env.Config.Checks.DesignRules.MaxMethodsPerType),
-			}))
+type goMethodSummary struct {
+	receiver string
+	path     string
+	line     int
+	column   int
+	count    int
+}
+
+func goMethodFindingsForTarget(env support.Context, target core.TargetConfig) []core.Finding {
+	summaries := make(map[string]*goMethodSummary)
+	env.VisitTargetFiles(target, func(rel string) bool {
+		return strings.HasSuffix(rel, ".go")
+	}, func(file string, data []byte) {
+		fset, parsed, err := support.ParseGoSource(env, file, data)
+		if err != nil {
+			return
 		}
+		for _, decl := range parsed.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv == nil || len(fn.Recv.List) == 0 {
+				continue
+			}
+			receiver := env.TypeName(fn.Recv.List[0].Type)
+			key := strings.Join([]string{filepath.ToSlash(filepath.Dir(file)), parsed.Name.Name, receiver}, "\x00")
+			summary := summaries[key]
+			if summary == nil {
+				pos := fset.Position(fn.Pos())
+				summary = &goMethodSummary{receiver: receiver, path: file, line: pos.Line, column: pos.Column}
+				summaries[key] = summary
+			}
+			summary.count++
+		}
+	})
+
+	keys := make([]string, 0, len(summaries))
+	for key := range summaries {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	findings := make([]core.Finding, 0, len(keys))
+	for _, key := range keys {
+		summary := summaries[key]
+		if summary.count <= env.Config.Checks.DesignRules.MaxMethodsPerType {
+			continue
+		}
+		findings = append(findings, env.NewFinding(support.FindingInput{
+			RuleID:  "design.max-methods-per-type",
+			Level:   "warn",
+			Path:    summary.path,
+			Line:    summary.line,
+			Column:  summary.column,
+			Message: fmt.Sprintf("type %s has %d methods; max is %d", summary.receiver, summary.count, env.Config.Checks.DesignRules.MaxMethodsPerType),
+		}))
 	}
 	return findings
 }

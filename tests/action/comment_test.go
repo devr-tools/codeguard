@@ -2,6 +2,8 @@ package action_test
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -38,6 +40,26 @@ func TestWrapCommentBodyAddsMarker(t *testing.T) {
 	}
 }
 
+func TestActionDefaultsToBundledCodeGuardAndPinsSetupGo(t *testing.T) {
+	action, err := os.ReadFile(filepath.Join("..", "..", "action.yml"))
+	if err != nil {
+		t.Fatalf("read action.yml: %v", err)
+	}
+	contents := string(action)
+	if strings.Contains(contents, "actions/setup-go@v") {
+		t.Fatal("setup-go must be pinned to an immutable commit SHA")
+	}
+	if !strings.Contains(contents, "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e") {
+		t.Fatal("expected the pinned setup-go v7 commit")
+	}
+	if strings.Contains(contents, "cmd/codeguard@latest") {
+		t.Fatal("the action must not silently install the latest CodeGuard release")
+	}
+	if !strings.Contains(contents, "go install ./cmd/codeguard") {
+		t.Fatal("expected the default install to build CodeGuard from the bundled action source")
+	}
+}
+
 func TestPublishStickyUpdatesExistingComment(t *testing.T) {
 	var updated bool
 	publisher := githubaction.CommentPublisher{
@@ -61,6 +83,81 @@ func TestPublishStickyUpdatesExistingComment(t *testing.T) {
 	}
 	if !updated {
 		t.Fatal("expected existing comment to be updated")
+	}
+}
+
+func TestPublishStickyUpdatesOnlyMatchingMarker(t *testing.T) {
+	var updatedID string
+	publisher := githubaction.CommentPublisher{
+		BaseURL: "https://api.github.test",
+		Token:   "test-token",
+		Client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			switch r.Method {
+			case http.MethodGet:
+				return jsonResponse(http.StatusOK, `[
+					{"id":98,"body":"<!-- codeguard:security -->\nmentions <!-- codeguard:design -->"},
+					{"id":99,"body":"<!-- codeguard:design -->\nold"}
+				]`), nil
+			case http.MethodPatch:
+				updatedID = r.URL.Path
+				return jsonResponse(http.StatusOK, `{"id":99}`), nil
+			default:
+				t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+				return nil, nil
+			}
+		})},
+	}
+	if err := publisher.Publish("devr-tools/codeguard", 7, githubaction.WrapCommentBody("body", "design"), "sticky"); err != nil {
+		t.Fatalf("publish sticky: %v", err)
+	}
+	if want := "/repos/devr-tools/codeguard/issues/comments/99"; updatedID != want {
+		t.Fatalf("updated comment %q, want %q", updatedID, want)
+	}
+}
+
+func TestPublishStickyFindsMatchingCommentOnLaterPage(t *testing.T) {
+	firstPage := make([]map[string]any, 100)
+	for i := range firstPage {
+		firstPage[i] = map[string]any{
+			"id":   i + 1,
+			"body": fmt.Sprintf("<!-- codeguard:other-%d -->\nold", i),
+		}
+	}
+	firstPageJSON, err := json.Marshal(firstPage)
+	if err != nil {
+		t.Fatalf("marshal first page: %v", err)
+	}
+
+	var pages []string
+	var updated bool
+	publisher := githubaction.CommentPublisher{
+		BaseURL: "https://api.github.test",
+		Token:   "test-token",
+		Client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			switch {
+			case r.Method == http.MethodGet:
+				pages = append(pages, r.URL.Query().Get("page"))
+				if r.URL.Query().Get("page") == "1" {
+					return jsonResponse(http.StatusOK, string(firstPageJSON)), nil
+				}
+				return jsonResponse(http.StatusOK, `[{"id":101,"body":"<!-- codeguard:design -->\nold"}]`), nil
+			case r.Method == http.MethodPatch && r.URL.Path == "/repos/devr-tools/codeguard/issues/comments/101":
+				updated = true
+				return jsonResponse(http.StatusOK, `{"id":101}`), nil
+			default:
+				t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+	if err := publisher.Publish("devr-tools/codeguard", 7, githubaction.WrapCommentBody("body", "design"), "sticky"); err != nil {
+		t.Fatalf("publish sticky: %v", err)
+	}
+	if got := strings.Join(pages, ","); got != "1,2" {
+		t.Fatalf("requested pages %q, want %q", got, "1,2")
+	}
+	if !updated {
+		t.Fatal("expected matching comment on second page to be updated")
 	}
 }
 
