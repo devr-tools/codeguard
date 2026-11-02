@@ -2617,8 +2617,10 @@ Config keys:
 }
 ```
 
-`output.fail_on` is the exit policy (`codeguard scan -fail-on` overrides it
-for one run; `validate-patch` honours the config key):
+`output.fail_on` is the exit policy. `codeguard scan -fail-on` and
+`codeguard validate-patch -fail-on` override it for one run, with the same
+values and validation; the flag also wins over a `-set output.fail_on=...`
+override:
 
 | `fail_on` | Exit 0 when | Exit 1 when |
 | --- | --- | --- |

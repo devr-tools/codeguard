@@ -203,12 +203,18 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	format := fs.String("format", "", "optional output format override: text, json, sarif, github, github-comment, cyclonedx")
 	enableAI := fs.Bool("ai", false, "enable optional AI-assisted analysis")
 	profile := fs.String("profile", "", "optional policy profile override")
+	failOn := registerFailOnFlag(fs)
 	var overrides configOverrideValues
 	fs.Var(&overrides, "set", "override a config value after loading config, repeatable; use dotted YAML paths like checks.quality=false")
 	if ok, code := parseFlags(fs, args, stderr); !ok {
 		return code
 	}
 	if err := validateCommonFlags(*format, *profile); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return exitError
+	}
+	failOnOverride, err := failOnOverrides(*failOn)
+	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
 		return exitError
 	}
@@ -230,7 +236,12 @@ func runValidatePatch(args []string, stdin io.Reader, stdout io.Writer, stderr i
 	if trimmedFormat := strings.TrimSpace(*format); trimmedFormat != "" {
 		cfg.Output.Format = trimmedFormat
 	}
-	if overrideErr := applyConfigOverrides(&cfg, overrides); overrideErr != nil {
+	// -fail-on applies after -set, matching scan, so the flag wins over both
+	// output.fail_on in the file and a -set output.fail_on override.
+	allOverrides := make([]string, 0, len(overrides)+len(failOnOverride))
+	allOverrides = append(allOverrides, overrides...)
+	allOverrides = append(allOverrides, failOnOverride...)
+	if overrideErr := applyConfigOverrides(&cfg, allOverrides); overrideErr != nil {
 		_, _ = fmt.Fprintf(stderr, "invalid config override: %v\n", overrideErr)
 		return exitError
 	}
