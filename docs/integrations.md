@@ -47,6 +47,26 @@ For pull request workflows, the action can also publish a sticky fix-oriented co
 
 `format: github` preserves workflow annotations. `comment-fix-mode: sticky` adds or updates a PR comment with concrete fix suggestions derived from the same findings.
 
+`fail-on` sets when the action fails the job, and passes `-fail-on` to `codeguard scan`:
+
+```yaml
+- name: Devr Codeguard
+  uses: devr-tools/codeguard@v1.11.0
+  with:
+    config: codeguard.yaml
+    fail-on: warn
+```
+
+- `fail`: fails when a section fails.
+- `warn`: also fails when a section warns.
+- `none`: fails only on operational errors, such as a crashed section.
+
+Leave it empty (the default) to use `output.fail_on` from the config, or `fail` if the config doesn't set it. Because `fail-on` is newer than v1.11.0, pin a release that includes it.
+
+Every input reaches the action's shell steps through `env:` and is quoted as a
+shell variable. Inputs are never interpolated into the `run:` scripts, so an
+input value can't inject shell commands into the caller's job.
+
 ### GitHub code scanning (SARIF)
 
 To show codeguard findings in the repository's **Security → Code scanning**
