@@ -23,6 +23,11 @@ type ObservabilityRulesConfig = core.ObservabilityRulesConfig
 type OperationsRulesConfig = core.OperationsRulesConfig
 type ChangeRulesConfig = core.ChangeRulesConfig
 type ProductionRiskConfig = core.ProductionRiskConfig
+
+// RiskScoringConfig is checks.quality_rules.risk_scoring. Its weights, like
+// ProductionRiskConfig's, treat 0 as "use the default" unless the key is
+// marked with SetExplicit; see docs/sdk.md.
+type RiskScoringConfig = core.RiskScoringConfig
 type ContractRulesConfig = core.ContractRulesConfig
 type ContextRulesConfig = core.ContextRulesConfig
 

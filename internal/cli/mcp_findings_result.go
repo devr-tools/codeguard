@@ -4,6 +4,16 @@ import (
 	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
+// findingsToolResult shapes a fresh report for the requested response format:
+// the full report, exactly as 1.x returned it before the summary-first shape,
+// or the cached, summary-first first page.
+func (s *mcpToolService) findingsToolResult(tool string, format string, report service.Report, filters mcpFindingFilters) map[string]any {
+	if format == mcpFormatReport {
+		return toolSuccessResult(report)
+	}
+	return s.findingsResult(tool, report, filters)
+}
+
 // findingsResult caches a fresh report and returns its first page.
 func (s *mcpToolService) findingsResult(tool string, report service.Report, filters mcpFindingFilters) map[string]any {
 	scanID, err := s.reports.put(tool, report)

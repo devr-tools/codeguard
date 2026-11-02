@@ -683,7 +683,8 @@ Config keys:
       "max_file_lines": 400,
       "max_function_lines": 80,
       "max_parameters": 5,
-      "max_cyclomatic_complexity": 10
+      "max_cyclomatic_complexity": 10,
+      "cyclomatic_counting": "legacy"
     }
   }
 }
@@ -694,7 +695,10 @@ Current behavior:
 - fails on non-`gofmt` files
 - warns when maintainability thresholds are exceeded
 - warns when a file exceeds `max_file_lines` alone, and fails that rule when the same file also exceeds cyclomatic complexity limits
-- `quality.cyclomatic-complexity` counts McCabe decision points: a function starts at 1 and adds one per branch or loop and one per short-circuit boolean operator, since each `&&`/`||` is its own branch. For Go the count matches [`gocyclo`](https://github.com/fzipp/gocyclo): `if`, `for`, `range`, each non-`default` `case` of a `switch`, type switch, or `select`, and each `&&` and `||`; function literals count toward the function that contains them. TypeScript/JavaScript (AST runner) count `if`, loops, `catch`, `?:`, non-`default` `case`, `&&`, `||`, and `??`, and leave nested functions out; Python and the other text-based languages count their branch keywords plus `and`/`or` or `&&`/`||`. Releases up to v1.9.0 had a Go count that left out `&&`/`||` but counted `default:` clauses, so it could report much less than `gocyclo`: a function with long boolean conditions may newly exceed `max_cyclomatic_complexity` after upgrading
+- `quality.cyclomatic-complexity` counts McCabe decision points: a function starts at 1 and adds one per branch or loop. TypeScript/JavaScript (AST runner) count `if`, loops, `catch`, `?:`, non-`default` `case`, `&&`, `||`, and `??`, and leave nested functions out; Python and the other text-based languages count their branch keywords plus `and`/`or` or `&&`/`||`. For Go, `quality_rules.cyclomatic_counting` picks the counting rules (it changes only the Go number, and every Go consumer of it, including `quality.cyclomatic-complexity` findings and the file-length escalation that depends on them):
+  - `legacy` (the 1.x default, used when the key is unset): the count codeguard reported through v1.10.1. It adds one per `if`, `for`, `range`, and every `case` of a `switch`, type switch, or `select`, `default:` included, and does not count `&&` or `||`. Upgrading within 1.x keeps your existing Go complexity numbers, so `-fail-on warn` and baseline growth gates see no new findings.
+  - `gocyclo` (recommended): matches [`gocyclo`](https://github.com/fzipp/gocyclo). It adds one per `if`, `for`, `range`, each non-`default` `case` of a `switch`, type switch, or `select`, and each `&&` and `||`, since each short-circuit operator is its own branch. A function with long boolean conditions can report much more than under `legacy` and may newly exceed `max_cyclomatic_complexity`, so expect some new findings when you opt in.
+  - In both modes, function literals count toward the function that contains them. Finding fingerprints hash the rule, path, and source context, not the message, so switching modes does not re-key existing baseline entries or waivers. The default is expected to change to `gocyclo` in the next major version; set `cyclomatic_counting: gocyclo` now to adopt it early, or `cyclomatic_counting: legacy` to pin today's behavior across that change. Any other value fails config validation, with a "did you mean" suggestion for typos.
 - includes an AI-failure-mode pack for swallowed errors, narrative comments, hallucinated imports, plausible dead code, over-mocked tests, and codebase-idiom drift in Go, TypeScript, and JavaScript targets
 - publishes a `slop_score` artifact in the report when AI-failure-mode signals are present so CI systems can trend the metric over time
 - can apply a provenance-aware policy for AI-assisted changes through `quality_rules.ai_provenance` using environment hints or commit trailers

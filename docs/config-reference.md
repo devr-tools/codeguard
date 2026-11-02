@@ -25,7 +25,18 @@ those rules off, use the matching `detect_*` or `enabled` toggle, or
 `checks.disabled`. Negative values are rejected.
 
 The keys below are the exceptions. An explicit `0` is kept, and only an
-omitted key takes the default.
+omitted key (or one set to `null`) takes the default. "Explicit" means the key
+is written in the YAML or JSON config file, including through a YAML `<<`
+merge, or set with a CLI override such as
+`-set checks.quality_rules.risk_scoring.security_weight=0`. A profile, whether
+from `profile:` or `-profile`, does not undo it, and `codeguard` writes an
+explicit `0` back out when it rewrites a config.
+
+For Go SDK callers the weight fields are plain `int`, and `0` still means "use
+the default" unless the key is marked with `SetExplicit`. See
+[the SDK guide](sdk.md#risk-weights-and-explicit-0). The two coverage
+thresholds at the bottom of the table are `*int` in Go, where a non-nil `0`
+is explicit.
 
 | Key | What `0` means |
 | --- | --- |
@@ -98,6 +109,7 @@ Toggles for the AI-failure-mode pack. An unset toggle means enabled.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
+| `checks.quality_rules.cyclomatic_counting` | `legacy` (unset) | How Go cyclomatic complexity is counted, for `quality.cyclomatic-complexity` and anything derived from it. `legacy` is the 1.x default: the count codeguard reported through v1.10.1, where `default:` clauses count and `&&`/`\|\|` do not, so upgrading within 1.x raises no complexity numbers. `gocyclo` (recommended) matches [`gocyclo`](https://github.com/fzipp/gocyclo): `&&` and `\|\|` count, `default:` does not. The default is expected to flip to `gocyclo` in the next major version. Other languages are unaffected. Any other value is rejected. See [the quality section](checks.md) for the full counting rules. |
 | `checks.quality_rules.dead_code.include_tests` | `false` | Includes test files and test-only targets in toolchain dead-code analysis (`quality.dead-code.toolchain`) for Python, Rust, and C++. When off, symbols that only tests use are not reported, and test code is not a dead-code candidate. |
 | `checks.quality_rules.maintainability_history` | see below | Groups the maintainability-history settings. |
 | `checks.quality_rules.maintainability_history.report_as_findings` | `false` | Emits the history-derived maintainability results as findings. When off, they are published only as a report artifact. |
