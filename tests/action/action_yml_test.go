@@ -10,10 +10,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// exprOpen is the "${{" that opens a GitHub Actions expression. It is spelled
+// exprOpen and exprClose delimit a GitHub Actions expression. They are spelled
 // with escapes because codeguard's own test-block scanner counts braces inside
-// string literals, and an unbalanced "{{" would merge the tests below into one.
-const exprOpen = "$\x7b\x7b"
+// string literals, and unbalanced braces in a literal would merge or split the
+// tests below.
+const (
+	exprOpen  = "$\x7b\x7b"
+	exprClose = "\x7d\x7d"
+)
 
 type actionStep struct {
 	Name             string            `yaml:"name"`
@@ -97,6 +101,26 @@ func TestActionRunStepsDoNotInterpolateExpressions(t *testing.T) {
 		if strings.Contains(step.Run, exprOpen) {
 			t.Errorf("step %d (%q) run: script interpolates a ${{ }} expression; pass it through env:\n%s", i, step.Name, step.Run)
 		}
+	}
+}
+
+// The fail-on input reaches the scan step through env: and is only passed as
+// -fail-on when set, so an empty input keeps the config/CLI default.
+func TestActionScanStepPassesFailOnThroughEnv(t *testing.T) {
+	var scan actionStep
+	for _, step := range loadSteps(t) {
+		if step.Name == "Run Devr CodeGuard" {
+			scan = step
+		}
+	}
+	if got := scan.Env["CODEGUARD_FAIL_ON"]; got != exprOpen+" inputs.fail-on "+exprClose {
+		t.Fatalf("scan step env CODEGUARD_FAIL_ON = %q, want the fail-on input", got)
+	}
+	guarded := `if [ -n "$CODEGUARD_FAIL_ON" ]; then
+  scan_args+=(-fail-on "$CODEGUARD_FAIL_ON")
+fi`
+	if !strings.Contains(scan.Run, guarded) {
+		t.Fatalf("scan step does not pass -fail-on only when the input is set:\n%s", scan.Run)
 	}
 }
 

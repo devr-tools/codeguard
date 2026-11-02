@@ -26,6 +26,13 @@ inputs:
     description: Output format
     required: false
     default: github
+  fail-on:
+    description: >-
+      Optional exit policy passed to codeguard scan -fail-on. fail exits non-zero when a
+      section fails, warn also when a section warns, none only on operational failures.
+      Empty (the default) uses output.fail_on from the config, or fail.
+    required: false
+    default: ""
   comment-fix-mode:
     description: PR comment mode. Use sticky to create or update a fix-oriented PR comment.
     required: false
@@ -68,11 +75,15 @@ runs:
         CODEGUARD_MODE: ${{ inputs.mode }}
         CODEGUARD_BASE_REF: ${{ inputs.base-ref }}
         CODEGUARD_FORMAT: ${{ inputs.format }}
+        CODEGUARD_FAIL_ON: ${{ inputs.fail-on }}
       run: |
         set +e
         scan_args=(scan -config "$CODEGUARD_CONFIG" -mode "$CODEGUARD_MODE" -base-ref "$CODEGUARD_BASE_REF" -format "$CODEGUARD_FORMAT")
         if [ -n "$CODEGUARD_PROFILE" ]; then
           scan_args+=(-profile "$CODEGUARD_PROFILE")
+        fi
+        if [ -n "$CODEGUARD_FAIL_ON" ]; then
+          scan_args+=(-fail-on "$CODEGUARD_FAIL_ON")
         fi
         codeguard "${scan_args[@]}"
         status=$?
