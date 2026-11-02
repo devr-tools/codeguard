@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
+	"github.com/devr-tools/codeguard/internal/codeguard/rules"
 )
 
 type FindingInput struct {
@@ -132,6 +133,12 @@ func FinalizeSectionWithDiagnostics(sc Context, id string, name string, findings
 // section. It returns the (possibly demoted) finding and whether it is
 // reported.
 func admitSectionFinding(sc Context, id string, section *core.SectionResult, finding core.Finding) (core.Finding, bool) {
+	// checks.disabled_rules is a permanent policy decision, not a
+	// suppression: the finding is dropped before diff, confidence, baseline,
+	// waiver and inline matching, and never reaches rule stats.
+	if _, disabled := rules.MatchDisabledRule(sc.Cfg.Checks.DisabledRules, finding.RuleID); disabled {
+		return finding, false
+	}
 	if sc.Opts.Mode == core.ScanModeDiff && finding.Path != "" && !matchesDiff(sc, finding) {
 		return finding, false
 	}

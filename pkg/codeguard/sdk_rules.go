@@ -34,6 +34,12 @@ func RuleEnabled(cfg Config, rule RuleMetadata) bool {
 	return config.RuleEnabled(cfg, rule)
 }
 
+// RuleDisabledBy returns the checks.disabled_rules entry that turns ruleID
+// off under cfg, and whether one does.
+func RuleDisabledBy(cfg Config, ruleID string) (string, bool) {
+	return config.RuleDisabledBy(cfg, ruleID)
+}
+
 // RuleProfileNames lists the built-in profiles, plus "default" for no
 // profile, under which rule runs on top of the recommended sections.
 func RuleProfileNames(rule RuleMetadata) []string {

@@ -154,6 +154,43 @@ duplicate, unknown, and alias names are invalid. `observability` and
 `operations` are not accepted here: turn them off with
 `checks.observability: false` and `checks.operations: false`.
 
+### Disabling individual rules
+
+`checks.disabled_rules` turns off single rules, or a rule family, for good:
+
+```yaml
+checks:
+  disabled_rules:
+    - observability.unstructured-log   # one rule
+    - security.taint.*                 # every rule whose id starts with security.taint.
+```
+
+- An entry is an exact rule id, including a custom rule-pack id, or a dotted
+  prefix ending in `.*`. A retired alias (for example
+  `quality.mixed-abstraction-levels`) is accepted and disables the rule it
+  resolves to.
+- Entries are validated against the rule catalog. A typo fails with a "did
+  you mean" hint, a prefix must match at least one rule, a retired
+  performance id names its `performance.*` replacement, and blank or
+  duplicate entries are rejected.
+- A disabled rule's findings are dropped before the diff filter, the
+  confidence policy, the baseline, waivers and inline `codeguard:ignore`
+  directives. They are not counted as suppressed, so they never inflate a
+  rule's `suppression_ratio` in the `rule_stats` artifact or in
+  `codeguard doctor` rule health. Imported external-report findings are
+  filtered the same way.
+- `codeguard rules -enabled` leaves disabled rules out of the list and prints
+  one `disabled: <id> (checks.disabled_rules: <entry>)` line per rule on
+  stderr. `codeguard rules -format json -config ...` reports `"enabled":
+  false` and `"disabled_by"` for them, and `codeguard explain <id>` prints
+  `disabled by checks.disabled_rules: <entry>` (JSON: `disabled_by`).
+
+Prefer `disabled_rules` to a `waivers: [{rule: X, path: "**"}]` entry for a
+rule a team has decided not to use. A waiver is a temporary, reviewable
+exception (it has a reason and an optional expiry, and `waivers audit`
+tracks it) and every finding it hides counts as suppressed.
+`checks.disabled` still turns off whole sections.
+
 When `use_recommended_defaults` is absent or `false`, section behavior is
 unchanged from earlier configurations. Profiles do not select the recommended
 baseline — but a profile may enable sections of its own on top of it (for
@@ -2790,6 +2827,7 @@ segment, and none at all when nothing is close.
 | `-set checks.qualty=true` | `invalid config override: override "checks.qualty" references unknown config field "qualty"; did you mean "checks.quality"?` |
 | `-format sarf` | `invalid -format: unknown output format "sarf"; did you mean "sarif"? (valid formats: ...)` |
 | `checks.disabled: [securty]` | `checks.disabled contains unknown section "securty"; did you mean "security"? (valid sections: ...)` |
+| `checks.disabled_rules: [observability.unstructured-logs]` | `checks.disabled_rules contains unknown rule "observability.unstructured-logs"; did you mean "observability.unstructured-log"? ...` |
 
 The same hints cover `checks.min_confidence.sections` keys, `output.format` in
 a config file, waiver rule ids in `codeguard doctor` and `codeguard waivers

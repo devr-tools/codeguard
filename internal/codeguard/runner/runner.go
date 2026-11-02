@@ -61,7 +61,7 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 	if err != nil {
 		return core.Report{}, err
 	}
-	sections = append(sections, externalSections...)
+	sections = append(sections, runnersupport.DropDisabledRuleFindings(externalSections, sc.Cfg.Checks.DisabledRules)...)
 
 	report := core.Report{
 		Name:        sc.Cfg.Name,

@@ -19,6 +19,12 @@ base profile, before any `profile` adjustments), and what it controls.
   fails when a key appears nowhere under `docs/`. Document new keys here, or in
   the owning section of `checks.md`.
 
+## Rule selection
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `checks.disabled_rules` | none | Rule ids (retired aliases accepted) or `family.*` prefixes to turn off. Findings of these rules are dropped before the baseline, waivers and inline suppressions, and are not counted as suppressed. See [Disabling individual rules](checks.md#disabling-individual-rules). |
+
 ## Numeric keys and explicit `0`
 
 Most numeric keys treat `0` as unset, so `0` and omitting the key both give
