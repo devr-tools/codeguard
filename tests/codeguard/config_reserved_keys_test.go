@@ -217,3 +217,36 @@ func TestWriteConfigFileOmitsDeprecatedDefaults(t *testing.T) {
 		t.Fatalf("written config carries deprecated keys: %#v", deprecations)
 	}
 }
+
+// The list `init` wrote into every pre-1.12 config is treated as "every
+// section": candidate_sections was never applied before, so honouring that
+// list would silently stop triaging Reliability (and every other section not
+// on it) for configs that never chose it.
+func TestHybridTriageLegacyInitCandidateSectionsTriagesEverySection(t *testing.T) {
+	reliability := func(sections []string) []codeguard.Finding {
+		t.Helper()
+		useTestTriageProvider(t, "dismiss", "fixture dismissal")
+		root := t.TempDir()
+		cfg := triageFixtureConfig(t, root)
+		writeArtifactFile(t, filepath.Join(root, "errors.go"), "package sample\n\nimport \"io\"\n\nfunc Copy(dst io.Writer, src io.Reader) {\n\t_, _ = io.Copy(dst, src)\n\tpanic(\"copy failed\")\n}\n")
+		on := true
+		cfg.Checks.Reliability = &on
+		cfg.AI.HybridTriage.CandidateSections = sections
+		report, err := codeguard.Run(context.Background(), cfg)
+		if err != nil {
+			t.Fatalf("Run returned error: %v", err)
+		}
+		return findSection(t, report, "Reliability").Findings
+	}
+
+	if kept := reliability([]string{"Code Quality", "Design Patterns", "Security"}); len(kept) == 0 {
+		t.Fatal("control: Reliability is outside a customised candidate list, so its findings must be kept")
+	}
+	legacy := []string{"security", "Custom Rules", "Code Quality", "Design Patterns"}
+	if kept := reliability(legacy); len(kept) != 0 {
+		t.Fatalf("the legacy init list must triage every section; Reliability findings survived: %+v", kept)
+	}
+	if kept := reliability(nil); len(kept) != 0 {
+		t.Fatalf("an empty candidate list must triage every section; Reliability findings survived: %+v", kept)
+	}
+}

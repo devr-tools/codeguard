@@ -24,9 +24,11 @@ func baseDefaultAIProviderConfig() core.AIProviderConfig {
 
 func baseDefaultAIHybridTriageConfig() core.AIHybridTriageConfig {
 	return core.AIHybridTriageConfig{
-		Enabled:             boolPtr(true),
-		SuppressDismissed:   boolPtr(true),
-		CandidateSections:   []string{"Code Quality", "Design Patterns", "Security", "Custom Rules"},
+		Enabled:           boolPtr(true),
+		SuppressDismissed: boolPtr(true),
+		// Empty means every section. 1.x never applied this key, so a
+		// default list would silently stop triaging the other sections.
+		CandidateSections:   nil,
 		CandidateSeverities: []string{"warn", "fail"},
 	}
 }

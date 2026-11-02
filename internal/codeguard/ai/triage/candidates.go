@@ -41,13 +41,37 @@ func collectCandidates(cfg core.Config, sections []core.SectionResult) []candida
 // candidateFilter narrows triage to ai.hybrid_triage.candidate_sections and
 // candidate_severities. An empty list places no restriction, so SDK callers
 // that build a Config without defaults keep triaging every finding.
+//
+// Before 1.12 candidate_sections was parsed but never applied, and `init`
+// wrote legacyDefaultCandidateSections into every generated config. That
+// exact list is therefore treated as "no restriction" in 1.x, so upgrading
+// does not silently stop triaging Reliability, CI/CD and the other sections;
+// a list a user actually customised is honoured.
 type candidateFilter struct {
 	sections   map[string]struct{}
 	severities map[string]struct{}
 }
 
+var legacyDefaultCandidateSections = []string{"Code Quality", "Design Patterns", "Security", "Custom Rules"}
+
 func newCandidateFilter(cfg core.AIHybridTriageConfig) candidateFilter {
-	return candidateFilter{sections: lowerSet(cfg.CandidateSections), severities: lowerSet(cfg.CandidateSeverities)}
+	sections := lowerSet(cfg.CandidateSections)
+	if sameSet(sections, lowerSet(legacyDefaultCandidateSections)) {
+		sections = nil
+	}
+	return candidateFilter{sections: sections, severities: lowerSet(cfg.CandidateSeverities)}
+}
+
+func sameSet(a, b map[string]struct{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for key := range a {
+		if _, ok := b[key]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // section matches a section by display name ("Code Quality") or id
