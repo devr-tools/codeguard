@@ -1,5 +1,67 @@
 # Changelog
 
+## [1.11.0](https://github.com/devr-tools/codeguard/compare/v1.10.1...v1.11.0) (2026-11-02)
+
+
+### Features
+
+* agent-config and workflow-security rules, CI exit policy, repo-aware init, faster TS and diff scans ([#192](https://github.com/devr-tools/codeguard/issues/192)) ([145eb0d](https://github.com/devr-tools/codeguard/commit/145eb0db951bbb75f535987678ba991310b8e9cd))
+* **ci:** add GitHub Actions workflow-security rules ([c082b50](https://github.com/devr-tools/codeguard/commit/c082b50946945180b89017c775d9de274b85c0fe))
+* **cli:** add -fail-on, -min-confidence and -quiet; gate the banner on TTY/CI/NO_COLOR ([a9b149a](https://github.com/devr-tools/codeguard/commit/a9b149a6ccadacebb4aaf1dc62cf79ad1cd01185))
+* **cli:** add "did you mean" suggestions and validate flags before scan output ([cce068e](https://github.com/devr-tools/codeguard/commit/cce068ea282ffb20f1ae3aaabf67bda8bf144257))
+* **cli:** richer explain output and rules filters ([7399a07](https://github.com/devr-tools/codeguard/commit/7399a078a81a52a83216b2929ab247fbdd0434b4))
+* **context:** generate and refresh agent docs with `codeguard context init|update` ([2a75286](https://github.com/devr-tools/codeguard/commit/2a75286eec73487f8a9f70d58721d9ad571839d5))
+* **doctor:** probe govulncheck, check entrypoints and target languages ([e3581ef](https://github.com/devr-tools/codeguard/commit/e3581ef7c2afc3a37c80281302d3ca2943e50056))
+* **init:** detect the repository and write a small config; scan without one ([3377568](https://github.com/devr-tools/codeguard/commit/3377568c781a46913602e782744ea18c01a92084))
+* MCP finding filters, did-you-mean errors, gitignore-aware walk, concurrent quality passes, security precision ([#193](https://github.com/devr-tools/codeguard/issues/193)) ([9b001b4](https://github.com/devr-tools/codeguard/commit/9b001b4ab98327dfb1b6f49bfca0435a7f396887))
+* **mcp:** summary-first, filtered, paginated findings for scan and validate_patch ([668c56a](https://github.com/devr-tools/codeguard/commit/668c56a5dccfda19c182f859158a761424aa9aed))
+* **prompts:** govern Claude settings, MCP servers and hidden Unicode in agent config ([a2243bb](https://github.com/devr-tools/codeguard/commit/a2243bbb5e4cfeb2065f943cdbd02e00c570cbde))
+* **report:** richer SARIF for GitHub code scanning ([3a6896f](https://github.com/devr-tools/codeguard/commit/3a6896f32b499ac53dced8250843d1a73d3387c3))
+* **rules:** verified examples, confidence, and config keys in the catalog ([bf88819](https://github.com/devr-tools/codeguard/commit/bf888195b2f2556feed4c7717aaa0a4ba5be67e8))
+* **scan:** honour .gitignore in the file walk ([f71df06](https://github.com/devr-tools/codeguard/commit/f71df06f7299aaf0751d629ff8a5b925bb2e782a))
+* **security:** honor justified gosec directives for shell-execution ([f7f8423](https://github.com/devr-tools/codeguard/commit/f7f84237b9fe60d6e1918c5953da86aba7069a33))
+* **security:** show govulncheck stderr in failure diagnostics ([fcf1880](https://github.com/devr-tools/codeguard/commit/fcf188004608532c8d406abc723c10adea7ba5fc))
+* shared taint engine, gocyclo-accurate complexity, richer SARIF, teaching explain, context generation, docs coverage ([#194](https://github.com/devr-tools/codeguard/issues/194)) ([c6da761](https://github.com/devr-tools/codeguard/commit/c6da76145b88a7604a3d24bbef8f0034c3995a63))
+
+
+### Bug Fixes
+
+* **action:** make the sticky PR comment actually post ([b2c9020](https://github.com/devr-tools/codeguard/commit/b2c902061e1acb19876c3600aa9e0c2b0fe2f8c9))
+* **ai:** remove the config-selectable mock triage provider ([8979ac5](https://github.com/devr-tools/codeguard/commit/8979ac54b42b02f1ffcd56f7199a45309ddca545))
+* **cache:** keep security-secrets diagnostics on findings-cache hits ([d7c3b9d](https://github.com/devr-tools/codeguard/commit/d7c3b9db93d7c3852cb71dc85527c92da94147bd))
+* **cache:** key per-file findings on the cross-file inputs they read ([5bed0ad](https://github.com/devr-tools/codeguard/commit/5bed0ad3a17c535ce30fca3c49e8d6c58c30c7fe))
+* **config:** keep an explicit 0 for risk-scoring and production-risk weights ([b04758d](https://github.com/devr-tools/codeguard/commit/b04758d48c18af638c8c134667cca33022e6ede7))
+* **config:** report every validation failure, not just the first ([c59bb5b](https://github.com/devr-tools/codeguard/commit/c59bb5b597ec78b6828e239a5c3db9ddfc6bcfeb))
+* **mcp:** keep the 1.10 full report as the scan/validate_patch default ([719bf8f](https://github.com/devr-tools/codeguard/commit/719bf8f1655d54a3fe35a617e017b1b3e79efaa5))
+* **prompts:** govern only config files under mcp/ directories ([87f3fcc](https://github.com/devr-tools/codeguard/commit/87f3fcc66f14559b26a4d03b63ca21e022359d44))
+* **quality:** count && and || in Go cyclomatic complexity ([30b7be1](https://github.com/devr-tools/codeguard/commit/30b7be1b44840ea759b0845cc030cea6537aff35))
+* **quality:** keep legacy Go cyclomatic counting as the 1.x default ([8e59a2a](https://github.com/devr-tools/codeguard/commit/8e59a2af1e95a1c3934eefbf3fbe49fb2f42d0f2))
+* restore 1.x backward compatibility for MCP, SDK risk weights and Go complexity ([#195](https://github.com/devr-tools/codeguard/issues/195)) ([59f8e0c](https://github.com/devr-tools/codeguard/commit/59f8e0c9150e0588a43dbb4314ee5f54f8878d87))
+* **rules:** retire dead quality.mixed-abstraction-levels; require emission sites (M6) ([bd3c736](https://github.com/devr-tools/codeguard/commit/bd3c736cc1c9253fc2c764e95900ef7db01ac69b))
+* **runner:** fail scans whose target path is missing or unreadable ([00a6a48](https://github.com/devr-tools/codeguard/commit/00a6a48128981a1151b7a2abdb2f1a3e87812a0d))
+* **runner:** fail the scan when a check section panics ([35349a5](https://github.com/devr-tools/codeguard/commit/35349a58c7097869618a3d48bacb1271fa808ec4))
+* **runner:** report identical findings from overlapping targets once ([76405d6](https://github.com/devr-tools/codeguard/commit/76405d69dbac2506a0a859ae69ceac6f311a85f2))
+* **runner:** stop callers mutating the shared corpus listing; make suppressed order total ([062b01d](https://github.com/devr-tools/codeguard/commit/062b01dca29851f80045b9d9f28aa6e6184a1a50))
+* **sdk:** restore int risk weights and track explicit 0 per key ([bcdf068](https://github.com/devr-tools/codeguard/commit/bcdf06898ad88c348f2eb9973a942326e22901e7))
+* **security:** close Python taint gaps for request data, imported sinks ([5593e90](https://github.com/devr-tools/codeguard/commit/5593e90c90013364a78b5f2b77c867e61562e5f0))
+* **security:** grade provider-prefixed keys at high confidence ([2efe169](https://github.com/devr-tools/codeguard/commit/2efe1698f1349ab9c290bfe2725a63cd03b03298))
+* **security:** match insecure-deserialization on masked source ([ae38101](https://github.com/devr-tools/codeguard/commit/ae381014aac296b562fc1d0816b0ab7b9905005f))
+* **security:** stop scanArgLiterals panicking on a lone-quote argument ([a6b1615](https://github.com/devr-tools/codeguard/commit/a6b1615fd25cba4bafba73dcdfb4944465ebc4f8))
+* **security:** stop the secret name heuristic spanning concatenation ([26b4212](https://github.com/devr-tools/codeguard/commit/26b4212ce13466cb15d05743a90888a523b4e412))
+* stop codeguard silently passing on broken scans (high-priority review fixes) ([#189](https://github.com/devr-tools/codeguard/issues/189)) ([4104604](https://github.com/devr-tools/codeguard/commit/4104604a5dc1682812f74de65ae5dba37f758b6e))
+
+
+### Performance Improvements
+
+* **diff:** batch and memoize base-ref reads in diff mode ([04a7efb](https://github.com/devr-tools/codeguard/commit/04a7efbf6bbe1ad4ad3edf960d6784ee529c0d3c))
+* **quality:** compute TS/JS module-scope flags in a single pass ([310df11](https://github.com/devr-tools/codeguard/commit/310df11c3e512e46c9ccd31b8fb7246d7ed447e7))
+* **quality:** cut self-scan time ~46% by fixing three profiled hot paths ([#191](https://github.com/devr-tools/codeguard/issues/191)) ([7660755](https://github.com/devr-tools/codeguard/commit/76607555b72a9d9e86b188046a4f1643abfc16fe))
+* **quality:** gate the style-profile regexes behind literal pre-checks ([4852024](https://github.com/devr-tools/codeguard/commit/485202487ff709d238be642d4986e97bd051d778))
+* **quality:** replace the clone tokenizer regex with a byte lexer ([1e24245](https://github.com/devr-tools/codeguard/commit/1e24245bdbba2de2c71d3f30c25b4d3df0c51d60))
+* **quality:** run whole-target passes concurrently and parallelize their per-file loops ([9170132](https://github.com/devr-tools/codeguard/commit/9170132707b2ca834e683a8de29f17ef0dfe60c2))
+* **runner:** memoize C-like parses and inline suppressions per scan ([e3095fe](https://github.com/devr-tools/codeguard/commit/e3095fe99c8fa823a42da6842544e6da622809c7))
+* **scan:** derive scan concurrency from GOMAXPROCS and parallelise serial passes ([b68b7e4](https://github.com/devr-tools/codeguard/commit/b68b7e4064dae64cb752e9d05a30c0626bb48732))
+
 ## [1.10.1](https://github.com/devr-tools/codeguard/compare/v1.10.0...v1.10.1) (2026-10-30)
 
 
