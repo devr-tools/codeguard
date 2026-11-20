@@ -32,6 +32,7 @@ type workflowJob struct {
 type workflowStep struct {
 	node    *yaml.Node
 	uses    string
+	usesVal *yaml.Node
 	runKey  *yaml.Node
 	run     *yaml.Node
 	withKey *yaml.Node
@@ -147,6 +148,7 @@ func workflowSteps(steps *yaml.Node) []workflowStep {
 		step := workflowStep{node: node}
 		if _, uses := mappingEntry(node, "uses"); uses != nil {
 			step.uses = strings.TrimSpace(uses.Value)
+			step.usesVal = uses
 		}
 		step.runKey, step.run = mappingEntry(node, "run")
 		step.withKey, step.with = mappingEntry(node, "with")

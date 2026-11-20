@@ -17,7 +17,7 @@ with its default level and a one-line summary taken from the rule metadata.
 - `tests/rules/docs_coverage_test.go` fails when a catalog rule is missing from
   this page or `checks.md`, so add a row (with its anchor) when adding a rule.
 
-Catalog size: 375 rules.
+Catalog size: 382 rules.
 
 ## Code Quality
 
@@ -505,7 +505,7 @@ Catalog size: 375 rules.
 
 ## CI/CD
 
-15 rules. Section reference: [checks.md](checks.md#ci).
+22 rules. Section reference: [checks.md](checks.md#ci).
 
 | Rule | Default level | What it catches |
 | --- | --- | --- |
@@ -517,12 +517,19 @@ Catalog size: 375 rules.
 | <a id="rule-ci-required-workflow-dir"></a>`ci.required-workflow-dir` | fail | Fails when the configured workflow directory is required but missing. |
 | <a id="rule-ci-test-file-location"></a>`ci.test-file-location` | fail | Fails when language-specific test files live outside the configured test directories. |
 | <a id="rule-ci-test-without-assertion"></a>`ci.test-without-assertion` | warn | Warns when a test function contains no recognizable assertion. Custom assertion helper names can be registered via ci_rules.test_quality.assertion_helpers. |
+| <a id="rule-ci-workflow-bot-conditions"></a>`ci.workflow-bot-conditions` | warn | Warns when a job or step if: in a pull_request_target or workflow_run workflow trusts github.actor (or github.triggering_actor) == '<name>[bot]', or github.actor_id equal to the dependabot, renovate or github-actions account id. The actor is whoever caused the latest event, so an attacker can get the bot to act last on their pull request and pass the check. Conditions that also check github.event.pull_request.user.login are not reported. |
+| <a id="rule-ci-workflow-cache-poisoning"></a>`ci.workflow-cache-poisoning` | warn | Warns when a job that publishes a release (the workflow runs only on release events or tags-only pushes, optionally with workflow_dispatch, or the job runs a known publishing action such as goreleaser, gh-action-pypi-publish, action-gh-release or docker/build-push-action with push: true) restores a build cache through actions/cache or a setup action whose cache is enabled (setup-go by default, setup-node/python/java with cache:, rust-cache, setup-uv with enable-cache: true, and similar). Any default-branch run that writes the cache, including pull_request_target, workflow_run or issue_comment runs, can plant files in the release build. Expression-valued cache inputs are not reported. |
 | <a id="rule-ci-workflow-content"></a>`ci.workflow-content` | fail | Fails when required workflow file markers are absent. |
+| <a id="rule-ci-workflow-credential-persistence"></a>`ci.workflow-credential-persistence` | fail | Fails when actions/checkout (below v6, or of unknown version) keeps persist-credentials at its default, which writes GITHUB_TOKEN into .git/config, and a later actions/upload-artifact step in the same job uploads the checkout root (or a .git path) with hidden files included (include-hidden-files: true, or upload-artifact below v4), so the token ships in the artifact. A persisted token that is never uploaded is not reported. |
 | <a id="rule-ci-workflow-dangerous-trigger"></a>`ci.workflow-dangerous-trigger` | fail | Fails when a pull_request_target or workflow_run workflow checks out the pull request's own head (github.event.pull_request.head.*, github.head_ref, workflow_run head refs, refs/pull/*, or gh pr checkout), running untrusted code with the base repository's secrets and write token. |
+| <a id="rule-ci-workflow-env-file-injection"></a>`ci.workflow-env-file-injection` | fail | Fails when a run: script in a pull_request_target, workflow_run, issue_comment, issues, discussion or discussion_comment workflow writes an attacker-controlled value to $GITHUB_ENV or $GITHUB_PATH, either as a ${{ }} expression or through an env: variable set from one. A newline in the value defines arbitrary variables (BASH_ENV, LD_PRELOAD, NODE_OPTIONS) or prepends PATH for every later step. |
 | <a id="rule-ci-workflow-fork-trigger-secrets"></a>`ci.workflow-fork-trigger-secrets` | warn | Warns when a job in a pull_request_target workflow reads secrets.* (other than GITHUB_TOKEN) or passes secrets: inherit, because any fork can trigger the run. |
+| <a id="rule-ci-workflow-insecure-commands"></a>`ci.workflow-insecure-commands` | fail | Fails when ACTIONS_ALLOW_UNSECURE_COMMANDS is set to true in a workflow, job or step env: block (warns when an expression sets it), which re-enables the ::set-env and ::add-path log commands so any printed text can set variables or PATH. |
 | <a id="rule-ci-workflow-missing-permissions"></a>`ci.workflow-missing-permissions` | warn | Warns when a workflow has no top-level permissions block and at least one job sets none, so GITHUB_TOKEN falls back to the repository or organization default (read-write on all scopes for older or permissive repositories). Workflows triggered only by workflow_call are skipped because the caller caps their token. |
+| <a id="rule-ci-workflow-overprovisioned-secrets"></a>`ci.workflow-overprovisioned-secrets` | fail | Fails when an expression uses the whole secrets context (toJSON(secrets), or secrets passed to any function), and warns when it indexes secrets with a computed key (secrets[matrix.name], secrets[format(...)]); either way GitHub sends every secret to the runner. |
 | <a id="rule-ci-workflow-remote-script-pipe"></a>`ci.workflow-remote-script-pipe` | warn | Warns when a workflow or composite action step pipes curl or wget output straight into sh/bash (including bash <(curl ...) and sh -c "$(curl ...)"), executing whatever the remote host serves. |
 | <a id="rule-ci-workflow-script-injection"></a>`ci.workflow-script-injection` | fail | Fails when an attacker-controlled ${{ }} expression (issue, pull request, comment or review text, commit messages, github.head_ref, or a composite action's inputs.*) is interpolated directly into a run: script or an actions/github-script script. |
+| <a id="rule-ci-workflow-unpinned-image"></a>`ci.workflow-unpinned-image` | warn | Warns when a job container:, services: or docker:// step image is not pinned by @sha256: digest, and escalates to fail when it has no tag or uses latest (latest on an image: line is left to ci.mutable-deployment-reference so it is not reported twice). Expression-built references are skipped. |
 | <a id="rule-ci-workflow-write-all-permissions"></a>`ci.workflow-write-all-permissions` | fail | Fails when a workflow or job sets permissions: write-all, giving GITHUB_TOKEN write access to every scope. |
 
 ## Agent Context
