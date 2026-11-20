@@ -2670,7 +2670,8 @@ Findings now carry:
 
 ### SARIF output (GitHub code scanning)
 
-`-format sarif` writes a SARIF 2.1.0 log with one run. It is checked against
+`-format sarif` writes a SARIF 2.1.0 log with one run. `-sarif-output <file>`
+writes the same log to a file in addition to the `-format` output. It is checked against
 the official OASIS schema in `tests/report`. It carries what GitHub code scanning
 needs to show severity, rule help and taint traces.
 
@@ -2718,7 +2719,11 @@ taint flow, is critical. A warn-level review item never rises above medium.
 - `level`: `fail` → `error`, `warn` → `warning`. Scan diagnostics map
   `fail` → `error`, `warn` → `warning` and anything else → `note`
 - `locations`: file, `startLine` (line 1 for file-level findings), and
-  `startColumn` when the check reported one
+  `startColumn` when the check reported one. `artifactLocation.uri` is an
+  RFC 3986 URI reference: each path segment is percent-encoded (`my dir/a#b.go`
+  → `my%20dir/a%23b.go`). A diagnostic's absolute path under the working
+  directory becomes relative to it; any other absolute path becomes a
+  `file://` URI. A clean run emits `results: []`
 - `partialFingerprints`: `codeguardContext/v1`, which stays the same when
   unrelated edits move the finding, and `codeguardLegacy/v1`, which is line
   based. GitHub uses them to de-duplicate alerts across uploads
