@@ -20,6 +20,15 @@ type inlineSuppression struct {
 	// match labels a translated directive in the suppression evidence
 	// (core.Suppression.Match); empty for native codeguard:ignore.
 	match string
+	// reason is the explanation written after the rule id (and optional until
+	// date), with any "--" or ":" separator and comment closer removed. It is
+	// empty when the directive gives none; see directiveReason.
+	reason string
+	// quoted marks a directive that sits inside a string literal on its line,
+	// such as an expected-output string in a test. It still suppresses, as it
+	// always has, but the hygiene diagnostics skip it: it is text the code
+	// handles, not a directive its author wrote.
+	quoted bool
 }
 
 var inlineIgnorePattern = regexp.MustCompile(`codeguard:ignore\s+([a-z0-9._*\-]+)(?:\s+until\s+(\d{4}-\d{2}-\d{2}))?`)
@@ -80,7 +89,7 @@ func MatchSuppression(sc Context, finding core.Finding) *core.Suppression {
 	if len(MatchingWaivers(sc, finding)) > 0 {
 		return &core.Suppression{Kind: SuppressionReasonWaiver}
 	}
-	index := inlineSuppressionsFor(sc, finding.Path)
+	index := inlineSuppressionsForFinding(sc, finding)
 	if index == nil {
 		return nil
 	}
@@ -132,7 +141,7 @@ const invalidRulePatternHint = `use an exact rule id, a dotted prefix ending in 
 // beside the finding it failed to suppress, in the section that owns that
 // finding, which keeps the placement deterministic.
 func invalidInlineDirectiveDiagnostics(sc Context, finding core.Finding) []core.Diagnostic {
-	index := inlineSuppressionsFor(sc, finding.Path)
+	index := inlineSuppressionsForFinding(sc, finding)
 	if index == nil || len(index.invalid) == 0 {
 		return nil
 	}

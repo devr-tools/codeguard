@@ -45,6 +45,31 @@ inputs:
     description: Optional Devr CodeGuard version override. By default, builds the version bundled with this action.
     required: false
     default: ""
+  upload-sarif:
+    description: >-
+      Set to true to also write the scan as SARIF and upload it to GitHub code scanning, so
+      findings appear in the Security tab. The calling job needs permissions security-events: write.
+    required: false
+    default: "false"
+  sarif-category:
+    description: Code scanning category for the SARIF upload; use distinct values when one workflow uploads several codeguard runs.
+    required: false
+    default: codeguard
+  sarif-file:
+    description: Path for the SARIF file when upload-sarif is true. Empty (the default) writes it under $RUNNER_TEMP.
+    required: false
+    default: ""
+  review-comments:
+    description: >-
+      Inline PR review comments. Use on to post findings on changed lines as one
+      pull request review (event COMMENT, never approve or request changes).
+      Requires pull-requests write permission.
+    required: false
+    default: "off"
+  review-comment-limit:
+    description: Maximum inline review comments per run when review-comments is on. Further findings are listed in the review body.
+    required: false
+    default: "25"
 
 runs:
   using: composite
@@ -76,6 +101,8 @@ runs:
         CODEGUARD_BASE_REF: ${{ inputs.base-ref }}
         CODEGUARD_FORMAT: ${{ inputs.format }}
         CODEGUARD_FAIL_ON: ${{ inputs.fail-on }}
+        CODEGUARD_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
+        CODEGUARD_SARIF_FILE: ${{ inputs.sarif-file }}
       run: |
         set +e
         scan_args=(scan -config "$CODEGUARD_CONFIG" -mode "$CODEGUARD_MODE" -base-ref "$CODEGUARD_BASE_REF" -format "$CODEGUARD_FORMAT")
@@ -85,10 +112,30 @@ runs:
         if [ -n "$CODEGUARD_FAIL_ON" ]; then
           scan_args+=(-fail-on "$CODEGUARD_FAIL_ON")
         fi
+        sarif_file=""
+        if [ "$(printf '%s' "$CODEGUARD_UPLOAD_SARIF" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
+          sarif_file="${CODEGUARD_SARIF_FILE:-$RUNNER_TEMP/codeguard.sarif}"
+          rm -f "$sarif_file"
+          scan_args+=(-sarif-output "$sarif_file")
+        fi
         codeguard "${scan_args[@]}"
         status=$?
         echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+        # The SARIF file is written even when findings fail the scan; it is
+        # missing only when the scan itself broke, which exit_code reports.
+        if [ -n "$sarif_file" ] && [ -s "$sarif_file" ]; then
+          echo "sarif_file=$sarif_file" >> "$GITHUB_OUTPUT"
+        elif [ -n "$sarif_file" ]; then
+          echo "::warning title=CodeGuard SARIF::codeguard scan did not write $sarif_file (exit $status); nothing will be uploaded to code scanning."
+        fi
         exit 0
+
+    - name: Upload Devr CodeGuard SARIF
+      if: ${{ !cancelled() && inputs.upload-sarif == 'true' && steps.scan.outputs.sarif_file != '' }}
+      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif_file }}
+        category: ${{ inputs.sarif-category }}
 
     - name: Post Devr CodeGuard fix comment
       if: ${{ inputs.comment-fix-mode != 'off' && (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') }}
@@ -128,6 +175,40 @@ runs:
           -repository "$CODEGUARD_REPOSITORY" \
           -marker "$CODEGUARD_COMMENT_TAG" \
           -mode "$CODEGUARD_COMMENT_MODE"
+
+    - name: Post Devr CodeGuard review comments
+      if: ${{ inputs.review-comments == 'on' && (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        CODEGUARD_CONFIG: ${{ inputs.config }}
+        CODEGUARD_PROFILE: ${{ inputs.profile }}
+        CODEGUARD_MODE: ${{ inputs.mode }}
+        CODEGUARD_BASE_REF: ${{ inputs.base-ref }}
+        CODEGUARD_REVIEW_COMMENT_LIMIT: ${{ inputs.review-comment-limit }}
+        CODEGUARD_REPOSITORY: ${{ github.repository }}
+      # Scans the caller's checkout from the default working directory, like
+      # the comment step; only the review helper is built from the action.
+      run: |
+        report_file="$(mktemp)"
+        scan_args=(scan -config "$CODEGUARD_CONFIG" -mode "$CODEGUARD_MODE" -base-ref "$CODEGUARD_BASE_REF" -format json)
+        if [ -n "$CODEGUARD_PROFILE" ]; then
+          scan_args+=(-profile "$CODEGUARD_PROFILE")
+        fi
+        set +e
+        codeguard "${scan_args[@]}" > "$report_file"
+        scan_status=$?
+        set -e
+        if [ ! -s "$report_file" ]; then
+          msg="codeguard scan -format json produced no report (exit $scan_status); the PR review comments were not posted. See the scan error above."
+          echo "::error title=CodeGuard PR review::$msg"
+          echo "$msg" >&2
+          exit 1
+        fi
+        go -C "$GITHUB_ACTION_PATH" run ./cmd/codeguard-action-review \
+          -report-file "$report_file" \
+          -repository "$CODEGUARD_REPOSITORY" \
+          -limit "$CODEGUARD_REVIEW_COMMENT_LIMIT"
 
     - name: Fail workflow on Devr CodeGuard findings
       if: ${{ steps.scan.outputs.exit_code != '0' }}

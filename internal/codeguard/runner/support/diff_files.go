@@ -10,11 +10,11 @@ func ChangedFilesFromUnifiedDiff(diffText string) []string {
 	files := make([]string, 0)
 	seen := map[string]struct{}{}
 	for _, line := range strings.Split(strings.ReplaceAll(diffText, "\r\n", "\n"), "\n") {
-		if !strings.HasPrefix(line, "+++ b/") {
+		if !strings.HasPrefix(line, "+++ ") {
 			continue
 		}
-		rel := strings.TrimSpace(strings.TrimPrefix(line, "+++ b/"))
-		if rel == "" || rel == "/dev/null" {
+		rel, ok := diffHeaderSidePath(strings.TrimPrefix(line, "+++ "), "b/")
+		if !ok || rel == "" {
 			continue
 		}
 		rel = filepath.ToSlash(rel)

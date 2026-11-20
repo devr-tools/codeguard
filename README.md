@@ -60,6 +60,8 @@ codeguard version
   uses: devr-tools/codeguard@v1.11.0
 ```
 
+Set `upload-sarif: true` (with `permissions: security-events: write`) to also send findings to GitHub code scanning; see [docs/integrations.md](docs/integrations.md#github-code-scanning-sarif) for the action inputs.
+
 Or run in Docker:
 
 ```bash

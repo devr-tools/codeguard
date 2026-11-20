@@ -27,17 +27,50 @@ func LoadDiffScope(ctx context.Context, targets []core.TargetConfig, baseRef str
 }
 
 func loadDiffScope(ctx context.Context, memo *scanGitMemo, targets []core.TargetConfig, baseRef string) (map[string]LineRanges, error) {
-	out := map[string]LineRanges{}
+	perTarget, err := loadTargetDiffScopes(ctx, memo, targets, baseRef)
+	if err != nil {
+		return nil, err
+	}
+	merged, _ := indexDiffScopes(targets, perTarget)
+	return merged, nil
+}
+
+// loadTargetDiffScopes returns each target's changed lines, in target order.
+func loadTargetDiffScopes(ctx context.Context, memo *scanGitMemo, targets []core.TargetConfig, baseRef string) ([]map[string]LineRanges, error) {
+	out := make([]map[string]LineRanges, 0, len(targets))
 	for _, target := range targets {
 		scope, err := gitChangedLines(ctx, memo, target.Path, baseRef)
 		if err != nil {
 			return nil, err
 		}
-		for path, ranges := range scope {
-			out[path] = mergeLineRanges(out[path], ranges)
-		}
+		out = append(out, scope)
 	}
 	return out, nil
+}
+
+// indexDiffScopes merges per-target scopes by target-relative path and keys
+// each one by its target's path. targets[i] owns perTarget[i]; for a patch
+// scan targets are the patched copies, which is what findings resolve to.
+func indexDiffScopes(targets []core.TargetConfig, perTarget []map[string]LineRanges) (map[string]LineRanges, map[string]map[string]LineRanges) {
+	merged := map[string]LineRanges{}
+	byTarget := make(map[string]map[string]LineRanges, len(perTarget))
+	for i, scope := range perTarget {
+		for path, ranges := range scope {
+			merged[path] = mergeLineRanges(merged[path], ranges)
+		}
+		if i < len(targets) {
+			key := filepath.Clean(targets[i].Path)
+			own := byTarget[key]
+			if own == nil {
+				own = map[string]LineRanges{}
+				byTarget[key] = own
+			}
+			for path, ranges := range scope {
+				own[path] = mergeLineRanges(own[path], ranges)
+			}
+		}
+	}
+	return merged, byTarget
 }
 
 func mergeLineRanges(left LineRanges, right LineRanges) LineRanges {
@@ -91,17 +124,23 @@ func parseUnifiedDiff(diff string) map[string]LineRanges {
 	lines := strings.Split(diff, "\n")
 	for _, line := range lines {
 		switch {
-		case strings.HasPrefix(line, "--- a/"):
-			deletedFrom = strings.TrimPrefix(line, "--- a/")
-		case strings.HasPrefix(line, "+++ /dev/null"):
+		case strings.HasPrefix(line, "--- "):
+			if path, ok := diffHeaderSidePath(strings.TrimPrefix(line, "--- "), "a/"); ok {
+				deletedFrom = path
+			}
+		case strings.HasPrefix(line, "+++ ") && diffHeaderPath(strings.TrimPrefix(line, "+++ ")) == "/dev/null":
 			currentFile = ""
 			if deletedFrom != "" {
 				out[deletedFrom] = LineRanges{allChanged: true}
 				deletedFrom = ""
 			}
-		case strings.HasPrefix(line, "+++ b/"):
+		case strings.HasPrefix(line, "+++ "):
+			path, ok := diffHeaderSidePath(strings.TrimPrefix(line, "+++ "), "b/")
+			if !ok {
+				continue
+			}
 			deletedFrom = ""
-			currentFile = strings.TrimPrefix(line, "+++ b/")
+			currentFile = path
 			if currentFile != "" {
 				if _, ok := out[currentFile]; !ok {
 					out[currentFile] = LineRanges{allChanged: true}

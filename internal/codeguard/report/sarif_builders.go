@@ -158,7 +158,7 @@ func buildSARIFDiagnostic(diagnostic core.Diagnostic) sarifResult {
 		Properties: &sarifResultProperties{Kind: diagnostic.Kind, Evidence: diagnostic.Evidence, Metadata: diagnostic.Metadata},
 	}
 	if diagnostic.Path != "" {
-		result.Locations = []sarifLocation{{PhysicalLocation: &sarifPhysicalLocation{ArtifactLocation: sarifArtifactLocation{URI: diagnostic.Path}}}}
+		result.Locations = []sarifLocation{{PhysicalLocation: &sarifPhysicalLocation{ArtifactLocation: sarifArtifactLocation{URI: sarifArtifactURI(diagnostic.Path)}}}}
 	}
 	return result
 }
@@ -201,7 +201,7 @@ func newSARIFLocation(finding core.Finding) sarifLocation {
 	}
 	return sarifLocation{
 		PhysicalLocation: &sarifPhysicalLocation{
-			ArtifactLocation: sarifArtifactLocation{URI: finding.Path},
+			ArtifactLocation: sarifArtifactLocation{URI: sarifArtifactURI(finding.Path)},
 			Region:           region,
 		},
 	}

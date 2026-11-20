@@ -65,10 +65,11 @@ func TestPublishStickyUpdatesExistingComment(t *testing.T) {
 	publisher := githubaction.CommentPublisher{
 		BaseURL: "https://api.github.test",
 		Token:   "test-token",
+		Author:  githubaction.DefaultCommentAuthor,
 		Client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/devr-tools/codeguard/issues/7/comments":
-				return jsonResponse(http.StatusOK, `[{"id":99,"body":"<!-- codeguard:codeguard-action-comment -->\nold"}]`), nil
+				return jsonResponse(http.StatusOK, `[{"id":99,"body":"<!-- codeguard:codeguard-action-comment -->\nold","user":{"login":"github-actions[bot]"}}]`), nil
 			case r.Method == http.MethodPatch && r.URL.Path == "/repos/devr-tools/codeguard/issues/comments/99":
 				updated = true
 				return jsonResponse(http.StatusOK, `{"id":99}`), nil
@@ -91,12 +92,13 @@ func TestPublishStickyUpdatesOnlyMatchingMarker(t *testing.T) {
 	publisher := githubaction.CommentPublisher{
 		BaseURL: "https://api.github.test",
 		Token:   "test-token",
+		Author:  githubaction.DefaultCommentAuthor,
 		Client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			switch r.Method {
 			case http.MethodGet:
 				return jsonResponse(http.StatusOK, `[
-					{"id":98,"body":"<!-- codeguard:security -->\nmentions <!-- codeguard:design -->"},
-					{"id":99,"body":"<!-- codeguard:design -->\nold"}
+					{"id":98,"body":"<!-- codeguard:security -->\nmentions <!-- codeguard:design -->","user":{"login":"github-actions[bot]"}},
+					{"id":99,"body":"<!-- codeguard:design -->\nold","user":{"login":"github-actions[bot]"}}
 				]`), nil
 			case http.MethodPatch:
 				updatedID = r.URL.Path
@@ -121,6 +123,7 @@ func TestPublishStickyFindsMatchingCommentOnLaterPage(t *testing.T) {
 		firstPage[i] = map[string]any{
 			"id":   i + 1,
 			"body": fmt.Sprintf("<!-- codeguard:other-%d -->\nold", i),
+			"user": map[string]any{"login": githubaction.DefaultCommentAuthor},
 		}
 	}
 	firstPageJSON, err := json.Marshal(firstPage)
@@ -133,6 +136,7 @@ func TestPublishStickyFindsMatchingCommentOnLaterPage(t *testing.T) {
 	publisher := githubaction.CommentPublisher{
 		BaseURL: "https://api.github.test",
 		Token:   "test-token",
+		Author:  githubaction.DefaultCommentAuthor,
 		Client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			switch {
 			case r.Method == http.MethodGet:
@@ -140,7 +144,7 @@ func TestPublishStickyFindsMatchingCommentOnLaterPage(t *testing.T) {
 				if r.URL.Query().Get("page") == "1" {
 					return jsonResponse(http.StatusOK, string(firstPageJSON)), nil
 				}
-				return jsonResponse(http.StatusOK, `[{"id":101,"body":"<!-- codeguard:design -->\nold"}]`), nil
+				return jsonResponse(http.StatusOK, `[{"id":101,"body":"<!-- codeguard:design -->\nold","user":{"login":"github-actions[bot]"}}]`), nil
 			case r.Method == http.MethodPatch && r.URL.Path == "/repos/devr-tools/codeguard/issues/comments/101":
 				updated = true
 				return jsonResponse(http.StatusOK, `{"id":101}`), nil
@@ -166,6 +170,7 @@ func TestPublishStickyCreatesCommentWhenMissing(t *testing.T) {
 	publisher := githubaction.CommentPublisher{
 		BaseURL: "https://api.github.test",
 		Token:   "test-token",
+		Author:  githubaction.DefaultCommentAuthor,
 		Client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/devr-tools/codeguard/issues/7/comments":
@@ -199,5 +204,69 @@ func jsonResponse(status int, body string) *http.Response {
 		Status:     http.StatusText(status),
 		Header:     make(http.Header),
 		Body:       io.NopCloser(bytes.NewBufferString(body)),
+	}
+}
+
+// Anyone who can comment on the PR can post a comment whose first line is the
+// sticky marker. The publisher must not write its report into that comment,
+// which the PR author owns and could later edit into a fake result.
+func TestPublishStickyIgnoresMarkerCommentsFromOtherAuthors(t *testing.T) {
+	var created bool
+	publisher := githubaction.CommentPublisher{
+		BaseURL: "https://api.github.test",
+		Token:   "test-token",
+		Client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/user":
+				return jsonResponse(http.StatusForbidden, `{"message":"Resource not accessible by integration"}`), nil
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/devr-tools/codeguard/issues/7/comments":
+				return jsonResponse(http.StatusOK, `[{"id":66,"body":"<!-- codeguard:codeguard-action-comment -->\nall clear","user":{"login":"mallory"}}]`), nil
+			case r.Method == http.MethodPost && r.URL.Path == "/repos/devr-tools/codeguard/issues/7/comments":
+				created = true
+				return jsonResponse(http.StatusCreated, `{"id":100}`), nil
+			default:
+				t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+				return nil, nil
+			}
+		})},
+	}
+	if err := publisher.Publish("devr-tools/codeguard", 7, githubaction.WrapCommentBody("body", "codeguard-action-comment"), "sticky"); err != nil {
+		t.Fatalf("publish sticky: %v", err)
+	}
+	if !created {
+		t.Fatal("expected a new comment instead of updating another author's marker comment")
+	}
+}
+
+// With a personal access token the publisher resolves its own login through
+// GET /user and updates that user's sticky comment.
+func TestPublishStickyResolvesAuthorFromToken(t *testing.T) {
+	var updated bool
+	publisher := githubaction.CommentPublisher{
+		BaseURL: "https://api.github.test",
+		Token:   "test-token",
+		Client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/user":
+				return jsonResponse(http.StatusOK, `{"login":"codeguard-bot"}`), nil
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/devr-tools/codeguard/issues/7/comments":
+				return jsonResponse(http.StatusOK, `[
+					{"id":66,"body":"<!-- codeguard:codeguard-action-comment -->\nfake","user":{"login":"github-actions[bot]"}},
+					{"id":67,"body":"<!-- codeguard:codeguard-action-comment -->\nold","user":{"login":"CodeGuard-Bot"}}
+				]`), nil
+			case r.Method == http.MethodPatch && r.URL.Path == "/repos/devr-tools/codeguard/issues/comments/67":
+				updated = true
+				return jsonResponse(http.StatusOK, `{"id":67}`), nil
+			default:
+				t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+				return nil, nil
+			}
+		})},
+	}
+	if err := publisher.Publish("devr-tools/codeguard", 7, githubaction.WrapCommentBody("body", "codeguard-action-comment"), "sticky"); err != nil {
+		t.Fatalf("publish sticky: %v", err)
+	}
+	if !updated {
+		t.Fatal("expected the token owner's sticky comment to be updated")
 	}
 }

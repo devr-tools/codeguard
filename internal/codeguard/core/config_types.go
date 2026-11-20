@@ -164,6 +164,9 @@ type CheckConfig struct {
 	// a warning instead. It never promotes, and never applies to medium or
 	// high confidence. Off by default.
 	ConfidenceDemotion bool `json:"confidence_demotion,omitempty" yaml:"confidence_demotion,omitempty"`
+	// InlineSuppressions configures the hygiene diagnostics for inline
+	// codeguard:ignore directives (unused directives, missing reasons).
+	InlineSuppressions InlineSuppressionsConfig `json:"inline_suppressions,omitempty" yaml:"inline_suppressions,omitempty"`
 }
 
 // ConfidencePolicyConfig is the minimum-confidence policy: one default plus

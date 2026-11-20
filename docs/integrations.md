@@ -45,7 +45,43 @@ For pull request workflows, the action can also publish a sticky fix-oriented co
     comment-fix-mode: sticky
 ```
 
-`format: github` preserves workflow annotations. `comment-fix-mode: sticky` adds or updates a PR comment with concrete fix suggestions derived from the same findings.
+`format: github` preserves workflow annotations. `comment-fix-mode: sticky` adds or updates a PR comment with concrete fix suggestions derived from the same findings. A sticky update only edits a comment written by the token's own account (`github-actions[bot]` for the default `GITHUB_TOKEN`, or the token owner for a personal access token), so a marker comment posted by anyone else is ignored and a new comment is created instead.
+
+### Inline PR review comments
+
+The action can also post findings as line-level pull request review comments, in the style of reviewdog's `github-pr-review` reporter. It is off by default:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+steps:
+  - uses: actions/checkout@<sha> # pin to a full commit SHA
+    with:
+      fetch-depth: 0
+  - name: Devr Codeguard
+    uses: devr-tools/codeguard@v1.11.0
+    with:
+      config: codeguard.yaml
+      mode: diff
+      base-ref: origin/main
+      review-comments: "on"
+      review-comment-limit: "25"
+```
+
+- `review-comments`: `on` posts inline review comments; `off` (the default) does not. Quote `"on"` so YAML keeps it a string.
+- `review-comment-limit`: the most inline comments one run posts (default `25`). The review body lists the rest by path, line, rule, and message.
+
+The step runs `codeguard scan -format json` and makes one review per run with `POST /repos/{owner}/{repo}/pulls/{n}/reviews`. That review uses `event: COMMENT`, so it never approves a pull request or requests changes. The step runs only for `pull_request` and `pull_request_target` events, the same gate as the sticky comment. It needs `pull-requests: write`.
+
+- **Diff lines only.** The step reads the PR's files (`GET /pulls/{n}/files`) and parses each patch into new-file line numbers. A finding gets an inline comment only when its line is an added or context line on the RIGHT side of the diff, because GitHub rejects comments outside a diff hunk. Findings outside the diff are counted but not commented; the sticky comment and annotations still cover them. Files without a patch, such as binary or very large files, get no inline comments. Only unsuppressed `fail` and `warn` findings with a file line are considered, ordered fail-first, so the cap keeps the most severe ones.
+- **No duplicates across runs.** Each comment starts with a hidden `<!-- codeguard-review:<fingerprint> -->` marker. The fingerprint is the finding's context fingerprint, which survives edits that only shift its line. Before posting, the step lists the PR's review comments and skips findings already commented. Like the sticky comment, it only trusts markers in comments written by the token's own account. A marker posted by anyone else can't suppress a finding.
+- **Rejected comments.** If GitHub rejects the whole review with `422`, for example because a new push moved a line out of the diff, the step posts each comment on its own against the scanned head commit. It skips the ones GitHub still rejects and lists them in a body-only review. Other API errors fail the step.
+- **Suggestions.** A comment carries a ```` ```suggestion ```` block only when codeguard knows the exact replacement. Today that is a line holding nothing but a `debugger` statement (`quality.typescript.debugger-statement`, `quality.javascript.debugger-statement`), where the suggestion deletes the line. Every other finding gets its rule id, message, how-to-fix text, and a link to the rule docs. Guided fix templates are advice, not replacements, so they never become suggestions. `security.*` findings and findings with secret metadata never get a suggestion block, because a suggestion repeats source text.
+- **Escaping.** Messages and how-to-fix text come from the scanned repository, so they are flattened to one line with markdown and HTML metacharacters escaped. `@` mentions are defused. Suggestion fences are longer than any backtick run in the replacement.
+
+Finding paths are relative to the scan target. Inline comments line up with PR paths when the target is the repository root.
 
 `fail-on` sets when the action fails the job, and passes `-fail-on` to `codeguard scan`:
 
@@ -70,7 +106,51 @@ input value can't inject shell commands into the caller's job.
 ### GitHub code scanning (SARIF)
 
 To show codeguard findings in the repository's **Security → Code scanning**
-tab, write SARIF and upload it with `github/codeql-action/upload-sarif`:
+tab, set `upload-sarif: true` on the action. The job needs the
+`security-events: write` permission:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+
+steps:
+  - uses: actions/checkout@v4
+  - name: Devr Codeguard
+    uses: devr-tools/codeguard@v1.11.0
+    with:
+      config: codeguard.yaml
+      format: github
+      upload-sarif: true
+      sarif-category: codeguard
+```
+
+| Input | Default | Meaning |
+| --- | --- | --- |
+| `upload-sarif` | `false` | Also write the scan as SARIF and upload it with `github/codeql-action/upload-sarif` (pinned to a commit SHA in `action.yml`) |
+| `sarif-category` | `codeguard` | The code scanning `category`. Use a distinct value per upload when one workflow runs codeguard more than once (for example per target or per mode), or the uploads replace each other |
+| `sarif-file` | empty | Where to write the SARIF file. Empty writes `$RUNNER_TEMP/codeguard.sarif`; set a workspace path to also keep the file, for example with `actions/upload-artifact` |
+
+The action scans once. `codeguard scan -sarif-output <file>` writes the SARIF
+file next to the normal `format` output, so annotations and the upload come
+from the same run. The file is written and uploaded even when findings fail the
+scan, and the action still fails the job afterwards according to `fail-on`.
+When the scan itself breaks (invalid config, a missing target), no SARIF file is
+written, the upload is skipped with a warning, and the job fails with the scan
+error.
+
+Notes:
+- Pull requests from forks get a read-only `GITHUB_TOKEN`, so the upload step
+  fails there. Gate `upload-sarif` on the event or repository, for example
+  `upload-sarif: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}`.
+- `-sarif-output` is newer than v1.11.0. The action builds the codeguard bundled
+  with it, so this only matters if you set the `version` input to an older release.
+- Diff-mode scans (`mode: diff`) upload only the findings on changed lines, so
+  code scanning marks alerts on unchanged files as fixed when a diff-mode
+  upload shares a branch and category with a full scan. Use a separate `sarif-category` for diff
+  and full uploads, or upload only from full scans.
+
+Without the action, write SARIF with the CLI and upload it yourself:
 
 ```yaml
 permissions:
@@ -84,15 +164,18 @@ steps:
       go-version: stable
   - run: go install github.com/devr-tools/codeguard/cmd/codeguard@latest
   - name: codeguard (SARIF)
-    run: codeguard scan -config codeguard.yaml -format sarif -fail-on none > codeguard.sarif
-  - uses: github/codeql-action/upload-sarif@v3
-    if: always()
+    run: codeguard scan -config codeguard.yaml -format github -sarif-output codeguard.sarif
+  - uses: github/codeql-action/upload-sarif@v4
+    if: ${{ !cancelled() && hashFiles('codeguard.sarif') != '' }}
     with:
       sarif_file: codeguard.sarif
       category: codeguard
 ```
 
-`-fail-on none` lets the upload step run when findings fail the scan.
+`-sarif-output` writes the SARIF file in addition to the `-format` output and
+is written even when findings fail the scan, so the scan step keeps its exit
+status and the upload still runs. Alternatively, `-format sarif -fail-on none >
+codeguard.sarif` makes SARIF the only output and never fails on findings.
 Operational failures, such as a crashed section, still exit 1 and are also
 recorded as `executionSuccessful: false` in the SARIF invocation.
 
@@ -110,9 +193,7 @@ In code scanning, each alert shows:
   when unrelated edits move it
 
 The full field reference and the severity mapping are in
-[Checks → SARIF output](checks.md#sarif-output-github-code-scanning). The
-marketplace action does not upload SARIF yet. Use the workflow above until it
-has a SARIF upload input.
+[Checks → SARIF output](checks.md#sarif-output-github-code-scanning).
 
 ## Agent Hook Packs
 

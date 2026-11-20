@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"go/ast"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"strings"
 
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
@@ -87,6 +89,7 @@ type boundedFileWalk struct {
 	hasReincludes bool
 	files         []string
 	truncated     bool
+	resolvedRoot  string
 }
 
 func (w *boundedFileWalk) visit(path string, d fs.DirEntry, err error) error {
@@ -152,8 +155,8 @@ func (w *boundedFileWalk) gitignored(path string, rel string, logicalRel string,
 // collectFile records an included file, skipping oversized files to bound
 // scan memory (see maxScanFileBytes) and stopping the walk at maxFiles.
 func (w *boundedFileWalk) collectFile(rel string, d fs.DirEntry) error {
-	info, err := d.Info()
-	if err != nil {
+	info, ok, err := w.scannableFileInfo(filepath.Join(w.root, filepath.FromSlash(rel)), d)
+	if err != nil || !ok {
 		return err
 	}
 	if info.Size() > maxScanFileBytes || !w.include(rel) {
@@ -165,6 +168,59 @@ func (w *boundedFileWalk) collectFile(rel string, d fs.DirEntry) error {
 	}
 	w.files = append(w.files, rel)
 	return nil
+}
+
+// scannableFileInfo returns the info of the file a walked entry will be read
+// as, and false when it must not be read. The repository may be an untrusted
+// pull request, so only regular files are scanned: a FIFO, socket or device
+// would block or stream forever when opened, and a symlink is followed only
+// when it resolves to a regular file inside the target root. A link to a path
+// outside the target would otherwise let the PR make codeguard read (and
+// report, or send to AI triage) arbitrary files on the runner, and the link's
+// own size would bypass the maxScanFileBytes cap.
+func (w *boundedFileWalk) scannableFileInfo(path string, d fs.DirEntry) (fs.FileInfo, bool, error) {
+	if d.Type().IsRegular() {
+		info, err := d.Info()
+		return info, err == nil, err
+	}
+	if d.Type()&fs.ModeSymlink == 0 {
+		return nil, false, nil
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return nil, false, nil // dangling or looping link
+	}
+	if !pathWithinRoot(w.resolvedRootPath(), resolved) {
+		return nil, false, nil
+	}
+	info, err := os.Stat(resolved)
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, false, nil
+	}
+	return info, true, nil
+}
+
+// resolvedRootPath is the walk root with its own symlinks resolved, so
+// containment compares like with like (e.g. macOS /var -> /private/var).
+func (w *boundedFileWalk) resolvedRootPath() string {
+	if w.resolvedRoot == "" {
+		w.resolvedRoot = w.root
+		if resolved, err := filepath.EvalSymlinks(w.root); err == nil {
+			w.resolvedRoot = resolved
+		}
+		if abs, err := filepath.Abs(w.resolvedRoot); err == nil {
+			w.resolvedRoot = abs
+		}
+	}
+	return w.resolvedRoot
+}
+
+func pathWithinRoot(root string, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 // walkDecision is the exclusion verdict for one walked entry.

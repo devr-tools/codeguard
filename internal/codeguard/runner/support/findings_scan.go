@@ -107,10 +107,14 @@ func scanTargetFiles(sc Context, target core.TargetConfig, spec fileScanSpec) fi
 	if spec.parallel {
 		workers = fileScanWorkers(len(selected))
 	}
+	var result fileScanResult
 	if workers <= 1 {
-		return scanTargetFilesSequentially(selected, scanOne)
+		result = scanTargetFilesSequentially(selected, scanOne)
+	} else {
+		result = scanTargetFilesInParallel(selected, workers, scanOne)
 	}
-	return scanTargetFilesInParallel(selected, workers, scanOne)
+	bindFindingsToTarget(sc, target, result.findings)
+	return result
 }
 
 func selectedTargetFiles(sc Context, target core.TargetConfig, include func(string) bool) []string {

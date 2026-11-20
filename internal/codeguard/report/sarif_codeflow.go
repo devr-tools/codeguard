@@ -38,7 +38,7 @@ func sarifCodeFlows(finding core.Finding) []sarifCodeFlow {
 	for _, step := range steps {
 		location := sarifLocation{Message: &sarifMessage{Text: step.label}}
 		if step.path != "" {
-			location.PhysicalLocation = &sarifPhysicalLocation{ArtifactLocation: sarifArtifactLocation{URI: step.path}}
+			location.PhysicalLocation = &sarifPhysicalLocation{ArtifactLocation: sarifArtifactLocation{URI: sarifArtifactURI(step.path)}}
 			if step.line > 0 {
 				location.PhysicalLocation.Region = &sarifRegion{StartLine: step.line}
 			}

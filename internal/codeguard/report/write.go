@@ -111,7 +111,9 @@ func writeSARIF(w io.Writer, report core.Report) error {
 		"$schema": "https://json.schemastore.org/sarif-2.1.0.json",
 	}
 	ruleFindings := map[string]*sarifRuleFindings{}
-	var results []sarifResult
+	// SARIF requires results to be an array, so a clean run must encode [] rather
+	// than null; GitHub code scanning rejects a null results field.
+	results := []sarifResult{}
 	for _, section := range report.Sections {
 		for _, finding := range section.Findings {
 			group, ok := ruleFindings[finding.RuleID]

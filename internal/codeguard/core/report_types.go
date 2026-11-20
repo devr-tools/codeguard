@@ -95,6 +95,12 @@ type Finding struct {
 	// Metadata carries machine-readable, non-sensitive finding attributes. It
 	// must never contain source snippets or credential values.
 	Metadata map[string]string `json:"metadata,omitempty"`
+	// TargetPath is the root of the scan target the finding came from, when
+	// the producing pass knows it. Path is relative to that root, so with two
+	// targets that both hold main.go it is what tells their findings apart
+	// for inline suppressions, fingerprints and the diff scope. It is runtime
+	// state only and never serialized, since it is an absolute local path.
+	TargetPath string `json:"-"`
 }
 
 type Suppression struct {

@@ -88,6 +88,10 @@ func RunWithOptions(ctx context.Context, cfg core.Config, opts core.ScanOptions)
 		sc.Artifacts.Put(core.NewWaiverAuditArtifact(waiverAudit))
 	}
 	attachScoreHistoryDiagnostics(report.Sections, scoreHistoryDiagnostics)
+	// Whether a directive covered any finding is known only once every
+	// section has finalized, so these are attached here, to the section that
+	// owns the directive's rule, and are absent from OnSectionComplete streams.
+	attachScoreHistoryDiagnostics(report.Sections, runnersupport.InlineSuppressionHygieneDiagnostics(sc))
 	attachRunDiagnostics(report.Sections, historyDiagnostics)
 	report.Artifacts = sc.Artifacts.List()
 	report.Summary = runnersupport.SummarizeSections(report.Sections)

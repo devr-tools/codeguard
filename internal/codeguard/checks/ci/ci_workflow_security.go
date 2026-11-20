@@ -55,6 +55,13 @@ func evaluateWorkflowDoc(env support.Context, doc *workflowDoc) []core.Finding {
 	findings = append(findings, permissionFindings(env, doc)...)
 	findings = append(findings, remoteScriptPipeFindings(env, doc)...)
 	findings = append(findings, forkTriggerSecretFindings(env, doc)...)
+	findings = append(findings, cachePoisoningFindings(env, doc)...)
+	findings = append(findings, credentialPersistenceFindings(env, doc)...)
+	findings = append(findings, envFileInjectionFindings(env, doc)...)
+	findings = append(findings, overprovisionedSecretFindings(env, doc)...)
+	findings = append(findings, unpinnedImageFindings(env, doc)...)
+	findings = append(findings, insecureCommandsFindings(env, doc)...)
+	findings = append(findings, botConditionFindings(env, doc)...)
 	return findings
 }
 

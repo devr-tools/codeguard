@@ -189,6 +189,7 @@ func runScan(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer)
 	if err := executeScan(stdout, stderr, scanRequest{
 		cfg: cfg, mode: scanMode, baseRef: strings.TrimSpace(*inputs.baseRef), targetPath: targetPath,
 		enableAI: *enableAI, includeSuppressed: *includeSuppressed, heapProfilePath: *heapProfile, quiet: *outputFlags.quiet,
+		sarifOutputPath: strings.TrimSpace(*outputFlags.sarifOutput),
 	}); err != nil {
 		_, _ = fmt.Fprintf(stderr, "scan failed: %v\n", err)
 		return exitError

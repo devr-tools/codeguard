@@ -28,6 +28,18 @@ type inlineSuppressionIndex struct {
 	// other than as a bare wildcard or a trailing ".*" prefix. They never
 	// suppress; invalidCovering surfaces them so the author learns that.
 	invalid []inlineSuppression
+	// peers holds the directive indexes of the same target-relative path
+	// under every other target where it exists, for a finding whose producing
+	// pass did not record its target (core.Finding.TargetPath). With targets
+	// a/ and b/ both holding main.go such a finding's own file cannot be told
+	// apart, so a directive suppresses only when every candidate file has one
+	// covering the finding: an ignore in a/main.go cannot hide a finding in
+	// b/main.go.
+	peers []*inlineSuppressionIndex
+	// usage records which directives covered a finding in this scan, for the
+	// suppression.unused-directive diagnostic. It is nil for an index with no
+	// directives.
+	usage *directiveUsage
 }
 
 // emptyInlineSuppressions is shared by every file that has no directive at all,
@@ -46,21 +58,71 @@ type inlineSuppressionCache struct {
 	entries map[string]*inlineSuppressionEntry
 }
 
-// inlineSuppressionsFor returns the directive index for the file a finding's
-// target-relative path resolves to, or nil when the path resolves to no
-// readable file (in which case no inline suppression can apply). With a
-// corpus attached the resolution, read, and parse happen once per path per
-// scan; without one (a bare Context in tests) they happen on every call, as
-// they always did.
+// inlineSuppressionsForFinding returns the directive index that governs
+// finding: its own target's file when the producing pass recorded the target,
+// otherwise whatever its target-relative path resolves to (see
+// inlineSuppressionsFor).
+func inlineSuppressionsForFinding(sc Context, finding core.Finding) *inlineSuppressionIndex {
+	if finding.TargetPath == "" || finding.Path == "" {
+		return inlineSuppressionsFor(sc, finding.Path)
+	}
+	candidate := targetFilePath{
+		root: finding.TargetPath,
+		path: filepath.Join(finding.TargetPath, filepath.FromSlash(finding.Path)),
+	}
+	if _, err := os.Stat(candidate.path); err != nil {
+		return nil
+	}
+	return fileInlineSuppressions(sc, finding.Path, candidate)
+}
+
+// inlineSuppressionsFor returns the directive index for the file a
+// target-relative path resolves to, or nil when it resolves to no readable
+// file (in which case no inline suppression can apply). When the path exists
+// under several targets the index keeps the other files as peers, so a
+// directive suppresses only when every candidate file has one.
 func inlineSuppressionsFor(sc Context, rel string) *inlineSuppressionIndex {
 	if rel == "" {
 		return nil
 	}
+	candidates := findingTargetPaths(sc, rel)
+	if len(candidates) == 0 {
+		return nil
+	}
+	primary := fileInlineSuppressions(sc, rel, candidates[0])
+	if primary == nil || len(candidates) == 1 || len(primary.directives) == 0 {
+		return primary
+	}
+	return memoizedInlineSuppressions(sc, "peers\x00"+inlineSuppressionKey(sc, rel), func() *inlineSuppressionIndex {
+		resolved := *primary
+		resolved.peers = make([]*inlineSuppressionIndex, 0, len(candidates)-1)
+		for _, candidate := range candidates[1:] {
+			peer := fileInlineSuppressions(sc, rel, candidate)
+			if peer == nil {
+				peer = emptyInlineSuppressions
+			}
+			resolved.peers = append(resolved.peers, peer)
+		}
+		return &resolved
+	})
+}
+
+// fileInlineSuppressions returns the directive index of one physical file,
+// parsed once per scan. Every lookup of that file shares the index, so the
+// directive usage recorded on it is complete whichever path led to it.
+func fileInlineSuppressions(sc Context, rel string, candidate targetFilePath) *inlineSuppressionIndex {
+	return memoizedInlineSuppressions(sc, "file\x00"+filepath.Clean(candidate.path), func() *inlineSuppressionIndex {
+		return readInlineSuppressions(sc, rel, candidate)
+	})
+}
+
+// memoizedInlineSuppressions runs load once per key per scan. With no corpus
+// attached (a bare Context in tests) it runs load on every call.
+func memoizedInlineSuppressions(sc Context, key string, load func() *inlineSuppressionIndex) *inlineSuppressionIndex {
 	if sc.corpus == nil {
-		return loadInlineSuppressions(sc, rel)
+		return load()
 	}
 	cache := &sc.corpus.suppressions
-	key := inlineSuppressionKey(sc, rel)
 	cache.mu.Lock()
 	if cache.entries == nil {
 		cache.entries = map[string]*inlineSuppressionEntry{}
@@ -72,7 +134,7 @@ func inlineSuppressionsFor(sc Context, rel string) *inlineSuppressionIndex {
 	}
 	cache.mu.Unlock()
 	entry.once.Do(func() {
-		entry.index = loadInlineSuppressions(sc, rel)
+		entry.index = load()
 	})
 	return entry.index
 }
@@ -89,41 +151,42 @@ func inlineSuppressionKey(sc Context, rel string) string {
 	return b.String()
 }
 
-// loadInlineSuppressions resolves rel exactly as the per-finding lookup always
-// has (the first target where the joined path exists), reads it, and parses
-// its directives. Bytes the scan already holds in the corpus are reused; any
-// other file is read directly, uncapped and without being retained, so this
-// lookup never consumes corpus budget (which could otherwise surface a new
-// budget diagnostic) and never changes what a large file reads as.
-func loadInlineSuppressions(sc Context, rel string) *inlineSuppressionIndex {
-	root, fullPath := findingTargetPath(sc, rel)
-	if fullPath == "" {
-		return nil
-	}
-	data, ok := sc.corpus.cachedRead(root, filepath.FromSlash(rel))
+// readInlineSuppressions reads and parses one candidate file. Bytes the scan
+// already holds in the corpus are reused; any other file is read directly,
+// uncapped and without being retained, so this lookup never consumes corpus
+// budget (which could otherwise surface a new budget diagnostic) and never
+// changes what a large file reads as.
+func readInlineSuppressions(sc Context, rel string, candidate targetFilePath) *inlineSuppressionIndex {
+	data, ok := sc.corpus.cachedRead(candidate.root, filepath.FromSlash(rel))
 	if !ok {
 		var err error
-		data, err = os.ReadFile(fullPath) //nolint:gosec // path resolved via findingTargetPath against the scan context
+		data, err = os.ReadFile(candidate.path) //nolint:gosec // path resolved via findingTargetPaths against the scan context
 		if err != nil {
 			return nil
 		}
 	}
-	return indexInlineSuppressions(fullPath, data)
+	return indexInlineSuppressions(candidate.path, data)
 }
 
-// findingTargetPath returns the first target root under which rel exists and
-// the joined path, or empty strings when it exists under none.
-func findingTargetPath(sc Context, rel string) (string, string) {
+type targetFilePath struct {
+	root string
+	path string
+}
+
+// findingTargetPaths returns, in target order, every target root under which
+// rel exists, with the joined path.
+func findingTargetPaths(sc Context, rel string) []targetFilePath {
 	if rel == "" {
-		return "", ""
+		return nil
 	}
+	var out []targetFilePath
 	for _, target := range sc.Cfg.Targets {
 		candidate := filepath.Join(target.Path, filepath.FromSlash(rel))
 		if _, err := os.Stat(candidate); err == nil {
-			return target.Path, candidate
+			out = append(out, targetFilePath{root: target.Path, path: candidate})
 		}
 	}
-	return "", ""
+	return out
 }
 
 var (
@@ -157,24 +220,48 @@ func indexInlineSuppressions(path string, data []byte) *inlineSuppressionIndex {
 	if len(directives) == 0 && len(invalid) == 0 {
 		return emptyInlineSuppressions
 	}
-	index := &inlineSuppressionIndex{directives: directives, byLine: make(map[int][]int, len(directives)), invalid: invalid}
+	index := &inlineSuppressionIndex{
+		directives: directives,
+		byLine:     make(map[int][]int, len(directives)),
+		invalid:    invalid,
+		usage:      &directiveUsage{used: make([]bool, len(directives))},
+	}
 	for position, directive := range directives {
 		index.byLine[directive.line] = append(index.byLine[directive.line], position)
 	}
 	return index
 }
 
+// parseIgnoreDirectives returns the codeguard:ignore directives on one line.
+// The reason of each is the text between the end of its rule id (or until
+// date) and the next directive on the line, or the end of the line.
+func parseIgnoreDirectives(line string, lineNo int) []inlineSuppression {
+	matches := inlineIgnorePattern.FindAllStringSubmatchIndex(line, -1)
+	out := make([]inlineSuppression, 0, len(matches))
+	for i, match := range matches {
+		tailEnd := len(line)
+		if i+1 < len(matches) {
+			tailEnd = matches[i+1][0]
+		}
+		directive := inlineSuppression{
+			ruleID: line[match[2]:match[3]],
+			line:   lineNo,
+			reason: directiveReason(line[match[1]:tailEnd]),
+			quoted: insideStringLiteral(line[:match[0]]),
+		}
+		if match[4] >= 0 {
+			directive.expires = line[match[4]:match[5]]
+		}
+		out = append(out, directive)
+	}
+	return out
+}
+
 func parseInlineSuppressionLines(lines []string, hasIgnore bool, hasGosec bool) []inlineSuppression {
 	out := make([]inlineSuppression, 0) //nolint:prealloc // directive count is unknown until each line is matched
 	for idx, line := range lines {
 		if hasIgnore && strings.Contains(line, "codeguard:ignore") {
-			for _, match := range inlineIgnorePattern.FindAllStringSubmatch(line, -1) {
-				out = append(out, inlineSuppression{
-					ruleID:  match[1],
-					line:    idx + 1,
-					expires: match[2],
-				})
-			}
+			out = append(out, parseIgnoreDirectives(line, idx+1)...)
 		}
 		if hasGosec {
 			out = append(out, gosecJustifiedSuppressions(line, idx+1)...)
@@ -189,6 +276,19 @@ func parseInlineSuppressionLines(lines []string, hasIgnore bool, hasGosec bool) 
 // translated gosec directive covers exactly its target line. Rule and expiry
 // are checked at match time because expiry depends on the scan date.
 func (index *inlineSuppressionIndex) match(sc Context, finding core.Finding) (inlineSuppression, bool) {
+	directive, ok := index.matchOwn(sc, finding)
+	if !ok {
+		return inlineSuppression{}, false
+	}
+	for _, peer := range index.peers {
+		if _, peerOK := peer.matchOwn(sc, finding); !peerOK {
+			return inlineSuppression{}, false
+		}
+	}
+	return directive, true
+}
+
+func (index *inlineSuppressionIndex) matchOwn(sc Context, finding core.Finding) (inlineSuppression, bool) {
 	if len(index.directives) == 0 {
 		return inlineSuppression{}, false
 	}

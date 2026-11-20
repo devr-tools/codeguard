@@ -30,23 +30,7 @@ func NewFinding(sc Context, input FindingInput) core.Finding {
 		input.Level = meta.DefaultLevel
 	}
 	input.Level = NormalizedSeverity(input.Level)
-	// Exact identity deliberately excludes diagnostic prose and evidence. The
-	// version prefix makes future identity-shape migrations explicit, while the
-	// normalized source line distinguishes multiple findings at the same
-	// rule/path/line without coupling identity to Message or Metadata.
-	sum := sha256.Sum256([]byte(strings.Join([]string{
-		"codeguard-finding/v2",
-		input.RuleID,
-		normalizedPath,
-		strconv.Itoa(input.Line),
-		sourceIdentity(sc, normalizedPath, input.Line),
-	}, "|")))
-	exact := hex.EncodeToString(sum[:])
-	contextFP := contextFingerprint(sc, input.RuleID, normalizedPath, input.Line)
-	if contextFP == "" {
-		contextFP = exact
-	}
-	contentFP := contentFingerprint(sc, input.RuleID, normalizedPath, input.Line)
+	exact, contextFP, contentFP := findingIdentity(sc, "", input.RuleID, normalizedPath, input.Line)
 	return core.Finding{
 		RuleID:             input.RuleID,
 		Level:              input.Level,
@@ -143,6 +127,7 @@ func admitSectionFinding(sc Context, id string, section *core.SectionResult, fin
 	if sc.Opts.Mode == core.ScanModeDiff && finding.Path != "" && !matchesDiff(sc, finding) {
 		return finding, false
 	}
+	markInlineDirectivesUsed(sc, finding)
 	// The confidence policy decides whether a finding is shown at all, so it
 	// runs before waiver auditing and suppression matching: a finding the
 	// scanner is not confident enough to report is not a finding a team
@@ -259,7 +244,13 @@ func demoteLowConfidence(sc Context, finding core.Finding) core.Finding {
 }
 
 func matchesDiff(sc Context, finding core.Finding) bool {
-	scope, ok := sc.Diff[finding.Path]
+	scopes := sc.Diff
+	if finding.TargetPath != "" {
+		if own, ok := sc.DiffByTarget[filepath.Clean(finding.TargetPath)]; ok {
+			scopes = own
+		}
+	}
+	scope, ok := scopes[finding.Path]
 	if !ok {
 		return false
 	}

@@ -110,6 +110,9 @@ Useful flags for CI:
   or a failed target walk (`scan.target-walk`) — exit 1 under every policy.
 - `-min-confidence low|medium|high`: drop findings below that confidence; it
   maps onto `checks.min_confidence.default`.
+- `-sarif-output <file>`: also write the report as SARIF 2.1.0 to a file,
+  whatever `-format` is. It is written even when findings fail the scan, so a
+  code scanning upload can follow.
 - `-quiet`: no banner and no progress lines; findings and the summary are
   still printed. The banner is also skipped automatically when stdout is not a
   terminal, when `CI` is set, or when `NO_COLOR` is set.

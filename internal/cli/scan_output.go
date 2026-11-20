@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/core"
 	"github.com/devr-tools/codeguard/internal/whatsnew"
+	service "github.com/devr-tools/codeguard/pkg/codeguard"
 )
 
 // scanOutputFlags are the scan flags that shape CLI output and the exit
@@ -17,6 +19,7 @@ type scanOutputFlags struct {
 	quiet         *bool
 	failOn        *string
 	minConfidence *string
+	sarifOutput   *string
 }
 
 // failOnFlagUsage is shared by scan and validate-patch so both describe the
@@ -32,6 +35,7 @@ func registerScanOutputFlags(fs *flag.FlagSet) scanOutputFlags {
 		quiet:         fs.Bool("quiet", false, "suppress the banner and progress lines; findings and the summary are still printed"),
 		failOn:        registerFailOnFlag(fs),
 		minConfidence: fs.String("min-confidence", "", "drop findings below this confidence: low, medium, high; overrides checks.min_confidence.default (per-section overrides still apply)"),
+		sarifOutput:   fs.String("sarif-output", "", "also write the report as SARIF 2.1.0 to this file, independent of -format; written even when the scan finds failures"),
 	}
 }
 
@@ -98,4 +102,28 @@ func envTruthy(value string) bool {
 	default:
 		return true
 	}
+}
+
+// writeSARIFFile writes the report as SARIF to path, creating its directory.
+// It lets one scan feed both the human-facing -format output and a code
+// scanning upload, instead of scanning twice.
+func writeSARIFFile(path string, report service.Report) error {
+	if dir := filepath.Dir(path); dir != "." {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			return fmt.Errorf("create SARIF output directory: %w", err)
+		}
+	}
+	file, err := os.Create(path) // #nosec G304 -- the path is the operator's own -sarif-output flag
+	if err != nil {
+		return fmt.Errorf("create SARIF output: %w", err)
+	}
+	writeErr := service.WriteReport(file, report, "sarif")
+	closeErr := file.Close()
+	if writeErr != nil {
+		return fmt.Errorf("write SARIF output: %w", writeErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("write SARIF output: %w", closeErr)
+	}
+	return nil
 }
