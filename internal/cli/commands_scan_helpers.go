@@ -70,6 +70,7 @@ type scanRequest struct {
 	includeSuppressed bool
 	heapProfilePath   string
 	quiet             bool
+	sarifOutputPath   string
 }
 
 func executeScan(stdout io.Writer, stderr io.Writer, req scanRequest) error {
@@ -95,6 +96,11 @@ func executeScan(stdout io.Writer, stderr io.Writer, req scanRequest) error {
 	writeOpts := service.ReportWriteOptions{OmitBanner: !bannerEnabled(stdout, req.quiet)}
 	if err := service.WriteReportWithOptions(stdout, report, cfg.Output.Format, writeOpts); err != nil {
 		return fmt.Errorf("write report: %w", err)
+	}
+	if req.sarifOutputPath != "" {
+		if err := writeSARIFFile(req.sarifOutputPath, report); err != nil {
+			return err
+		}
 	}
 	if !req.quiet {
 		writePerformanceUpgradeHint(stdout, cfg)
