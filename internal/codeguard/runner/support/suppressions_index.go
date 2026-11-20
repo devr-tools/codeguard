@@ -35,6 +35,10 @@ type inlineSuppressionIndex struct {
 	// suppresses only when every candidate file has one covering the
 	// finding, so an ignore in a/main.go cannot hide a finding in b/main.go.
 	peers []*inlineSuppressionIndex
+	// usage records which directives covered a finding in this scan, for the
+	// suppression.unused-directive diagnostic. It is nil for an index with no
+	// directives.
+	usage *directiveUsage
 }
 
 // emptyInlineSuppressions is shared by every file that has no directive at all,
@@ -187,24 +191,48 @@ func indexInlineSuppressions(path string, data []byte) *inlineSuppressionIndex {
 	if len(directives) == 0 && len(invalid) == 0 {
 		return emptyInlineSuppressions
 	}
-	index := &inlineSuppressionIndex{directives: directives, byLine: make(map[int][]int, len(directives)), invalid: invalid}
+	index := &inlineSuppressionIndex{
+		directives: directives,
+		byLine:     make(map[int][]int, len(directives)),
+		invalid:    invalid,
+		usage:      &directiveUsage{used: make([]bool, len(directives))},
+	}
 	for position, directive := range directives {
 		index.byLine[directive.line] = append(index.byLine[directive.line], position)
 	}
 	return index
 }
 
+// parseIgnoreDirectives returns the codeguard:ignore directives on one line.
+// The reason of each is the text between the end of its rule id (or until
+// date) and the next directive on the line, or the end of the line.
+func parseIgnoreDirectives(line string, lineNo int) []inlineSuppression {
+	matches := inlineIgnorePattern.FindAllStringSubmatchIndex(line, -1)
+	out := make([]inlineSuppression, 0, len(matches))
+	for i, match := range matches {
+		tailEnd := len(line)
+		if i+1 < len(matches) {
+			tailEnd = matches[i+1][0]
+		}
+		directive := inlineSuppression{
+			ruleID: line[match[2]:match[3]],
+			line:   lineNo,
+			reason: directiveReason(line[match[1]:tailEnd]),
+			quoted: insideStringLiteral(line[:match[0]]),
+		}
+		if match[4] >= 0 {
+			directive.expires = line[match[4]:match[5]]
+		}
+		out = append(out, directive)
+	}
+	return out
+}
+
 func parseInlineSuppressionLines(lines []string, hasIgnore bool, hasGosec bool) []inlineSuppression {
 	out := make([]inlineSuppression, 0) //nolint:prealloc // directive count is unknown until each line is matched
 	for idx, line := range lines {
 		if hasIgnore && strings.Contains(line, "codeguard:ignore") {
-			for _, match := range inlineIgnorePattern.FindAllStringSubmatch(line, -1) {
-				out = append(out, inlineSuppression{
-					ruleID:  match[1],
-					line:    idx + 1,
-					expires: match[2],
-				})
-			}
+			out = append(out, parseIgnoreDirectives(line, idx+1)...)
 		}
 		if hasGosec {
 			out = append(out, gosecJustifiedSuppressions(line, idx+1)...)

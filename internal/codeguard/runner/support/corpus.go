@@ -55,6 +55,7 @@ type fileCorpus struct {
 	maxCLikeEntries     int
 	scripts             map[string]*scriptParse
 	suppressions        inlineSuppressionCache
+	sectionReads        sectionReadLog
 	scriptBytes         int
 	scriptCount         int
 	scriptParse         chan struct{}

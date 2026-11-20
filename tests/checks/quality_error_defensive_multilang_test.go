@@ -583,7 +583,6 @@ func TestQualityDefensiveBoundariesDetectMultiLanguageSignals(t *testing.T) {
 	}
 }
 
-// codeguard:ignore quality.max-function-lines until 2026-12-31 -- multi-language fixture matrix kept inline for focused detector coverage.
 func TestQualityErrorAndDefensiveRulesAllowGuardedPatterns(t *testing.T) {
 	tests := []struct {
 		name     string

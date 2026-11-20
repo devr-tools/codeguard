@@ -20,6 +20,15 @@ type inlineSuppression struct {
 	// match labels a translated directive in the suppression evidence
 	// (core.Suppression.Match); empty for native codeguard:ignore.
 	match string
+	// reason is the explanation written after the rule id (and optional until
+	// date), with any "--" or ":" separator and comment closer removed. It is
+	// empty when the directive gives none; see directiveReason.
+	reason string
+	// quoted marks a directive that sits inside a string literal on its line,
+	// such as an expected-output string in a test. It still suppresses, as it
+	// always has, but the hygiene diagnostics skip it: it is text the code
+	// handles, not a directive its author wrote.
+	quoted bool
 }
 
 var inlineIgnorePattern = regexp.MustCompile(`codeguard:ignore\s+([a-z0-9._*\-]+)(?:\s+until\s+(\d{4}-\d{2}-\d{2}))?`)

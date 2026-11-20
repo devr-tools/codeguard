@@ -26,6 +26,9 @@ func (sc Context) corpusFiles(target core.TargetConfig) ([]string, error) {
 
 func (sc Context) corpusRead(root string, rel string) ([]byte, error) {
 	if sc.corpus != nil {
+		if recordsSectionReads(sc) {
+			sc.corpus.sectionReads.note(sc.section, root, rel)
+		}
 		return sc.corpus.read(root, rel)
 	}
 	return readCappedFile(filepath.Join(root, rel))

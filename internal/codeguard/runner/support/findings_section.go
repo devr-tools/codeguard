@@ -143,6 +143,7 @@ func admitSectionFinding(sc Context, id string, section *core.SectionResult, fin
 	if sc.Opts.Mode == core.ScanModeDiff && finding.Path != "" && !matchesDiff(sc, finding) {
 		return finding, false
 	}
+	markInlineDirectivesUsed(sc, finding)
 	// The confidence policy decides whether a finding is shown at all, so it
 	// runs before waiver auditing and suppression matching: a finding the
 	// scanner is not confident enough to report is not a finding a team

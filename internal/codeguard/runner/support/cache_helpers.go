@@ -74,6 +74,7 @@ func SectionConfigHashes(cfg core.Config, catalog map[string]core.RuleMetadata, 
 func findingRelevantChecks(checks core.CheckConfig) core.CheckConfig {
 	checks.MinConfidence = core.ConfidencePolicyConfig{}
 	checks.ConfidenceDemotion = false
+	checks.InlineSuppressions = core.InlineSuppressionsConfig{}
 	return checks
 }
 
