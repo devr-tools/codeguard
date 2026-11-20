@@ -1,8 +1,11 @@
 package support
 
 import (
+	"errors"
+	"io/fs"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -68,6 +71,12 @@ func dependencyDigests(sc Context, target core.TargetConfig, deps checkSupport.F
 		}
 	}
 
+	if deps.ExternalFiles != nil {
+		for _, external := range sortedUnique(deps.ExternalFiles(sorted)) {
+			shared.WriteString("external\x00" + external + "\x00" + externalDependencyHash(target, external) + "\n")
+		}
+	}
+
 	base := hashBytes([]byte(shared.String()))
 	byDir := make(map[string]string, len(packages))
 	for dir, builder := range packages {
@@ -91,4 +100,30 @@ func dependencyFileHash(sc Context, target core.TargetConfig, rel string) string
 
 func dependencyDir(rel string) string {
 	return path.Dir(filepath.ToSlash(rel))
+}
+
+// externalDependencyHash hashes a declared external dependency read straight
+// from disk (it may be excluded from the listing or lie outside the target).
+// The read is capped like every other repository read; a missing file hashes
+// as absent so that creating it changes the digest too.
+func externalDependencyHash(target core.TargetConfig, file string) string {
+	full := filepath.FromSlash(file)
+	if !filepath.IsAbs(full) {
+		full = filepath.Join(target.Path, full)
+	}
+	data, err := checkSupport.ReadCappedFile(full)
+	switch {
+	case err == nil:
+		return hashBytes(data)
+	case errors.Is(err, fs.ErrNotExist):
+		return "absent"
+	default:
+		return "unreadable"
+	}
+}
+
+func sortedUnique(values []string) []string {
+	out := append([]string(nil), values...)
+	sort.Strings(out)
+	return slices.Compact(out)
 }

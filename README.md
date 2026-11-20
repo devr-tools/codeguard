@@ -224,6 +224,31 @@ func main() {
 }
 ```
 
+## Contributing: known anti-patterns
+
+### Tests live in `tests/` instead of next to the code
+
+This repository keeps its tests in a top-level `tests/` tree as external
+`_test` packages (for example `tests/checks/design_test.go` exercising
+`internal/codeguard/checks/design`). That departs from standard Go practice,
+where `foo_test.go` sits in the same directory as `foo.go`, and it is a known
+anti-pattern here rather than a recommendation:
+
+- Tests can only reach exported identifiers, so internal helpers get exported
+  (or wrapped in test-only shims) purely to make them testable.
+- The test for a file is not discoverable from the file itself, and moving or
+  renaming a package does not move its tests.
+- `go test ./internal/...` exercises nothing; coverage for a package has to be
+  collected from a different import path with `-coverpkg`.
+- Go tooling and editors (jump-to-test, per-package `go test`, `go vet` on test
+  files alongside the code) assume colocated tests.
+
+The convention is documented in `CLAUDE.md` and kept by review, not by
+tooling: the repo's own `ci.test-file-location` rule allows `internal/**` and
+`cmd/**`, where some in-package tests already exist. New work should follow the existing
+layout until the project decides to migrate to colocated tests; treat that
+migration as open tech debt.
+
 ## Docs
 
 - [Getting started](docs/getting-started.md)

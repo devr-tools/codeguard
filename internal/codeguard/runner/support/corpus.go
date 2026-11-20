@@ -5,11 +5,10 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io"
 	"math"
-	"os"
 	"path/filepath"
 	"runtime/debug"
+	"sort"
 	"sync"
 
 	checkSupport "github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -18,22 +17,10 @@ import (
 
 // readCappedFile reads path but refuses to buffer more than maxScanFileBytes,
 // bounding memory even if a file grew past the walk-time size filter (TOCTOU) or
-// is read outside the walk. It reads one byte past the cap to distinguish an
-// exactly-cap-sized file from an oversized one.
+// is read outside the walk. It is checkSupport.ReadCappedFile, the cap every
+// direct repository read shares.
 func readCappedFile(path string) ([]byte, error) {
-	f, err := os.Open(path) //nolint:gosec // path enumerated by WalkFiles under the scan root
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = f.Close() }()
-	data, err := io.ReadAll(io.LimitReader(f, maxScanFileBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > maxScanFileBytes {
-		return nil, fmt.Errorf("file %q exceeds the %d byte scan limit", path, maxScanFileBytes)
-	}
-	return data, nil
+	return checkSupport.ReadCappedFile(path)
 }
 
 // fileCorpus memoizes, for the lifetime of a single scan, the expensive work
@@ -74,9 +61,13 @@ type fileCorpus struct {
 	diagnostics         []core.Diagnostic
 	diagnosticSeen      map[string]struct{}
 	readErrorCount      int
-	// walkFailures are reported on every section that finalizes after them,
-	// unlike diagnostics, which are handed to the first section only.
-	walkFailures []core.Diagnostic
+	// walkFailures holds one failing diagnostic per target root whose walk
+	// errored. Unlike diagnostics (handed to the first section to finalize),
+	// a walk failure is reported by every section that consumed that root's
+	// listing, and only by those: listingConsumers records, per cleaned root,
+	// the section tags (Context.section) that asked for it.
+	walkFailures     map[string]core.Diagnostic
+	listingConsumers map[string]map[string]struct{}
 }
 
 // The corpus is an optimization, not the owner of repository contents, so its
@@ -197,30 +188,32 @@ type scriptParse struct {
 
 func newFileCorpus() *fileCorpus {
 	return &fileCorpus{
-		targets:         map[string]*targetListing{},
-		maxFiles:        maxScanFileCount,
-		reads:           map[string]*fileRead{},
-		maxReadBytes:    corpusRetentionBudget(maxCorpusReadBytes, minCorpusReadBytes, 8),
-		maxReadEntries:  maxCorpusReadEntries,
-		readWork:        make(chan struct{}, corpusReadWorkers()),
-		readFile:        readCappedFile,
-		asts:            map[string]*goParse{},
-		maxGoASTBytes:   corpusRetentionBudget(maxCorpusGoASTBytes, minCorpusGoASTBytes, 4),
-		maxGoASTEntries: maxCorpusGoASTEntries,
-		goParseWork:     make(chan struct{}, goParseWorkers()),
-		clike:           map[string]*clikeParse{},
-		maxCLikeBytes:   corpusRetentionBudget(maxCorpusCLikeBytes, minCorpusCLikeBytes, 4),
-		maxCLikeEntries: maxCorpusCLikeEntries,
-		scripts:         map[string]*scriptParse{},
-		scriptParse:     make(chan struct{}, 1),
-		diagnosticSeen:  make(map[string]struct{}),
+		targets:          map[string]*targetListing{},
+		maxFiles:         maxScanFileCount,
+		reads:            map[string]*fileRead{},
+		maxReadBytes:     corpusRetentionBudget(maxCorpusReadBytes, minCorpusReadBytes, 8),
+		maxReadEntries:   maxCorpusReadEntries,
+		readWork:         make(chan struct{}, corpusReadWorkers()),
+		readFile:         readCappedFile,
+		asts:             map[string]*goParse{},
+		maxGoASTBytes:    corpusRetentionBudget(maxCorpusGoASTBytes, minCorpusGoASTBytes, 4),
+		maxGoASTEntries:  maxCorpusGoASTEntries,
+		goParseWork:      make(chan struct{}, goParseWorkers()),
+		clike:            map[string]*clikeParse{},
+		maxCLikeBytes:    corpusRetentionBudget(maxCorpusCLikeBytes, minCorpusCLikeBytes, 4),
+		maxCLikeEntries:  maxCorpusCLikeEntries,
+		scripts:          map[string]*scriptParse{},
+		scriptParse:      make(chan struct{}, 1),
+		diagnosticSeen:   make(map[string]struct{}),
+		walkFailures:     map[string]core.Diagnostic{},
+		listingConsumers: map[string]map[string]struct{}{},
 	}
 }
 
 // list returns every non-excluded file under root, walking the tree only once
 // per target. Callers apply their own include filter to the returned slice; the
 // walk itself is identical regardless of the filter, so sharing it is safe.
-func (c *fileCorpus) list(root string, excludes []string, opts FileWalkOptions) ([]string, error) {
+func (c *fileCorpus) list(root string, excludes []string, opts FileWalkOptions, section string) ([]string, error) {
 	key := fmt.Sprintf("%s\x00%s\x00%t\x00%t", filepath.Clean(root), opts.LogicalPath, opts.ScanVendoredSource, opts.RespectGitignore)
 	c.mu.Lock()
 	entry, ok := c.targets[key]
@@ -240,6 +233,18 @@ func (c *fileCorpus) list(root string, excludes []string, opts FileWalkOptions) 
 			c.recordWalkError(root, entry.err)
 		}
 	})
+	// Record section as a consumer of root's listing, so a failure of that
+	// walk is attached to it (and only to consumers) when it finalizes. The
+	// walk failure itself is recorded inside the sync.Once above, before any
+	// caller returns from list, so a consumer always finalizes after both
+	// are known.
+	rootKey := filepath.Clean(root)
+	c.mu.Lock()
+	if c.listingConsumers[rootKey] == nil {
+		c.listingConsumers[rootKey] = map[string]struct{}{}
+	}
+	c.listingConsumers[rootKey][section] = struct{}{}
+	c.mu.Unlock()
 	return entry.files, entry.err
 }
 
@@ -492,16 +497,15 @@ func (c *fileCorpus) recordWalkTruncation(root string, limit int) {
 // for every file-driven section. It is a failing operational diagnostic for
 // that reason. The listing is memoized per target, so this is recorded once
 // per target per scan, and takeDiagnostics then hands it to every section that
-// finalizes afterwards (see walkFailures).
+// consumed the failed listing (see walkFailures).
 func (c *fileCorpus) recordWalkError(root string, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	key := "walk\x00" + filepath.Clean(root)
-	if _, exists := c.diagnosticSeen[key]; exists {
+	key := filepath.Clean(root)
+	if _, exists := c.walkFailures[key]; exists {
 		return
 	}
-	c.diagnosticSeen[key] = struct{}{}
-	c.walkFailures = append(c.walkFailures, core.Diagnostic{
+	c.walkFailures[key] = core.Diagnostic{
 		ID:          "scan.target-walk",
 		Level:       "fail",
 		Kind:        "infrastructure",
@@ -512,7 +516,7 @@ func (c *fileCorpus) recordWalkError(root string, err error) {
 			"degradation":       "unscanned",
 			"findings_affected": "yes",
 		},
-	})
+	}
 }
 
 // maxReadErrorDiagnostics bounds how many per-file read failures are reported
@@ -595,7 +599,7 @@ func (sc Context) ReportDiagnostic(diagnostic core.Diagnostic) {
 	sc.corpus.diagnostics = append(sc.corpus.diagnostics, diagnostic)
 }
 
-func (c *fileCorpus) takeDiagnostics() []core.Diagnostic {
+func (c *fileCorpus) takeDiagnostics(section string) []core.Diagnostic {
 	if c == nil {
 		return nil
 	}
@@ -603,10 +607,21 @@ func (c *fileCorpus) takeDiagnostics() []core.Diagnostic {
 	defer c.mu.Unlock()
 	diagnostics := append([]core.Diagnostic(nil), c.diagnostics...)
 	c.diagnostics = nil
-	// Walk failures are not drained: every section that finalizes after one is
-	// recorded may have consumed the failed listing, so each must report it
-	// rather than leave all but the first looking like a clean pass.
-	diagnostics = append(diagnostics, c.walkFailures...)
+	// Walk failures are not drained: every section that consumed a failed
+	// listing must report it rather than leave all but the first looking like
+	// a clean pass. A section that never asked for the listing is unaffected
+	// and does not get it. Roots are visited in sorted order so the result
+	// does not depend on map iteration or on which section finalized first.
+	roots := make([]string, 0, len(c.walkFailures))
+	for root := range c.walkFailures {
+		if _, consumed := c.listingConsumers[root][section]; consumed {
+			roots = append(roots, root)
+		}
+	}
+	sort.Strings(roots)
+	for _, root := range roots {
+		diagnostics = append(diagnostics, c.walkFailures[root])
+	}
 	return diagnostics
 }
 

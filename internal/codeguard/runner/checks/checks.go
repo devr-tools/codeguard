@@ -28,7 +28,9 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 	// section has returned.
 	baseFiles := runnersupport.NewBaseFileReader(ctx, sc.Opts.BaseRef)
 	defer baseFiles.Close()
-	checkEnv := buildCheckContext(ctx, sc, baseFiles)
+	// One resolver per scan: it memoizes a go.mod read and a directory listing
+	// per target, and sections consult it concurrently.
+	facades := runnersupport.NewSDKFacadeResolver(sc.Cfg)
 
 	enabled := make([]sectionDef, 0, len(sectionRegistry))
 	for _, def := range sectionRegistry {
@@ -46,8 +48,12 @@ func Build(ctx context.Context, sc runnersupport.Context) []core.SectionResult {
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
+			// Each section gets its own tagged Context (sharing every per-scan
+			// cache) so the corpus can attribute target listings to it.
+			sectionSC := sc.ForSection(def.id)
+			checkEnv := buildCheckContext(ctx, sectionSC, baseFiles, facades)
 			result, panicked := SafeRun(def.id, def.name, func() core.SectionResult {
-				return def.run(ctx, sc, checkEnv)
+				return def.run(ctx, sectionSC, checkEnv)
 			})
 			if panicked {
 				notifyRecoveredSection(sc, result)
@@ -206,10 +212,7 @@ func contextEnabled(sc runnersupport.Context) bool {
 // captured by the git-backed callbacks (ListChangedFiles, ReadBaseFile), whose
 // closure signatures carry no context of their own; they are only invoked
 // while Build's sections run, so the scan ctx is the correct lifetime.
-func buildCheckContext(ctx context.Context, sc runnersupport.Context, baseFiles *runnersupport.BaseFileReader) checkSupport.Context {
-	// One resolver per scan: it memoizes a go.mod read and a directory listing
-	// per target, and sections consult it concurrently.
-	facades := runnersupport.NewSDKFacadeResolver(sc.Cfg)
+func buildCheckContext(ctx context.Context, sc runnersupport.Context, baseFiles *runnersupport.BaseFileReader, facades *runnersupport.SDKFacadeResolver) checkSupport.Context {
 	return checkSupport.Context{
 		Config:    sc.Cfg,
 		AIEnabled: sc.Opts.EnableAI || (sc.Cfg.AI.Enabled != nil && *sc.Cfg.AI.Enabled),

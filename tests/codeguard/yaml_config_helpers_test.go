@@ -46,7 +46,7 @@ func assertYAMLSchemaMarkers(t *testing.T, path string) {
 		t.Fatalf("read yaml: %v", err)
 	}
 	rendered := string(data)
-	for _, want := range []string{"scan_vendored_source: true", "supply_chain:", "quality_rules:", "max_file_lines:", "language_commands:", "naming:", "allowed_abbreviations:", "role_suffix_warn_threshold:", "ci_rules:", "required_workflow_files:", "hybrid_triage:", "candidate_sections:", "function_contract:", "test_commands:", "rule_packs:"} {
+	for _, want := range []string{"scan_vendored_source: true", "supply_chain:", "quality_rules:", "max_file_lines:", "language_commands:", "naming:", "allowed_abbreviations:", "role_suffix_warn_threshold:", "ci_rules:", "required_workflow_files:", "hybrid_triage:", "candidate_severities:", "function_contract:", "test_commands:", "rule_packs:"} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("written yaml missing %q:\n%s", want, rendered)
 		}

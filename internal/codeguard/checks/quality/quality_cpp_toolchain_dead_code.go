@@ -2,7 +2,6 @@ package quality
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -411,13 +410,9 @@ func cppToolchainReportPaths(env support.Context, target core.TargetConfig, conf
 }
 
 func cppToolchainReadTargetFile(env support.Context, target core.TargetConfig, rel string) ([]byte, error) {
-	rel = filepath.ToSlash(strings.TrimSpace(rel))
-	if env.ReadTargetFile != nil {
-		if data, err := env.ReadTargetFile(target, rel); err == nil {
-			return data, nil
-		}
-	}
-	return os.ReadFile(filepath.Join(target.Path, filepath.FromSlash(rel)))
+	// No uncapped fallback: a corpus error (including an oversized report)
+	// is returned rather than retried with an unbounded read.
+	return support.ReadTargetFileCapped(env, target, filepath.ToSlash(strings.TrimSpace(rel)))
 }
 
 func cppToolchainAddLinkerEvidence(evidence *cppToolchainLinkerEvidence, _ string, data string) {

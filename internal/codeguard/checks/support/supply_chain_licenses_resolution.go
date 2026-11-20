@@ -2,7 +2,6 @@ package support
 
 import (
 	"encoding/json"
-	"os"
 	"path"
 	"path/filepath"
 	"slices"
@@ -14,7 +13,7 @@ import (
 func resolveNodeDependencyLicense(root string, manifest core.SupplyChainManifest, dep core.SupplyChainDependency) (string, string) {
 	for _, searchRoot := range manifestSearchRoots(root, manifest.Path) {
 		manifestPath := filepath.Join(searchRoot, filepath.FromSlash(path.Join("node_modules", dep.Name, "package.json")))
-		data, err := os.ReadFile(manifestPath) //nolint:gosec // dependency manifest under the scan-target search root
+		data, err := ReadCappedFile(manifestPath)
 		if err != nil {
 			continue
 		}
@@ -38,7 +37,7 @@ func resolveNodeDependencyLicense(root string, manifest core.SupplyChainManifest
 func resolveCargoDependencyLicense(root string, manifest core.SupplyChainManifest, dep core.SupplyChainDependency) (string, string) {
 	for _, searchRoot := range manifestSearchRoots(root, manifest.Path) {
 		candidate := filepath.Join(searchRoot, "vendor", filepath.FromSlash(dep.Name), "Cargo.toml")
-		data, err := os.ReadFile(candidate) //nolint:gosec // dependency manifest under the scan-target search root
+		data, err := ReadCappedFile(candidate)
 		if err != nil {
 			continue
 		}
@@ -54,7 +53,7 @@ func resolvePythonDependencyLicense(root string, manifest core.SupplyChainManife
 		for _, pattern := range pythonMetadataPatterns(searchRoot, dep.Name) {
 			matches, _ := filepath.Glob(pattern)
 			for _, match := range matches {
-				data, err := os.ReadFile(match) //nolint:gosec // dependency metadata file matched under the scan-target search root
+				data, err := ReadCappedFile(match)
 				if err != nil {
 					continue
 				}

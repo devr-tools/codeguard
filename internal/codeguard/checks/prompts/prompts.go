@@ -14,7 +14,7 @@ func Run(ctx context.Context, env support.Context) core.SectionResult {
 }
 
 func promptTargetFindings(_ context.Context, env support.Context, target core.TargetConfig) []core.Finding {
-	return env.ScanTargetFiles(target, "prompts", func(rel string) bool {
+	return env.ScanTargetFiles(target, support.CacheSectionPrompts, func(rel string) bool {
 		return isGovernedPromptFile(env, rel)
 	}, func(file string, data []byte) []core.Finding {
 		return findingsForFile(env, file, data)

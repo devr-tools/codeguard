@@ -3,6 +3,7 @@ package checks_test
 import (
 	"context"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -97,6 +98,47 @@ func TestDesignLocalAbstractionRules(t *testing.T) {
 		assertFindingRulePresent(t, report, "Design Patterns", ruleID)
 	}
 	assertFindingConfidence(t, report, "Design Patterns", "design.infrastructure-type-leak", "high")
+}
+
+func TestDesignCacheKeepsStructuralAndLocalAbstractionFindings(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "pkg", "domain", "service.go"), strings.Join([]string{
+		"package domain",
+		"",
+		"import \"database/sql\"",
+		"",
+		"type Repository struct { DB *sql.DB }",
+		"type Order struct{}",
+		"type Customer struct{}",
+	}, "\n"))
+
+	uncachedConfig := designLocalConfig(dir, "go")
+	uncached := runDesignLocalScan(t, uncachedConfig)
+
+	cachedConfig := uncachedConfig
+	enabled := true
+	cachedConfig.Cache.Enabled = &enabled
+	cachedConfig.Cache.Path = filepath.Join(t.TempDir(), "scan-cache.json")
+	cached := runDesignLocalScan(t, cachedConfig)
+	warmCached := runDesignLocalScan(t, cachedConfig)
+
+	assertFindingRulePresent(t, cached, "Design Patterns", "design.max-decls-per-file")
+	assertFindingRulePresent(t, cached, "Design Patterns", "design.infrastructure-type-leak")
+	if got, want := designFindings(cached), designFindings(uncached); !reflect.DeepEqual(got, want) {
+		t.Fatalf("cached design findings differ from uncached findings:\n cached: %+v\nuncached: %+v", got, want)
+	}
+	if got, want := designFindings(warmCached), designFindings(uncached); !reflect.DeepEqual(got, want) {
+		t.Fatalf("warm-cached design findings differ from uncached findings:\n cached: %+v\nuncached: %+v", got, want)
+	}
+}
+
+func designFindings(report codeguard.Report) []codeguard.Finding {
+	for _, section := range report.Sections {
+		if section.Name == "Design Patterns" {
+			return section.Findings
+		}
+	}
+	return nil
 }
 
 func TestDesignLocalAbstractionAdditionalLanguages(t *testing.T) {

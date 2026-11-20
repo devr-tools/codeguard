@@ -2,6 +2,8 @@ package design
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -126,7 +128,8 @@ func finalizeRustBlock(env support.Context, file string, block rustBlock, method
 
 func rustMethodFindings(env support.Context, file string, methodCounts map[string]rustCountSummary) []core.Finding {
 	findings := make([]core.Finding, 0)
-	for typeName, summary := range methodCounts {
+	for _, typeName := range slices.Sorted(maps.Keys(methodCounts)) {
+		summary := methodCounts[typeName]
 		if summary.count <= env.Config.Checks.DesignRules.MaxMethodsPerType {
 			continue
 		}

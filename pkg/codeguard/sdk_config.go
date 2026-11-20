@@ -97,3 +97,14 @@ func ValidateTargetPaths(cfg Config) error {
 func ApplyDefaults(cfg *Config) {
 	config.ApplyDefaults(cfg)
 }
+
+// ConfigDeprecation reports one deprecated key a config file sets.
+type ConfigDeprecation = config.Deprecation
+
+// ConfigDeprecations reports the deprecated keys set by the config file that
+// LoadConfigFile would read for path. Deprecated keys still load but have no
+// effect; they will be removed in codeguard 2.0. `codeguard validate` and
+// `codeguard doctor` print these as warnings.
+func ConfigDeprecations(path string) ([]ConfigDeprecation, error) {
+	return config.DeprecationsInFile(path)
+}

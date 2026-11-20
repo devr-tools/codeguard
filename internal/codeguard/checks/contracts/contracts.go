@@ -6,8 +6,8 @@ package contracts
 
 import (
 	"context"
-	"os"
-	"path/filepath"
+	"errors"
+	"io/fs"
 	"sort"
 
 	"github.com/devr-tools/codeguard/internal/codeguard/checks/support"
@@ -60,13 +60,19 @@ func readBase(env support.Context, target core.TargetConfig, rel string) []byte 
 	return data
 }
 
-// readHead returns the working-tree contents of a file, or nil when missing.
-func readHead(target core.TargetConfig, rel string) []byte {
-	data, err := os.ReadFile(filepath.Join(target.Path, filepath.FromSlash(rel)))
+// readHead returns the working-tree contents of a file. A missing file reads
+// as (nil, true): the head no longer has it, which is what the comparison
+// rules report. A file that exists but cannot be read, including one over the
+// scan size cap, reads as (nil, false) and callers skip it, because comparing
+// the base against an empty head would report every symbol as removed. rel
+// comes from the PR diff, so the read goes through the corpus cap rather than
+// an unbounded os.ReadFile.
+func readHead(env support.Context, target core.TargetConfig, rel string) ([]byte, bool) {
+	data, err := support.ReadTargetFileCapped(env, target, rel)
 	if err != nil {
-		return nil
+		return nil, errors.Is(err, fs.ErrNotExist)
 	}
-	return data
+	return data, true
 }
 
 func sortedKeys[V any](m map[string]V) []string {

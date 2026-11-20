@@ -38,9 +38,14 @@ type Context struct {
 	// findings for unrelated sections. The "" key holds the all-checks fallback.
 	SectionConfigHash map[string]string
 	DiffCommand       map[string]diffCommandEnv
-	corpus            *fileCorpus
-	git               *scanGitMemo
-	cleanup           func()
+	// section tags the check section this copy of the Context runs for (see
+	// ForSection). The corpus records it as a consumer of each target listing
+	// the section asks for, so a failed walk is reported by exactly the
+	// sections that used its partial listing.
+	section string
+	corpus  *fileCorpus
+	git     *scanGitMemo
+	cleanup func()
 }
 
 func NormalizeScanOptions(opts core.ScanOptions) core.ScanOptions {
@@ -163,6 +168,13 @@ func (collector *SuppressedFindingCollector) Snapshot() []core.Finding {
 		return a.Fingerprint < b.Fingerprint
 	})
 	return out
+}
+
+// ForSection returns a copy of sc tagged with the check section it runs for.
+// The copy shares every per-scan cache with sc.
+func (sc Context) ForSection(section string) Context {
+	sc.section = section
+	return sc
 }
 
 func (sc Context) Close() {

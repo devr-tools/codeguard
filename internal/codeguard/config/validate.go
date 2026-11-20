@@ -20,6 +20,7 @@ func Validate(cfg core.Config) error {
 	return errors.Join(
 		validateNameAndProfile(cfg),
 		validateDisabledChecks(cfg.Checks.Disabled),
+		validateDisabledRules(cfg),
 		validateTargets(cfg.Targets),
 		validateOutput(cfg.Output),
 		validateWaivers(cfg.Waivers),

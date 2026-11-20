@@ -35,12 +35,28 @@ func (p CommentPublisher) publishSticky(ctx context.Context, repository string, 
 	if err != nil {
 		return err
 	}
+	marker, exactMarker := stickyMarkerFromBody(body)
 	for _, comment := range comments {
-		if strings.Contains(comment.Body, StickyMarkerPrefix) {
+		commentMarker, hasCommentMarker := stickyMarkerFromBody(comment.Body)
+		matches := exactMarker && hasCommentMarker && commentMarker == marker
+		if !exactMarker {
+			matches = strings.Contains(comment.Body, marker)
+		}
+		if matches {
 			return p.updateComment(ctx, repository, comment.ID, body)
 		}
 	}
 	return p.createComment(ctx, repository, prNumber, body)
+}
+
+// stickyMarkerFromBody returns the complete marker emitted by WrapCommentBody.
+func stickyMarkerFromBody(body string) (string, bool) {
+	firstLine, _, _ := strings.Cut(body, "\n")
+	firstLine = strings.TrimSpace(firstLine)
+	if strings.HasPrefix(firstLine, StickyMarkerPrefix) && strings.HasSuffix(firstLine, "-->") {
+		return firstLine, true
+	}
+	return StickyMarkerPrefix, false
 }
 
 // escapeRepository percent-encodes each segment of an "owner/repo" identifier
@@ -54,15 +70,21 @@ func escapeRepository(repository string) string {
 }
 
 func (p CommentPublisher) listComments(ctx context.Context, repository string, prNumber int) ([]issueComment, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/repos/%s/issues/%d/comments?per_page=100", p.BaseURL, escapeRepository(repository), prNumber), nil)
-	if err != nil {
-		return nil, err
-	}
 	var comments []issueComment
-	if err := p.doJSON(req, http.StatusOK, &comments); err != nil {
-		return nil, err
+	for page := 1; ; page++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/repos/%s/issues/%d/comments?per_page=100&page=%d", p.BaseURL, escapeRepository(repository), prNumber, page), nil)
+		if err != nil {
+			return nil, err
+		}
+		var pageComments []issueComment
+		if err := p.doJSON(req, http.StatusOK, &pageComments); err != nil {
+			return nil, err
+		}
+		comments = append(comments, pageComments...)
+		if len(pageComments) < 100 {
+			return comments, nil
+		}
 	}
-	return comments, nil
 }
 
 func (p CommentPublisher) createComment(ctx context.Context, repository string, prNumber int, body string) error {

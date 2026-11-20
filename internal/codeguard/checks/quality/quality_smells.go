@@ -143,6 +143,13 @@ func goStructuralModel(fset *token.FileSet, parsed *ast.File, data []byte) ([]st
 	for _, class := range classesByName {
 		classes = append(classes, *class)
 	}
+	// Source order, so the per-class smell findings do not follow map order.
+	sort.Slice(classes, func(i, j int) bool {
+		if classes[i].StartLine != classes[j].StartLine {
+			return classes[i].StartLine < classes[j].StartLine
+		}
+		return classes[i].Name < classes[j].Name
+	})
 	return classes, functions
 }
 
@@ -942,11 +949,13 @@ func uniqueStrings(values []string) []string {
 	return out
 }
 
+// dominantStringCount returns the name with the highest positive count and
+// that count, breaking ties toward the lexicographically smallest name.
 func dominantStringCount(values map[string]int) (string, int) {
 	bestName := ""
 	bestCount := 0
 	for name, count := range values {
-		if count > bestCount {
+		if count > bestCount || (count == bestCount && count > 0 && name < bestName) {
 			bestName = name
 			bestCount = count
 		}

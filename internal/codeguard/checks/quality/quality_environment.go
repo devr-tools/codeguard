@@ -18,7 +18,7 @@ func environmentBranchingFindings(env support.Context, target core.TargetConfig)
 	if !localPrecisionEnabled(env) {
 		return nil
 	}
-	return env.ScanTargetFiles(target, "quality-environment-branching", func(rel string) bool {
+	return env.ScanTargetFiles(target, support.CacheSectionQualityEnvironmentBranching, func(rel string) bool {
 		return environmentBranchingEligiblePath(env.Config.Checks.DeliveryRules, rel)
 	}, func(file string, data []byte) []core.Finding {
 		text := string(data)

@@ -41,7 +41,11 @@ func goFileBreakingFindings(env support.Context, target core.TargetConfig, file 
 	if file.Status != core.ChangedFileDeleted {
 		// A head version that fails to parse is reported by other tooling;
 		// skip rather than flag every symbol as removed.
-		headSymbols, err = goExportedSymbols(readHead(target, file.Path))
+		data, ok := readHead(env, target, file.Path)
+		if !ok {
+			return nil
+		}
+		headSymbols, err = goExportedSymbols(data)
 		if err != nil {
 			return nil
 		}
