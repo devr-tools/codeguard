@@ -18,6 +18,10 @@ type ParsersConfig = core.ParsersConfig
 // with one default level and optional per-section overrides.
 type ConfidencePolicyConfig = core.ConfidencePolicyConfig
 
+// InlineSuppressionsConfig turns the hygiene diagnostics for inline
+// codeguard:ignore directives (unused directives, missing reasons) on or off.
+type InlineSuppressionsConfig = core.InlineSuppressionsConfig
+
 // Confidence levels a finding can carry, and the values accepted by
 // checks.min_confidence. An empty confidence must be read as medium rather than
 // as a weak finding: it means the check did not state one.
