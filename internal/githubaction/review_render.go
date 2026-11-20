@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/devr-tools/codeguard/internal/codeguard/rules"
+	"github.com/devr-tools/codeguard/internal/codeguard/rules/ruledocs"
 )
 
 // ReviewMarkerPrefix starts the hidden first line of every inline review
@@ -140,7 +140,7 @@ func RenderReviewComment(finding Finding, suggestion *Suggestion) string {
 		b.WriteString("\n" + SuggestionBlock(suggestion.Lines))
 	}
 	if strings.TrimSpace(finding.RuleID) != "" {
-		fmt.Fprintf(&b, "\n[Rule docs](%s)\n", rules.DocsRuleURL(codeSpanUnsafe.ReplaceAllString(finding.RuleID, "")))
+		fmt.Fprintf(&b, "\n[Rule docs](%s)\n", ruledocs.RuleURL(codeSpanUnsafe.ReplaceAllString(finding.RuleID, "")))
 	}
 	return b.String()
 }
