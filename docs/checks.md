@@ -2468,6 +2468,13 @@ structure would produce misplaced findings.
 | `ci.workflow-missing-permissions` | warn | The workflow has no top-level `permissions:` and at least one job sets none, so `GITHUB_TOKEN` gets the repository or organization default, which is read-write on every scope for repositories created before February 2023 or set to the permissive default. Workflows triggered only by `workflow_call` are skipped because the caller caps their token. |
 | `ci.workflow-remote-script-pipe` | warn | A `run:` script pipes `curl`/`wget` output into `sh`/`bash`/`zsh` (also `sudo bash`, `bash <(curl ...)`, `sh -c "$(curl ...)"`, and commands split with `\` continuations). |
 | `ci.workflow-fork-trigger-secrets` | warn | A job in a `pull_request_target` workflow reads `secrets.*` (other than `GITHUB_TOKEN`, which the permissions rules cover) or passes `secrets: inherit`. Reported once per job, listing every secret. |
+| `ci.workflow-cache-poisoning` | warn | A release job restores a build cache. A job is a release job when the workflow runs only on `release` events or on a `push` filtered to `tags:` with no branch filter (optionally alongside `workflow_dispatch`), or when the job runs a publishing action (`goreleaser/goreleaser-action`, `pypa/gh-action-pypi-publish`, `softprops/action-gh-release`, `googleapis/release-please-action`, `rubygems/release-gem`, `docker/build-push-action` with a literal `push: true`, cloud deploy actions). Cache steps: `actions/cache` and `actions/cache/restore` (unless `lookup-only: true`), `actions/setup-go` (cache on by default; `cache: false` turns it off), `actions/setup-node`/`setup-python`/`setup-java` with `cache:`, `Swatinem/rust-cache`, `astral-sh/setup-uv` with `enable-cache: true`, `ruby/setup-ruby` with `bundler-cache: true`, and similar setup actions. A cache input set by an expression is not reported. Any default-branch run that writes the cache, including `pull_request_target`, `workflow_run` or `issue_comment` runs, can plant files in the release build. Follows zizmor's `cache-poisoning`, narrowed: zizmor also treats a push that lists tags next to branches, or a push to a release-named branch, as a release, but those are mostly CI test workflows whose output is never shipped. |
+| `ci.workflow-credential-persistence` | fail | `actions/checkout` keeps `persist-credentials` at its default and a later `actions/upload-artifact` step in the same job uploads the checkout root (`.`, `*`, `**`, `${{ github.workspace }}`, the checkout's `path:`) or a `.git` path with hidden files included (`include-hidden-files: true`, or upload-artifact below v4). Checkout v6 and later keeps the token under `$RUNNER_TEMP`, outside the workspace, so it is not reported; versions come from the `@vN` ref or a `# vN` comment after a SHA pin. Unlike zizmor's `artipacked`, a persisted token that is never uploaded is not reported: it stays on a runner that is discarded after the job, and jobs that push need it. |
+| `ci.workflow-env-file-injection` | fail | A `run:` script in a `pull_request_target`, `workflow_run`, `issue_comment`, `issues`, `discussion` or `discussion_comment` workflow writes an attacker-controlled value (the contexts listed for `ci.workflow-script-injection`) to `$GITHUB_ENV` or `$GITHUB_PATH` with `>>`, `>`, `tee` or PowerShell `Add-Content`/`Out-File`, either as a `${{ }}` expression or through a shell variable whose workflow, job or step `env:` value is one. A newline in the value defines any variable (`BASH_ENV`, `LD_PRELOAD`, `NODE_OPTIONS`) for every later step, so env indirection alone does not make this safe. Composite actions are skipped. Follows zizmor's `github-env`. |
+| `ci.workflow-overprovisioned-secrets` | fail | An expression uses the whole `secrets` context (`${{ toJSON(secrets) }}`). A computed index (`secrets[matrix.name]`, `secrets[format(...)]`) warns. Both make GitHub send every secret to the runner. Literal access (`secrets.NAME`, `secrets['NAME']`) is fine. Follows zizmor's `overprovisioned-secrets`. |
+| `ci.workflow-unpinned-image` | warn | A job `container:`, a `services:` image or a `docker://` step is not pinned by `@sha256:` digest. A version tag warns. No tag, or `latest`, fails, matching how `ci.mutable-deployment-reference` fails any action not pinned to a commit SHA. An `image: x:latest` line that `ci.mutable-deployment-reference` already reports is not reported twice, and expression-built references are skipped. |
+| `ci.workflow-insecure-commands` | fail | `ACTIONS_ALLOW_UNSECURE_COMMANDS` is set to `true` (the only value the runner reads as on) in a workflow, job or step `env:` block, which re-enables the `::set-env` and `::add-path` log commands. An expression value warns. |
+| `ci.workflow-bot-conditions` | warn | A job or step `if:` in a `pull_request_target` or `workflow_run` workflow trusts `github.actor == '<name>[bot]'` (or `github.triggering_actor`), or compares `github.actor_id` to the dependabot, renovate or github-actions account id. The actor is whoever caused the latest event, not the pull request's author. A condition that also checks `github.event.pull_request.user.login` is not reported. Follows zizmor's `bot-conditions`. |
 
 The safe pattern for untrusted values is environment indirection. The value
 reaches the shell as data and is never parsed as script:
@@ -2481,6 +2488,16 @@ reaches the shell as data and is never parsed as script:
 Unpinned actions in workflows and composite actions are reported by the
 existing `ci.mutable-deployment-reference` rule. No separate workflow rule
 duplicates it.
+
+Env indirection does not make a write to `$GITHUB_ENV` safe. Validate the
+value first, or hand it to later steps as a step output:
+
+```yaml
+- id: branch
+  env:
+    BRANCH: ${{ github.event.workflow_run.head_branch }}
+  run: echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+```
 
 ### Test quality
 

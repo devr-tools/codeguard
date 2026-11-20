@@ -122,4 +122,171 @@ jobs:
         env:
           TOKEN: ${{ secrets.DEPLOY_TOKEN }}
 `)},
+	"ci.workflow-cache-poisoning": {yamlExample(".github/workflows/release.yml", `on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@8f3c2b1a4d5e6f7890abc1234567890abc123456 # v5
+        with:
+          go-version-file: go.mod
+      - run: make release
+`, `on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@8f3c2b1a4d5e6f7890abc1234567890abc123456 # v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: make release
+`)},
+	"ci.workflow-credential-persistence": {yamlExample(".github/workflows/bundle.yml", `on: push
+permissions:
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8f3c2b1a4d5e6f7890abc1234567890abc123456 # v4
+      - uses: actions/upload-artifact@8f3c2b1a4d5e6f7890abc1234567890abc123456 # v4
+        with:
+          name: source
+          path: .
+          include-hidden-files: true
+`, `on: push
+permissions:
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8f3c2b1a4d5e6f7890abc1234567890abc123456 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/upload-artifact@8f3c2b1a4d5e6f7890abc1234567890abc123456 # v4
+        with:
+          name: source
+          path: .
+          include-hidden-files: true
+`)},
+	"ci.workflow-env-file-injection": {yamlExample(".github/workflows/report.yml", `on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+`, `on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - id: branch
+        env:
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+`)},
+	"ci.workflow-overprovisioned-secrets": {yamlExample(".github/workflows/deploy.yml", `on: push
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./deploy.sh
+        env:
+          ALL_SECRETS: ${{ toJSON(secrets) }}
+`, `on: push
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./deploy.sh
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+`)},
+	"ci.workflow-unpinned-image": {yamlExample(".github/workflows/test.yml", `on: push
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: node:20
+    steps:
+      - run: npm test
+`, `on: push
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: node:20@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef # 20
+    steps:
+      - run: npm test
+`)},
+	"ci.workflow-insecure-commands": {yamlExample(".github/workflows/legacy.yml", `on: push
+permissions:
+  contents: read
+env:
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "::set-env name=MODE::release"
+`, `on: push
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "MODE=release" >> "$GITHUB_ENV"
+`)},
+	"ci.workflow-bot-conditions": {yamlExample(".github/workflows/automerge.yml", `on: pull_request_target
+permissions:
+  contents: read
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+`, `on: pull_request_target
+permissions:
+  contents: read
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    steps:
+      - run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+`)},
 }

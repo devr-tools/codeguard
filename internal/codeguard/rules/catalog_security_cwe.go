@@ -99,12 +99,19 @@ var ruleCWE = map[string][]string{
 	"security.unsanitized-error-response": {"CWE-209"},
 
 	// GitHub Actions workflow security.
-	"ci.workflow-script-injection":      {"CWE-94"},
-	"ci.workflow-dangerous-trigger":     {"CWE-829"},
-	"ci.workflow-write-all-permissions": {"CWE-275"},
-	"ci.workflow-missing-permissions":   {"CWE-275"},
-	"ci.workflow-remote-script-pipe":    {"CWE-494"},
-	"ci.workflow-fork-trigger-secrets":  {"CWE-829"},
+	"ci.workflow-script-injection":        {"CWE-94"},
+	"ci.workflow-dangerous-trigger":       {"CWE-829"},
+	"ci.workflow-write-all-permissions":   {"CWE-275"},
+	"ci.workflow-missing-permissions":     {"CWE-275"},
+	"ci.workflow-remote-script-pipe":      {"CWE-494"},
+	"ci.workflow-fork-trigger-secrets":    {"CWE-829"},
+	"ci.workflow-cache-poisoning":         {"CWE-349"},
+	"ci.workflow-credential-persistence":  {"CWE-522"},
+	"ci.workflow-env-file-injection":      {"CWE-94"},
+	"ci.workflow-overprovisioned-secrets": {"CWE-272"},
+	"ci.workflow-unpinned-image":          {"CWE-829"},
+	"ci.workflow-insecure-commands":       {"CWE-77"},
+	"ci.workflow-bot-conditions":          {"CWE-290"},
 }
 
 // withRuleCWE returns catalog with the ruleCWE mapping applied. Like

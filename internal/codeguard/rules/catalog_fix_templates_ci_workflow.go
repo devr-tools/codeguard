@@ -27,4 +27,32 @@ var ciWorkflowFixTemplates = map[string]core.FixTemplate{
 		Kind: guided,
 		Text: "Keep secrets out of jobs any fork can trigger, or require approval first.\n\nBefore:\non: pull_request_target\njobs:\n  label:\n    steps:\n      - run: ./notify.sh\n        env:\n          TOKEN: ${{ secrets.DEPLOY_TOKEN }}\n\nAfter:\non: pull_request_target\njobs:\n  label:\n    environment: external-pr   # requires reviewer approval\n    steps:\n      - run: ./notify.sh\n        env:\n          TOKEN: ${{ secrets.DEPLOY_TOKEN }}",
 	},
+	"ci.workflow-cache-poisoning": {
+		Kind: deterministic,
+		Text: "Turn the cache off in the release job.\n\nBefore:\n- uses: actions/setup-go@<sha> # v5\n  with:\n    go-version-file: go.mod\n\nAfter:\n- uses: actions/setup-go@<sha> # v5\n  with:\n    go-version-file: go.mod\n    cache: false",
+	},
+	"ci.workflow-credential-persistence": {
+		Kind: deterministic,
+		Text: "Stop checkout from writing the token into .git/config.\n\nBefore:\n- uses: actions/checkout@<sha> # v4\n\nAfter:\n- uses: actions/checkout@<sha> # v4\n  with:\n    persist-credentials: false",
+	},
+	"ci.workflow-env-file-injection": {
+		Kind: guided,
+		Text: "Pass the value through an output instead of the environment file, or validate it first.\n\nBefore:\n- run: echo \"BRANCH=${{ github.event.workflow_run.head_branch }}\" >> \"$GITHUB_ENV\"\n\nAfter:\n- id: branch\n  env:\n    BRANCH: ${{ github.event.workflow_run.head_branch }}\n  run: |\n    [[ \"$BRANCH\" =~ ^[A-Za-z0-9._/-]+$ ]] || exit 1\n    echo \"name=$BRANCH\" >> \"$GITHUB_OUTPUT\"",
+	},
+	"ci.workflow-overprovisioned-secrets": {
+		Kind: guided,
+		Text: "Name the secrets the step needs.\n\nBefore:\n- env:\n    ALL_SECRETS: ${{ toJSON(secrets) }}\n  run: ./deploy.sh\n\nAfter:\n- env:\n    DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}\n  run: ./deploy.sh",
+	},
+	"ci.workflow-unpinned-image": {
+		Kind: deterministic,
+		Text: "Pin the image by digest and keep the tag as a comment.\n\nBefore:\ncontainer: node:20\n\nAfter:\ncontainer: node:20@sha256:<digest> # 20",
+	},
+	"ci.workflow-insecure-commands": {
+		Kind: deterministic,
+		Text: "Remove the opt-in and use environment files.\n\nBefore:\nenv:\n  ACTIONS_ALLOW_UNSECURE_COMMANDS: true\nsteps:\n  - run: echo \"::set-env name=MODE::release\"\n\nAfter:\nsteps:\n  - run: echo \"MODE=release\" >> \"$GITHUB_ENV\"",
+	},
+	"ci.workflow-bot-conditions": {
+		Kind: deterministic,
+		Text: "Check the pull request author rather than the latest actor.\n\nBefore:\nif: github.actor == 'dependabot[bot]'\n\nAfter:\nif: github.event.pull_request.user.login == 'dependabot[bot]'",
+	},
 }

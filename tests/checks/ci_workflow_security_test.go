@@ -23,6 +23,14 @@ var workflowSecurityRules = map[string]bool{
 	"ci.workflow-missing-permissions":   true,
 	"ci.workflow-remote-script-pipe":    true,
 	"ci.workflow-fork-trigger-secrets":  true,
+
+	"ci.workflow-cache-poisoning":         true,
+	"ci.workflow-credential-persistence":  true,
+	"ci.workflow-env-file-injection":      true,
+	"ci.workflow-overprovisioned-secrets": true,
+	"ci.workflow-unpinned-image":          true,
+	"ci.workflow-insecure-commands":       true,
+	"ci.workflow-bot-conditions":          true,
 }
 
 type workflowFindingView struct {
@@ -31,6 +39,7 @@ type workflowFindingView struct {
 	line    int
 	column  int
 	message string
+	level   string
 }
 
 func runWorkflowSecurityScan(t *testing.T, files map[string]string) []workflowFindingView {
@@ -52,7 +61,7 @@ func runWorkflowSecurityScan(t *testing.T, files map[string]string) []workflowFi
 		}
 		for _, finding := range section.Findings {
 			if workflowSecurityRules[finding.RuleID] {
-				views = append(views, workflowFindingView{rule: finding.RuleID, path: finding.Path, line: finding.Line, column: finding.Column, message: finding.Message})
+				views = append(views, workflowFindingView{rule: finding.RuleID, path: finding.Path, line: finding.Line, column: finding.Column, message: finding.Message, level: finding.Level})
 			}
 		}
 	}

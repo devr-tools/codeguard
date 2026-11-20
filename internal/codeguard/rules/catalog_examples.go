@@ -20,6 +20,13 @@ var ruleExamples = mergeRuleExamples(
 // confidence counts as medium, as it does everywhere else).
 var ruleConfidence = map[string]string{
 	"ci.workflow-dangerous-trigger":         core.ConfidenceHigh,
+	"ci.workflow-bot-conditions":            core.ConfidenceHigh,
+	"ci.workflow-cache-poisoning":           core.ConfidenceMedium,
+	"ci.workflow-credential-persistence":    core.ConfidenceHigh,
+	"ci.workflow-env-file-injection":        core.ConfidenceHigh,
+	"ci.workflow-insecure-commands":         core.ConfidenceHigh,
+	"ci.workflow-overprovisioned-secrets":   core.ConfidenceHigh,
+	"ci.workflow-unpinned-image":            core.ConfidenceHigh,
 	"ci.workflow-fork-trigger-secrets":      core.ConfidenceHigh,
 	"ci.workflow-missing-permissions":       core.ConfidenceHigh,
 	"ci.workflow-remote-script-pipe":        core.ConfidenceHigh,
