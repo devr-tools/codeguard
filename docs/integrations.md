@@ -70,7 +70,51 @@ input value can't inject shell commands into the caller's job.
 ### GitHub code scanning (SARIF)
 
 To show codeguard findings in the repository's **Security → Code scanning**
-tab, write SARIF and upload it with `github/codeql-action/upload-sarif`:
+tab, set `upload-sarif: true` on the action. The job needs the
+`security-events: write` permission:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+
+steps:
+  - uses: actions/checkout@v4
+  - name: Devr Codeguard
+    uses: devr-tools/codeguard@v1.11.0
+    with:
+      config: codeguard.yaml
+      format: github
+      upload-sarif: true
+      sarif-category: codeguard
+```
+
+| Input | Default | Meaning |
+| --- | --- | --- |
+| `upload-sarif` | `false` | Also write the scan as SARIF and upload it with `github/codeql-action/upload-sarif` (pinned to a commit SHA in `action.yml`) |
+| `sarif-category` | `codeguard` | The code scanning `category`. Use a distinct value per upload when one workflow runs codeguard more than once (for example per target or per mode), or the uploads replace each other |
+| `sarif-file` | empty | Where to write the SARIF file. Empty writes `$RUNNER_TEMP/codeguard.sarif`; set a workspace path to also keep the file, for example with `actions/upload-artifact` |
+
+The action scans once. `codeguard scan -sarif-output <file>` writes the SARIF
+file next to the normal `format` output, so annotations and the upload come
+from the same run. The file is written and uploaded even when findings fail the
+scan, and the action still fails the job afterwards according to `fail-on`.
+When the scan itself breaks (invalid config, a missing target), no SARIF file is
+written, the upload is skipped with a warning, and the job fails with the scan
+error.
+
+Notes:
+- Pull requests from forks get a read-only `GITHUB_TOKEN`, so the upload step
+  fails there. Gate `upload-sarif` on the event or repository, for example
+  `upload-sarif: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}`.
+- `-sarif-output` is newer than v1.11.0. The action builds the codeguard bundled
+  with it, so this only matters if you set the `version` input to an older release.
+- Diff-mode scans (`mode: diff`) upload only the findings on changed lines, so
+  code scanning marks alerts on unchanged files as fixed when a diff-mode
+  upload shares a branch and category with a full scan. Use a separate `sarif-category` for diff
+  and full uploads, or upload only from full scans.
+
+Without the action, write SARIF with the CLI and upload it yourself:
 
 ```yaml
 permissions:
@@ -84,15 +128,18 @@ steps:
       go-version: stable
   - run: go install github.com/devr-tools/codeguard/cmd/codeguard@latest
   - name: codeguard (SARIF)
-    run: codeguard scan -config codeguard.yaml -format sarif -fail-on none > codeguard.sarif
-  - uses: github/codeql-action/upload-sarif@v3
-    if: always()
+    run: codeguard scan -config codeguard.yaml -format github -sarif-output codeguard.sarif
+  - uses: github/codeql-action/upload-sarif@v4
+    if: ${{ !cancelled() && hashFiles('codeguard.sarif') != '' }}
     with:
       sarif_file: codeguard.sarif
       category: codeguard
 ```
 
-`-fail-on none` lets the upload step run when findings fail the scan.
+`-sarif-output` writes the SARIF file in addition to the `-format` output and
+is written even when findings fail the scan, so the scan step keeps its exit
+status and the upload still runs. Alternatively, `-format sarif -fail-on none >
+codeguard.sarif` makes SARIF the only output and never fails on findings.
 Operational failures, such as a crashed section, still exit 1 and are also
 recorded as `executionSuccessful: false` in the SARIF invocation.
 
@@ -110,9 +157,7 @@ In code scanning, each alert shows:
   when unrelated edits move it
 
 The full field reference and the severity mapping are in
-[Checks → SARIF output](checks.md#sarif-output-github-code-scanning). The
-marketplace action does not upload SARIF yet. Use the workflow above until it
-has a SARIF upload input.
+[Checks → SARIF output](checks.md#sarif-output-github-code-scanning).
 
 ## Agent Hook Packs
 
