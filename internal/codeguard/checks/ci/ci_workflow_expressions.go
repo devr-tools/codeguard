@@ -63,8 +63,9 @@ func normalizeExpressionBody(body string) string {
 	return bracketIndexAccess.ReplaceAllString(normalized, ".*")
 }
 
-// expressionYieldsBoolean approximates whether the expression evaluates to a
-// boolean, in which case the untrusted text never reaches the script.
+// expressionYieldsBoolean approximates whether a single operand (one with no
+// top-level && or ||) evaluates to a boolean, in which case the untrusted
+// text it reads never reaches the script.
 func expressionYieldsBoolean(body string) bool {
 	if strings.HasPrefix(body, "!") {
 		return true
@@ -82,12 +83,96 @@ func expressionYieldsBoolean(body string) bool {
 	return false
 }
 
-// untrustedContext returns the first attacker-controlled context the
-// expression reads, or "" when it reads none.
-func untrustedContext(body string, composite bool) string {
-	if expressionYieldsBoolean(body) {
-		return ""
+// valueOperands returns the operands whose own value the expression can
+// evaluate to. GitHub's && and || return one of their operands rather than a
+// boolean, so `cond && github.event.comment.body || 'none'` yields the
+// comment body: a comparison elsewhere in the expression must not hide it.
+// Boolean operands are dropped; parentheses are looked through.
+func valueOperands(body string) []string {
+	body = trimEnclosingParens(strings.TrimSpace(body))
+	operands := splitTopLevelLogical(body)
+	if len(operands) == 1 {
+		if body == "" || expressionYieldsBoolean(body) {
+			return nil
+		}
+		return []string{body}
 	}
+	var out []string
+	for _, operand := range operands {
+		out = append(out, valueOperands(operand)...)
+	}
+	return out
+}
+
+// splitTopLevelLogical splits body at && and || operators that sit outside
+// parentheses and single-quoted string literals.
+func splitTopLevelLogical(body string) []string {
+	var operands []string
+	depth, start, quoted := 0, 0, false
+	for i := 0; i < len(body); i++ {
+		switch c := body[i]; {
+		case quoted:
+			if c == '\'' {
+				quoted = false
+			}
+		case c == '\'':
+			quoted = true
+		case c == '(':
+			depth++
+		case c == ')':
+			depth--
+		case depth == 0 && i+1 < len(body) && (body[i:i+2] == "&&" || body[i:i+2] == "||"):
+			operands = append(operands, body[start:i])
+			start = i + 2
+			i++
+		}
+	}
+	return append(operands, body[start:])
+}
+
+// trimEnclosingParens removes parentheses that wrap the whole expression.
+func trimEnclosingParens(body string) string {
+	for strings.HasPrefix(body, "(") && strings.HasSuffix(body, ")") && closingParen(body) == len(body)-1 {
+		body = strings.TrimSpace(body[1 : len(body)-1])
+	}
+	return body
+}
+
+// closingParen returns the index of the parenthesis matching body[0], or -1.
+func closingParen(body string) int {
+	depth, quoted := 0, false
+	for i := 0; i < len(body); i++ {
+		switch c := body[i]; {
+		case quoted:
+			if c == '\'' {
+				quoted = false
+			}
+		case c == '\'':
+			quoted = true
+		case c == '(':
+			depth++
+		case c == ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// untrustedContext returns the first attacker-controlled context the
+// expression can yield as its value, or "" when it yields none.
+func untrustedContext(body string, composite bool) string {
+	for _, operand := range valueOperands(body) {
+		if context := untrustedOperandContext(operand, composite); context != "" {
+			return context
+		}
+	}
+	return ""
+}
+
+func untrustedOperandContext(body string, composite bool) string {
 	if match := untrustedEventPattern.FindStringSubmatch(body); match != nil {
 		return match[1]
 	}

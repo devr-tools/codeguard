@@ -337,3 +337,36 @@ func TestWorkflowSecurityIgnoresNonCompositeActionAndPlainInputs(t *testing.T) {
 	})
 	assertWorkflowFindings(t, views, []string{})
 }
+
+// GitHub's && and || return an operand, not a boolean: the `cond && x || y`
+// idiom yields the untrusted text, so a comparison in the condition must not
+// make the whole expression look boolean. Pure comparisons, negations and
+// conditions that only yield literals stay silent.
+func TestWorkflowScriptInjectionThroughLogicalOperatorValues(t *testing.T) {
+	workflow := `on: issue_comment
+permissions:
+  contents: read
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "${{ github.event_name == 'issue_comment' && github.event.comment.body || 'none' }}"
+          echo "${{ github.event.issue.title != '' && github.event.issue.title || 'x' }}"
+          echo "${{ (github.event_name == 'issue_comment') && (github.event.comment.body) }}"
+          echo "${{ github.event.comment.body || 'fallback' }}"
+          echo "${{ github.event.comment.body == 'ok' && 'yes' || 'no' }}"
+          echo "${{ github.event.issue.title == 'a' || github.event.issue.title == 'b' }}"
+          echo "${{ !github.event.comment.body }}"
+          echo "${{ (github.event.comment.body == 'a') }}"
+          echo "${{ contains(github.event.comment.body, '&&') && 'y' || 'n' }}"
+`
+	path := ".github/workflows/triage.yml"
+	views := runWorkflowSecurityScan(t, map[string]string{path: workflow})
+	assertWorkflowFindings(t, views, []string{
+		"ci.workflow-script-injection@" + path + ":9",
+		"ci.workflow-script-injection@" + path + ":10",
+		"ci.workflow-script-injection@" + path + ":11",
+		"ci.workflow-script-injection@" + path + ":12",
+	})
+}
