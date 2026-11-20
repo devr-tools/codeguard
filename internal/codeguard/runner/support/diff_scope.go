@@ -91,17 +91,23 @@ func parseUnifiedDiff(diff string) map[string]LineRanges {
 	lines := strings.Split(diff, "\n")
 	for _, line := range lines {
 		switch {
-		case strings.HasPrefix(line, "--- a/"):
-			deletedFrom = strings.TrimPrefix(line, "--- a/")
-		case strings.HasPrefix(line, "+++ /dev/null"):
+		case strings.HasPrefix(line, "--- "):
+			if path, ok := diffHeaderSidePath(strings.TrimPrefix(line, "--- "), "a/"); ok {
+				deletedFrom = path
+			}
+		case strings.HasPrefix(line, "+++ ") && diffHeaderPath(strings.TrimPrefix(line, "+++ ")) == "/dev/null":
 			currentFile = ""
 			if deletedFrom != "" {
 				out[deletedFrom] = LineRanges{allChanged: true}
 				deletedFrom = ""
 			}
-		case strings.HasPrefix(line, "+++ b/"):
+		case strings.HasPrefix(line, "+++ "):
+			path, ok := diffHeaderSidePath(strings.TrimPrefix(line, "+++ "), "b/")
+			if !ok {
+				continue
+			}
 			deletedFrom = ""
-			currentFile = strings.TrimPrefix(line, "+++ b/")
+			currentFile = path
 			if currentFile != "" {
 				if _, ok := out[currentFile]; !ok {
 					out[currentFile] = LineRanges{allChanged: true}

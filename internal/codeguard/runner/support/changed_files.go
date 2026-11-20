@@ -28,7 +28,7 @@ func listChangedFiles(ctx context.Context, sc Context, target core.TargetConfig)
 	prefix := sc.git.diffPrefix(ctx, target.Path)
 	var lastErr error
 	for _, ref := range []string{sc.Opts.BaseRef, sc.Opts.BaseRef + "...HEAD"} {
-		output, err := runGitCapture(ctx, "-C", target.Path, "diff", "--name-status", "--no-renames", "--no-color", "--end-of-options", ref, "--", ".")
+		output, err := runGitCapture(ctx, "-C", target.Path, "diff", "--name-status", "-z", "--no-renames", "--no-color", "--end-of-options", ref, "--", ".")
 		if err == nil {
 			return parseNameStatus(string(output), prefix), nil
 		}
@@ -37,20 +37,25 @@ func listChangedFiles(ctx context.Context, sc Context, target core.TargetConfig)
 	return nil, fmt.Errorf("diff mode requires git diff --name-status against %q: %w", sc.Opts.BaseRef, lastErr)
 }
 
+// parseNameStatus parses `git diff --name-status -z` output: NUL-separated
+// status and path fields (--no-renames keeps it to one path per entry). The -z
+// form prints paths verbatim, where the default C-quotes any name with
+// non-ASCII bytes, so such files would otherwise never match their findings.
 func parseNameStatus(output string, prefix string) []core.ChangedFile {
 	prefix = strings.Trim(strings.TrimSpace(filepath.ToSlash(prefix)), "/")
 	changed := make([]core.ChangedFile, 0)
-	for _, line := range strings.Split(output, "\n") {
-		parts := strings.SplitN(strings.TrimRight(line, "\r"), "\t", 2)
-		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	fields := strings.Split(output, "\x00")
+	for i := 0; i+1 < len(fields); i += 2 {
+		status, rawPath := strings.TrimSpace(fields[i]), fields[i+1]
+		if status == "" || rawPath == "" {
 			continue
 		}
-		path, ok := stripDiffPathPrefix(parts[1], prefix)
+		path, ok := stripDiffPathPrefix(rawPath, prefix)
 		if !ok {
 			continue
 		}
 		changed = append(changed, core.ChangedFile{
-			Status: core.ChangedFileStatus(parts[0][:1]),
+			Status: core.ChangedFileStatus(status[:1]),
 			Path:   filepath.ToSlash(path),
 		})
 	}
