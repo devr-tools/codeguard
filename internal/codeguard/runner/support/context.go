@@ -88,6 +88,12 @@ func NewContext(ctx context.Context, cfg core.Config, opts core.ScanOptions) (Co
 	if opts.EnableWaiverAudit {
 		sc.WaiverAudit = NewWaiverAuditCollector(cfg.Waivers)
 	}
+	// The patch's diff scope must be resolved against the original targets:
+	// the patched config points them at temporary copies outside any git
+	// repository, where DiffPrefixForTarget finds no prefix, so the diff
+	// would never be rebased and no finding of a target below the repository
+	// root would match it.
+	sourceTargets := cfg.Targets
 	if strings.TrimSpace(opts.DiffText) != "" {
 		patchedCfg, diffCommand, cleanup, err := MaterializePatchedTargets(ctx, cfg, opts.DiffText)
 		if err != nil {
@@ -116,7 +122,7 @@ func NewContext(ctx context.Context, cfg core.Config, opts core.ScanOptions) (Co
 			err  error
 		)
 		if strings.TrimSpace(opts.DiffText) != "" {
-			diff = LoadDiffScopeFromUnifiedDiff(ctx, cfg.Targets, opts.DiffText)
+			diff = LoadDiffScopeFromUnifiedDiff(ctx, sourceTargets, opts.DiffText)
 		} else {
 			diff, err = loadDiffScope(ctx, sc.git, cfg.Targets, opts.BaseRef)
 		}
