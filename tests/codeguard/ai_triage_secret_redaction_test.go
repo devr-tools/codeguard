@@ -26,7 +26,7 @@ func TestHybridTriageRedactsSecretsFromProviderSnippets(t *testing.T) {
 		"",
 		"const awsKey = \"" + awsKey + "\"",
 		"",
-		"const pemKey = `-----BEGIN " + "RSA PRIVATE KEY-----",
+		"const pemKey = `-----BEGIN " + "RSA PRIVATE KEY-----", // codeguard:ignore security.private-key -- synthetic PEM header written to a temp dir to prove triage redacts key blocks
 		keyBody,
 		"-----END " + "RSA PRIVATE KEY-----`",
 		"",

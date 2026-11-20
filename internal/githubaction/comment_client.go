@@ -10,8 +10,8 @@ import (
 
 const MaxCommentBodyBytes = 65000
 
-// DefaultCommentAuthor is the login of the default GITHUB_TOKEN, which cannot
-// call GET /user to discover itself.
+// DefaultCommentAuthor is the fallback author for sticky updates: the default
+// GITHUB_TOKEN cannot call GET /user to learn its own login.
 const DefaultCommentAuthor = "github-actions[bot]"
 
 type CommentPublisher struct {
@@ -44,7 +44,7 @@ func (p CommentPublisher) publishSticky(ctx context.Context, repository string, 
 		return err
 	}
 	marker, exactMarker := stickyMarkerFromBody(body)
-	author := p.commentAuthor(ctx)
+	author := resolveCommentAuthor(ctx, p)
 	for _, comment := range comments {
 		// Anyone who can comment on the PR can post a comment that starts
 		// with the marker. Updating it would put the report in a comment the
@@ -65,8 +65,9 @@ func (p CommentPublisher) publishSticky(ctx context.Context, repository string, 
 	return p.createComment(ctx, repository, prNumber, body)
 }
 
-// commentAuthor returns the login whose comments publishSticky may update.
-func (p CommentPublisher) commentAuthor(ctx context.Context) string {
+// resolveCommentAuthor returns the login whose comments publishSticky may
+// update.
+func resolveCommentAuthor(ctx context.Context, p CommentPublisher) string {
 	if author := strings.TrimSpace(p.Author); author != "" {
 		return author
 	}
