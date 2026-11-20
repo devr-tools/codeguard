@@ -150,7 +150,7 @@ func markInlineDirectivesUsed(sc Context, finding core.Finding) {
 	if !tracksDirectiveUsage(sc) {
 		return
 	}
-	index := inlineSuppressionsFor(sc, finding.Path)
+	index := inlineSuppressionsForFinding(sc, finding)
 	if index == nil {
 		return
 	}
@@ -285,16 +285,12 @@ func directiveLine(diagnostic core.Diagnostic) int {
 	return line
 }
 
-// hygieneIndexFor returns the directive index of the file at root/rel and
-// whether it is the file a finding with path rel resolves to. Usage is only
-// recorded on that primary file, so only it can be judged unused; another
-// target's file at the same relative path is still checked for reasons.
+// hygieneIndexFor returns the directive index of the file at root/rel. Every
+// lookup of a file shares one index per scan, and findings mark usage on their
+// own target's file (or, when their target is unknown and the path is
+// ambiguous, on every candidate file), so any target's file can be judged.
 func hygieneIndexFor(sc Context, root string, rel string, physical string) (*inlineSuppressionIndex, bool) {
-	candidates := findingTargetPaths(sc, rel)
-	if len(candidates) > 0 && filepath.Clean(candidates[0].path) == filepath.Clean(physical) {
-		return inlineSuppressionsFor(sc, rel), true
-	}
-	return readInlineSuppressions(sc, rel, targetFilePath{root: root, path: physical}), false
+	return fileInlineSuppressions(sc, rel, targetFilePath{root: root, path: physical}), true
 }
 
 // directiveInScope limits a diff scan's missing-reason diagnostics to

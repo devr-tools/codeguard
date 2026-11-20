@@ -29,11 +29,12 @@ type inlineSuppressionIndex struct {
 	// suppress; invalidCovering surfaces them so the author learns that.
 	invalid []inlineSuppression
 	// peers holds the directive indexes of the same target-relative path
-	// under every other target where it exists. Findings carry only a
-	// target-relative path, so with targets a/ and b/ both holding main.go
-	// the finding's own file cannot be told apart. A directive then
-	// suppresses only when every candidate file has one covering the
-	// finding, so an ignore in a/main.go cannot hide a finding in b/main.go.
+	// under every other target where it exists, for a finding whose producing
+	// pass did not record its target (core.Finding.TargetPath). With targets
+	// a/ and b/ both holding main.go such a finding's own file cannot be told
+	// apart, so a directive suppresses only when every candidate file has one
+	// covering the finding: an ignore in a/main.go cannot hide a finding in
+	// b/main.go.
 	peers []*inlineSuppressionIndex
 	// usage records which directives covered a finding in this scan, for the
 	// suppression.unused-directive diagnostic. It is nil for an index with no
@@ -57,21 +58,71 @@ type inlineSuppressionCache struct {
 	entries map[string]*inlineSuppressionEntry
 }
 
-// inlineSuppressionsFor returns the directive index for the file a finding's
-// target-relative path resolves to, or nil when the path resolves to no
-// readable file (in which case no inline suppression can apply). With a
-// corpus attached the resolution, read, and parse happen once per path per
-// scan; without one (a bare Context in tests) they happen on every call, as
-// they always did.
+// inlineSuppressionsForFinding returns the directive index that governs
+// finding: its own target's file when the producing pass recorded the target,
+// otherwise whatever its target-relative path resolves to (see
+// inlineSuppressionsFor).
+func inlineSuppressionsForFinding(sc Context, finding core.Finding) *inlineSuppressionIndex {
+	if finding.TargetPath == "" || finding.Path == "" {
+		return inlineSuppressionsFor(sc, finding.Path)
+	}
+	candidate := targetFilePath{
+		root: finding.TargetPath,
+		path: filepath.Join(finding.TargetPath, filepath.FromSlash(finding.Path)),
+	}
+	if _, err := os.Stat(candidate.path); err != nil {
+		return nil
+	}
+	return fileInlineSuppressions(sc, finding.Path, candidate)
+}
+
+// inlineSuppressionsFor returns the directive index for the file a
+// target-relative path resolves to, or nil when it resolves to no readable
+// file (in which case no inline suppression can apply). When the path exists
+// under several targets the index keeps the other files as peers, so a
+// directive suppresses only when every candidate file has one.
 func inlineSuppressionsFor(sc Context, rel string) *inlineSuppressionIndex {
 	if rel == "" {
 		return nil
 	}
+	candidates := findingTargetPaths(sc, rel)
+	if len(candidates) == 0 {
+		return nil
+	}
+	primary := fileInlineSuppressions(sc, rel, candidates[0])
+	if primary == nil || len(candidates) == 1 || len(primary.directives) == 0 {
+		return primary
+	}
+	return memoizedInlineSuppressions(sc, "peers\x00"+inlineSuppressionKey(sc, rel), func() *inlineSuppressionIndex {
+		resolved := *primary
+		resolved.peers = make([]*inlineSuppressionIndex, 0, len(candidates)-1)
+		for _, candidate := range candidates[1:] {
+			peer := fileInlineSuppressions(sc, rel, candidate)
+			if peer == nil {
+				peer = emptyInlineSuppressions
+			}
+			resolved.peers = append(resolved.peers, peer)
+		}
+		return &resolved
+	})
+}
+
+// fileInlineSuppressions returns the directive index of one physical file,
+// parsed once per scan. Every lookup of that file shares the index, so the
+// directive usage recorded on it is complete whichever path led to it.
+func fileInlineSuppressions(sc Context, rel string, candidate targetFilePath) *inlineSuppressionIndex {
+	return memoizedInlineSuppressions(sc, "file\x00"+filepath.Clean(candidate.path), func() *inlineSuppressionIndex {
+		return readInlineSuppressions(sc, rel, candidate)
+	})
+}
+
+// memoizedInlineSuppressions runs load once per key per scan. With no corpus
+// attached (a bare Context in tests) it runs load on every call.
+func memoizedInlineSuppressions(sc Context, key string, load func() *inlineSuppressionIndex) *inlineSuppressionIndex {
 	if sc.corpus == nil {
-		return loadInlineSuppressions(sc, rel)
+		return load()
 	}
 	cache := &sc.corpus.suppressions
-	key := inlineSuppressionKey(sc, rel)
 	cache.mu.Lock()
 	if cache.entries == nil {
 		cache.entries = map[string]*inlineSuppressionEntry{}
@@ -83,7 +134,7 @@ func inlineSuppressionsFor(sc Context, rel string) *inlineSuppressionIndex {
 	}
 	cache.mu.Unlock()
 	entry.once.Do(func() {
-		entry.index = loadInlineSuppressions(sc, rel)
+		entry.index = load()
 	})
 	return entry.index
 }
@@ -100,33 +151,11 @@ func inlineSuppressionKey(sc Context, rel string) string {
 	return b.String()
 }
 
-// loadInlineSuppressions resolves rel against the targets (the first target
-// where the joined path exists, with any other such target kept as a peer),
-// reads it, and parses its directives. Bytes the scan already holds in the corpus are reused; any
-// other file is read directly, uncapped and without being retained, so this
-// lookup never consumes corpus budget (which could otherwise surface a new
-// budget diagnostic) and never changes what a large file reads as.
-func loadInlineSuppressions(sc Context, rel string) *inlineSuppressionIndex {
-	candidates := findingTargetPaths(sc, rel)
-	if len(candidates) == 0 {
-		return nil
-	}
-	primary := readInlineSuppressions(sc, rel, candidates[0])
-	if primary == nil || len(candidates) == 1 || len(primary.directives) == 0 {
-		return primary
-	}
-	resolved := *primary
-	resolved.peers = make([]*inlineSuppressionIndex, 0, len(candidates)-1)
-	for _, candidate := range candidates[1:] {
-		peer := readInlineSuppressions(sc, rel, candidate)
-		if peer == nil {
-			peer = emptyInlineSuppressions
-		}
-		resolved.peers = append(resolved.peers, peer)
-	}
-	return &resolved
-}
-
+// readInlineSuppressions reads and parses one candidate file. Bytes the scan
+// already holds in the corpus are reused; any other file is read directly,
+// uncapped and without being retained, so this lookup never consumes corpus
+// budget (which could otherwise surface a new budget diagnostic) and never
+// changes what a large file reads as.
 func readInlineSuppressions(sc Context, rel string, candidate targetFilePath) *inlineSuppressionIndex {
 	data, ok := sc.corpus.cachedRead(candidate.root, filepath.FromSlash(rel))
 	if !ok {

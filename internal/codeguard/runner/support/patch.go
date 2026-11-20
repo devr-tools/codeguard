@@ -12,12 +12,16 @@ import (
 )
 
 func LoadDiffScopeFromUnifiedDiff(ctx context.Context, targets []core.TargetConfig, diffText string) map[string]LineRanges {
-	out := map[string]LineRanges{}
+	merged, _ := indexDiffScopes(targets, loadTargetDiffScopesFromUnifiedDiff(ctx, targets, diffText))
+	return merged
+}
+
+// loadTargetDiffScopesFromUnifiedDiff rebases diffText onto each target and
+// returns the per-target scopes, in target order.
+func loadTargetDiffScopesFromUnifiedDiff(ctx context.Context, targets []core.TargetConfig, diffText string) []map[string]LineRanges {
+	out := make([]map[string]LineRanges, 0, len(targets))
 	for _, target := range targets {
-		scope := parseUnifiedDiff(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(ctx, target.Path)))
-		for path, ranges := range scope {
-			out[path] = mergeLineRanges(out[path], ranges)
-		}
+		out = append(out, parseUnifiedDiff(RebaseUnifiedDiff(diffText, DiffPrefixForTarget(ctx, target.Path))))
 	}
 	return out
 }

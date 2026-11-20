@@ -16,19 +16,24 @@ import (
 )
 
 type Context struct {
-	Cfg         core.Config
-	Opts        core.ScanOptions
-	Baseline    map[string]core.BaselineEntry
-	Diff        map[string]LineRanges
-	Artifacts   *ArtifactStore
-	RuleStats   *RuleStatsCollector
-	Suppressed  *SuppressedFindingCollector
-	WaiverAudit *WaiverAuditCollector
-	Today       time.Time
-	RuleCatalog map[string]core.RuleMetadata
-	CustomRules []CompiledCustomRule
-	NLRuntime   nlrule.Runtime
-	Cache       *ScanCache
+	Cfg      core.Config
+	Opts     core.ScanOptions
+	Baseline map[string]core.BaselineEntry
+	Diff     map[string]LineRanges
+	// DiffByTarget is the diff scope of each target, keyed by target path.
+	// Diff merges them by target-relative path, which conflates two targets
+	// that both hold the same relative file; matchesDiff uses the finding's
+	// own target when it is known.
+	DiffByTarget map[string]map[string]LineRanges
+	Artifacts    *ArtifactStore
+	RuleStats    *RuleStatsCollector
+	Suppressed   *SuppressedFindingCollector
+	WaiverAudit  *WaiverAuditCollector
+	Today        time.Time
+	RuleCatalog  map[string]core.RuleMetadata
+	CustomRules  []CompiledCustomRule
+	NLRuntime    nlrule.Runtime
+	Cache        *ScanCache
 	// ConfigHash is the conservative all-checks fingerprint used as a fallback
 	// when a section has no scoped entry in SectionConfigHash.
 	ConfigHash string
@@ -118,19 +123,19 @@ func NewContext(ctx context.Context, cfg core.Config, opts core.ScanOptions) (Co
 	}
 	if opts.Mode == core.ScanModeDiff {
 		var (
-			diff map[string]LineRanges
-			err  error
+			perTarget []map[string]LineRanges
+			err       error
 		)
 		if strings.TrimSpace(opts.DiffText) != "" {
-			diff = LoadDiffScopeFromUnifiedDiff(ctx, sourceTargets, opts.DiffText)
+			perTarget = loadTargetDiffScopesFromUnifiedDiff(ctx, sourceTargets, opts.DiffText)
 		} else {
-			diff, err = loadDiffScope(ctx, sc.git, cfg.Targets, opts.BaseRef)
+			perTarget, err = loadTargetDiffScopes(ctx, sc.git, cfg.Targets, opts.BaseRef)
 		}
 		if err != nil {
 			sc.cleanup()
 			return Context{}, err
 		}
-		sc.Diff = diff
+		sc.Diff, sc.DiffByTarget = indexDiffScopes(cfg.Targets, perTarget)
 	}
 	return sc, nil
 }

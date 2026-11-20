@@ -89,7 +89,7 @@ func MatchSuppression(sc Context, finding core.Finding) *core.Suppression {
 	if len(MatchingWaivers(sc, finding)) > 0 {
 		return &core.Suppression{Kind: SuppressionReasonWaiver}
 	}
-	index := inlineSuppressionsFor(sc, finding.Path)
+	index := inlineSuppressionsForFinding(sc, finding)
 	if index == nil {
 		return nil
 	}
@@ -141,7 +141,7 @@ const invalidRulePatternHint = `use an exact rule id, a dotted prefix ending in 
 // beside the finding it failed to suppress, in the section that owns that
 // finding, which keeps the placement deterministic.
 func invalidInlineDirectiveDiagnostics(sc Context, finding core.Finding) []core.Diagnostic {
-	index := inlineSuppressionsFor(sc, finding.Path)
+	index := inlineSuppressionsForFinding(sc, finding)
 	if index == nil || len(index.invalid) == 0 {
 		return nil
 	}
