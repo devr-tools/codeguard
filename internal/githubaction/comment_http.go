@@ -13,6 +13,18 @@ import (
 
 const defaultClientTimeout = 30 * time.Second
 
+// APIError is a GitHub API response with an unexpected status. Callers match
+// StatusCode to tell a rejected payload (422) from an operational failure.
+type APIError struct {
+	StatusCode int
+	Status     string
+	Body       string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("github api returned %s: %s", e.Status, e.Body)
+}
+
 func (p CommentPublisher) sendCommentRequest(ctx context.Context, method string, url string, body string, wantStatus int) error {
 	payload, err := json.Marshal(issueCommentRequest{Body: TruncateCommentBody(body)})
 	if err != nil {
@@ -56,7 +68,7 @@ func (p CommentPublisher) doJSON(req *http.Request, wantStatus int, out any) (er
 		return err
 	}
 	if resp.StatusCode != wantStatus {
-		return fmt.Errorf("github api returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return &APIError{StatusCode: resp.StatusCode, Status: resp.Status, Body: strings.TrimSpace(string(body))}
 	}
 	if out == nil || len(body) == 0 {
 		return nil
