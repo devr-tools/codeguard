@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.12.0](https://github.com/devr-tools/codeguard/compare/v1.11.0...v1.12.0) (2026-11-20)
+
+
+### Features
+
+* action hardening, per-rule disable, cache correctness and deterministic findings ([#199](https://github.com/devr-tools/codeguard/issues/199)) ([2fed3e4](https://github.com/devr-tools/codeguard/commit/2fed3e4bd462de73b774fcfc86663b6b18287a53))
+* **action:** add a fail-on input ([6041810](https://github.com/devr-tools/codeguard/commit/6041810ea56333b08cd58d3dea9aba3f754ad79b))
+* **action:** add review-comments and review-comment-limit inputs ([14ca753](https://github.com/devr-tools/codeguard/commit/14ca753ef9e6a2d9a0322db101676ee59c40bf8c))
+* **action:** post findings as inline PR review comments ([a99e662](https://github.com/devr-tools/codeguard/commit/a99e662191cacbaba65aaaab1fe266db656a88e0))
+* **action:** upload SARIF to GitHub code scanning ([bfb0880](https://github.com/devr-tools/codeguard/commit/bfb088005c1a4eb04f49d889dbd65c1f752f6316))
+* **ci:** add zizmor-parity workflow security rules ([2c52e4e](https://github.com/devr-tools/codeguard/commit/2c52e4ee6e39c4977a6565ca2b2abbc0c1028756))
+* **cli:** add -fail-on to validate-patch ([12cc9b2](https://github.com/devr-tools/codeguard/commit/12cc9b20ac93f5e3eb0d95a3c5f1d9caa906dc60))
+* **cli:** add `codeguard rules test` for custom rule-pack fixtures ([6f7c1b4](https://github.com/devr-tools/codeguard/commit/6f7c1b42af6cf7fd36d1035d95efacee275d2710))
+* **cli:** add scan -sarif-output to write SARIF alongside -format ([30c8db0](https://github.com/devr-tools/codeguard/commit/30c8db0b3ec341ca02ec10bc12152f6ee7098856))
+* **config:** add checks.disabled_rules for per-rule disable ([eddb0fa](https://github.com/devr-tools/codeguard/commit/eddb0facd2e1094c97a5cf0711e18f750d7efd08))
+* **config:** implement or deprecate reserved config keys ([5709cdc](https://github.com/devr-tools/codeguard/commit/5709cdc79be5969f2d17180927a1d8b9b4fc6c36))
+* per-scanner design cache keys, package-wide method counts, and Action hardening ([5c70b34](https://github.com/devr-tools/codeguard/commit/5c70b3484771f6927960a73eaa1b1baf5400835b))
+* **profile:** make enterprise CI requirements generic ([4da2c1c](https://github.com/devr-tools/codeguard/commit/4da2c1c088abb4af5acb982588405aa7d45a3c0c))
+* **suppressions:** report unused and unexplained inline directives ([1d29c28](https://github.com/devr-tools/codeguard/commit/1d29c2877eddd4618dc7b927eb6f2fd691ecd0cc))
+
+
+### Bug Fixes
+
+* **action:** only update sticky comments the publisher wrote ([c353cfe](https://github.com/devr-tools/codeguard/commit/c353cfefe1212f8c319871cb1d850694cec057d1))
+* **action:** pass every input to run steps through env ([c1b1966](https://github.com/devr-tools/codeguard/commit/c1b1966941b245da09f4d043c2440b266e5f4f24))
+* **cache:** fold excluded and out-of-target Go manifests into the dependency digest ([6b62cee](https://github.com/devr-tools/codeguard/commit/6b62cee68456a4d9d36ac14a12a9f5e7fed940ee))
+* **checks:** cap direct reads of walk- and diff-derived repository files ([353b517](https://github.com/devr-tools/codeguard/commit/353b5171aefa2695bf3dfe60eb778adcee88d90a))
+* **checks:** remove map-iteration nondeterminism from findings ([8c4247d](https://github.com/devr-tools/codeguard/commit/8c4247dd7b4c62a087739349fb9663b6164222d3))
+* **ci:** catch script injection through && / || expression values ([423060f](https://github.com/devr-tools/codeguard/commit/423060f43087fec3e648f431595c9baefd201cdc))
+* close scan-gate bypasses; feat: SARIF upload, inline review comments, suppression hygiene, zizmor-parity CI rules ([#201](https://github.com/devr-tools/codeguard/issues/201)) ([d9c2ed2](https://github.com/devr-tools/codeguard/commit/d9c2ed2851ab769c796c473930077d1452802490))
+* **diff:** decode quoted and tab-suffixed paths in diff headers ([fe17747](https://github.com/devr-tools/codeguard/commit/fe17747807b05004e90b3e3dff0289e0936673ec))
+* **patch:** scope patch findings against the original targets ([1941cf6](https://github.com/devr-tools/codeguard/commit/1941cf6a7a79d5932e387bd5f0b0a672504ba210))
+* **runner:** attach scan.target-walk only to sections that consumed the listing ([99cc50e](https://github.com/devr-tools/codeguard/commit/99cc50ee8e3bc7c09b50f336b2046a5ad64c8c1b))
+* **runner:** only walk regular files and in-target symlinks ([a7d28f2](https://github.com/devr-tools/codeguard/commit/a7d28f2414421f915d5260b1bb328c2f15d49411))
+* **runner:** resolve findings against their own scan target ([37aa3be](https://github.com/devr-tools/codeguard/commit/37aa3bed73dbeb090369108f8a17cbe220ee5de6))
+* **sarif:** emit results [] on clean runs and encode artifact URIs ([14caf23](https://github.com/devr-tools/codeguard/commit/14caf235c63dcdf0841080ac69b2c3488768b030))
+* **security:** keep framework models through Python summarised returns ([8aa4284](https://github.com/devr-tools/codeguard/commit/8aa42845cd006ba03e3495a99410d161435d6d04))
+* **suppressions:** stop inline ignores leaking across targets ([2e94b18](https://github.com/devr-tools/codeguard/commit/2e94b189a100e0d907a4ac07f5d4b44d24d48d98))
+* **suppressions:** support dotted-prefix rule patterns and warn on invalid globs ([1531cc3](https://github.com/devr-tools/codeguard/commit/1531cc36ab1cabdf9202e38a7e9974e520824a8b))
+* **triage:** keep triaging every section for configs written by older init ([176f5fb](https://github.com/devr-tools/codeguard/commit/176f5fbb56ab78cc215d0ad02bd1d9348b0ea172))
+* **triage:** redact secrets from snippets sent to the AI provider ([e614abd](https://github.com/devr-tools/codeguard/commit/e614abd160955acb79b90f744362e3ef744b1c3f))
+
 ## [1.11.0](https://github.com/devr-tools/codeguard/compare/v1.10.1...v1.11.0) (2026-11-02)
 
 
