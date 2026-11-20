@@ -3,7 +3,6 @@ package quality
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -152,13 +151,9 @@ func pythonToolchainReportIssues(env support.Context, target core.TargetConfig, 
 }
 
 func pythonToolchainReadReport(env support.Context, target core.TargetConfig, rel string) ([]byte, bool) {
-	if env.ReadTargetFile != nil {
-		data, err := env.ReadTargetFile(target, rel)
-		if err == nil {
-			return data, true
-		}
-	}
-	data, err := os.ReadFile(filepath.Join(target.Path, filepath.FromSlash(rel)))
+	// No uncapped fallback: a corpus error (including an oversized report)
+	// skips the report instead of reading it whole.
+	data, err := support.ReadTargetFileCapped(env, target, rel)
 	return data, err == nil
 }
 

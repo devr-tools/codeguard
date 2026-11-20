@@ -60,7 +60,11 @@ func cppFileBreakingFindings(env support.Context, target core.TargetConfig, file
 	}
 	headSymbols := map[string][]cppSymbol{}
 	if file.Status != core.ChangedFileDeleted {
-		headSymbols = cppPublicSymbols(readHead(target, file.Path))
+		data, ok := readHead(env, target, file.Path)
+		if !ok {
+			return nil
+		}
+		headSymbols = cppPublicSymbols(data)
 	}
 
 	findings := make([]core.Finding, 0)

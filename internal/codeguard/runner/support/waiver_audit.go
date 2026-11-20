@@ -76,10 +76,8 @@ func (collector *WaiverAuditCollector) Snapshot(catalog map[string]core.RuleMeta
 }
 
 func waiverAuditStatus(waiver core.WaiverConfig, matched int, catalog map[string]core.RuleMetadata, today time.Time) string {
-	if waiver.Rule != "*" {
-		if _, ok := catalog[rules.ResolveRuleAlias(waiver.Rule)]; !ok {
-			return core.WaiverAuditStatusUnknownRule
-		}
+	if !waiverRuleKnown(waiver.Rule, catalog) {
+		return core.WaiverAuditStatusUnknownRule
 	}
 	if suppressionExpired(waiver.ExpiresOn, today) {
 		return core.WaiverAuditStatusExpired
@@ -100,4 +98,26 @@ func sortedWaiverAuditFingerprints(values map[string]struct{}) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// waiverRuleKnown reports whether a waiver's rule selector can match a catalog
+// rule: the bare wildcard always can, an exact id (or retired alias) must be
+// in the catalog, a prefix pattern must select at least one catalog rule, and
+// an invalid pattern never matches.
+func waiverRuleKnown(pattern string, catalog map[string]core.RuleMetadata) bool {
+	kind, _ := rules.ClassifyRulePattern(pattern)
+	switch kind {
+	case rules.RulePatternAll:
+		return true
+	case rules.RulePatternExact:
+		_, ok := catalog[rules.ResolveRuleAlias(pattern)]
+		return ok
+	case rules.RulePatternPrefix:
+		for id := range catalog {
+			if rules.MatchRulePattern(pattern, id) {
+				return true
+			}
+		}
+	}
+	return false
 }

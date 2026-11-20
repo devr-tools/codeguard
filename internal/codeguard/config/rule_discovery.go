@@ -69,6 +69,9 @@ var enableKeysOnWhenUnset = map[string]bool{
 // enable key it lists resolves to true. cfg should already have defaults
 // applied (LoadFile and the profile helpers do this).
 func RuleEnabled(cfg core.Config, meta core.RuleMetadata) bool {
+	if _, disabled := RuleDisabledBy(cfg, meta.ID); disabled {
+		return false
+	}
 	for _, key := range meta.ConfigKeys {
 		if key.Role != core.RuleConfigKeyRoleEnable {
 			continue
@@ -147,4 +150,10 @@ func fieldByYAMLName(t reflect.Type, name string) (reflect.StructField, bool) {
 		}
 	}
 	return reflect.StructField{}, false
+}
+
+// RuleDisabledBy returns the checks.disabled_rules entry that turns ruleID
+// off, if any.
+func RuleDisabledBy(cfg core.Config, ruleID string) (string, bool) {
+	return rulespkg.MatchDisabledRule(cfg.Checks.DisabledRules, ruleID)
 }

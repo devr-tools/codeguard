@@ -41,11 +41,19 @@ var profileCatalog = map[string]profileSpec{
 		apply:       applyStrictProfile,
 	},
 	"enterprise": {
-		description: "Strict gates with release and automation policy suitable for regulated delivery.",
+		description: "Strict gates plus a required CI workflow directory with test and security gates, for regulated delivery.",
 		apply: func(cfg *core.Config) {
 			applyStrictProfile(cfg)
-			cfg.Checks.CIRules.RequiredReleaseFiles = []string{".goreleaser.yaml"}
-			cfg.Checks.CIRules.RequiredAutomationPaths = []string{"Makefile", ".github/workflows/ci.yml"}
+			// CI policy is stated generically so it fits any repository: a
+			// .github/workflows directory must exist and its workflows must
+			// run a test gate and a security gate (both resolved semantically
+			// across ecosystems). Specific release files or automation paths
+			// (a .goreleaser.yaml, a Makefile, a workflow named ci.yml) are a
+			// repository's own choice, so the profile clears them, as startup
+			// does, instead of imposing codeguard's own layout.
+			cfg.Checks.CIRules.RequireWorkflowDir = boolPtr(true)
+			cfg.Checks.CIRules.RequiredReleaseFiles = nil
+			cfg.Checks.CIRules.RequiredAutomationPaths = nil
 			cfg.Checks.CIRules.RequiredGates = []string{"test", "security"}
 			cfg.Checks.SupplyChain = true
 			cfg.Checks.Delivery = boolPtr(true)
@@ -217,6 +225,12 @@ func writeProfileComparisonRows(b *strings.Builder, configs []core.Config) {
 	})
 	writeProfileComparisonRow(b, "`security_rules.govulncheck_mode`", configs, func(cfg core.Config) string {
 		return cfg.Checks.SecurityRules.GovulncheckMode
+	})
+	writeProfileComparisonRow(b, "`ci_rules.require_workflow_dir`", configs, func(cfg core.Config) string {
+		if cfg.Checks.CIRules.RequireWorkflowDir == nil {
+			return "false"
+		}
+		return strconv.FormatBool(*cfg.Checks.CIRules.RequireWorkflowDir)
 	})
 	writeProfileComparisonRow(b, "`ci_rules.required_release_files`", configs, func(cfg core.Config) string {
 		return profileStringSlice(cfg.Checks.CIRules.RequiredReleaseFiles)

@@ -3,8 +3,10 @@ package change
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -399,37 +401,56 @@ func duplicateImplementationFindings(env support.Context, target core.TargetConf
 	if err != nil {
 		return nil
 	}
-	bodies := productionCodeBlocksByKey(env, target, allFiles)
-	out := make([]core.Finding, 0)
-	for _, matches := range bodies {
+	matches := firstChangedDuplicateGroup(productionCodeBlocksByKey(env, target, allFiles), changed)
+	if matches == nil {
+		return []core.Finding{}
+	}
+	paths := make([]string, 0, len(matches))
+	for _, match := range matches {
+		paths = append(paths, fmt.Sprintf("%s:%d", match.path, match.line))
+	}
+	return []core.Finding{env.NewFinding(support.FindingInput{
+		RuleID:     "refactor.duplicate-implementation-left-behind",
+		Level:      "warn",
+		Path:       matches[0].path,
+		Line:       matches[0].line,
+		Confidence: "high",
+		Message:    fmt.Sprintf("Refactor leaves duplicate implementation bodies active at %s.", strings.Join(limitStrings(paths, 4), ", ")),
+		Metadata: map[string]string{
+			"evidence":        "duplicate-implementation-body",
+			"duplicate_count": strconv.Itoa(len(matches)),
+		},
+	})}
+}
+
+// firstChangedDuplicateGroup picks the one duplicate-body group the rule
+// reports: among groups with two or more bodies, at least one of them in a
+// changed file, the group whose earliest body (by path, then line) sorts
+// first, tie-broken by body key. Returning the first qualifying group in map
+// order reported a different duplicate on every run. Each group is returned
+// sorted by path and line; nil means no group qualifies.
+func firstChangedDuplicateGroup(bodies map[string][]codeBlock, changed map[string]struct{}) []codeBlock {
+	var best []codeBlock
+	for _, key := range slices.Sorted(maps.Keys(bodies)) {
+		matches := bodies[key]
 		if len(matches) < 2 || !anyBlockChanged(matches, changed) {
 			continue
 		}
 		sort.Slice(matches, func(i, j int) bool {
-			if matches[i].path == matches[j].path {
-				return matches[i].line < matches[j].line
-			}
-			return matches[i].path < matches[j].path
+			return codeBlockLess(matches[i], matches[j])
 		})
-		paths := make([]string, 0, len(matches))
-		for _, match := range matches {
-			paths = append(paths, fmt.Sprintf("%s:%d", match.path, match.line))
+		if best == nil || codeBlockLess(matches[0], best[0]) {
+			best = matches
 		}
-		out = append(out, env.NewFinding(support.FindingInput{
-			RuleID:     "refactor.duplicate-implementation-left-behind",
-			Level:      "warn",
-			Path:       matches[0].path,
-			Line:       matches[0].line,
-			Confidence: "high",
-			Message:    fmt.Sprintf("Refactor leaves duplicate implementation bodies active at %s.", strings.Join(limitStrings(paths, 4), ", ")),
-			Metadata: map[string]string{
-				"evidence":        "duplicate-implementation-body",
-				"duplicate_count": strconv.Itoa(len(matches)),
-			},
-		}))
-		break
 	}
-	return out
+	return best
+}
+
+func codeBlockLess(left codeBlock, right codeBlock) bool {
+	if left.path != right.path {
+		return left.path < right.path
+	}
+	return left.line < right.line
 }
 
 // survivingChangedPaths returns the normalized paths of changed files that

@@ -70,6 +70,7 @@ type explainOutput struct {
 	ConfigKeys       []explainConfigKeyOutput      `json:"config_keys"`
 	ConfigSource     string                        `json:"config_source,omitempty"`
 	Enabled          *bool                         `json:"enabled,omitempty"`
+	DisabledBy       string                        `json:"disabled_by,omitempty"`
 	Suppression      explainSuppressionOutput      `json:"suppression"`
 	Profiles         []string                      `json:"profiles"`
 	Aliases          []string                      `json:"aliases"`
@@ -146,6 +147,9 @@ func buildExplainOutput(rule service.RuleMetadata, ec *explainConfig) explainOut
 		out.ConfigSource = ec.source
 		enabled := service.RuleEnabled(ec.cfg, rule)
 		out.Enabled = &enabled
+		if entry, disabled := service.RuleDisabledBy(ec.cfg, rule.ID); disabled {
+			out.DisabledBy = "checks.disabled_rules: " + entry
+		}
 	}
 	return out
 }

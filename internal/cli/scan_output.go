@@ -19,10 +19,18 @@ type scanOutputFlags struct {
 	minConfidence *string
 }
 
+// failOnFlagUsage is shared by scan and validate-patch so both describe the
+// same exit policy.
+const failOnFlagUsage = "exit policy: fail (default; exit 1 when a section fails), warn (also when a section warns), none (only operational failures exit non-zero); overrides output.fail_on"
+
+func registerFailOnFlag(fs *flag.FlagSet) *string {
+	return fs.String("fail-on", "", failOnFlagUsage)
+}
+
 func registerScanOutputFlags(fs *flag.FlagSet) scanOutputFlags {
 	return scanOutputFlags{
 		quiet:         fs.Bool("quiet", false, "suppress the banner and progress lines; findings and the summary are still printed"),
-		failOn:        fs.String("fail-on", "", "exit policy: fail (default; exit 1 when a section fails), warn (also when a section warns), none (only operational failures exit non-zero); overrides output.fail_on"),
+		failOn:        registerFailOnFlag(fs),
 		minConfidence: fs.String("min-confidence", "", "drop findings below this confidence: low, medium, high; overrides checks.min_confidence.default (per-section overrides still apply)"),
 	}
 }
@@ -31,13 +39,9 @@ func registerScanOutputFlags(fs *flag.FlagSet) scanOutputFlags {
 // dotted config overrides they stand for, so the CLI and the config file share
 // one representation and one validator.
 func (flags scanOutputFlags) configOverrides() ([]string, error) {
-	overrides := make([]string, 0, 2)
-	if raw := strings.TrimSpace(*flags.failOn); raw != "" {
-		policy, ok := core.NormalizedFailOn(raw)
-		if !ok {
-			return nil, fmt.Errorf("invalid -fail-on %q: must be one of %s", raw, strings.Join(core.FailOnValues(), ", "))
-		}
-		overrides = append(overrides, "output.fail_on="+policy)
+	overrides, err := failOnOverrides(*flags.failOn)
+	if err != nil {
+		return nil, err
 	}
 	if raw := strings.TrimSpace(*flags.minConfidence); raw != "" {
 		level := core.NormalizedConfidence(raw)
@@ -48,6 +52,20 @@ func (flags scanOutputFlags) configOverrides() ([]string, error) {
 		overrides = append(overrides, "checks.min_confidence.default="+level)
 	}
 	return overrides, nil
+}
+
+// failOnOverrides validates a -fail-on value and returns the matching
+// output.fail_on override, or none when the flag is empty.
+func failOnOverrides(raw string) ([]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return make([]string, 0, 2), nil
+	}
+	policy, ok := core.NormalizedFailOn(raw)
+	if !ok {
+		return nil, fmt.Errorf("invalid -fail-on %q: must be one of %s", raw, strings.Join(core.FailOnValues(), ", "))
+	}
+	return []string{"output.fail_on=" + policy}, nil
 }
 
 // bannerEnabled reports whether the text banner belongs on stdout: only for an

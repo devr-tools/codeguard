@@ -47,7 +47,8 @@ not findings, so they cannot be baselined or waived:
 
 - `scan.target-walk` (fail): the walk of a target stopped on an error, such
   as an unreadable subdirectory, so files under it were not scanned. Every
-  section that finalizes after the failure reports it and fails.
+  section that used that target's file listing reports it and fails; sections
+  that never read the target's files do not.
 - `scan.file-read` (warn): a file the walk listed could not be read and was
   skipped. The first 20 such files are listed individually and the rest are
   summarised.
@@ -153,6 +154,43 @@ It is therefore the final precedence layer. Accepted names are `quality`,
 duplicate, unknown, and alias names are invalid. `observability` and
 `operations` are not accepted here: turn them off with
 `checks.observability: false` and `checks.operations: false`.
+
+### Disabling individual rules
+
+`checks.disabled_rules` turns off single rules, or a rule family, for good:
+
+```yaml
+checks:
+  disabled_rules:
+    - observability.unstructured-log   # one rule
+    - security.taint.*                 # every rule whose id starts with security.taint.
+```
+
+- An entry is an exact rule id, including a custom rule-pack id, or a dotted
+  prefix ending in `.*`. A retired alias (for example
+  `quality.mixed-abstraction-levels`) is accepted and disables the rule it
+  resolves to.
+- Entries are validated against the rule catalog. A typo fails with a "did
+  you mean" hint, a prefix must match at least one rule, a retired
+  performance id names its `performance.*` replacement, and blank or
+  duplicate entries are rejected.
+- A disabled rule's findings are dropped before the diff filter, the
+  confidence policy, the baseline, waivers and inline `codeguard:ignore`
+  directives. They are not counted as suppressed, so they never inflate a
+  rule's `suppression_ratio` in the `rule_stats` artifact or in
+  `codeguard doctor` rule health. Imported external-report findings are
+  filtered the same way.
+- `codeguard rules -enabled` leaves disabled rules out of the list and prints
+  one `disabled: <id> (checks.disabled_rules: <entry>)` line per rule on
+  stderr. `codeguard rules -format json -config ...` reports `"enabled":
+  false` and `"disabled_by"` for them, and `codeguard explain <id>` prints
+  `disabled by checks.disabled_rules: <entry>` (JSON: `disabled_by`).
+
+Prefer `disabled_rules` to a `waivers: [{rule: X, path: "**"}]` entry for a
+rule a team has decided not to use. A waiver is a temporary, reviewable
+exception (it has a reason and an optional expiry, and `waivers audit`
+tracks it) and every finding it hides counts as suppressed.
+`checks.disabled` still turns off whole sections.
 
 When `use_recommended_defaults` is absent or `false`, section behavior is
 unchanged from earlier configurations. Profiles do not select the recommended
@@ -435,6 +473,12 @@ Config keys:
 Current behavior:
 - active waivers suppress matching findings before section status is computed
 - expired waivers are ignored
+- `rule` takes the same selectors as inline suppressions: an exact rule id
+  (retired aliases resolve to their replacement), a dotted prefix ending in
+  `.*` (`security.*`, `security.taint.*`), or a bare `*` for every rule. Any
+  other use of `*` (`security*`, `*.go`, `security.*.go`) matches nothing; the
+  scan reports it as a `suppression.invalid-rule-pattern` warning diagnostic on
+  the first section, and `codeguard doctor` flags it.
 
 ## Baseline
 
@@ -490,6 +534,18 @@ Built-in profiles:
 - `enterprise`
 - `ai-safe`
 
+`enterprise` CI policy is generic: it requires a `.github/workflows`
+directory (`ci.required-workflow-dir`) and workflows that run a test gate and
+a security gate (`ci.missing-required-gate`; `test` matches `go test`,
+`npm test`, `pytest`, `cargo test` and similar, `security` matches
+govulncheck, gosec, CodeQL, Trivy, Snyk or Semgrep). Through 1.11 it also
+required codeguard's own release files: `.goreleaser.yaml`, `Makefile` and
+`.github/workflows/ci.yml`. A config that relied on those checks can restore
+them explicitly with `ci_rules.required_release_files` and
+`ci_rules.required_automation_paths`; a config that already writes those keys
+(such as one written by `codeguard init -profile enterprise` in 1.10 or earlier)
+is unaffected.
+
 The comparison below is generated from the profile definitions and verified by
 the configuration tests. The `Baseline` column is the built-in default policy —
 what a repository gets for any key it omits — and each profile column is that
@@ -509,8 +565,9 @@ sets only targets and section switches on top of the same baseline (see
 | `design_rules.max_methods_per_type` | 8 | 10 | 6 | 6 | 8 |
 | `design_rules.max_interface_methods` | 5 | 8 | 4 | 4 | 5 |
 | `security_rules.govulncheck_mode` | auto | auto | required | required | required |
-| `ci_rules.required_release_files` | — | — | — | .goreleaser.yaml | — |
-| `ci_rules.required_automation_paths` | — | — | — | Makefile<br>.github/workflows/ci.yml | — |
+| `ci_rules.require_workflow_dir` | false | false | false | true | false |
+| `ci_rules.required_release_files` | — | — | — | — | — |
+| `ci_rules.required_automation_paths` | — | — | — | — | — |
 | `ci_rules.required_gates` | — | — | test | test<br>security | — |
 | `contracts` | scan-mode | scan-mode | true | true | scan-mode |
 | `reliability` | false | false | true | true | true |
@@ -1782,7 +1839,6 @@ Config keys:
     "design": true,
     "design_rules": {
       "require_cmd_through_internal_cli": true,
-      "forbid_internal_import_cmd": true,
       "forbid_service_import_internal": true,
       "forbid_service_import_cmd": true,
       "sdk_facade_paths": ["pkg/myapp"],
@@ -1803,10 +1859,12 @@ Config keys:
 }
 ```
 
-Defaults: the four Go package-layering toggles
-(`require_cmd_through_internal_cli`, `forbid_internal_import_cmd`,
-`forbid_service_import_internal`, `forbid_service_import_cmd`) are **off by
-default**. They describe one specific repository layout — `cmd/` delegating to
+Defaults: the three Go package-layering toggles
+(`require_cmd_through_internal_cli`, `forbid_service_import_internal`,
+`forbid_service_import_cmd`) are **off by default**. A fourth key,
+`forbid_internal_import_cmd`, is deprecated and has no effect (Go cannot import
+a `cmd/` main package); see
+[Deprecated keys](config-reference.md#deprecated-keys). They describe one specific repository layout — `cmd/` delegating to
 `internal/cli`, and a `pkg/` facade that must not reach into `cmd/` — and
 report at fail level, and a `pkg/` package importing its own module's
 `internal/` is ordinary Go. Set them to `true` to enforce that layout; this
@@ -2566,8 +2624,10 @@ Config keys:
 }
 ```
 
-`output.fail_on` is the exit policy (`codeguard scan -fail-on` overrides it
-for one run; `validate-patch` honours the config key):
+`output.fail_on` is the exit policy. `codeguard scan -fail-on` and
+`codeguard validate-patch -fail-on` override it for one run, with the same
+values and validation; the flag also wins over a `-set output.fail_on=...`
+override:
 
 | `fail_on` | Exit 0 when | Exit 1 when |
 | --- | --- | --- |
@@ -2749,7 +2809,7 @@ Current behavior:
 - caches quality, design, security, prompt, and custom-rule file findings by file hash
 - stores per-file diagnostics with the findings (for example the `security.credential-fixture` diagnostics for suppressed synthetic fixtures), so a warm run reports the same diagnostics as a cold run; caches written by older versions are discarded on upgrade
 - caches optional semantic-review verdicts by hashed request content in a sibling semantic cache file
-- invalidates cached entries when file content or config changes, or when a cross-file input the finding depends on changes (sibling Go files in the same package when `local_precision` is on, `go.mod`/`go.work`, or the resolved SDK facade)
+- invalidates cached entries when file content or config changes, or when a cross-file input the finding depends on changes (sibling Go files in the same package when `local_precision` is on, `go.mod`/`go.work` - including a `go.mod` excluded from scanning and the `go.mod` of a `go.work` `use` module outside the target - or the resolved SDK facade)
 
 ## Doctor
 
@@ -2789,6 +2849,7 @@ segment, and none at all when nothing is close.
 | `-set checks.qualty=true` | `invalid config override: override "checks.qualty" references unknown config field "qualty"; did you mean "checks.quality"?` |
 | `-format sarf` | `invalid -format: unknown output format "sarf"; did you mean "sarif"? (valid formats: ...)` |
 | `checks.disabled: [securty]` | `checks.disabled contains unknown section "securty"; did you mean "security"? (valid sections: ...)` |
+| `checks.disabled_rules: [observability.unstructured-logs]` | `checks.disabled_rules contains unknown rule "observability.unstructured-logs"; did you mean "observability.unstructured-log"? ...` |
 
 The same hints cover `checks.min_confidence.sections` keys, `output.format` in
 a config file, waiver rule ids in `codeguard doctor` and `codeguard waivers
@@ -2827,6 +2888,21 @@ parser, so record the reason on the same line:
 ```go
 // codeguard:ignore security.taint.go -- operator-controlled env path for test instrumentation
 ```
+
+The rule ID can also be a selector:
+- `*` suppresses every rule on the covered lines.
+- A dotted prefix ending in `.*` suppresses every rule under it:
+  `codeguard:ignore security.* -- reason` covers `security.taint.go` and
+  `security.shell-execution`, and `security.taint.*` covers only the
+  `security.taint.` family. The prefix ends at a dot, so `security.*` does not
+  match a `securityx.` rule. `until` expiry applies to prefix directives the
+  same way.
+- Any other use of `*` (`security*`, `*.go`, `security.*.go`) suppresses
+  nothing. When such a directive sits where it would have covered a finding
+  (the same or previous line, or anywhere in the file for a file-level
+  finding), the finding's section reports a `suppression.invalid-rule-pattern`
+  warning diagnostic naming the file, line, and pattern, so the directive does
+  not fail silently. The finding itself is still reported.
 
 ### Justified gosec directives
 

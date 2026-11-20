@@ -38,7 +38,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 					index = buildGoPackageIndex(env, target)
 				}
 				modules := newGoModuleResolver(target.Path)
-				findings := support.ScanTargetFilesWithDependencies(env, target, "quality", isGoSourcePath, goQualityDependencies(index), func(file string, data []byte) []core.Finding {
+				findings := support.ScanTargetFilesWithDependencies(env, target, support.CacheSectionQualityGo, isGoSourcePath, goQualityDependencies(target.Path, index), func(file string, data []byte) []core.Finding {
 					return goFindingsForFileWithIndex(env, file, data, index, &modules)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
@@ -53,7 +53,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"python", "py"},
 			Run: func() []core.Finding {
-				return support.ScanPythonFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
+				return support.ScanPythonFiles(env, target, support.CacheSectionQualityPython, func(file string, data []byte) []core.Finding {
 					return pythonFindingsForFile(env, file, data)
 				})
 			},
@@ -85,7 +85,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"rust", "rs"},
 			Run: func() []core.Finding {
-				return support.ScanRustFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
+				return support.ScanRustFiles(env, target, support.CacheSectionQualityRust, func(file string, data []byte) []core.Finding {
 					return rustFindingsForFile(env, file, data)
 				})
 			},
@@ -93,7 +93,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"c++", "cpp", "cxx", "cc"},
 			Run: func() []core.Finding {
-				findings := support.ScanCPPFiles(env, target, "quality", func(file string, data []byte) []core.Finding {
+				findings := support.ScanCPPFiles(env, target, support.CacheSectionQualityCPP, func(file string, data []byte) []core.Finding {
 					return cppFindingsForFile(env, file, data)
 				})
 				if localPrecisionEnabled(env) && env.VisitTargetFiles != nil {
@@ -108,7 +108,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"java"},
 			Run: func() []core.Finding {
-				return env.ScanTargetFiles(target, "quality", isJavaFile, func(file string, data []byte) []core.Finding {
+				return env.ScanTargetFiles(target, support.CacheSectionQualityJava, isJavaFile, func(file string, data []byte) []core.Finding {
 					return javaFindingsForFile(env, file, data)
 				})
 			},
@@ -116,7 +116,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"csharp", "c#", "cs", "dotnet"},
 			Run: func() []core.Finding {
-				return env.ScanTargetFiles(target, "quality", isCSharpFile, func(file string, data []byte) []core.Finding {
+				return env.ScanTargetFiles(target, support.CacheSectionQualityCSharp, isCSharpFile, func(file string, data []byte) []core.Finding {
 					return csharpFindingsForFile(env, file, data)
 				})
 			},
@@ -124,7 +124,7 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 		support.LanguageDispatch{
 			Aliases: []string{"ruby", "rb"},
 			Run: func() []core.Finding {
-				return env.ScanTargetFiles(target, "quality", isRubyFile, func(file string, data []byte) []core.Finding {
+				return env.ScanTargetFiles(target, support.CacheSectionQualityRuby, isRubyFile, func(file string, data []byte) []core.Finding {
 					return rubyFindingsForFile(env, file, data)
 				})
 			},
@@ -135,15 +135,49 @@ func languageQualityAnalysis(ctx context.Context, env support.Context, target co
 
 // goQualityDependencies declares what the Go quality evaluator reads besides
 // the scanned file: go.mod/go.work through the module resolver (import-path
-// resolution for quality.dependency-direction), and, when local precision
+// resolution for quality.dependency-direction), including the ones the
+// listing does not carry (see goModuleResolverInputs), and, when local precision
 // built a package-wide index, every sibling .go file in the same directory
 // (package types and variables seen by the mutation resolver).
-func goQualityDependencies(index *goPackageIndex) support.FileScanDependencies {
-	deps := support.FileScanDependencies{SharedFiles: isGoManifestPath}
+func goQualityDependencies(root string, index *goPackageIndex) support.FileScanDependencies {
+	deps := support.FileScanDependencies{SharedFiles: isGoManifestPath, ExternalFiles: goModuleResolverInputs(root)}
 	if index != nil {
 		deps.PackageFiles = isGoSourcePath
 	}
 	return deps
+}
+
+// goModuleResolverInputs lists every manifest newGoModuleResolver and
+// metadataForFile can read from disk for the scanned files, whether or not the
+// walk lists it: the root go.work, the go.mod of each module it uses (which
+// may lie outside the target), and a go.mod candidate in every directory from
+// a scanned file up to the target root (the resolver takes the nearest one,
+// even when config excludes it or .gitignore hides it).
+func goModuleResolverInputs(root string) func([]string) []string {
+	return func(listing []string) []string {
+		inputs := []string{"go.work"}
+		uses, _ := parseGoManifest(filepath.Join(root, "go.work"), true)
+		for _, use := range uses {
+			inputs = append(inputs, filepath.ToSlash(filepath.Join(use, "go.mod")))
+		}
+		seen := map[string]struct{}{}
+		for _, rel := range listing {
+			if !isGoSourcePath(rel) {
+				continue
+			}
+			for dir := path.Dir(filepath.ToSlash(rel)); ; dir = path.Dir(dir) {
+				if _, ok := seen[dir]; ok {
+					break
+				}
+				seen[dir] = struct{}{}
+				inputs = append(inputs, path.Join(dir, "go.mod"))
+				if dir == "." || dir == "/" {
+					break
+				}
+			}
+		}
+		return inputs
+	}
 }
 
 func isGoSourcePath(rel string) bool {

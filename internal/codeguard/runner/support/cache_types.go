@@ -43,5 +43,8 @@ type cacheEntry struct {
 // than reused with mismatched semantics. v8 introduced content fingerprints for
 // path-insensitive baseline suppression after code moves. v9 stores per-file
 // diagnostics; a v8 entry has none recorded, and replaying it would silently
-// drop them.
-const scanCacheVersion = 9
+// drop them. v10 gives every per-file scan pass its own cache section id (see
+// checks/support/cache_sections.go); entries under the old shared ids such as
+// "quality" would never be read again, so they are discarded rather than kept
+// as dead weight in the cache file.
+const scanCacheVersion = 10

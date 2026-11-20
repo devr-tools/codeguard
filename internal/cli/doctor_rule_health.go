@@ -49,7 +49,15 @@ func waiverHealthCheck(waiver service.WaiverConfig, catalog map[string]bool, tod
 		return warnDoctorCheck("waiver:"+waiver.Rule,
 			fmt.Sprintf("rule id is a retired alias for %s; the waiver still applies, but update its rule id", canonical)), true
 	}
-	if waiver.Rule != "*" && !catalog[waiver.Rule] {
+	switch kind, _ := rules.ClassifyRulePattern(waiver.Rule); kind {
+	case rules.RulePatternInvalid:
+		return warnDoctorCheck("waiver:"+waiver.Rule, `waiver rule uses "*" in a way that matches nothing; use an exact rule id, a dotted prefix ending in ".*" (such as "security.*"), or a bare "*"`), true
+	case rules.RulePatternPrefix:
+		if !catalogHasRuleMatching(waiver.Rule, catalog) {
+			return warnDoctorCheck("waiver:"+waiver.Rule, "waiver prefix matches no catalog rule and never suppresses anything; remove it or fix the prefix"), true
+		}
+	}
+	if kind, _ := rules.ClassifyRulePattern(waiver.Rule); kind == rules.RulePatternExact && !catalog[waiver.Rule] {
 		if renamed, retired := rules.RetiredPerformanceRuleIDs()[waiver.Rule]; retired {
 			return warnDoctorCheck("waiver:"+waiver.Rule,
 				fmt.Sprintf("rule moved to the performance section as %s; update the waiver's rule id (the section is opt-in via checks.performance)", renamed)), true
@@ -117,4 +125,13 @@ func ruleStatsDoctorChecks(cfg service.Config) []doctorCheck {
 		return []doctorCheck{passDoctorCheck("rule-health", "no rule exceeded the suppression threshold in the last scan")}
 	}
 	return checks
+}
+
+func catalogHasRuleMatching(pattern string, catalog map[string]bool) bool {
+	for id := range catalog {
+		if rules.MatchRulePattern(pattern, id) {
+			return true
+		}
+	}
+	return false
 }

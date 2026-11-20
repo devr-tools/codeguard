@@ -16,7 +16,7 @@ type cppTaintAnalyzer struct {
 
 func cppTaintFindings(env support.Context, file string, source string) []core.Finding {
 	analyzer := &cppTaintAnalyzer{
-		taintEngine: newTaintEngine(env, file, taintRules{taintRuleID: "security.taint.cpp", ssrfRuleID: "security.ssrf.cpp", isSSRFSink: isCPPSSRFSink}, false),
+		taintEngine: newTaintEngine(env, file, taintRules{taintRuleID: "security.taint.cpp", ssrfRuleID: "security.ssrf.cpp", isSSRFSink: isCPPSSRFSink}),
 		parsed:      support.ParseCLike(source, support.CLikeCPP),
 	}
 	analyzer.runSummaryPasses(analyzer.analyzeAll)

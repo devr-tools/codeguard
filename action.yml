@@ -26,6 +26,13 @@ inputs:
     description: Output format
     required: false
     default: github
+  fail-on:
+    description: >-
+      Optional exit policy passed to codeguard scan -fail-on. fail exits non-zero when a
+      section fails, warn also when a section warns, none only on operational failures.
+      Empty (the default) uses output.fail_on from the config, or fail.
+    required: false
+    default: ""
   comment-fix-mode:
     description: PR comment mode. Use sticky to create or update a fix-oriented PR comment.
     required: false
@@ -35,43 +42,51 @@ inputs:
     required: false
     default: codeguard-action-comment
   version:
-    description: Devr CodeGuard version to install
+    description: Optional Devr CodeGuard version override. By default, builds the version bundled with this action.
     required: false
-    default: latest
+    default: ""
 
 runs:
   using: composite
   steps:
     - name: Set up Go
-      uses: actions/setup-go@v7
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: "1.23"
 
     - name: Install Devr CodeGuard
       shell: bash
-      run: go install github.com/devr-tools/codeguard/cmd/codeguard@${{ inputs.version }}
+      env:
+        CODEGUARD_VERSION: ${{ inputs.version }}
+      run: |
+        if [ -n "$CODEGUARD_VERSION" ]; then
+          go install "github.com/devr-tools/codeguard/cmd/codeguard@$CODEGUARD_VERSION"
+        else
+          cd "$GITHUB_ACTION_PATH"
+          go install ./cmd/codeguard
+        fi
 
     - name: Run Devr CodeGuard
       id: scan
       shell: bash
+      env:
+        CODEGUARD_CONFIG: ${{ inputs.config }}
+        CODEGUARD_PROFILE: ${{ inputs.profile }}
+        CODEGUARD_MODE: ${{ inputs.mode }}
+        CODEGUARD_BASE_REF: ${{ inputs.base-ref }}
+        CODEGUARD_FORMAT: ${{ inputs.format }}
+        CODEGUARD_FAIL_ON: ${{ inputs.fail-on }}
       run: |
         set +e
-        if [ -n "${{ inputs.profile }}" ]; then
-          codeguard scan \
-            -config "${{ inputs.config }}" \
-            -mode "${{ inputs.mode }}" \
-            -base-ref "${{ inputs.base-ref }}" \
-            -format "${{ inputs.format }}" \
-            -profile "${{ inputs.profile }}"
-          status=$?
-        else
-          codeguard scan \
-            -config "${{ inputs.config }}" \
-            -mode "${{ inputs.mode }}" \
-            -base-ref "${{ inputs.base-ref }}" \
-            -format "${{ inputs.format }}"
-          status=$?
+        scan_args=(scan -config "$CODEGUARD_CONFIG" -mode "$CODEGUARD_MODE" -base-ref "$CODEGUARD_BASE_REF" -format "$CODEGUARD_FORMAT")
+        if [ -n "$CODEGUARD_PROFILE" ]; then
+          scan_args+=(-profile "$CODEGUARD_PROFILE")
         fi
+        if [ -n "$CODEGUARD_FAIL_ON" ]; then
+          scan_args+=(-fail-on "$CODEGUARD_FAIL_ON")
+        fi
+        codeguard "${scan_args[@]}"
+        status=$?
         echo "exit_code=$status" >> "$GITHUB_OUTPUT"
         exit 0
 
@@ -117,4 +132,6 @@ runs:
     - name: Fail workflow on Devr CodeGuard findings
       if: ${{ steps.scan.outputs.exit_code != '0' }}
       shell: bash
-      run: exit "${{ steps.scan.outputs.exit_code }}"
+      env:
+        CODEGUARD_EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+      run: exit "$CODEGUARD_EXIT_CODE"

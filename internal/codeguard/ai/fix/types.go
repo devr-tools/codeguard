@@ -74,6 +74,9 @@ const (
 	BatchReasonNoChangedFiles        = "no_changed_files"
 	BatchReasonConflictingFiles      = "conflicting_files"
 	BatchReasonAggregateVerification = "aggregate_verification_failed"
+	// BatchReasonMaxFixes marks an otherwise eligible item left out because
+	// the batch already holds ai.autofix.max_fixes fixes.
+	BatchReasonMaxFixes = "max_fixes_exceeded"
 )
 
 // BatchRequest describes proposed fixes to be verified as one patch. It never

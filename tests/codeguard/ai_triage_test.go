@@ -15,10 +15,10 @@ import (
 )
 
 // useTestTriageProvider routes triage for this test to a deterministic
-// provider that returns decision/summary for every candidate.
-func useTestTriageProvider(t *testing.T, decision string, summary string) *triage.TestProvider {
+// provider that dismisses every candidate with summary.
+func useTestTriageProvider(t *testing.T, summary string) *triage.TestProvider {
 	t.Helper()
-	provider := &triage.TestProvider{Decision: decision, Summary: summary}
+	provider := &triage.TestProvider{Decision: "dismiss", Summary: summary}
 	t.Cleanup(triage.UseTestProviderForTest("test", provider))
 	t.Setenv("CODEGUARD_AI_TRIAGE_PROVIDER", "test")
 	t.Setenv("CODEGUARD_AI_TRIAGE_MODEL", "test-model")
@@ -194,7 +194,7 @@ func BuildClient() error {
 func doThing() error { return nil }
 `)
 
-	useTestTriageProvider(t, "dismiss", "blank identifier use is intentional in this fixture")
+	useTestTriageProvider(t, "blank identifier use is intentional in this fixture")
 
 	cacheEnabled := true
 	report, err := codeguard.Run(context.Background(), codeguard.Config{
@@ -247,7 +247,7 @@ func BuildClient() error {
 func doThing() error { return nil }
 `)
 
-	provider := useTestTriageProvider(t, "dismiss", "cached dismissal")
+	provider := useTestTriageProvider(t, "cached dismissal")
 
 	cachePath := filepath.Join(root, ".codeguard", "cache.json")
 	cacheEnabled := true

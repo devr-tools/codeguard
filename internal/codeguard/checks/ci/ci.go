@@ -90,7 +90,7 @@ func testFileLocationFindings(env support.Context, target core.TargetConfig) []c
 	if len(allowed) == 0 {
 		return nil
 	}
-	return env.ScanTargetFiles(target, "ci-test-file-location", func(rel string) bool {
+	return env.ScanTargetFiles(target, support.CacheSectionCITestFileLocation, func(rel string) bool {
 		return isTargetTestFile(target.Language, rel)
 	}, func(file string, _ []byte) []core.Finding {
 		for _, pattern := range allowed {

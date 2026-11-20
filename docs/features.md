@@ -93,7 +93,7 @@ See [Agent-native features](agent-native.md) for details.
 ## CLI and CI gating
 
 - `codeguard init` detects languages, entrypoints, workflows, and manifests and writes a small config; `codeguard scan` with no config uses the same repository-aware defaults. See [Getting started](getting-started.md#quick-start).
-- `-fail-on fail|warn|none` (`output.fail_on`), `-min-confidence low|medium|high`, and `-quiet` control the exit policy, the confidence floor, and progress output. Operational failures exit 1 under every policy.
+- `-fail-on fail|warn|none` (`output.fail_on`), `-min-confidence low|medium|high`, and `-quiet` control the exit policy, the confidence floor, and progress output. Operational failures exit 1 under every policy. `codeguard validate-patch` accepts the same `-fail-on`.
 - `codeguard rules -section|-search|-level|-enabled` filters the catalog; `codeguard explain` shows examples, config keys with their resolved values, suppression syntax, and profiles.
 - Mistyped flags, rule ids, profiles, formats, and `-set` keys fail before the scan with a "did you mean" suggestion.
 - SARIF output carries `security-severity`, CWE tags, rule help, taint code flows, and `partialFingerprints` for GitHub code scanning. See [Checks → SARIF output](checks.md#sarif-output-github-code-scanning).

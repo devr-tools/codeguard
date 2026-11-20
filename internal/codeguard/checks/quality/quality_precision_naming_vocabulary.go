@@ -2,6 +2,8 @@ package quality
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -29,7 +31,11 @@ func sourceNamingFindings(env support.Context, file string, source string) []cor
 }
 
 func glossaryDriftFinding(env support.Context, file string, idents *sourceIdentifiers) (core.Finding, bool) {
-	for concept, entry := range env.Config.Checks.QualityRules.Naming.Glossary {
+	// One finding per file: walk concepts in name order so a file drifting
+	// on several concepts reports the same one every run.
+	glossary := env.Config.Checks.QualityRules.Naming.Glossary
+	for _, concept := range slices.Sorted(maps.Keys(glossary)) {
+		entry := glossary[concept]
 		preferred := strings.ToLower(strings.TrimSpace(concept))
 		terms := append([]string{preferred}, entry.Avoid...)
 		seen := map[string]int{}

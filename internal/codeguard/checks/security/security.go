@@ -46,7 +46,7 @@ func securityTargetScan(ctx context.Context, env support.Context, target core.Ta
 		}))
 	}
 	if scanner.Enabled() {
-		secretFindings, secretDiagnostics := support.ScanTargetFilesWithDiagnostics(env, target, "security-secrets", func(string) bool { return true }, func(file string, data []byte) ([]core.Finding, []core.Diagnostic) {
+		secretFindings, secretDiagnostics := support.ScanTargetFilesWithDiagnostics(env, target, support.CacheSectionSecuritySecrets, func(string) bool { return true }, func(file string, data []byte) ([]core.Finding, []core.Diagnostic) {
 			return secretResultsForFile(env, file, data, scanner)
 		})
 		findings = append(findings, secretFindings...)
@@ -58,14 +58,14 @@ func securityTargetScan(ctx context.Context, env support.Context, target core.Ta
 	// bypass findingsForFile whenever the semantic engine claims them, which
 	// would silently skip these rules. A distinct cache section id ensures no
 	// collision with the per-file caches of the passes below.
-	findings = append(findings, env.ScanTargetFiles(target, "security-a09", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
+	findings = append(findings, env.ScanTargetFiles(target, support.CacheSectionSecurityA09, func(string) bool { return true }, func(file string, data []byte) []core.Finding {
 		return a09FindingsForFile(env, file, strings.ReplaceAll(string(data), "\r\n", "\n"))
 	})...)
 
 	if isTypeScriptTarget(target) {
 		findings = append(findings, typeScriptTargetFindings(ctx, env, target)...)
 	} else {
-		findings = append(findings, env.ScanTargetFiles(target, "security", func(string) bool { return true }, func(file string, data []byte) []core.Finding {
+		findings = append(findings, env.ScanTargetFiles(target, support.CacheSectionSecurityLanguage, func(string) bool { return true }, func(file string, data []byte) []core.Finding {
 			return findingsForFile(env, file, data)
 		})...)
 	}

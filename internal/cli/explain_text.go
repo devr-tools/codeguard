@@ -94,6 +94,10 @@ func writeExplainConfig(b *strings.Builder, out explainOutput) {
 		}
 		fmt.Fprintf(b, "  enabled under this config: %s\n", state)
 	}
+	if out.DisabledBy != "" {
+		fmt.Fprintf(b, "  disabled by %s\n", out.DisabledBy)
+		return
+	}
 	if out.Enabled != nil && !*out.Enabled {
 		if sets := enableSets(out.ConfigKeys); sets != "" {
 			fmt.Fprintf(b, "  enable for one run: codeguard scan%s\n", sets)
@@ -102,6 +106,9 @@ func writeExplainConfig(b *strings.Builder, out explainOutput) {
 	}
 	if key := disableKey(out.ConfigKeys); key != "" {
 		fmt.Fprintf(b, "  disable for one run: codeguard scan -set %s=false\n", key)
+	}
+	if out.ConfigSource != "" {
+		fmt.Fprintf(b, "  disable this rule permanently: add %s to checks.disabled_rules\n", out.ID)
 	}
 	if out.SectionKey != "" && out.SectionKey != "custom" {
 		fmt.Fprintf(b, "  disable the whole section: add %s to checks.disabled\n", out.SectionKey)

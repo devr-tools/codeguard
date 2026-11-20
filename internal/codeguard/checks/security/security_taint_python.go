@@ -19,7 +19,7 @@ type pyTaintAnalyzer struct {
 func pythonTaintFindings(env support.Context, file string, source string) []core.Finding {
 	parsed := support.ParsePython(source)
 	analyzer := &pyTaintAnalyzer{
-		taintEngine: newTaintEngine(env, file, taintRules{taintRuleID: "security.taint.python", ssrfRuleID: "security.ssrf.python", isSSRFSink: isPyHTTPSink}, false),
+		taintEngine: newTaintEngine(env, file, taintRules{taintRuleID: "security.taint.python", ssrfRuleID: "security.ssrf.python", isSSRFSink: isPyHTTPSink}),
 		parsed:      parsed,
 		models:      newPyModelBindings(parsed.Imports),
 		webRequest:  hasWebFrameworkImport(parsed.Imports),

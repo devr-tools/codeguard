@@ -15,14 +15,14 @@ func typeScriptTargetFindings(ctx context.Context, env support.Context, target c
 	results, ok, err := support.AnalyzeTypeScriptTargetForContext(ctx, env, target)
 	if err == nil && ok {
 		findings := support.FindingsFromInputs(env, filterTypeScriptQualitySemanticInputs(qualityTypeScriptTargetExtract(results)))
-		findings = append(findings, env.ScanTargetFiles(target, "quality-typescript-file-length", isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
+		findings = append(findings, env.ScanTargetFiles(target, support.CacheSectionQualityTypeScriptFileLength, isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
 			return fileLengthFindingWithSignals(env, file, data, findings)
 		})...)
-		findings = append(findings, env.ScanTargetFiles(target, "quality-typescript-ai", isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
+		findings = append(findings, env.ScanTargetFiles(target, support.CacheSectionQualityTypeScriptAI, isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
 			return typeScriptAIOnlyFindingsForFile(env, file, data)
 		})...)
 		if localPrecisionEnabled(env) {
-			findings = append(findings, env.ScanTargetFiles(target, "quality-typescript-local-precision", isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
+			findings = append(findings, env.ScanTargetFiles(target, support.CacheSectionQualityTypeScriptLocalPrecision, isTypeScriptLikeFile, func(file string, data []byte) []core.Finding {
 				parsed := support.ParseCLikeSource(env, file, data, support.CLikeTypeScript)
 				localFindings := parsedPrecisionFindings(env, file, parsed)
 				localFindings = append(localFindings, parsedStructuralSmellFindings(env, file, parsed)...)
@@ -32,7 +32,7 @@ func typeScriptTargetFindings(ctx context.Context, env support.Context, target c
 		return findings
 	}
 	return support.TypeScriptTargetFindings(ctx, env, target, support.TypeScriptTargetScan{
-		SectionID: "quality",
+		SectionID: support.CacheSectionQualityTypeScript,
 		Extract:   qualityTypeScriptTargetExtract,
 		Include:   isTypeScriptLikeFile,
 		Evaluator: func(file string, data []byte) []core.Finding {

@@ -152,6 +152,44 @@ func TestDesignCheckWarnsForTooManyMethodsOnType(t *testing.T) {
 	assertSectionStatus(t, report, "Design Patterns", "warn")
 }
 
+func TestDesignCheckCountsMethodsAcrossPackageFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "pkg", "codeguard", "service.go"), "package codeguard\n\ntype Service struct{}\n\nfunc (Service) A(){}\nfunc (Service) B(){}\n")
+	writeFile(t, filepath.Join(dir, "pkg", "codeguard", "service_more.go"), "package codeguard\n\nfunc (Service) C(){}\nfunc (Service) D(){}\n")
+
+	cfg := codeguard.ExampleConfig()
+	cfg.Name = "design-srp-cross-file"
+	cfg.Targets = []codeguard.TargetConfig{{Name: "repo", Path: dir, Language: "go"}}
+	cfg.Checks.Design = true
+	cfg.Checks.Quality = false
+	cfg.Checks.Security = false
+	cfg.Checks.Prompts = false
+	cfg.Checks.CI = false
+	cacheOff := false
+	cfg.Cache.Enabled = &cacheOff
+	cfg.Checks.DesignRules.MaxMethodsPerType = 3
+
+	report, err := codeguard.Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	var matching []codeguard.Finding
+	for _, section := range report.Sections {
+		for _, finding := range section.Findings {
+			if finding.RuleID == "design.max-methods-per-type" {
+				matching = append(matching, finding)
+			}
+		}
+	}
+	if len(matching) != 1 {
+		t.Fatalf("expected one package-level method-count finding, got %d: %#v", len(matching), matching)
+	}
+	if !strings.Contains(matching[0].Message, "has 4 methods") {
+		t.Fatalf("expected aggregated method count, got %q", matching[0].Message)
+	}
+}
+
 func TestDesignCheckWarnsForLargeInterface(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "pkg", "codeguard", "ports.go"), "package codeguard\n\ntype Client interface {\n\tA()\n\tB()\n\tC()\n}\n")
