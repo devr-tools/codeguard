@@ -47,6 +47,42 @@ For pull request workflows, the action can also publish a sticky fix-oriented co
 
 `format: github` preserves workflow annotations. `comment-fix-mode: sticky` adds or updates a PR comment with concrete fix suggestions derived from the same findings. A sticky update only edits a comment written by the token's own account (`github-actions[bot]` for the default `GITHUB_TOKEN`, or the token owner for a personal access token), so a marker comment posted by anyone else is ignored and a new comment is created instead.
 
+### Inline PR review comments
+
+The action can also post findings as line-level pull request review comments, in the style of reviewdog's `github-pr-review` reporter. It is off by default:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+steps:
+  - uses: actions/checkout@<sha> # pin to a full commit SHA
+    with:
+      fetch-depth: 0
+  - name: Devr Codeguard
+    uses: devr-tools/codeguard@v1.11.0
+    with:
+      config: codeguard.yaml
+      mode: diff
+      base-ref: origin/main
+      review-comments: "on"
+      review-comment-limit: "25"
+```
+
+- `review-comments`: `on` posts inline review comments; `off` (the default) does not. Quote `"on"` so YAML keeps it a string.
+- `review-comment-limit`: the most inline comments one run posts (default `25`). The review body lists the rest by path, line, rule, and message.
+
+The step runs `codeguard scan -format json` and makes one review per run with `POST /repos/{owner}/{repo}/pulls/{n}/reviews`. That review uses `event: COMMENT`, so it never approves a pull request or requests changes. The step runs only for `pull_request` and `pull_request_target` events, the same gate as the sticky comment. It needs `pull-requests: write`.
+
+- **Diff lines only.** The step reads the PR's files (`GET /pulls/{n}/files`) and parses each patch into new-file line numbers. A finding gets an inline comment only when its line is an added or context line on the RIGHT side of the diff, because GitHub rejects comments outside a diff hunk. Findings outside the diff are counted but not commented; the sticky comment and annotations still cover them. Files without a patch, such as binary or very large files, get no inline comments. Only unsuppressed `fail` and `warn` findings with a file line are considered, ordered fail-first, so the cap keeps the most severe ones.
+- **No duplicates across runs.** Each comment starts with a hidden `<!-- codeguard-review:<fingerprint> -->` marker. The fingerprint is the finding's context fingerprint, which survives edits that only shift its line. Before posting, the step lists the PR's review comments and skips findings already commented. Like the sticky comment, it only trusts markers in comments written by the token's own account. A marker posted by anyone else can't suppress a finding.
+- **Rejected comments.** If GitHub rejects the whole review with `422`, for example because a new push moved a line out of the diff, the step posts each comment on its own against the scanned head commit. It skips the ones GitHub still rejects and lists them in a body-only review. Other API errors fail the step.
+- **Suggestions.** A comment carries a ```` ```suggestion ```` block only when codeguard knows the exact replacement. Today that is a line holding nothing but a `debugger` statement (`quality.typescript.debugger-statement`, `quality.javascript.debugger-statement`), where the suggestion deletes the line. Every other finding gets its rule id, message, how-to-fix text, and a link to the rule docs. Guided fix templates are advice, not replacements, so they never become suggestions. `security.*` findings and findings with secret metadata never get a suggestion block, because a suggestion repeats source text.
+- **Escaping.** Messages and how-to-fix text come from the scanned repository, so they are flattened to one line with markdown and HTML metacharacters escaped. `@` mentions are defused. Suggestion fences are longer than any backtick run in the replacement.
+
+Finding paths are relative to the scan target. Inline comments line up with PR paths when the target is the repository root.
+
 `fail-on` sets when the action fails the job, and passes `-fail-on` to `codeguard scan`:
 
 ```yaml

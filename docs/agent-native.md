@@ -74,6 +74,7 @@ This document is a short status brief for `codeguard` features aimed at AI agent
 - GitHub Action comment-fix mode
   - the composite action keeps `format: github` annotation output
   - `comment-fix-mode: sticky` adds or updates a pull request comment with fix-oriented markdown generated from findings
+  - `review-comments: on` posts findings on changed lines as inline pull request review comments, with a suggestion block when the fix is an exact replacement
 
 - Expanded agent-config governance
   - `CLAUDE.md`, `AGENTS.md`, and `.cursorrules` are scanned as governed prompt assets
