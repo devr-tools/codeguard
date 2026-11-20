@@ -45,6 +45,17 @@ inputs:
     description: Optional Devr CodeGuard version override. By default, builds the version bundled with this action.
     required: false
     default: ""
+  review-comments:
+    description: >-
+      Inline PR review comments. Use on to post findings on changed lines as one
+      pull request review (event COMMENT, never approve or request changes).
+      Requires pull-requests write permission.
+    required: false
+    default: "off"
+  review-comment-limit:
+    description: Maximum inline review comments per run when review-comments is on. Further findings are listed in the review body.
+    required: false
+    default: "25"
 
 runs:
   using: composite
@@ -128,6 +139,40 @@ runs:
           -repository "$CODEGUARD_REPOSITORY" \
           -marker "$CODEGUARD_COMMENT_TAG" \
           -mode "$CODEGUARD_COMMENT_MODE"
+
+    - name: Post Devr CodeGuard review comments
+      if: ${{ inputs.review-comments == 'on' && (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        CODEGUARD_CONFIG: ${{ inputs.config }}
+        CODEGUARD_PROFILE: ${{ inputs.profile }}
+        CODEGUARD_MODE: ${{ inputs.mode }}
+        CODEGUARD_BASE_REF: ${{ inputs.base-ref }}
+        CODEGUARD_REVIEW_COMMENT_LIMIT: ${{ inputs.review-comment-limit }}
+        CODEGUARD_REPOSITORY: ${{ github.repository }}
+      # Scans the caller's checkout from the default working directory, like
+      # the comment step; only the review helper is built from the action.
+      run: |
+        report_file="$(mktemp)"
+        scan_args=(scan -config "$CODEGUARD_CONFIG" -mode "$CODEGUARD_MODE" -base-ref "$CODEGUARD_BASE_REF" -format json)
+        if [ -n "$CODEGUARD_PROFILE" ]; then
+          scan_args+=(-profile "$CODEGUARD_PROFILE")
+        fi
+        set +e
+        codeguard "${scan_args[@]}" > "$report_file"
+        scan_status=$?
+        set -e
+        if [ ! -s "$report_file" ]; then
+          msg="codeguard scan -format json produced no report (exit $scan_status); the PR review comments were not posted. See the scan error above."
+          echo "::error title=CodeGuard PR review::$msg"
+          echo "$msg" >&2
+          exit 1
+        fi
+        go -C "$GITHUB_ACTION_PATH" run ./cmd/codeguard-action-review \
+          -report-file "$report_file" \
+          -repository "$CODEGUARD_REPOSITORY" \
+          -limit "$CODEGUARD_REVIEW_COMMENT_LIMIT"
 
     - name: Fail workflow on Devr CodeGuard findings
       if: ${{ steps.scan.outputs.exit_code != '0' }}
