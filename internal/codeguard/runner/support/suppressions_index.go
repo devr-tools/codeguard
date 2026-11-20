@@ -28,6 +28,13 @@ type inlineSuppressionIndex struct {
 	// other than as a bare wildcard or a trailing ".*" prefix. They never
 	// suppress; invalidCovering surfaces them so the author learns that.
 	invalid []inlineSuppression
+	// peers holds the directive indexes of the same target-relative path
+	// under every other target where it exists. Findings carry only a
+	// target-relative path, so with targets a/ and b/ both holding main.go
+	// the finding's own file cannot be told apart. A directive then
+	// suppresses only when every candidate file has one covering the
+	// finding, so an ignore in a/main.go cannot hide a finding in b/main.go.
+	peers []*inlineSuppressionIndex
 }
 
 // emptyInlineSuppressions is shared by every file that has no directive at all,
@@ -89,41 +96,64 @@ func inlineSuppressionKey(sc Context, rel string) string {
 	return b.String()
 }
 
-// loadInlineSuppressions resolves rel exactly as the per-finding lookup always
-// has (the first target where the joined path exists), reads it, and parses
-// its directives. Bytes the scan already holds in the corpus are reused; any
+// loadInlineSuppressions resolves rel against the targets (the first target
+// where the joined path exists, with any other such target kept as a peer),
+// reads it, and parses its directives. Bytes the scan already holds in the corpus are reused; any
 // other file is read directly, uncapped and without being retained, so this
 // lookup never consumes corpus budget (which could otherwise surface a new
 // budget diagnostic) and never changes what a large file reads as.
 func loadInlineSuppressions(sc Context, rel string) *inlineSuppressionIndex {
-	root, fullPath := findingTargetPath(sc, rel)
-	if fullPath == "" {
+	candidates := findingTargetPaths(sc, rel)
+	if len(candidates) == 0 {
 		return nil
 	}
-	data, ok := sc.corpus.cachedRead(root, filepath.FromSlash(rel))
+	primary := readInlineSuppressions(sc, rel, candidates[0])
+	if primary == nil || len(candidates) == 1 || len(primary.directives) == 0 {
+		return primary
+	}
+	resolved := *primary
+	resolved.peers = make([]*inlineSuppressionIndex, 0, len(candidates)-1)
+	for _, candidate := range candidates[1:] {
+		peer := readInlineSuppressions(sc, rel, candidate)
+		if peer == nil {
+			peer = emptyInlineSuppressions
+		}
+		resolved.peers = append(resolved.peers, peer)
+	}
+	return &resolved
+}
+
+func readInlineSuppressions(sc Context, rel string, candidate targetFilePath) *inlineSuppressionIndex {
+	data, ok := sc.corpus.cachedRead(candidate.root, filepath.FromSlash(rel))
 	if !ok {
 		var err error
-		data, err = os.ReadFile(fullPath) //nolint:gosec // path resolved via findingTargetPath against the scan context
+		data, err = os.ReadFile(candidate.path) //nolint:gosec // path resolved via findingTargetPaths against the scan context
 		if err != nil {
 			return nil
 		}
 	}
-	return indexInlineSuppressions(fullPath, data)
+	return indexInlineSuppressions(candidate.path, data)
 }
 
-// findingTargetPath returns the first target root under which rel exists and
-// the joined path, or empty strings when it exists under none.
-func findingTargetPath(sc Context, rel string) (string, string) {
+type targetFilePath struct {
+	root string
+	path string
+}
+
+// findingTargetPaths returns, in target order, every target root under which
+// rel exists, with the joined path.
+func findingTargetPaths(sc Context, rel string) []targetFilePath {
 	if rel == "" {
-		return "", ""
+		return nil
 	}
+	var out []targetFilePath
 	for _, target := range sc.Cfg.Targets {
 		candidate := filepath.Join(target.Path, filepath.FromSlash(rel))
 		if _, err := os.Stat(candidate); err == nil {
-			return target.Path, candidate
+			out = append(out, targetFilePath{root: target.Path, path: candidate})
 		}
 	}
-	return "", ""
+	return out
 }
 
 var (
@@ -189,6 +219,19 @@ func parseInlineSuppressionLines(lines []string, hasIgnore bool, hasGosec bool) 
 // translated gosec directive covers exactly its target line. Rule and expiry
 // are checked at match time because expiry depends on the scan date.
 func (index *inlineSuppressionIndex) match(sc Context, finding core.Finding) (inlineSuppression, bool) {
+	directive, ok := index.matchOwn(sc, finding)
+	if !ok {
+		return inlineSuppression{}, false
+	}
+	for _, peer := range index.peers {
+		if _, peerOK := peer.matchOwn(sc, finding); !peerOK {
+			return inlineSuppression{}, false
+		}
+	}
+	return directive, true
+}
+
+func (index *inlineSuppressionIndex) matchOwn(sc Context, finding core.Finding) (inlineSuppression, bool) {
 	if len(index.directives) == 0 {
 		return inlineSuppression{}, false
 	}
