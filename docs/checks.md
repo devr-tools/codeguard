@@ -2789,6 +2789,51 @@ Current behavior:
 - when `CODEGUARD_AI_RUNTIME_COMMAND` is set, `codeguard` sends JSON on stdin and expects `{"matches":[{"line":number,"column":number,"message":string,"rationale":string}]}` on stdout
 - custom rules show up in `codeguard rules -config ...` and `codeguard explain -config ...`
 
+### Testing rule packs (`codeguard rules test`)
+
+`codeguard rules test` checks a rule pack against annotated fixtures, in the
+style of `semgrep --test`, so a regex change that stops matching (or starts
+over-matching) fails CI instead of shipping silently:
+
+```bash
+codeguard rules test -config codeguard.yaml tests/rule-fixtures
+codeguard rules test -config codeguard.yaml -format json tests/rule-fixtures/handlers/api.go
+```
+
+Annotate a fixture with comment lines in whatever syntax the file uses
+(`//`, `#`, `--`, `;`, `%`, `/*`, `<!--`):
+
+```python
+# ruleid: custom.no-todo-prompts
+prompt = "TODO: write the system prompt"
+# ok: custom.no-todo-prompts
+prompt = "You are a careful assistant."
+```
+
+- `ruleid: <id>` expects `<id>` to report on the next line that is not itself
+  an annotation; `ok: <id>` expects it not to. Several ids can be listed,
+  comma separated, and stacked annotation lines all describe the same line.
+- `ruleid-file: <id>` and `ok-file: <id>` describe a file-level finding (line
+  0), which is what path-only rules report.
+- Every finding the packs report in a fixture needs a `ruleid` annotation, so
+  over-matching fails too. A finding on an annotation line itself is ignored,
+  because the comment names the rule id a content regex may match.
+- A directory argument is scanned as its own target, so a rule's `paths`,
+  `exclude` and `path_regex` match paths relative to that directory: lay
+  fixtures out as the rule expects (`tests/rule-fixtures/handlers/api.go` for
+  `paths: ["handlers/**"]`). A file argument is scanned relative to its parent
+  directory. `.gitignore` is not applied; the built-in default exclusions are.
+- Only `rule_packs` rules run: built-in checks, the baseline, waivers and
+  `checks.disabled_rules` are not applied. Natural-language rules are skipped
+  with a note, never sent to an AI runtime.
+- Output lists `PASS`/`FAIL` per annotated file; a failing file shows each
+  rule's expected and reported lines, then every missing and unexpected line.
+  `-format json` emits the same as `{"files": [...], "skipped_rules": [...],
+  "passed": N, "failed": M}`.
+- Exit status is 1 when any fixture fails, an annotation names a rule no pack
+  defines, or no fixture holds an annotation or a finding (so a mistyped path
+  cannot pass).
+
 ## Cache
 
 Purpose:

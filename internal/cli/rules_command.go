@@ -21,8 +21,15 @@ type rulesFilter struct {
 }
 
 func runRules(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "test" {
+		return runRulesTest(args[1:], stdout, stderr)
+	}
 	fs := flag.NewFlagSet("rules", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		_, _ = fmt.Fprintln(stderr, "usage: codeguard rules [flags]\n       codeguard rules test [-config X] [-format text|json] <fixture path...>   (see codeguard rules test -h)\n\nFlags:")
+		fs.PrintDefaults()
+	}
 	configPath := fs.String("config", "", "optional config path to include custom rule packs (and to resolve -enabled)")
 	profile := fs.String("profile", "", "optional policy profile override")
 	section := fs.String("section", "", "only rules in this section id (quality, security, supply_chain, ...) or display name")
