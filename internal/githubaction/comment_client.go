@@ -10,10 +10,18 @@ import (
 
 const MaxCommentBodyBytes = 65000
 
+// DefaultCommentAuthor is the login of the default GITHUB_TOKEN, which cannot
+// call GET /user to discover itself.
+const DefaultCommentAuthor = "github-actions[bot]"
+
 type CommentPublisher struct {
 	BaseURL string
 	Token   string
 	Client  *http.Client
+	// Author is the login whose comments a sticky publish may update. When
+	// empty it is resolved from the token with GET /user (a personal access
+	// token), falling back to DefaultCommentAuthor (the GITHUB_TOKEN).
+	Author string
 }
 
 func (p CommentPublisher) Publish(repository string, prNumber int, body string, mode string) error {
@@ -36,7 +44,15 @@ func (p CommentPublisher) publishSticky(ctx context.Context, repository string, 
 		return err
 	}
 	marker, exactMarker := stickyMarkerFromBody(body)
+	author := p.commentAuthor(ctx)
 	for _, comment := range comments {
+		// Anyone who can comment on the PR can post a comment that starts
+		// with the marker. Updating it would put the report in a comment the
+		// PR author owns and can later edit into a fake result, so only the
+		// publisher's own comments are candidates.
+		if !strings.EqualFold(comment.User.Login, author) {
+			continue
+		}
 		commentMarker, hasCommentMarker := stickyMarkerFromBody(comment.Body)
 		matches := exactMarker && hasCommentMarker && commentMarker == marker
 		if !exactMarker {
@@ -47,6 +63,22 @@ func (p CommentPublisher) publishSticky(ctx context.Context, repository string, 
 		}
 	}
 	return p.createComment(ctx, repository, prNumber, body)
+}
+
+// commentAuthor returns the login whose comments publishSticky may update.
+func (p CommentPublisher) commentAuthor(ctx context.Context) string {
+	if author := strings.TrimSpace(p.Author); author != "" {
+		return author
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.BaseURL+"/user", nil)
+	if err != nil {
+		return DefaultCommentAuthor
+	}
+	var user commentUser
+	if err := p.doJSON(req, http.StatusOK, &user); err != nil || strings.TrimSpace(user.Login) == "" {
+		return DefaultCommentAuthor
+	}
+	return user.Login
 }
 
 // stickyMarkerFromBody returns the complete marker emitted by WrapCommentBody.

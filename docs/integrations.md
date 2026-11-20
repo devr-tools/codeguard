@@ -45,7 +45,7 @@ For pull request workflows, the action can also publish a sticky fix-oriented co
     comment-fix-mode: sticky
 ```
 
-`format: github` preserves workflow annotations. `comment-fix-mode: sticky` adds or updates a PR comment with concrete fix suggestions derived from the same findings.
+`format: github` preserves workflow annotations. `comment-fix-mode: sticky` adds or updates a PR comment with concrete fix suggestions derived from the same findings. A sticky update only edits a comment written by the token's own account (`github-actions[bot]` for the default `GITHUB_TOKEN`, or the token owner for a personal access token), so a marker comment posted by anyone else is ignored and a new comment is created instead.
 
 `fail-on` sets when the action fails the job, and passes `-fail-on` to `codeguard scan`:
 
